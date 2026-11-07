@@ -936,6 +936,28 @@ L(23,11,'Leçon 23 — Reproduire une pratique vue en vidéo, en sécurité','Mi
   ]);
 });
 
+L(24,11,'Leçon 24 — Claude Code dans un projet Unreal Engine 5 (pratique 22)','Terminal, Claude Code et éditeur Unreal (simulés)',S=>{
+  const d='~/Projets/MonJeuUE';
+  S(TERM({title:'agent@poste-usj : '+d,lines:['$ ls','MonJeuUE.uproject  Config/  Content/  Source/  Binaries/  Intermediate/  Saved/']}),'term-in','saisie','Exercice construit sur la démarche générale (comparez avec la vidéo d’Alex). Dans le dossier du projet, lancez [[claude]].','Claude Code se lance à la racine du projet, là où se trouve le fichier .uproject.','claude');
+  S(CC({dir:d}),'cc-in','saisie','Faites découvrir le projet à Claude : tapez [[/init]].','/init analyse le projet et rédige un premier CLAUDE.md.','/init');
+  S(CC({dir:d,lines:['> /init','● Projet Unreal Engine détecté : MonJeuUE.uproject (C++)','  Source/MonJeuUE · Content/ · Config/'],perm:PERM('Claude souhaite créer le fichier : CLAUDE.md',['Description du projet, des dossiers et des conventions'],0)}),'ok','clic','Acceptez la création du [[CLAUDE.md]].','Ce fichier évite de réexpliquer le projet à chaque session.');
+  S(CC({dir:d+'/CLAUDE.md',noHead:true,lines:['# CLAUDE.md — MonJeuUE','## Projet : jeu Unreal Engine 5, code C++ dans Source/MonJeuUE','## Conventions : préfixe A pour les Actors, U pour les objets, BP_ pour les Blueprints',{id:'l-ro',t:'## Ne jamais modifier : Binaries/, Intermediate/, Saved/, DerivedDataCache/'},'## Les cartes (.umap) et assets (.uasset) se modifient dans l’éditeur, pas en texte']}),'l-ro','clic','Repérez la règle [[Ne jamais modifier]].','Ces dossiers sont regénérés par le moteur : les modifier ne sert à rien et peut casser le projet.');
+  S(CC({dir:d}),'cc-in','saisie','Demandez du code : [[Crée un Actor C++ PorteAutomatique]].','Une demande précise : le type de classe et son nom.',"Crée un Actor C++ PorteAutomatique");
+  S(CC({dir:d,lines:['> Crée un Actor C++ PorteAutomatique','● Plan : classe APorteAutomatique, ouverture quand le joueur approche'],perm:PERM('Claude souhaite créer : Source/MonJeuUE/PorteAutomatique.h et PorteAutomatique.cpp',['2 nouveaux fichiers de code'],0)}),'ok','clic','Nouveaux fichiers de code, prévus par la demande : [[Oui]].','Relisez ensuite le code proposé : vous restez responsable de ce qui entre dans le projet.');
+  S(CC({dir:d,lines:['✔ PorteAutomatique.h et .cpp créés'],perm:PERM('Claude souhaite modifier : Content/Maps/Niveau_Principal.umap',['Fichier binaire de carte'],2)}),'ok','clic','Claude veut modifier directement un fichier de carte .umap. Votre réponse ?','Les cartes sont des fichiers binaires : on les modifie dans l’éditeur. Répondez Non et placez la porte vous-même.');
+  const ue = (o={}) => APP({brand:'Éditeur Unreal (reproduction simplifiée) — MonJeuUE',logo:'▲',color:'#2b2f38',side:[{id:'nav-level',label:'Niveau',on:!o.cb},{id:'nav-cb',label:'Content Browser',on:!!o.cb},{id:'nav-out',label:'Outliner'}],title:o.cb?'Content Browser · C++ Classes':'Niveau_Principal',toast:o.toast,items:[
+    I('btn','compile',760,70,210,36,{label:'Compiler (Live Coding)',primary:true}),
+    I('box',null,240,140,730,o.cb?120:380,{title:o.cb?'C++ Classes / MonJeuUE':'Fenêtre de jeu'}),
+    ...(o.cb?[I('row','cb-porte',256,190,700,36,{cells:['PorteAutomatique','Classe C++ (Actor)'],cw:[400,300]}),I('row',null,256,226,700,30,{cells:['MonJeuUEGameModeBase','Classe C++'],cw:[400,300]})]:[I('lines',null,260,200,680,0,{lines:['(vue 3D du niveau)']})])]});
+  S(ue(),'compile','clic','Dans l’éditeur, compilez le nouveau code : [[Compiler (Live Coding)]] (raccourci Ctrl+Alt+F11).','Live Coding recompile le C++ sans fermer l’éditeur.');
+  S(ue({toast:'Live Coding : compilation réussie'}),'nav-cb','clic','Compilation réussie. Ouvrez le [[Content Browser]].','La nouvelle classe y apparaît.');
+  S(ue({cb:1}),'cb-porte','clic','Sélectionnez [[PorteAutomatique]], puis faites-la glisser dans le niveau.','C’est vous qui placez l’objet dans la carte, dans l’éditeur.');
+  Q(S,'Unreal Engine et Claude Code',[
+    {q:'Claude propose d’ajouter Binaries/ et Intermediate/ au dépôt Git.',o:['J’accepte, tout doit être sauvegardé','Je refuse : ces dossiers vont dans le .gitignore'],ok:1,why:'Fichiers générés et volumineux : on ne versionne que Source/, Config/, Content/ et le .uproject.'},
+    {q:'Vous voulez que Claude place lui-même des objets dans l’éditeur.\nDe quoi a-t-il besoin ?',o:['D’un connecteur MCP pour Unreal, testé sur un projet de test','Du mode « contourner les permissions »','De rien : il le fait déjà'],ok:0,why:'Piloter l’éditeur passe par un connecteur MCP : appliquez les trois questions du Module 8, sur une copie du projet.'},
+  ]);
+});
+
 return out;
 })();
 </script>
@@ -989,18 +1011,18 @@ const PRACTICES = [
   {n:19, th:'3D et jeux vidéo', t:'How To Connect Claude To Blender (vidéo en anglais)', u:YT('1fPKbaAO6Ug'), m:'M8', v:'Connecteur MCP local : installez-le sur un projet de test.'},
   {n:20, th:'3D et jeux vidéo', t:'J’ai donné le contrôle de Blender à Claude (le résultat est FOU)', u:YT('HMJ6XYzZf0U'), m:'M8 · M6', v:'Sauvegardez la scène avant de laisser Claude agir.'},
   {n:21, th:'3D et jeux vidéo', t:'Comment connecter Claude Code à Blender (tuto)', u:YT('AImgA0YVKJM'), m:'M8', v:'Vérifiez la liste des connecteurs avec claude mcp list.'},
-  {n:22, th:'3D et jeux vidéo', t:'Comment utiliser Claude Code dans Unreal Engine 5.8 ?', u:YT('g1TLhqxHjEw'), m:'M4 · M6', v:'Un CLAUDE.md décrit le projet ; Git protège les versions.'},
-  {n:23, th:'3D et jeux vidéo', t:'Créer une MAP OPEN WORLD pour ton jeu sur Unreal Engine 5 (tutoriel débutant)', u:'', m:'M6', v:'Lien à compléter par le formateur.'},
+  {n:22, th:'3D et jeux vidéo', t:'Comment utiliser Claude Code dans Unreal Engine 5.8 ? (Alex)', u:YT('g1TLhqxHjEw'), m:'M4 · M6', v:'Un CLAUDE.md décrit le projet ; Git protège les versions. Exercice : Leçon 24.'},
+  {n:23, th:'3D et jeux vidéo', t:'Créer une MAP OPEN WORLD pour ton jeu sur Unreal Engine 5 (tutoriel débutant)', u:YT('Zn5laUFzRLQ'), u2:YT('ITUSESM0Tmg'), l1:'Version 10 min', l2:'Version 15 min', m:'M6', v:'Deux tutoriels au choix. Enregistrez le projet avec Git avant chaque grande modification de la carte.'},
 ];
 const TH_ORDER = ['Agents IA et WhatsApp','Réseaux sociaux et YouTube','Vidéo et création','Sites web et SaaS','Terminal et MCP','Modèles locaux et coûts','3D et jeux vidéo'];
 function renderPractices(bEl){
   const seen = store.get('sim-vu', {}), nSeen = PRACTICES.filter(p=>seen[p.n]).length;
   bEl.innerHTML = `<div class="box"><div class="row" style="justify-content:space-between"><h2>Module 11 · Pratiques en vidéo</h2><span class="pill ${nSeen===PRACTICES.length?'ok':'no'}">${nSeen} / ${PRACTICES.length} vues</span></div>
     <p class="note" style="margin:0">Des démonstrations réelles pour aller plus loin : agents, réseaux sociaux, vidéo, sites web, 3D. Les vidéos s’ouvrent sur YouTube dans un nouvel onglet. Après chaque vidéo, cochez « Vue » et lisez le rappel : il relie la pratique aux règles des modules 1 à 10.</p>
-    <p class="banner" style="margin:0">Vidéos externes de créateurs indépendants, choisies par le formateur. Ni l’Université ni Anthropic n’en sont responsables, et certaines montrent des pratiques à adapter. Pour les reproduire : données fictives, comptes de test, accord de la DSI, et respect de la charte (Annexe 3). Terminez par l’exercice « Leçon 23 » ci-dessous.</p></div>
+    <p class="banner" style="margin:0">Vidéos externes de créateurs indépendants, choisies par le formateur. Ni l’Université ni Anthropic n’en sont responsables, et certaines montrent des pratiques à adapter. Pour les reproduire : données fictives, comptes de test, accord de la DSI, et respect de la charte (Annexe 3). Exercices liés : Leçon 23 (sécurité) et Leçon 24 (Claude Code dans Unreal Engine, pratique 22).</p></div>
     ${TH_ORDER.map(th=>{ const ps = PRACTICES.filter(p=>p.th===th); return `<div class="pgroup"><h3>${esc(th)} <span class="note">· ${ps.length}</span></h3><div class="pgrid">${ps.map(p=>`
       <div class="pcard${seen[p.n]?' seen':''}"><span class="tag">Pratique ${p.n} · ${esc(p.m)}</span>
-        ${p.u?`<a href="${esc(p.u)}" target="_blank" rel="noopener noreferrer">${esc(p.t)} ↗</a>`:`<b>${esc(p.t)}</b><span class="pill no">Lien manquant</span>`}
+        ${p.u2?`<b>${esc(p.t)}</b><a href="${esc(p.u)}" target="_blank" rel="noopener noreferrer">${esc(p.l1)} ↗</a><a href="${esc(p.u2)}" target="_blank" rel="noopener noreferrer">${esc(p.l2)} ↗</a>`:p.u?`<a href="${esc(p.u)}" target="_blank" rel="noopener noreferrer">${esc(p.t)} ↗</a>`:`<b>${esc(p.t)}</b><span class="pill no">Lien manquant</span>`}
         <span class="vig">${esc(p.v)}</span>
         <label class="vu"><input type="checkbox" id="vu-${p.n}" data-vu="${p.n}" ${seen[p.n]?'checked':''} ${p.u?'':'disabled'}> Vue</label></div>`).join('')}</div></div>`; }).join('')}`;
   bEl.querySelectorAll('[data-vu]').forEach(cb=>cb.onchange=()=>{ const s=store.get('sim-vu',{}); if(cb.checked) s[cb.dataset.vu]=new Date().toISOString(); else delete s[cb.dataset.vu]; store.set('sim-vu',s); renderPractices(bEl); });
