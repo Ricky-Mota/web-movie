@@ -205,6 +205,14 @@ table.carto th{font-size:11px;text-transform:uppercase;letter-spacing:.05em;colo
 .pill{display:inline-block;font-size:12px;font-weight:700;padding:2px 10px;border-radius:10px;white-space:nowrap}
 .pill.ok{background:var(--ok-soft);color:var(--ok)} .pill.no{background:var(--warn-soft);color:var(--fg)}
 #attest h2{margin:0}
+.pgroup{display:grid;gap:8px;margin-top:6px}.pgroup h3{margin:6px 0 0;font-size:15px}
+.pgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:10px}
+.pcard{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px;display:grid;gap:6px;align-content:start;min-width:0}
+.pcard.seen{border-color:var(--ok);background:var(--ok-soft)}
+.pcard a{color:var(--accent);font-weight:600;text-decoration:none;overflow-wrap:anywhere}.pcard a:hover{text-decoration:underline}
+.pcard .vig{font-size:13px;color:var(--muted);border-left:3px solid var(--pointer);padding-left:8px}
+.pcard .vu{font-size:13px;font-weight:600;display:flex;gap:6px;align-items:center;cursor:pointer}
+#bridge{display:grid;gap:10px}
 @media (prefers-reduced-motion:reduce){.ring,.arrow{transition:none}.ring::after,.arrow svg,.miss{animation:none}}
 </style>
 
@@ -1016,6 +1024,18 @@ L(22,10,'Leçon 22 — Épreuve de sécurité (à faire en mode Évaluation)','M
   ]);
 });
 
+/* ========================= MODULE 11 — Pratiques ========================= */
+L(23,11,'Leçon 23 — Reproduire une pratique vue en vidéo, en sécurité','Mises en situation',S=>{
+  Q(S,'Avant de reproduire une vidéo',[
+    {q:'Une vidéo montre un agent qui répond aux clients sur WhatsApp en 10 minutes.\nVous voulez le reproduire pour votre service.',o:['Je reprends le connecteur trouvé dans la vidéo, sur mon numéro personnel','J’utilise l’API officielle WhatsApp Business, un compte de test et l’accord de la DSI','Je le branche directement sur le numéro du service client'],ok:1,why:'Charte : jamais de WhatsApp non officiel. On teste d’abord, avec l’accord de la DSI.'},
+    {q:'Une vidéo propose de publier automatiquement sur Facebook et Instagram.',o:['Je laisse Claude publier seul chaque matin','Claude prépare les brouillons, une personne relit et publie'],ok:1,why:'Annexe 6 : jamais de diffusion automatique. Claude produit, l’humain valide et diffuse.'},
+    {q:'Avant d’installer le connecteur Blender présenté dans une vidéo,\nque vérifiez-vous en premier ?',o:['Le nombre de vues de la vidéo','Qui l’a fabriqué, ce qu’il peut faire, à quelles données il accède','Rien : la vidéo montre que ça marche'],ok:1,why:'Les trois questions du Module 8 s’appliquent à tout connecteur.'},
+    {q:'Une vidéo promet « Claude Code gratuit » avec un modèle local (Ollama).',o:['Je l’installe sur mon poste de service sans rien demander','Je demande l’avis de la DSI et je teste sur des données fictives : le modèle n’est alors plus Claude'],ok:1,why:'Un autre modèle donne d’autres résultats, et tout logiciel installé sur un poste de service passe par la DSI.'},
+    {q:'En suivant le tutoriel SaaS, une clé API apparaît dans le code envoyé sur GitHub.',o:['Je la laisse, le dépôt est privé','Je révoque la clé, je la range hors du code et j’ajoute une règle deny sur .env'],ok:1,why:'Une clé publiée est compromise : on la révoque. Les secrets ne vont jamais dans le code.'},
+    {q:'Vous trouvez un « template JARVIS » gratuit à exécuter tel quel.',o:['Je lis ce qu’il fait avant de l’exécuter, sur un poste de test','Je l’exécute en mode « contourner les permissions » pour aller vite'],ok:0,why:'On ne lance jamais un script inconnu sans l’avoir lu, et jamais en mode « contourner les permissions ».'},
+  ]);
+});
+
 return out;
 })();
 </script>
@@ -1043,6 +1063,47 @@ function renderAttest(){
     <p class="note" style="margin:0">Exercices validés : ${done} / ${list.length}. Validez de préférence tous les modules avant l’épreuve. L’attestation officielle est signée par le formateur (modèle de l’annexe 9 du guide).</p>
     ${ok ? '' : '<div class="row"><button class="btn primary" id="attGo">Passer l’épreuve de sécurité</button></div>'}`;
   const g = $('attGo'); if (g) g.onclick = () => { const s = COURSE.find(c=>c.id===ATT_ID); if (s){ loadScenario(s,'eval'); $('scTitle').scrollIntoView({behavior:'smooth',block:'start'}); } };
+}
+
+/* ============ Module 11 : pratiques en vidéo (liens externes fournis par le formateur) ============ */
+const YT = id => 'https://www.youtube.com/watch?v=' + id;
+const PRACTICES = [
+  {n:1, th:'Vidéo et création', t:'Connecter Claude Code à Higgsfield (construire un workflow vidéo argentique)', u:YT('k9UIZ873NhY')+'&t=1s', m:'M8', v:'Connecteur externe : appliquez les trois questions du Module 8 avant de le brancher.'},
+  {n:2, th:'Vidéo et création', t:'Comment faire du Motion Design PRO avec Claude Opus 5.5 (guide complet)', u:YT('DBQqB8eqpFI'), m:'M3', v:'Formulez vos demandes avec COFE et itérez une correction à la fois.'},
+  {n:3, th:'Agents IA et WhatsApp', t:'Claude + WhatsApp = Agent IA en 10 minutes (sans coder)', u:YT('7DWrD_W0erg'), m:'M8 · M5', v:'Uniquement via l’API officielle WhatsApp Business, avec un compte de test et l’accord de la DSI.'},
+  {n:4, th:'Agents IA et WhatsApp', t:'Créer ton 1er Agent IA sans coder en 30 min avec Claude Code (je te montre TOUT)', u:YT('eWN535AMIzQ'), m:'M9', v:'Un agent reste sous contrôle : permissions, hooks et validation humaine.'},
+  {n:5, th:'Réseaux sociaux et YouTube', t:'I Connected Claude to Instagram and the Results Are INSANE! (vidéo en anglais)', u:YT('FAk7ezvFIfU'), m:'M8', v:'Compte de test d’abord ; aucune publication sans relecture humaine.'},
+  {n:6, th:'Réseaux sociaux et YouTube', t:'Publier automatiquement sur Facebook et Instagram depuis Claude Cowork', u:YT('lFtRaS1Q0Tk'), m:'M9', v:'Charte : jamais de diffusion automatique. Claude prépare les brouillons, un humain publie.'},
+  {n:7, th:'Réseaux sociaux et YouTube', t:'Claude Code Just Made Automating Your YouTube Growth EASY! (How To Connect Claude AI to YouTube) (vidéo en anglais)', u:YT('G3_v-ge9ZtE'), m:'M8', v:'Accès en lecture seule de préférence ; jetons hors des fichiers partagés.'},
+  {n:8, th:'Vidéo et création', t:'Claude Code vient de révolutionner la création de vidéos YouTube (tutoriel)', u:YT('ZDeTJhDUWs8'), m:'M7', v:'Transformez une procédure qui marche en Skill réutilisable.'},
+  {n:9, th:'Terminal et MCP', t:'Claude Code dans le terminal : ce que tout le monde rate', u:YT('815DM3oAJGU'), m:'M3 · M5', v:'Revoyez les commandes de pilotage et les modes de travail.'},
+  {n:10, th:'Sites web et SaaS', t:'Claude Code : créer un site WordPress MAGNIFIQUE (guide ultime)', u:YT('GgDhVLK6VbM'), m:'M6', v:'Travaillez sur un site de test et enregistrez chaque étape avec Git.'},
+  {n:11, th:'Sites web et SaaS', t:'Créer un SaaS avec Claude Code : guide complet', u:YT('CiUAlSZyKFM'), m:'M5 · M6', v:'Aucune clé API dans le code ; règle deny sur .env ; relecture avant mise en ligne.'},
+  {n:12, th:'Agents IA et WhatsApp', t:'J’ai transformé WhatsApp en SaaS avec une automatisation n8n', u:YT('MGjZhzkcwSw')+'&t=64s', m:'M8 · M9', v:'API officielle uniquement ; données clients anonymisées (feu tricolore).'},
+  {n:13, th:'Agents IA et WhatsApp', t:'J’ai créé un agent IA pour vendre sur WhatsApp (10 min)', u:YT('NepO0wx480k'), m:'M5 · M9', v:'Un agent commercial engage l’institution : réponses relues et cadre validé.'},
+  {n:14, th:'Terminal et MCP', t:'Le guide ultime pour comprendre les MCP (+ 3 démos)', u:YT('9RV5gttT6rA'), m:'M8', v:'Complète le Module 8 : qui l’a fabriqué, que peut-il faire, quelles données ?'},
+  {n:15, th:'Agents IA et WhatsApp', t:'Comment utiliser Claude pour créer instantanément n’importe quel agent IA', u:YT('cojtfdiiAps'), m:'M9', v:'Sous-agents : outils limités au strict nécessaire.'},
+  {n:16, th:'Agents IA et WhatsApp', t:'J’ai créé mon propre JARVIS avec Claude Code (template gratuit)', u:YT('L0Xf2CyZur0'), m:'M5', v:'Template externe : lisez-le avant de l’exécuter, sur un poste de test.'},
+  {n:17, th:'Modèles locaux et coûts', t:'Claude Code gratuit avec Ollama + GLM : tuto local', u:YT('1FD3fThB0JE'), m:'M2 · M5', v:'Le modèle utilisé n’est alors plus Claude : résultats différents. Accord de la DSI requis.'},
+  {n:18, th:'Modèles locaux et coûts', t:'J’utilise Claude Code gratuitement avec Opus 4.6 (et bientôt Opus 4.7)', u:YT('qdltyxbNkgs'), m:'M2', v:'Vérifiez que la méthode respecte les conditions d’utilisation officielles ; un compte ne se partage pas.'},
+  {n:19, th:'3D et jeux vidéo', t:'How To Connect Claude To Blender (vidéo en anglais)', u:YT('1fPKbaAO6Ug'), m:'M8', v:'Connecteur MCP local : installez-le sur un projet de test.'},
+  {n:20, th:'3D et jeux vidéo', t:'J’ai donné le contrôle de Blender à Claude (le résultat est FOU)', u:YT('HMJ6XYzZf0U'), m:'M8 · M6', v:'Sauvegardez la scène avant de laisser Claude agir.'},
+  {n:21, th:'3D et jeux vidéo', t:'Comment connecter Claude Code à Blender (tuto)', u:YT('AImgA0YVKJM'), m:'M8', v:'Vérifiez la liste des connecteurs avec claude mcp list.'},
+  {n:22, th:'3D et jeux vidéo', t:'Comment utiliser Claude Code dans Unreal Engine 5.8 ?', u:YT('g1TLhqxHjEw'), m:'M4 · M6', v:'Un CLAUDE.md décrit le projet ; Git protège les versions.'},
+  {n:23, th:'3D et jeux vidéo', t:'Créer une MAP OPEN WORLD pour ton jeu sur Unreal Engine 5 (tutoriel débutant)', u:'', m:'M6', v:'Lien à compléter par le formateur.'},
+];
+const TH_ORDER = ['Agents IA et WhatsApp','Réseaux sociaux et YouTube','Vidéo et création','Sites web et SaaS','Terminal et MCP','Modèles locaux et coûts','3D et jeux vidéo'];
+function renderPractices(bEl){
+  const seen = store.get('sim-vu', {}), nSeen = PRACTICES.filter(p=>seen[p.n]).length;
+  bEl.innerHTML = `<div class="box"><div class="row" style="justify-content:space-between"><h2>Module 11 · Pratiques en vidéo</h2><span class="pill ${nSeen===PRACTICES.length?'ok':'no'}">${nSeen} / ${PRACTICES.length} vues</span></div>
+    <p class="note" style="margin:0">Des démonstrations réelles pour aller plus loin : agents, réseaux sociaux, vidéo, sites web, 3D. Les vidéos s’ouvrent sur YouTube dans un nouvel onglet. Après chaque vidéo, cochez « Vue » et lisez le rappel : il relie la pratique aux règles des modules 1 à 10.</p>
+    <p class="banner" style="margin:0">Vidéos externes de créateurs indépendants, choisies par le formateur. Ni l’Université ni Anthropic n’en sont responsables, et certaines montrent des pratiques à adapter. Pour les reproduire : données fictives, comptes de test, accord de la DSI, et respect de la charte (Annexe 3). Terminez par l’exercice « Leçon 23 » ci-dessous.</p></div>
+    ${TH_ORDER.map(th=>{ const ps = PRACTICES.filter(p=>p.th===th); return `<div class="pgroup"><h3>${esc(th)} <span class="note">· ${ps.length}</span></h3><div class="pgrid">${ps.map(p=>`
+      <div class="pcard${seen[p.n]?' seen':''}"><span class="tag">Pratique ${p.n} · ${esc(p.m)}</span>
+        ${p.u?`<a href="${esc(p.u)}" target="_blank" rel="noopener noreferrer">${esc(p.t)} ↗</a>`:`<b>${esc(p.t)}</b><span class="pill no">Lien manquant</span>`}
+        <span class="vig">${esc(p.v)}</span>
+        <label class="vu"><input type="checkbox" id="vu-${p.n}" data-vu="${p.n}" ${seen[p.n]?'checked':''} ${p.u?'':'disabled'}> Vue</label></div>`).join('')}</div></div>`; }).join('')}`;
+  bEl.querySelectorAll('[data-vu]').forEach(cb=>cb.onchange=()=>{ const s=store.get('sim-vu',{}); if(cb.checked) s[cb.dataset.vu]=new Date().toISOString(); else delete s[cb.dataset.vu]; store.set('sim-vu',s); renderPractices(bEl); });
 }
 const ACTION_LABEL = { clic:'Clic', double:'Double-clic', droit:'Clic droit', saisie:'Saisie', type:'Saisie', click:'Clic' };
 
@@ -1351,7 +1412,7 @@ setInterval(()=>{ if(!ring.hidden) placePointer(); }, 400);
 /* ============ Bibliothèque (scénarios intégrés + bibliothèque partagée + brouillons locaux) ============ */
 let libShared = [], libLocal = store.get('sim-local', []);
 const COURSE = window.COURSE || [];
-const MODULES = ['Découvrir','Installer','Dialoguer (COFE)','CLAUDE.md','Sécurité','Git','Skills','MCP','Automatiser','Projet final'];
+const MODULES = ['Découvrir','Installer','Dialoguer (COFE)','CLAUDE.md','Sécurité','Git','Skills','MCP','Automatiser','Projet final','Pratiques'];
 let curMod = store.get('sim-mod', 1);
 function allScenarios(){ return [...COURSE, ...libShared, ...libLocal]; }
 function courseList(){ return [...COURSE]; }
@@ -1375,6 +1436,7 @@ function renderLibrary(){
       <details><summary><b>Glossaire anglais → français de la plateforme</b></summary><div class="carto-scroll"><table class="bridge">${br.glossaire.map(([a,b])=>`<tr><td><b>${esc(a)}</b></td><td>${esc(b)}</td></tr>`).join('')}</table></div></details>
       <p class="note" style="margin:0">Notation des cours : quiz de section 10 %, exercices pratiques 55 %, examen final 35 % ; réussite à 70 %. Les captures de cette passerelle sont des reproductions simplifiées : l’interface réelle peut évoluer.</p></div>`;
   }
+  if (curMod===11){ bEl.hidden = false; renderPractices(bEl); }
   const list = curMod ? course.filter(sc=>sc.module===curMod).sort((a,b)=>a.lecon-b.lecon) : [...libShared, ...libLocal];
   $('library').innerHTML = list.map(sc=>{
     const tag = sc.tag ? sc.tag : sc.lecon ? `Leçon ${sc.lecon}` : sc._local ? 'Brouillon local' : 'Bibliothèque';
