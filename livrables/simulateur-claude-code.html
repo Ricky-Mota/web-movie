@@ -563,74 +563,7 @@ function dialogItems(d){
 }
 function toastItem(t){ return t ? [I('box',null,500-Math.min(460,t.length*7.2+40)/2,60,Math.min(460,t.length*7.2+40),34,{fill:'#1d8a52',stroke:'#1d8a52',r:8}), I('text',null,500,82,0,0,{label:t,fill:'#fff',anchor:'middle',wt:700})] : []; }
 
-/* ---------- gabarit : éditeur n8n ---------- */
-function N8N(o){
-  const it = [], menus = [];
-  const bg = `<defs><pattern id="dots" width="18" height="18" patternUnits="userSpaceOnUse"><circle cx="2" cy="2" r="1.2" fill="#cfd5df"/></pattern></defs>`+R(0,0,1000,600,{fill:'#eef0f4',stroke:null,r:0})+R(48,50,952,550,{fill:'url(#dots)',stroke:null,r:0})+R(0,0,1000,50,{fill:'#fff',stroke:null,r:0})+`<line x1="0" y1="50" x2="1000" y2="50" stroke="#d9dfe8"/>`+R(0,50,48,550,{fill:'#fff',stroke:null,r:0})+`<line x1="48" y1="50" x2="48" y2="600" stroke="#d9dfe8"/>`+R(10,10,28,28,{fill:'#ea4b71',stroke:null,r:7})+T(24,29,'n8',{size:11,fill:'#fff',w:700,anchor:'middle'});
-  it.push(I('text',null,56,31,0,0,{label:o.wf||'Mon workflow',wt:700,size:15}));
-  it.push(I('chip',null,200,15,150,22,{label:'Simulation pédagogique'}));
-  it.push(I('tab','tab-editor',395,11,80,28,{label:'Éditeur',on:!o.exec}));
-  it.push(I('tab','tab-exec',480,11,100,28,{label:'Exécutions',on:!!o.exec}));
-  it.push(I('btn','wf-settings',615,10,110,30,{label:'Paramètres'}));
-  it.push(I('btn','save',733,10,115,30,{label:o.saved?'Enregistré ✓':'Enregistrer'}));
-  it.push(I('toggle','active',858,10,130,30,{label:o.active?'Actif':'Inactif',on:o.active}));
-  if (o.exec){
-    it.push(I('row',null,70,80,900,34,{head:true,cells:['Statut','Workflow','Démarré le','Durée'],cw:[160,360,240,140]}));
-    o.exec.forEach((r,i)=>it.push(I('row',r.id,70,114+i*38,900,38,{on:r.on,cells:r.cells,cw:[160,360,240,140]})));
-    if (o.execDetail){ const d=o.execDetail; it.push(I('box',null,560,300,410,280,{title:d.title})); it.push(I('lines',null,580,358,370,0,{lines:d.lines,mono:true})); if (d.retryId) it.push(I('btn',d.retryId,580,520,170,36,{label:'Relancer l’exécution',orange:true})); }
-  } else {
-    const nodes = o.nodes || [], n = nodes.length, y = o.y || 250, gap = n>4 ? Math.min(175, 720/(n-1||1)) : 180;
-    if (!n && !o.noPlus) it.push(I('addfirst','plus',430,220,140,140));
-    nodes.forEach((nd,i)=>{
-      const x = nd.x ?? (100 + i*gap);
-      nd._x = x;
-      if (i>0) it.push(I('raw',null,0,0,0,0,{svg:`<line x1="${nodes[i-1]._x+150}" y1="${y+43}" x2="${x}" y2="${y+43}" stroke="#9aa6b8" stroke-width="2"/>`}));
-      it.push(I('node',nd.id,x,y,150,86,{label:nd.label,ico:nd.ico,c:nd.c,sub:nd.sub,done:nd.done,sel:nd.sel}));
-      (nd.outs||[]).forEach((ou,j)=>{
-        const oy = y + 10 + j*(66/Math.max(1,nd.outs.length-1||1));
-        it.push(I('chip',null,x+156,oy,58,18,{label:ou.label||ou,fill:ou.lit?'#e3f4ea':'#fff',color:ou.lit?'#1d8a52':'#5b6880'}));
-        if (ou.plus) it.push(I('plus',ou.plus,x+222,oy-3,24,24));
-      });
-      (nd.subs||[]).forEach((sb,j)=>{
-        const sx = x - 22 + j*68, sy = y + 120;
-        it.push(I('raw',null,0,0,0,0,{svg:`<line x1="${x+30+j*45}" y1="${y+86}" x2="${sx+(sb.filled?32:44)}" y2="${sy}" stroke="#9aa6b8" stroke-dasharray="4 3"/>`}));
-        it.push(sb.filled ? I('subslot',sb.id,sx,sy,64,32,{filled:sb.filled}) : I('subslot',sb.id,sx+30,sy,28,28,{}));
-        it.push(I('text',null,sx+(sb.filled?32:44),sy+(sb.filled?48:44),0,0,{label:sb.label,size:11,fill:'#5b6880',anchor:'middle'}));
-      });
-    });
-    if (n && !o.noPlus){ const last = nodes[n-1]; if (!(last.outs||[]).length) it.push(I('plus','plus',last._x+170,y+30,26,26)); }
-    if (o.sticky) it.push(I('sticky','sticky-note',100,90,300,70,{label:o.sticky}));
-    if (o.toolbar) it.push(I('btn','add-sticky',880,548,100,32,{label:'+ Note'}));
-    if (o.subMenu){ const nd = nodes.find(nn=>(nn.subs||[]).some(s=>s.id===o.subMenu.for)); const j = nd.subs.findIndex(s=>s.id===o.subMenu.for); const sx = nd._x - 22 + j*68 + 10, sy = y + 160;
-      o.subMenu.options.forEach((m,i)=>menus.push(I('opt',m.id,sx,sy+i*32,250,32,{label:m.label}))); }
-  }
-  if (o.drawer){
-    it.push(I('box',null,680,50,320,550,{r:0,stroke:'#d9dfe8'}));
-    it.push(I('text',null,700,84,0,0,{label:'Que voulez-vous ajouter ?',wt:700,size:14}));
-    it.push(I('field','search',700,100,280,36,{value:o.drawer.search,ph:'Rechercher un nœud…'}));
-    (o.drawer.results||[]).forEach((r,i)=>it.push(I('res',r.id,700,150+i*60,280,52,{label:r.label,desc:r.desc,ico:r.ico,c:r.c})));
-  }
-  if (o.panel){
-    const p = o.panel;
-    it.push(OVERLAY, I('box',null,40,70,920,515,{r:12}));
-    it.push(I('raw',null,0,0,0,0,{svg:`<line x1="300" y1="70" x2="300" y2="585" stroke="#e1e6ee"/><line x1="700" y1="70" x2="700" y2="585" stroke="#e1e6ee"/>`}));
-    it.push(I('text',null,60,100,0,0,{label:'ENTRÉE',size:11,fill:'#5b6880',wt:700}));
-    it.push(I('text',null,320,100,0,0,{label:p.title,size:15,wt:700}));
-    it.push(I('text',null,720,100,0,0,{label:'SORTIE',size:11,fill:'#5b6880',wt:700}));
-    it.push(I('lines',null,60,128,220,0,{lines:p.input||['Aucune donnée d’entrée.'],mono:true}));
-    let oy = 128;
-    (p.output||['Exécutez le nœud pour voir le résultat.']).forEach(l=>{ if (typeof l==='string'){ it.push(I('lines',null,720,oy,220,0,{lines:[l],mono:true,fill:l.startsWith('✓')?'#1d8a52':'#33405a'})); oy+=18; } else { it.push(I('kchip',l.id,720,oy-13,220,24,{label:l.label,on:l.on})); oy+=30; } });
-    let fy = 125;
-    if (p.tabs){ p.tabs.forEach((t,i)=>it.push(I('tab',t.id,320+i*120,112,112,28,{label:t.label,on:t.on}))); fy = 160; }
-    it.push(...stack(p.fields||[],320,fy,360,menus));
-    it.push(I('btn','back',60,540,180,32,{label:'← Retour au canevas'}));
-  }
-  if (o.dialog) it.push(...dialogItems(o.dialog));
-  it.push(...menus, ...toastItem(o.toast));
-  return { bg, items: it };
-}
-
-/* ---------- gabarit : application générique (Supabase, console, hébergeur, Claude, éditeur de documents…) ---------- */
+/* ---------- gabarit : application générique (forge de code, console…) ---------- */
 function APP(o){
   const it = [], menus=[];
   const bg = R(0,0,1000,600,{fill:'#f3f5f8',stroke:null,r:0})+R(0,0,1000,50,{fill:'#fff',stroke:null,r:0})+`<line x1="0" y1="50" x2="1000" y2="50" stroke="#d9dfe8"/>`+R(0,50,210,550,{fill:'#fff',stroke:null,r:0})+`<line x1="210" y1="50" x2="210" y2="600" stroke="#d9dfe8"/>`+R(14,11,28,28,{fill:o.color||'#1f4fa3',stroke:null,r:7})+T(28,30,o.logo||'',{size:11,fill:'#fff',w:700,anchor:'middle'});
@@ -645,46 +578,13 @@ function APP(o){
   return { bg, items: it };
 }
 
-/* ---------- gabarit : messagerie (Telegram, WhatsApp, fenêtre de chat) ---------- */
-function CHAT(o){
-  const it=[];
-  const bg = R(0,0,1000,600,{fill:o.wall||'#efeae2',stroke:null,r:0})+R(0,0,1000,56,{fill:o.color||'#1d8a52',stroke:null,r:0})+`<circle cx="34" cy="28" r="17" fill="#fff" opacity=".9"/>`+T(34,33,(o.name||'?')[0],{size:14,w:700,anchor:'middle',fill:o.color||'#1d8a52'})+T(62,25,o.name,{size:15,w:700,fill:'#fff'})+T(62,43,o.status||'en ligne',{size:11,fill:'#e6f4ea'});
-  it.push(I('chip',null,840,17,140,22,{label:'Simulation pédagogique',fill:'#fff'}));
-  let y = 76;
-  (o.msgs||[]).forEach(m=>{
-    if (m.pic){ it.push(I('pic',m.id||null,m.me?620:24,y,356,m.pic.length*18+44,{lines:m.pic})); y += m.pic.length*18+56; return; }
-    const ls = String(m.text).split('\n'), w = Math.min(560, Math.max(...ls.map(l=>l.length))*7.3+40), h = ls.length*18+26;
-    it.push(I('msg',m.id||null,m.me?976-w:24,y,w,h,{label:m.text,me:m.me,time:m.time}));
-    y += h + 10;
-  });
-  (o.buttons||[]).forEach((b,i)=>it.push(I('btn',b.id,24+i*200,y,190,34,{label:b.lab,primary:true})));
-  it.push(I('box',null,0,532,1000,68,{fill:'#f0f2f5',stroke:'#f0f2f5',r:0}));
-  it.push(I('field','chat-in',20,546,820,40,{value:o.input,ph:'Écrire un message'}));
-  it.push(I('btn','chat-send',850,546,130,40,{label:'Envoyer',green:true}));
-  return { bg, items: it };
-}
-
 /* ---------- gabarit : terminal du serveur ---------- */
 function TERM(o){
-  const it=[]; const bg = R(0,0,1000,600,{fill:'#0f1520',stroke:null,r:0})+R(0,0,1000,34,{fill:'#1c2536',stroke:null,r:0})+[0,1,2].map(i=>`<circle cx="${18+i*18}" cy="17" r="6" fill="${['#ff5f56','#ffbd2e','#27c93f'][i]}"/>`).join('')+T(500,22,o.title||'ricky@serveur-n8n : ~',{size:12,fill:'#9aa7bd',anchor:'middle',mono:true});
+  const it=[]; const bg = R(0,0,1000,600,{fill:'#0f1520',stroke:null,r:0})+R(0,0,1000,34,{fill:'#1c2536',stroke:null,r:0})+[0,1,2].map(i=>`<circle cx="${18+i*18}" cy="17" r="6" fill="${['#ff5f56','#ffbd2e','#27c93f'][i]}"/>`).join('')+T(500,22,o.title||'agent@poste-usj : ~',{size:12,fill:'#9aa7bd',anchor:'middle',mono:true});
   it.push(I('chip',null,840,6,140,22,{label:'Simulation pédagogique',fill:'#fff'}));
   const ls = o.lines||[]; ls.forEach((l,i)=>it.push(I('text',null,20,62+i*20,0,0,{label:l,mono:true,size:13,fill:l.startsWith('$')?'#7ee787':l.startsWith('✔')?'#7ee787':'#c9d1d9'})));
   it.push(I('text',null,20,62+ls.length*20,0,0,{label:'$',mono:true,size:13,fill:'#7ee787'}));
   it.push(I('field','term-in',36,46+ls.length*20,940,24,{dark:true,value:o.input,mono:true}));
-  return { bg, items: it };
-}
-
-/* ---------- gabarit : tableur ---------- */
-function SHEET(o){
-  const it=[]; const cols=['A','B','C','D','E'], cw=[44,230,230,230,230], rows=o.rows||8;
-  const bg = R(0,0,1000,600,{fill:'#fff',stroke:null,r:0})+R(0,0,1000,50,{fill:'#fff',stroke:null,r:0})+R(14,11,28,28,{fill:'#188038',stroke:null,r:7})+T(28,30,'▦',{size:13,fill:'#fff',anchor:'middle'})+`<line x1="0" y1="50" x2="1000" y2="50" stroke="#d9dfe8"/>`;
-  it.push(I('text',null,52,31,0,0,{label:o.title||'Classeur',wt:700,size:15}));
-  it.push(I('chip',null,52+(o.title||'Classeur').length*8.4+12,15,150,22,{label:'Simulation pédagogique'}));
-  (o.top||[]).forEach(x=>it.push(x));
-  let x0=20; const y0=110;
-  cols.forEach((c,ci)=>{ it.push(I('cell',null,x0,y0-26,cw[ci],26,{value:ci?c:'',head:true})); x0+=cw[ci]; });
-  for (let r=1;r<=rows;r++){ x0=20; cols.forEach((c,ci)=>{ const id = ci? c+r : null; it.push(I('cell',id,x0,y0+(r-1)*30,cw[ci],30,{value:ci?((o.cells||{})[c+r]||''):String(r),head:r===1||!ci,on:(o.lit||[]).includes(c+r)})); x0+=cw[ci]; }); }
-  it.push(...toastItem(o.toast));
   return { bg, items: it };
 }
 
@@ -743,7 +643,7 @@ function compile(def){
   return { id:'lecon-'+def.lecon, type:'shots', exemple:true, lecon:def.lecon, module:def.module, titre:def.titre, logiciel:def.logiciel, images, steps };
 }
 
-return { N8N, APP, CHAT, TERM, SHEET, CC, DECIDE, I, compile };
+return { APP, TERM, CC, DECIDE, I, compile };
 })();
 
 </script>
@@ -1107,58 +1007,6 @@ function renderPractices(bEl){
 }
 const ACTION_LABEL = { clic:'Clic', double:'Double-clic', droit:'Clic droit', saisie:'Saisie', type:'Saisie', click:'Clic' };
 
-/* ============ Exemple sur captures : écrans dessinés (console d'un fournisseur d'IA) ============ */
-function screen(kind){
-  const side = ['Tableau de bord','Clés API','Facturation','Paramètres'].map((t,i)=>{
-    const on = (kind==='home'&&i===0)||((kind==='keys'||kind==='dialog'||kind==='created')&&i===1)||(kind==='billing'&&i===2);
-    return `<rect x="16" y="${120+i*52}" width="200" height="40" rx="8" fill="${on?'#e6eefb':'none'}"/><text x="34" y="${146+i*52}" font-size="16" fill="${on?'#1f4fa3':'#33405a'}" font-weight="${on?700:400}">${t}</text>`;}).join('');
-  let main = '';
-  if (kind==='home') main = `<text x="270" y="80" font-size="26" font-weight="700" fill="#14213a">Tableau de bord</text>
-    ${[0,1,2].map(i=>`<rect x="${270+i*240}" y="120" width="220" height="110" rx="10" fill="#fff" stroke="#d9dfe8"/><text x="${290+i*240}" y="155" font-size="14" fill="#5b6880">${['Requêtes ce mois','Coût ce mois','Clés actives'][i]}</text><text x="${290+i*240}" y="200" font-size="30" font-weight="700" fill="#14213a">${['1 284','3,42 $','0'][i]}</text>`).join('')}
-    <rect x="270" y="260" width="700" height="290" rx="10" fill="#fff" stroke="#d9dfe8"/><text x="290" y="295" font-size="16" font-weight="700" fill="#14213a">Bienvenue</text><text x="290" y="325" font-size="14" fill="#5b6880">Créez une clé API pour connecter vos outils d'automatisation.</text>`;
-  if (kind==='keys'||kind==='dialog'||kind==='created') main = `<text x="270" y="80" font-size="26" font-weight="700" fill="#14213a">Clés API</text>
-    <rect x="790" y="52" width="180" height="42" rx="8" fill="#1f4fa3"/><text x="880" y="79" font-size="15" font-weight="700" fill="#fff" text-anchor="middle">+ Créer une clé</text>
-    <rect x="270" y="120" width="700" height="430" rx="10" fill="#fff" stroke="#d9dfe8"/><text x="290" y="155" font-size="13" fill="#5b6880">NOM            CLÉ            CRÉÉE LE</text><line x1="290" y1="170" x2="950" y2="170" stroke="#d9dfe8"/>
-    ${kind==='created'?'':'<text x="620" y="330" font-size="15" fill="#5b6880" text-anchor="middle">Aucune clé pour le moment.</text>'}`;
-  if (kind==='billing') main = `<text x="270" y="80" font-size="26" font-weight="700" fill="#14213a">Facturation</text>
-    <rect x="270" y="120" width="700" height="150" rx="10" fill="#fff" stroke="#d9dfe8"/><text x="290" y="155" font-size="14" fill="#5b6880">Crédit disponible</text><text x="290" y="200" font-size="30" font-weight="700" fill="#14213a">5,00 $</text>
-    <rect x="270" y="290" width="700" height="150" rx="10" fill="#fff" stroke="#d9dfe8"/><text x="290" y="325" font-size="16" font-weight="700" fill="#14213a">Limite de dépense mensuelle</text>
-    <rect x="290" y="345" width="220" height="42" rx="8" fill="#f3f5f8" stroke="#b9c2d0"/><text x="525" y="372" font-size="15" fill="#5b6880">USD par mois</text>
-    <rect x="800" y="345" width="150" height="42" rx="8" fill="#1f4fa3"/><text x="875" y="372" font-size="15" font-weight="700" fill="#fff" text-anchor="middle">Enregistrer</text>`;
-  let over = '';
-  if (kind==='dialog') over = `<rect width="1000" height="600" fill="#0f1520" opacity=".45"/><rect x="300" y="170" width="400" height="250" rx="12" fill="#fff"/>
-    <text x="330" y="215" font-size="20" font-weight="700" fill="#14213a">Nouvelle clé API</text><text x="330" y="252" font-size="14" fill="#5b6880">Nom de la clé</text>
-    <rect x="330" y="265" width="340" height="42" rx="8" fill="#f3f5f8" stroke="#b9c2d0"/>
-    <rect x="450" y="350" width="100" height="40" rx="8" fill="#fff" stroke="#b9c2d0"/><text x="500" y="376" font-size="15" fill="#33405a" text-anchor="middle">Annuler</text>
-    <rect x="565" y="350" width="105" height="40" rx="8" fill="#1f4fa3"/><text x="617" y="376" font-size="15" font-weight="700" fill="#fff" text-anchor="middle">Créer</text>`;
-  if (kind==='created') over = `<rect width="1000" height="600" fill="#0f1520" opacity=".45"/><rect x="270" y="170" width="460" height="260" rx="12" fill="#fff"/>
-    <text x="300" y="215" font-size="20" font-weight="700" fill="#14213a">Clé créée : n8n-formation</text>
-    <rect x="300" y="240" width="300" height="42" rx="8" fill="#f3f5f8" stroke="#b9c2d0"/><text x="315" y="267" font-size="15" font-family="monospace" fill="#14213a">sk-•••••••••••••••••7Qx</text>
-    <rect x="610" y="240" width="95" height="42" rx="8" fill="#1f4fa3"/><text x="657" y="267" font-size="15" font-weight="700" fill="#fff" text-anchor="middle">Copier</text>
-    <rect x="300" y="300" width="405" height="70" rx="8" fill="#fff4e0"/><text x="315" y="328" font-size="13" fill="#7a4b00">Copiez-la maintenant : elle ne sera plus affichée.</text><text x="315" y="350" font-size="13" fill="#7a4b00">Ne la collez jamais dans un e-mail ou un tableur.</text>
-    <text x="700" y="410" font-size="14" fill="#1f4fa3" text-anchor="end">Fermer</text>`;
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="600" viewBox="0 0 1000 600" font-family="Arial,Helvetica,sans-serif">
-    <rect width="1000" height="600" fill="#f3f5f8"/><rect width="232" height="600" fill="#fff"/><line x1="232" y1="0" x2="232" y2="600" stroke="#d9dfe8"/>
-    <rect x="20" y="30" width="34" height="34" rx="8" fill="#1f4fa3"/><text x="66" y="54" font-size="17" font-weight="700" fill="#14213a">Console IA</text>${side}${main}${over}</svg>`;
-  return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
-}
-const pct = (x,y,w,h) => ({ x:x/10, y:y/6, w:w/10, h:h/6 });   // pixels sur 1000×600 → %
-const EXAMPLE = {
-  id:'exemple-l1', type:'shots', exemple:true, lecon:1, module:1,
-  titre:'Leçon 1 — Créer et protéger une clé API', logiciel:'Console d’un fournisseur d’IA (captures)',
-  images:[ {src:screen('home'),w:1000,h:600}, {src:screen('keys'),w:1000,h:600}, {src:screen('dialog'),w:1000,h:600}, {src:screen('created'),w:1000,h:600}, {src:screen('billing'),w:1000,h:600} ],
-  steps:[
-    { img:0, action:'clic', ...pct(16,172,200,40), say:'Ouvrez le menu [[Clés API]].', why:'Toutes les clés d’accès se gèrent depuis ce menu.' },
-    { img:1, action:'clic', ...pct(790,52,180,42), say:'Cliquez sur [[+ Créer une clé]].', why:'Une clé par usage : on en crée une dédiée à la formation.' },
-    { img:2, action:'saisie', expect:'n8n-formation', ...pct(330,265,340,42), say:'Nommez la clé [[n8n-formation]].', why:'Un nom explicite permet de savoir quel outil utilise quelle clé.' },
-    { img:2, action:'clic', ...pct(565,350,105,40), say:'Cliquez sur [[Créer]].', why:'La clé est générée immédiatement.' },
-    { img:3, action:'clic', ...pct(610,240,95,42), say:'Copiez la clé avec [[Copier]].', why:'Elle ne sera plus jamais affichée : collez-la directement dans les credentials de n8n.' },
-    { img:3, action:'clic', ...pct(16,224,200,40), say:'Ouvrez [[Facturation]].', why:'Avant d’automatiser, fixez une limite de dépense.' },
-    { img:4, action:'saisie', expect:'10', ...pct(290,345,220,42), say:'Fixez la limite mensuelle à [[10]] USD.', why:'Une limite protège votre budget si une clé fuit ou si un flux boucle.' },
-    { img:4, action:'clic', ...pct(800,345,150,42), say:'Cliquez sur [[Enregistrer]].', why:'Votre environnement est prêt et sécurisé.' },
-  ]
-};
-
 /* ============ Scénario intégré : n8n simulé, cartographié par éléments HTML (data-id) ============ */
 let S;
 const fresh = () => ({ drawer:false, wh:false, whOpen:false, opts:false, method:'GET', listening:false, tester:false, received:false,
@@ -1427,15 +1275,7 @@ function renderLibrary(){
   if (!tabs.some(t=>t[0]===curMod)) curMod = 1;
   $('modtabs').innerHTML = tabs.map(([v,l])=>`<button data-mod="${v}" aria-pressed="${v===curMod}">${esc(l)}</button>`).join('');
   $('modtabs').querySelectorAll('[data-mod]').forEach(b=>b.onclick=()=>{ curMod=+b.dataset.mod; store.set('sim-mod',curMod); renderLibrary(); });
-  const br = window.ACADEMY_BRIDGE, bEl = $('bridge');
-  bEl.hidden = curMod!==7 || !br;
-  if (curMod===7 && br){
-    bEl.innerHTML = `<div class="box"><h2>Passerelle vers l’Académie n8n</h2>
-      <p class="note" style="margin:0">L’Académie officielle de n8n (<a href="${br.url}" target="_blank" rel="noopener">learn.n8n.io</a>) propose des cours gratuits <b>en anglais</b>, avec badge et certificat de réussite. Faites d’abord les leçons indiquées de notre formation, puis les exercices A1 à A4 ci-dessous pour apprendre à vous repérer sur la plateforme.</p>
-      <div class="carto-scroll"><table class="bridge"><tr><th>Cours</th><th>Durée</th><th>À faire avant dans notre formation</th><th>Contenu</th></tr>${br.courses.map(c=>`<tr><td><b>${esc(c.code)}</b><br>${esc(c.titre)}</td><td style="white-space:nowrap">${esc(c.duree)}</td><td>${esc(c.avant)}</td><td>${esc(c.contenu)}</td></tr>`).join('')}</table></div>
-      <details><summary><b>Glossaire anglais → français de la plateforme</b></summary><div class="carto-scroll"><table class="bridge">${br.glossaire.map(([a,b])=>`<tr><td><b>${esc(a)}</b></td><td>${esc(b)}</td></tr>`).join('')}</table></div></details>
-      <p class="note" style="margin:0">Notation des cours : quiz de section 10 %, exercices pratiques 55 %, examen final 35 % ; réussite à 70 %. Les captures de cette passerelle sont des reproductions simplifiées : l’interface réelle peut évoluer.</p></div>`;
-  }
+  const bEl = $('bridge'); bEl.hidden = true;
   if (curMod===11){ bEl.hidden = false; renderPractices(bEl); }
   const list = curMod ? course.filter(sc=>sc.module===curMod).sort((a,b)=>a.lecon-b.lecon) : [...libShared, ...libLocal];
   $('library').innerHTML = list.map(sc=>{
