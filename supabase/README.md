@@ -18,4 +18,4 @@ Elles sont déjà appliquées sur le projet et sont copiées ici à l'identique 
 
 `critical_rls_and_credits.sql` vérifie la séparation des centres et le décompte des crédits.
 Collez-le dans l'éditeur SQL de Supabase et lancez-le : le résultat attendu est le message
-`RESULTAT : 22 tests réussis (données de test annulées)`. Aucune donnée n'est conservée.
+`RESULTAT : 23 tests réussis (données de test annulées)`. Aucune donnée n'est conservée.
