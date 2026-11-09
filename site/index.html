@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Professa-M · Vos cours d'anglais en épisodes vidéo</title>
-<meta name="description" content="Professa-M transforme le programme d'anglais de votre centre en épisodes vidéo prêts pour la classe. Conçu en RDC, paiement M-Pesa.">
+<title>Professa-M · Chaque savoir, compris dans sa langue</title>
+<meta name="description" content="Professa-M traduit vos vidéos en sous-titres et en doublage dans 13 langues, du lingala au japonais, avec résumé, lexique et quiz. Paiement M-Pesa.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
@@ -105,6 +105,14 @@
   footer { padding: 32px 0; color: var(--ink-soft); font-size: .9rem; border-top: 1px solid var(--line); }
   footer .wrap { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
   footer a { color: var(--ink-soft); }
+  .langs-live { position: absolute; top: 48px; left: 14px; display: flex; gap: 6px; flex-wrap: wrap; }
+  .langs-live span { font-size: .72rem; background: rgba(255,255,255,.2); padding: 3px 9px; border-radius: 999px; }
+  .langs-live span.on { background: #fff; color: var(--ink); font-weight: 600; }
+  .lang-groups { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+  @media (max-width: 900px) { .lang-groups { grid-template-columns: 1fr; } }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+  .chips span { background: var(--accent-soft); color: #92400e; padding: 6px 12px; border-radius: 999px; font-weight: 500; font-size: .9rem; }
+  select { width: 100%; margin-top: 6px; padding: 12px 14px; border: 1.5px solid var(--line); border-radius: 10px; font: inherit; background: #fff; color: var(--ink); }
 </style>
 <script src="config.js"></script>
 </head>
@@ -115,8 +123,8 @@
     <a class="logo" href="#">Professa<span>-M</span></a>
     <nav>
       <a href="#comment">Comment ça marche</a>
-      <a href="#tarifs">Tarifs</a>
-      <a href="#faq">Questions</a>
+      <a href="#pour-qui">Pour qui</a>
+      <a href="#langues">Langues</a>
       <a class="btn btn-primary" href="#contact">Demander une démo</a>
     </nav>
   </div>
@@ -126,21 +134,22 @@
   <section class="hero">
     <div class="wrap">
       <div>
-        <span class="eyebrow">Pour les centres de langues en RDC</span>
-        <h1>Votre programme d'anglais, transformé en série vidéo.</h1>
-        <p class="lead">Professa-M crée pour votre centre des épisodes de 15 minutes, avec des personnages, des dialogues de la vie courante et des exercices. Vos enseignants valident chaque script avant la production.</p>
+        <span class="eyebrow">Sous-titres · Doublage · Résumé · Quiz</span>
+        <h1>Chaque savoir, compris dans sa langue.</h1>
+        <p class="lead">Professa-M traduit vos vidéos de formation, de santé, d'enseignement ou de prédication en sous-titres et en voix, du lingala au japonais. Votre public comprend enfin le message, même s'il lit difficilement.</p>
         <div class="ctas">
-          <a class="btn btn-primary" href="#contact">Demander une démo gratuite</a>
+          <a class="btn btn-primary" href="#contact">Traduire une vidéo test</a>
           <a class="btn btn-ghost" href="#comment">Voir comment ça marche</a>
         </div>
-        <p class="trust">Paiement M-Pesa · Prix en USD et en CDF · Niveaux A1 à C2</p>
+        <p class="trust">13 langues · Relecture humaine pour les langues locales · Paiement M-Pesa</p>
       </div>
       <div class="player" aria-hidden="true">
         <div class="screen">
-          <span class="scene">Épisode 3 · At the shop</span>
-          <div class="bubble"><b>Grace</b>How much is this water?<small>Combien coûte cette eau ?</small></div>
+          <span class="scene">Hygiène de l'eau · 12 min</span>
+          <div class="langs-live"><span class="on">Lingala</span><span>Swahili</span><span>Français</span><span>English</span></div>
+          <div class="bubble"><b>Doublage · Lingala</b>Botoka mai liboso ya komela.<small>Faites bouillir l'eau avant de la boire.</small></div>
         </div>
-        <div class="meta"><span>Adultes débutants · A1</span><span>05:42 / 15:00</span></div>
+        <div class="meta"><span>Sous-titres + voix + quiz</span><span>04:18 / 12:00</span></div>
         <div class="bar"><i></i></div>
       </div>
     </div>
@@ -149,13 +158,13 @@
   <section class="alt">
     <div class="wrap">
       <div class="section-head">
-        <span class="eyebrow">Pourquoi Professa-M</span>
-        <h2>Des cours plus vivants, sans studio ni budget de tournage.</h2>
+        <span class="eyebrow">Plus qu'une traduction</span>
+        <h2>Tout ce qu'il faut pour que le message soit vraiment compris.</h2>
       </div>
       <div class="grid-3">
-        <div class="card"><h3>Des situations réelles</h3><p>Au marché, à la banque, en entretien d'embauche : chaque épisode met en scène une situation que vos apprenants vivent vraiment.</p></div>
-        <div class="card"><h3>Vous gardez la main</h3><p>L'IA propose le script, vos enseignants le corrigent et l'approuvent. Aucune vidéo n'est produite sans votre accord.</p></div>
-        <div class="card"><h3>Prêt pour la classe</h3><p>Vidéo, dialogues traduits, vocabulaire et exercices corrigés en PDF : tout le matériel du cours, en un seul endroit.</p></div>
+        <div class="card"><h3>Sous-titres</h3><p>Le texte de la vidéo, traduit et synchronisé, prêt pour YouTube, WhatsApp ou une projection.</p></div>
+        <div class="card"><h3>Doublage</h3><p>Une voix naturelle dans la langue de votre public, pour ceux qui écoutent plus qu'ils ne lisent.</p></div>
+        <div class="card"><h3>Résumé, lexique et quiz</h3><p>L'essentiel en quelques lignes, les mots techniques expliqués et des questions pour vérifier la compréhension.</p></div>
       </div>
     </div>
   </section>
@@ -164,13 +173,45 @@
     <div class="wrap">
       <div class="section-head">
         <span class="eyebrow">Comment ça marche</span>
-        <h2>Quatre étapes, de votre programme à la vidéo.</h2>
+        <h2>Quatre étapes, de votre vidéo à toutes vos langues.</h2>
       </div>
       <div class="grid-4">
-        <div class="card"><div class="num">1</div><h3>Décrivez le parcours</h3><p>Public, niveau CECRL, modules et objectifs de chaque leçon.</p></div>
-        <div class="card"><div class="num">2</div><h3>Relisez le script</h3><p>L'IA rédige dialogues, traductions et exercices. L'enseignant corrige.</p></div>
-        <div class="card"><div class="num">3</div><h3>Lancez la production</h3><p>Images, voix et vidéo sont générées. 1 crédit par épisode.</p></div>
-        <div class="card"><div class="num">4</div><h3>Validez et diffusez</h3><p>Le responsable valide la vidéo, puis la publie pour les classes.</p></div>
+        <div class="card"><div class="num">1</div><h3>Envoyez la vidéo</h3><p>Déposez le fichier ou connectez votre propre chaîne YouTube.</p></div>
+        <div class="card"><div class="num">2</div><h3>Choisissez les langues</h3><p>Sous-titres, doublage ou les deux, dans une ou plusieurs langues.</p></div>
+        <div class="card"><div class="num">3</div><h3>Relisez la traduction</h3><p>Vous validez le texte avant la voix. Relecture humaine pour les langues locales.</p></div>
+        <div class="card"><div class="num">4</div><h3>Diffusez</h3><p>Téléchargez la vidéo traduite ou publiez-la sur votre chaîne YouTube.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="pour-qui" class="alt">
+    <div class="wrap">
+      <div class="section-head">
+        <span class="eyebrow">Pour qui</span>
+        <h2>Pour tous ceux qui ont un savoir à transmettre.</h2>
+      </div>
+      <div class="grid-3">
+        <div class="card"><h3>ONG et projets de santé</h3><p>Faire passer un message vital (hygiène, vaccination, nutrition) dans la langue des communautés.</p></div>
+        <div class="card"><h3>Églises</h3><p>Partager enseignements et prédications avec les fidèles de toutes les langues.</p></div>
+        <div class="card"><h3>Écoles et universités</h3><p>Rendre accessibles des cours et des conférences venus du monde entier.</p></div>
+        <div class="card"><h3>Entreprises</h3><p>Former le personnel dans sa langue, sur la sécurité, les procédures ou les produits.</p></div>
+        <div class="card"><h3>Créateurs de contenu</h3><p>Toucher un public international avec vos vidéos YouTube, sans tout retourner.</p></div>
+        <div class="card"><h3>Vos droits respectés</h3><p>Nous traduisons uniquement vos propres vidéos ou celles que vous êtes autorisé à adapter.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="langues">
+    <div class="wrap">
+      <div class="section-head">
+        <span class="eyebrow">Langues</span>
+        <h2>13 langues, de Kinshasa à Tokyo.</h2>
+        <p>Nous ouvrons les langues par étapes, après les avoir testées sur de vraies vidéos.</p>
+      </div>
+      <div class="lang-groups">
+        <div class="card"><h3>Disponibles au lancement</h3><div class="chips"><span>Français</span><span>Anglais</span><span>Swahili</span><span>Lingala</span><span>Portugais</span></div></div>
+        <div class="card"><h3>Bientôt</h3><div class="chips"><span>Espagnol</span><span>Arabe</span><span>Allemand</span><span>Chinois</span><span>Japonais</span><span>Hindi</span></div></div>
+        <div class="card"><h3>Langues nationales de la RDC</h3><div class="chips"><span>Tshiluba</span><span>Kikongo</span></div><p style="margin-top:12px">Avec relecture par des traducteurs humains.</p></div>
       </div>
     </div>
   </section>
@@ -179,34 +220,31 @@
     <div class="wrap">
       <div class="section-head">
         <span class="eyebrow">Tarifs</span>
-        <h2>1 crédit = 1 épisode de 15 minutes.</h2>
-        <p>Un module de 4 épisodes coûte environ 20 USD. Pour une classe de 15 apprenants, c'est moins de 1,50 USD par apprenant.</p>
+        <h2>Vous payez à la minute traduite.</h2>
+        <p>Achetez des crédits par M-Pesa, utilisez-les quand vous voulez. Pendant le lancement, nous établissons un devis pour chaque projet.</p>
       </div>
       <div class="grid-3">
         <div class="card">
-          <h3>Découverte</h3>
-          <p class="price">20 USD</p>
-          <p>4 crédits · 5 USD l'épisode</p>
-          <ul><li>Un module complet</li><li>Jusqu'à 6 personnages ou décors nouveaux par épisode</li><li>2 régénérations par scène</li></ul>
-          <a class="btn btn-ghost" href="#contact">Commencer</a>
+          <h3>Sous-titres</h3>
+          <p class="price">1 <small>crédit / minute / langue</small></p>
+          <ul><li>Traduction synchronisée</li><li>Résumé, lexique et quiz inclus</li><li>Fichier prêt pour YouTube</li></ul>
+          <a class="btn btn-ghost" href="#contact">Demander un devis</a>
         </div>
         <div class="card featured">
-          <span class="tag">Le plus choisi</span>
-          <h3>Centre</h3>
-          <p class="price">54 USD</p>
-          <p>12 crédits · 4,50 USD l'épisode</p>
-          <ul><li>Trois modules complets</li><li>Personnages et voix réutilisables</li><li>Supports PDF inclus</li></ul>
-          <a class="btn btn-primary" href="#contact">Choisir Centre</a>
+          <span class="tag">Le plus complet</span>
+          <h3>Doublage</h3>
+          <p class="price">3 <small>crédits / minute / langue</small></p>
+          <ul><li>Voix naturelle dans la langue choisie</li><li>Sous-titres inclus</li><li>Résumé, lexique et quiz inclus</li></ul>
+          <a class="btn btn-primary" href="#contact">Demander un devis</a>
         </div>
         <div class="card">
-          <h3>Réseau</h3>
-          <p class="price">160 USD</p>
-          <p>40 crédits · 4 USD l'épisode</p>
-          <ul><li>Dix modules complets</li><li>Plusieurs enseignants</li><li>Accompagnement au démarrage</li></ul>
+          <h3>Relecture humaine</h3>
+          <p class="price">Sur devis</p>
+          <ul><li>Recommandée pour la santé et la religion</li><li>Obligatoire en tshiluba et en kikongo</li><li>Relecteurs locaux</li></ul>
           <a class="btn btn-ghost" href="#contact">Nous contacter</a>
         </div>
       </div>
-      <p class="note">Paiement par M-Pesa (Airtel Money et Orange Money bientôt). Prix affichés en USD, payables en CDF au taux du jour. En cas d'échec technique, le crédit est remboursé automatiquement.</p>
+      <p class="note">Paiement par M-Pesa (Airtel Money et Orange Money bientôt). Prix en USD, payables en CDF au taux du jour. En cas d'échec technique, les crédits sont remboursés automatiquement.</p>
     </div>
   </section>
 
@@ -214,27 +252,27 @@
     <div class="wrap">
       <div class="section-head">
         <span class="eyebrow">Questions fréquentes</span>
-        <h2>Ce que les centres nous demandent.</h2>
+        <h2>Ce que l'on nous demande.</h2>
       </div>
-      <details><summary>Faut-il des compétences techniques ?</summary><p>Non. Si vous savez remplir un formulaire et relire un texte, vous savez utiliser Professa-M.</p></details>
-      <details><summary>Les apprenants doivent-ils créer un compte ?</summary><p>Non. Les vidéos sont diffusées en classe ou partagées par le centre. Seuls le responsable et les enseignants ont un compte.</p></details>
-      <details><summary>Les données de mon centre sont-elles protégées ?</summary><p>Oui. Chaque centre ne voit que ses propres parcours, vidéos et paiements. Nous n'enregistrons jamais de code secret M-Pesa ni de numéro de carte.</p></details>
-      <details><summary>Que se passe-t-il si une vidéo échoue ?</summary><p>Le crédit réservé vous est rendu automatiquement, et vous pouvez relancer la production.</p></details>
-      <details><summary>Peut-on faire d'autres langues que l'anglais ?</summary><p>Le premier lancement porte sur l'anglais pour les francophones. D'autres langues et publics (enfants, professionnels) suivront.</p></details>
+      <details><summary>Puis-je traduire n'importe quelle vidéo YouTube ?</summary><p>Non. Nous traduisons uniquement vos propres vidéos, ou des vidéos dont vous avez l'autorisation. Pour YouTube, vous connectez votre propre chaîne.</p></details>
+      <details><summary>La traduction en lingala est-elle fiable ?</summary><p>L'IA produit une première version, que vous relisez avant le doublage. Pour la santé, la religion, le tshiluba et le kikongo, nous recommandons la relecture par un traducteur humain.</p></details>
+      <details><summary>Combien de temps faut-il ?</summary><p>Quelques minutes pour les sous-titres d'une vidéo courte. Le doublage est lancé après votre validation du texte.</p></details>
+      <details><summary>Mes vidéos restent-elles privées ?</summary><p>Oui. Chaque organisation ne voit que ses propres vidéos. Nous n'enregistrons jamais de code secret M-Pesa ni de numéro de carte.</p></details>
+      <details><summary>Faut-il des compétences techniques ?</summary><p>Non. Si vous savez envoyer une vidéo sur WhatsApp, vous savez utiliser Professa-M.</p></details>
     </div>
   </section>
 
   <section id="contact" class="alt contact">
     <div class="wrap">
       <div class="section-head">
-        <span class="eyebrow">Démo gratuite</span>
-        <h2>Voyons ensemble un épisode pour votre centre.</h2>
-        <p>Laissez vos coordonnées : nous vous rappelons sous 48 heures pour vous montrer un épisode adapté à vos apprenants.</p>
+        <span class="eyebrow">Vidéo test</span>
+        <h2>Essayez avec l'une de vos vidéos.</h2>
+        <p>Dites-nous qui vous êtes et ce que vous voulez traduire : nous vous rappelons sous 48 heures.</p>
         <p id="wa"></p>
       </div>
       <form id="lead-form" class="card" novalidate>
         <div class="row">
-          <label>Nom du centre *<input name="center_name" required minlength="2" maxlength="160" autocomplete="organization"></label>
+          <label>Nom de l'organisation *<input name="center_name" required minlength="2" maxlength="160" autocomplete="organization"></label>
           <label>Votre nom *<input name="contact_name" required minlength="2" maxlength="120" autocomplete="name"></label>
         </div>
         <div class="row">
@@ -242,10 +280,16 @@
           <label>E-mail<input name="email" type="email" maxlength="200" autocomplete="email"></label>
         </div>
         <div class="row">
+          <label>Vous êtes
+            <select name="segment">
+              <option value="">Choisir...</option>
+              <option>ONG ou projet de santé</option><option>Église</option><option>École ou université</option>
+              <option>Entreprise</option><option>Créateur de contenu</option><option>Autre</option>
+            </select>
+          </label>
           <label>Ville<input name="city" maxlength="80" placeholder="Kinshasa"></label>
-          <label>Nombre d'apprenants<input name="learners_estimate" type="number" min="0" max="100000"></label>
         </div>
-        <label>Votre besoin<textarea name="message" rows="3" maxlength="2000" placeholder="Niveaux enseignés, nombre de classes..."></textarea></label>
+        <label>Votre besoin<textarea name="message" rows="3" maxlength="1800" placeholder="Sujet des vidéos, durée, langues souhaitées..."></textarea></label>
         <label class="hp" aria-hidden="true">Site web<input name="website" tabindex="-1" autocomplete="off"></label>
         <button class="btn btn-primary" type="submit">Envoyer ma demande</button>
         <div id="form-msg" class="msg" role="status"></div>
@@ -278,11 +322,12 @@
     const f = new FormData(form);
     const val = (k) => (f.get(k) || "").toString().trim();
     if (val("center_name").length < 2 || val("contact_name").length < 2) {
-      return show("err", "Indiquez le nom du centre et votre nom.");
+      return show("err", "Indiquez le nom de l'organisation et votre nom.");
     }
     if (!val("phone") && !val("email")) {
       return show("err", "Indiquez au moins un téléphone ou un e-mail.");
     }
+    const message = [val("segment") ? "Type : " + val("segment") : "", val("message")].filter(Boolean).join("\n");
     const btn = form.querySelector("button");
     btn.disabled = true; btn.textContent = "Envoi...";
     try {
@@ -295,8 +340,8 @@
           p_phone: val("phone") || null,
           p_email: val("email") || null,
           p_city: val("city") || null,
-          p_learners_estimate: val("learners_estimate") ? parseInt(val("learners_estimate"), 10) : null,
-          p_message: val("message") || null,
+          p_learners_estimate: null,
+          p_message: message || null,
           p_website: val("website") || null
         })
       });
