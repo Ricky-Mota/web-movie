@@ -18,6 +18,24 @@ Une seule page qui contient :
 | `abonnement.html` | La landing page d'abonnement (essai, mensuel, annuel, paiement M-Pesa) |
 | `crm.html` | Le CRM : clients, paiements à valider, relances, réglages |
 
+## 3. Site prêt pour Netlify : `netlify/`
+
+| Adresse | Contenu |
+|---|---|
+| `/` | Landing page d'abonnement |
+| `/app/` | Application ImagiKids |
+| `/crm/` | CRM (non référencé par les moteurs de recherche) |
+
+Deux façons de le mettre en ligne gratuitement :
+
+- **Glisser-déposer** : sur https://app.netlify.com/drop, déposez le dossier `imagikids/netlify`.
+- **Depuis GitHub** (mise à jour automatique à chaque modification) : *Add new site → Import an existing project → GitHub → web-movie*. Le fichier `netlify.toml`, à la racine du dépôt, indique déjà quel dossier publier.
+
+Après la mise en ligne :
+
+- reportez l'adresse du site dans `crm_settings.app_url` : c'est le lien d'accès envoyé aux clients ;
+- dans Supabase, réglez *Authentication → URL Configuration → Site URL* sur cette adresse.
+
 ## Bon à savoir
 
 - Si la base Supabase n'est pas joignable, les pages s'ouvrent en mode démo, avec des données fictives gardées sur l'appareil.

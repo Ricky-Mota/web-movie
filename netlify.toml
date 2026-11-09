@@ -1,0 +1,4 @@
+# Netlify : publie le site ImagiKids (landing page, application, CRM). Aucune compilation.
+[build]
+  publish = "imagikids/netlify"
+  command = ""

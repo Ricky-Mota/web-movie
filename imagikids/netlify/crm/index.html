@@ -1,0 +1,476 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<script>window.IK_HOSTED = true;</script>
+<meta name="robots" content="noindex, nofollow">
+<title>ImagiKids CRM</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Grandstander:wght@800&family=Lexend:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap">
+<style>
+/* Concept : le registre de l'école. Fond uni et calme, la couleur sert uniquement à l'état
+   (actif, essai, en attente, expiré) ; le logo reprend la marque ImagiKids. */
+:root{
+  --bg:#f4f6fa; --panel:#ffffff; --ink:#1b2440; --muted:#5a6683; --line:#dde3ee; --soft:#eef2f8;
+  --accent:#2a76d2; --accent-soft:#e1eefc; --sun:#f4ad1d;
+  --ok:#1f8f55; --ok-soft:#ddf3e7; --warn:#b7791f; --warn-soft:#fff3d6; --err:#c83a25; --err-soft:#fde6e1; --trial:#7449c9; --trial-soft:#ece5fb;
+  --f-display:"Grandstander","Trebuchet MS",system-ui,sans-serif;
+  --f-body:"Lexend",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#131a24; --panel:#1b2431; --ink:#eaf0f8; --muted:#9daac0; --line:#2c3848; --soft:#222d3c;
+  --accent:#6eabf2; --accent-soft:#1c2d45; --sun:#ffc54d;
+  --ok:#4fcb92; --ok-soft:#173528; --warn:#f0b54d; --warn-soft:#3a3018; --err:#ff7f6c; --err-soft:#3e2420; --trial:#ab8cf2; --trial-soft:#2b2445; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#131a24; --panel:#1b2431; --ink:#eaf0f8; --muted:#9daac0; --line:#2c3848; --soft:#222d3c;
+  --accent:#6eabf2; --accent-soft:#1c2d45; --sun:#ffc54d;
+  --ok:#4fcb92; --ok-soft:#173528; --warn:#f0b54d; --warn-soft:#3a3018; --err:#ff7f6c; --err-soft:#3e2420; --trial:#ab8cf2; --trial-soft:#2b2445; color-scheme:dark}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.5}
+.wrap{max-width:1280px;margin:0 auto;padding-block:14px 48px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:grid;grid-template-columns:minmax(0,1fr);gap:18px}
+#view,#pane{min-width:0;display:grid;gap:16px}
+h1,h2,h3{margin:0;line-height:1.2;text-wrap:balance}
+h2{font-size:20px} h3{font-size:16px}
+p{margin:0}
+button,input,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:3px solid var(--sun);outline-offset:2px}
+.muted{color:var(--muted)}
+.mono{font-family:var(--f-mono);font-size:13px}
+.num{font-variant-numeric:tabular-nums}
+.btn{border:1px solid var(--line);background:var(--panel);border-radius:10px;padding:8px 14px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:6px;text-decoration:none;color:var(--ink)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn.ok{background:var(--ok);border-color:var(--ok);color:#fff}
+.btn.danger{color:var(--err)}
+.btn.sm{padding:5px 10px;font-size:13px}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.inp{border:1px solid var(--line);background:var(--panel);border-radius:10px;padding:9px 12px;width:100%}
+.inp:focus{border-color:var(--accent);outline:none}
+label.f{display:grid;gap:4px;font-weight:600;font-size:13px}
+.note{font-size:14px;border-radius:10px;padding:10px 12px;background:var(--warn-soft);border:1px solid var(--warn)}
+.note.err{background:var(--err-soft);border-color:var(--err)}
+.note.ok{background:var(--ok-soft);border-color:var(--ok)}
+/* en-tête */
+.top{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:12px}
+.brand{display:flex;align-items:center;gap:10px}
+.brand .dot{width:34px;height:34px;border-radius:10px;background:var(--sun);display:grid;place-items:center;font-size:19px;transform:rotate(-6deg)}
+.brand b{font-family:var(--f-display);font-size:22px}
+.brand b i{font-style:normal;color:var(--accent)}
+.brand small{display:block;font-size:12px;color:var(--muted);letter-spacing:.08em;text-transform:uppercase;font-weight:600}
+.badge{font-size:12px;font-weight:600;padding:3px 10px;border-radius:20px;background:var(--warn-soft);border:1px dashed var(--warn)}
+.badge.on{background:var(--ok-soft);border-color:var(--ok);border-style:solid}
+.tabs{display:flex;gap:4px;overflow-x:auto;border-bottom:1px solid var(--line);scrollbar-width:thin}
+.tabs button{border:0;background:none;padding:10px 14px;font-weight:600;color:var(--muted);border-bottom:3px solid transparent;white-space:nowrap;cursor:pointer}
+.tabs button[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--accent)}
+.tabs .count{display:inline-block;min-width:20px;padding:0 6px;margin-inline-start:6px;border-radius:10px;background:var(--err);color:#fff;font-size:12px;text-align:center}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px;display:grid;gap:12px;min-width:0}
+/* tableau de bord */
+.kpis{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:12px}
+@media (max-width:1100px){.kpis{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media (max-width:560px){.kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.kpi{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px;display:grid;gap:2px;border-top:4px solid var(--c,var(--line))}
+.kpi span{font-size:13px;color:var(--muted)}
+.kpi b{font-size:28px;font-variant-numeric:tabular-nums;line-height:1.15}
+.kpi small{font-size:12px;color:var(--muted)}
+.grid2{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);gap:16px}
+@media (max-width:900px){.grid2{grid-template-columns:minmax(0,1fr)}}
+.chart{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px;align-items:end;height:180px;padding-top:10px;border-bottom:1px solid var(--line);background:repeating-linear-gradient(to top,transparent 0 44px,var(--soft) 44px 45px)}
+.chart .col{display:grid;gap:4px;justify-items:center;align-content:end;height:100%}
+.chart .bar{width:70%;max-width:46px;background:var(--accent);border-radius:6px 6px 0 0;min-height:2px}
+.chart .col:last-child .bar{background:var(--ok)}
+.chart .v{font-size:12px;font-variant-numeric:tabular-nums;color:var(--muted)}
+.chart-x{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px;text-align:center;font-size:12px;color:var(--muted)}
+/* tableaux */
+.tablewrap{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:14px}
+th,td{text-align:start;padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:middle}
+th{font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:600;white-space:nowrap}
+tbody tr.click{cursor:pointer}
+tbody tr.click:hover,tbody tr.sel{background:var(--soft)}
+.pill{display:inline-block;font-size:12px;font-weight:600;padding:2px 9px;border-radius:999px;border:1px solid;white-space:nowrap}
+.st-actif{background:var(--ok-soft);border-color:var(--ok);color:var(--ink)}
+.st-essai{background:var(--trial-soft);border-color:var(--trial);color:var(--ink)}
+.st-en_attente{background:var(--warn-soft);border-color:var(--warn);color:var(--ink)}
+.st-expire,.st-rejete,.st-annule{background:var(--err-soft);border-color:var(--err);color:var(--ink)}
+.st-aucun{background:var(--soft);border-color:var(--line);color:var(--muted)}
+.filters{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.filters .inp{max-width:280px}
+.filters select.inp{max-width:200px}
+/* fiche client */
+.fiche{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px}
+@media (max-width:900px){.fiche{grid-template-columns:minmax(0,1fr)}}
+.kv{display:grid;grid-template-columns:110px minmax(0,1fr);gap:6px 10px;font-size:14px}
+.kv dt{color:var(--muted)} .kv dd{margin:0;overflow-wrap:anywhere}
+.mini{list-style:none;margin:0;padding:0;display:grid;gap:6px;font-size:13px}
+.mini li{display:flex;flex-wrap:wrap;justify-content:space-between;gap:6px;border-bottom:1px dashed var(--line);padding-bottom:6px}
+.formgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(170px,100%),1fr));gap:10px;align-items:end}
+/* paiements */
+.paylist{display:grid;gap:10px}
+.pay{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr) auto;gap:12px;align-items:center;border:1px solid var(--line);border-radius:12px;padding:12px;background:var(--panel);border-inline-start:4px solid var(--warn)}
+@media (max-width:700px){.pay{grid-template-columns:minmax(0,1fr)}}
+.pay .amt{font-size:20px;font-weight:600;font-variant-numeric:tabular-nums}
+/* relances */
+.reminders{display:grid;gap:10px}
+.rem{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:center;border:1px solid var(--line);border-radius:12px;padding:12px;background:var(--panel)}
+@media (max-width:700px){.rem{grid-template-columns:minmax(0,1fr)}}
+.rem textarea{font-size:13px;resize:vertical;min-height:64px}
+.empty{padding:22px;text-align:center;color:var(--muted)}
+/* connexion */
+.login{max-width:440px;margin:40px auto;width:100%}
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 18px;border-radius:12px;font-weight:600;z-index:50;max-width:calc(100% - 32px);text-align:center}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <div class="brand"><span class="dot" aria-hidden="true">🖍️</span><div><b>Imagi<i>Kids</i></b><small>CRM · abonnements</small></div></div>
+    <div class="row"><span class="badge" id="mode-badge">Démo</span><span class="muted" id="who" style="font-size:13px"></span><button class="btn sm" id="logout" hidden>Déconnexion</button></div>
+  </header>
+  <main id="view"></main>
+</div>
+<div class="toast" id="toast" hidden></div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script>
+"use strict";
+const SB_URL = "https://yufkddifakdqxnuyhpsj.supabase.co";
+const SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl1ZmtkZGlmYWtkcXhudXlocHNqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTQwOTE5ODEsImV4cCI6MjEwOTY2Nzk4MX0.l3R86NgXSpnuVU4KSC1kcZWdUZX3wkWL4KddcfQk2dM";
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const money = n => (Math.round((+n || 0)*100)/100).toLocaleString("fr-FR", {minimumFractionDigits:0, maximumFractionDigits:2}) + " $";
+const dfmt = d => d ? new Date(d).toLocaleDateString("fr-FR", {day:"2-digit", month:"2-digit", year:"numeric"}) : "—";
+const DAY = 86400000;
+const daysLeft = d => Math.ceil((new Date(d) - Date.now())/DAY);
+function toast(m){ const el = $("#toast"); el.textContent = m; el.hidden = false; clearTimeout(toast.h); toast.h = setTimeout(() => el.hidden = true, 3200); }
+function normPhone(p){ let v = String(p || "").replace(/[^0-9+]/g, ""); if (/^0\d{9}$/.test(v)) v = "+243" + v.slice(1); else if (/^243\d{9}$/.test(v)) v = "+" + v; return v; }
+const uid = () => (crypto.randomUUID ? crypto.randomUUID() : "id" + Math.random().toString(36).slice(2) + Date.now().toString(36));
+const CYCLE = {essai:"Essai", mensuel:"Mensuel", annuel:"Annuel"};
+const STATUS = {actif:"Actif", essai:"Essai", en_attente:"En attente", expire:"Expiré", rejete:"Rejeté", annule:"Annulé", aucun:"Aucun"};
+const PAYST = {a_verifier:"À vérifier", valide:"Validé", rejete:"Rejeté"};
+const METHOD = {mpesa:"M-Pesa", especes:"Espèces", autre:"Autre"};
+const pill = s => `<span class="pill st-${s}">${STATUS[s] || s}</span>`;
+
+/* ================== DONNÉES ================== */
+const db = {settings:{mpesa_number:"", mpesa_name:"ImagiKids", price_month:10, price_year:80, trial_days:2}, clients:[], subs:[], pays:[]};
+let sb = null, cloud = false;
+
+/* --- Démo : exemples fictifs enregistrés sur cet appareil --- */
+const DEMO_KEY = "imagikids-crm-demo-v1";
+function demoSeed(){
+  const ago = d => new Date(Date.now() - d*DAY).toISOString(), inn = d => new Date(Date.now() + d*DAY).toISOString();
+  const C = (id, n, p, e, d) => ({id, full_name:n, phone:p, email:e, notes:"", source:"landing", created_at:ago(d)});
+  const clients = [C("k1","Famille Mukendi (exemple)","+243812345601","mukendi@exemple.test",70), C("k2","Grâce Ilunga (exemple)","+243998877602","grace@exemple.test",40), C("k3","Complexe scolaire Les Étoiles (exemple)","+243825551103","etoiles@exemple.test",95),
+    C("k4","Patrick Kabongo (exemple)","+243970001104",null,3), C("k5","Sarah Lukusa (exemple)","+243814441105","sarah@exemple.test",1), C("k6","Famille Tshibangu (exemple)","+243896661106","tshib@exemple.test",33), C("k7","Esther Mbuyi (exemple)","+243853331107",null,45)];
+  const S = (id, c, cy, st, amt, s, e, cr) => ({id, client_id:c, cycle:cy, status:st, amount_usd:amt, starts_at:s, ends_at:e, created_at:cr});
+  const subs = [S("s1","k1","mensuel","actif",10,ago(25),inn(5),ago(25)), S("s2","k2","annuel","actif",80,ago(6),inn(359),ago(6)), S("s3","k3","annuel","actif",80,ago(90),inn(275),ago(90)),
+    S("s4","k4","essai","essai",0,ago(1),inn(1),ago(1)), S("s5","k5","mensuel","en_attente",10,null,null,ago(0.2)), S("s6","k6","mensuel","actif",10,ago(33),ago(3),ago(33)), S("s7","k7","essai","essai",0,ago(45),ago(43),ago(45)),
+    S("s8","k1","essai","essai",0,ago(70),ago(68),ago(70)), S("s9","k1","mensuel","actif",10,ago(55),ago(25),ago(55))];
+  const P = (id, c, s, amt, ref, st, cr, v) => ({id, client_id:c, subscription_id:s, amount_usd:amt, method:"mpesa", reference:ref, status:st, created_at:cr, validated_at:v});
+  const pays = [P("p1","k1","s9",10,"QW8E1R2T3Y","valide",ago(55),ago(55)), P("p2","k1","s1",10,"ZX9C8V7B6N","valide",ago(25),ago(25)), P("p3","k2","s2",80,"AS5D4F3G2H","valide",ago(6),ago(6)),
+    P("p4","k3","s3",80,"PL0O9K8I7U","valide",ago(90),ago(90)), P("p5","k5","s5",10,"MN4B3V2C1X","a_verifier",ago(0.2),null), P("p6","k6","s6",10,"TY6U5I4O3P","valide",ago(33),ago(33))];
+  return {settings:{mpesa_number:"", mpesa_name:"ImagiKids", price_month:10, price_year:80, trial_days:2}, clients, subs, pays};
+}
+let mem = null;
+function demoLoad(){ try { const s = localStorage.getItem(DEMO_KEY); if (s) return JSON.parse(s); } catch {} return mem || demoSeed(); }
+function demoPersist(){ mem = {settings:db.settings, clients:db.clients, subs:db.subs, pays:db.pays}; try { localStorage.setItem(DEMO_KEY, JSON.stringify(mem)); } catch {} }
+
+const chk = ({data, error}) => { if (error) throw new Error(error.message); return data; };
+async function loadAll(){
+  if (!cloud){ const d = demoLoad(); Object.assign(db, d); return; }
+  const [st, cl, su, pa] = await Promise.all([
+    sb.from("crm_settings").select("*").eq("id", 1).single(), sb.from("crm_clients").select("*").order("created_at", {ascending:false}),
+    sb.from("crm_subscriptions").select("*").order("created_at", {ascending:false}), sb.from("crm_payments").select("*").order("created_at", {ascending:false})]);
+  db.settings = chk(st); db.clients = chk(cl); db.subs = chk(su); db.pays = chk(pa);
+}
+const ERRFR = {ACCES_REFUSE:"Ce compte n'a pas accès au CRM.", DEJA_TRAITE:"Ce paiement a déjà été traité.", INTROUVABLE:"Paiement introuvable.", duplicate:"Cette valeur existe déjà (numéro de téléphone ou code de transaction).", reference:"La référence doit contenir 4 à 30 lettres ou chiffres.", phone:"Numéro de téléphone invalide."};
+const frErr = m => { const k = Object.keys(ERRFR).find(x => String(m).includes(x)); return k ? ERRFR[k] : "Erreur : " + m; };
+
+/* --- Opérations (mêmes règles en ligne et en démo) --- */
+async function validatePayment(id, ok){
+  if (cloud){ chk(await sb.rpc("crm_validate_payment", {p_id:id, p_ok:ok})); return loadAll(); }
+  const p = db.pays.find(x => x.id === id); if (!p || p.status !== "a_verifier") throw new Error("DEJA_TRAITE");
+  const s = db.subs.find(x => x.id === p.subscription_id), now = new Date().toISOString();
+  if (!ok){ p.status = "rejete"; p.validated_at = now; if (s && s.status === "en_attente") s.status = "rejete"; return demoPersist(); }
+  const curEnd = db.subs.filter(x => x.client_id === p.client_id && x.status === "actif" && x.id !== s.id && new Date(x.ends_at) > new Date()).map(x => +new Date(x.ends_at));
+  const base = new Date(Math.max(Date.now(), ...curEnd)), end = new Date(base);
+  if (s.cycle === "annuel") end.setFullYear(end.getFullYear() + 1); else end.setMonth(end.getMonth() + 1);
+  s.status = "actif"; s.starts_at = base.toISOString(); s.ends_at = end.toISOString(); p.status = "valide"; p.validated_at = now; demoPersist();
+}
+async function addClient(c){
+  const row = {full_name:c.full_name.trim(), phone:normPhone(c.phone), email:(c.email || "").trim().toLowerCase() || null, notes:"", source:"crm"};
+  if (row.full_name.length < 2) throw new Error("Indiquez un nom (au moins 2 caractères).");
+  if (!/^\+?\d{8,15}$/.test(row.phone)) throw new Error("phone");
+  if (cloud){ const r = chk(await sb.from("crm_clients").insert(row).select().single()); await loadAll(); return r; }
+  if (db.clients.some(x => x.phone === row.phone)) throw new Error("duplicate");
+  const r = {...row, id:uid(), created_at:new Date().toISOString()}; db.clients.unshift(r); demoPersist(); return r;
+}
+async function saveNotes(id, notes){
+  if (cloud){ chk(await sb.from("crm_clients").update({notes}).eq("id", id)); }
+  const c = db.clients.find(x => x.id === id); if (c) c.notes = notes; if (!cloud) demoPersist();
+}
+async function manualPayment(clientId, cycle, amount, method, reference){
+  let ref = String(reference || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+  if (!ref) ref = (method === "especes" ? "ESP" : "MAN") + Date.now().toString(36).toUpperCase();
+  if (!/^[A-Z0-9]{4,30}$/.test(ref)) throw new Error("reference");
+  if (cloud){
+    const s = chk(await sb.from("crm_subscriptions").insert({client_id:clientId, cycle, status:"en_attente", amount_usd:amount}).select().single());
+    const p = chk(await sb.from("crm_payments").insert({client_id:clientId, subscription_id:s.id, amount_usd:amount, method, reference:ref}).select().single());
+    return validatePayment(p.id, true);
+  }
+  if (db.pays.some(x => x.reference === ref)) throw new Error("duplicate");
+  const now = new Date().toISOString(), s = {id:uid(), client_id:clientId, cycle, status:"en_attente", amount_usd:amount, starts_at:null, ends_at:null, created_at:now};
+  const p = {id:uid(), client_id:clientId, subscription_id:s.id, amount_usd:amount, method, reference:ref, status:"a_verifier", created_at:now, validated_at:null};
+  db.subs.unshift(s); db.pays.unshift(p); return validatePayment(p.id, true);
+}
+async function saveSettings(v){
+  if (cloud){ chk(await sb.from("crm_settings").update({...v, updated_at:new Date().toISOString()}).eq("id", 1)); }
+  Object.assign(db.settings, v); if (!cloud) demoPersist();
+}
+
+/* --- Calculs --- */
+const effStatus = s => (s.status === "actif" || s.status === "essai") && s.ends_at && new Date(s.ends_at) < new Date() ? "expire" : s.status;
+function clientState(c){
+  const subs = db.subs.filter(s => s.client_id === c.id);
+  const live = subs.filter(s => ["actif","essai"].includes(effStatus(s))).sort((a, b) => new Date(b.ends_at) - new Date(a.ends_at));
+  const act = live.find(s => effStatus(s) === "actif") || live[0];
+  if (act) return {status:effStatus(act), cycle:act.cycle, ends:act.ends_at, sub:act};
+  const pend = subs.find(s => s.status === "en_attente"); if (pend) return {status:"en_attente", cycle:pend.cycle, ends:null, sub:pend};
+  const last = subs.filter(s => s.ends_at).sort((a, b) => new Date(b.ends_at) - new Date(a.ends_at))[0];
+  if (last) return {status:"expire", cycle:last.cycle, ends:last.ends_at, sub:last};
+  return {status:"aucun", cycle:null, ends:null, sub:null};
+}
+const clientById = id => db.clients.find(c => c.id === id) || {full_name:"(client supprimé)", phone:""};
+function stats(){
+  const states = db.clients.map(c => ({c, ...clientState(c)}));
+  const active = states.filter(x => x.status === "actif"), trials = states.filter(x => x.status === "essai");
+  const mrr = active.reduce((m, x) => m + (x.cycle === "annuel" ? (+x.sub.amount_usd)/12 : +x.sub.amount_usd), 0);
+  const now = new Date(), months = [];
+  for (let i = 5; i >= 0; i--){ const d = new Date(now.getFullYear(), now.getMonth() - i, 1); months.push({y:d.getFullYear(), m:d.getMonth(), label:d.toLocaleDateString("fr-FR", {month:"short"}), v:0}); }
+  db.pays.filter(p => p.status === "valide" && p.validated_at).forEach(p => { const d = new Date(p.validated_at), b = months.find(x => x.y === d.getFullYear() && x.m === d.getMonth()); if (b) b.v += +p.amount_usd; });
+  const toCheck = db.pays.filter(p => p.status === "a_verifier");
+  const soon = states.filter(x => x.status === "actif" && x.ends && daysLeft(x.ends) <= 7);
+  return {states, active, trials, mrr, months, toCheck, soon, monthRev:months[5].v};
+}
+
+/* ================== INTERFACE ================== */
+let tab = "dash", selected = null, filterQ = "", filterS = "tous";
+const TABS = [["dash","Tableau de bord"],["clients","Clients"],["pays","Paiements"],["rem","Relances"],["settings","Réglages"]];
+function render(){
+  const st = stats();
+  $("#view").innerHTML = `<nav class="tabs" role="tablist" aria-label="Sections du CRM">${TABS.map(([k, l]) => `<button role="tab" data-tab="${k}" aria-selected="${tab === k}">${l}${k === "pays" && st.toCheck.length ? `<span class="count">${st.toCheck.length}</span>` : ""}</button>`).join("")}</nav>
+    ${!cloud ? `<p class="note">Démo : ces clients sont des exemples fictifs, enregistrés sur cet appareil seulement. Une fois le site hébergé, les vraies demandes de la landing page arrivent ici. <button class="btn sm" id="demo-reset">Réinitialiser les exemples</button></p>` : ""}
+    <div id="pane"></div>`;
+  document.querySelectorAll("[data-tab]").forEach(b => b.onclick = () => { tab = b.dataset.tab; render(); });
+  const rs = $("#demo-reset"); if (rs) rs.onclick = () => { try { localStorage.removeItem(DEMO_KEY); } catch {} mem = null; Object.assign(db, demoSeed()); demoPersist(); selected = null; render(); toast("Exemples réinitialisés."); };
+  ({dash:paneDash, clients:paneClients, pays:panePays, rem:paneRem, settings:paneSettings})[tab](st);
+}
+
+function paneDash(st){
+  const max = Math.max(1, ...st.months.map(m => m.v));
+  const recent = db.subs.slice().sort((a, b) => new Date(b.created_at) - new Date(a.created_at)).slice(0, 6);
+  $("#pane").innerHTML = `<div style="display:grid;gap:16px">
+    <div class="kpis">
+      <div class="kpi" style="--c:var(--ok)"><span>Abonnés actifs</span><b>${st.active.length}</b><small>${st.active.filter(x => x.cycle === "annuel").length} annuels · ${st.active.filter(x => x.cycle === "mensuel").length} mensuels</small></div>
+      <div class="kpi" style="--c:var(--trial)"><span>Essais en cours</span><b>${st.trials.length}</b><small>${db.settings.trial_days} jours d'essai</small></div>
+      <div class="kpi" style="--c:var(--warn)"><span>Paiements à vérifier</span><b>${st.toCheck.length}</b><small>${money(st.toCheck.reduce((m, p) => m + +p.amount_usd, 0))} en attente</small></div>
+      <div class="kpi" style="--c:var(--accent)"><span>Encaissé ce mois</span><b>${money(st.monthRev)}</b><small>paiements validés</small></div>
+      <div class="kpi" style="--c:var(--accent)"><span>Revenu mensuel récurrent</span><b>${money(st.mrr)}</b><small>annuels comptés ÷ 12</small></div>
+      <div class="kpi" style="--c:var(--err)"><span>Expirent sous 7 jours</span><b>${st.soon.length}</b><small>à relancer</small></div>
+    </div>
+    <div class="grid2">
+      <section class="panel"><h2>Encaissements des 6 derniers mois</h2>
+        <div class="chart" role="img" aria-label="Encaissements mensuels">${st.months.map(m => `<div class="col"><span class="v">${m.v ? money(m.v) : ""}</span><div class="bar" style="height:${Math.round(m.v/max*140)}px"></div></div>`).join("")}</div>
+        <div class="chart-x">${st.months.map(m => `<span>${m.label}</span>`).join("")}</div>
+      </section>
+      <section class="panel"><h2>Dernières demandes</h2>
+        ${recent.length ? `<ul class="mini">${recent.map(s => `<li><span><b>${esc(clientById(s.client_id).full_name)}</b> · ${CYCLE[s.cycle]}</span><span>${pill(effStatus(s))} <span class="muted num">${dfmt(s.created_at)}</span></span></li>`).join("")}</ul>` : `<p class="empty">Aucune demande pour le moment. Partagez le lien de la landing page.</p>`}
+        ${st.toCheck.length ? `<button class="btn primary" id="go-pays">Vérifier ${st.toCheck.length} paiement${st.toCheck.length > 1 ? "s" : ""}</button>` : ""}
+      </section>
+    </div></div>`;
+  const g = $("#go-pays"); if (g) g.onclick = () => { tab = "pays"; render(); };
+}
+
+function paneClients(st){
+  const q = filterQ.toLowerCase();
+  const rows = st.states.filter(x => (filterS === "tous" || x.status === filterS) && (!q || [x.c.full_name, x.c.phone, x.c.email].join(" ").toLowerCase().includes(q)));
+  $("#pane").innerHTML = `<div style="display:grid;gap:16px">
+    <section class="panel">
+      <div class="filters">
+        <input class="inp" id="q" type="search" placeholder="Rechercher un nom, un numéro, un e-mail" value="${esc(filterQ)}" aria-label="Rechercher un client">
+        <select class="inp" id="fs" aria-label="Filtrer par statut">${["tous","actif","essai","en_attente","expire","aucun"].map(s => `<option value="${s}" ${filterS === s ? "selected" : ""}>${s === "tous" ? "Tous les statuts" : STATUS[s]}</option>`).join("")}</select>
+        <span class="muted num">${rows.length} client${rows.length > 1 ? "s" : ""}</span>
+        <span style="flex:1"></span>
+        <button class="btn" id="csv">Copier en CSV</button>
+        <button class="btn primary" id="new-c">Nouveau client</button>
+      </div>
+      <div id="new-zone"></div>
+      <div class="tablewrap"><table><thead><tr><th>Client</th><th>Téléphone</th><th>Formule</th><th>Statut</th><th>Échéance</th><th>Inscrit le</th></tr></thead><tbody>
+        ${rows.length ? rows.map(x => `<tr class="click ${selected === x.c.id ? "sel" : ""}" data-id="${x.c.id}" tabindex="0"><td><b>${esc(x.c.full_name)}</b>${x.c.email ? `<br><span class="muted" style="font-size:12px">${esc(x.c.email)}</span>` : ""}</td><td class="mono">${esc(x.c.phone)}</td><td>${x.cycle ? CYCLE[x.cycle] : "—"}</td><td>${pill(x.status)}</td><td class="num">${x.ends ? dfmt(x.ends) + (["actif","essai"].includes(x.status) ? ` <span class="muted">(${daysLeft(x.ends)} j)</span>` : "") : "—"}</td><td class="num">${dfmt(x.c.created_at)}</td></tr>`).join("") : `<tr><td colspan="6" class="empty">Aucun client ne correspond.</td></tr>`}
+      </tbody></table></div>
+    </section>
+    <div id="fiche"></div></div>`;
+  $("#q").oninput = e => { filterQ = e.target.value; const pos = e.target.selectionStart; paneClients(stats()); const n = $("#q"); n.focus(); n.setSelectionRange(pos, pos); };
+  $("#fs").onchange = e => { filterS = e.target.value; paneClients(stats()); };
+  document.querySelectorAll("tr[data-id]").forEach(tr => { const open = () => { selected = tr.dataset.id; paneClients(stats()); $("#fiche").scrollIntoView({behavior:"smooth", block:"start"}); }; tr.onclick = open; tr.onkeydown = e => { if (e.key === "Enter") open(); }; });
+  $("#csv").onclick = async () => {
+    const lines = [["Nom","Téléphone","E-mail","Formule","Statut","Échéance","Inscrit le"].join(";")].concat(rows.map(x => [x.c.full_name, x.c.phone, x.c.email || "", x.cycle ? CYCLE[x.cycle] : "", STATUS[x.status], x.ends ? dfmt(x.ends) : "", dfmt(x.c.created_at)].map(v => `"${String(v).replace(/"/g, '""')}"`).join(";")));
+    try { await navigator.clipboard.writeText(lines.join("\n")); toast(`${rows.length} lignes copiées : collez-les dans un tableur.`); } catch { toast("La copie n'est pas autorisée ici."); }
+  };
+  $("#new-c").onclick = () => {
+    $("#new-zone").innerHTML = `<form class="formgrid" id="nc" novalidate style="border:1px dashed var(--line);border-radius:12px;padding:12px">
+      <label class="f" for="nc-n">Nom<input class="inp" id="nc-n" maxlength="80"></label>
+      <label class="f" for="nc-p">Téléphone<input class="inp" id="nc-p" type="tel" placeholder="081 234 5678"></label>
+      <label class="f" for="nc-e">E-mail (facultatif)<input class="inp" id="nc-e" type="email"></label>
+      <div class="row"><button class="btn primary" type="submit">Ajouter</button><button class="btn" type="button" id="nc-x">Annuler</button></div>
+      <p id="nc-m" hidden style="grid-column:1/-1"></p></form>`;
+    $("#nc-n").focus(); $("#nc-x").onclick = () => $("#new-zone").innerHTML = "";
+    $("#nc").onsubmit = async e => { e.preventDefault();
+      try { const r = await addClient({full_name:$("#nc-n").value, phone:$("#nc-p").value, email:$("#nc-e").value}); selected = r.id; toast("Client ajouté."); paneClients(stats()); }
+      catch (err){ const m = $("#nc-m"); m.textContent = frErr(err.message); m.className = "note err"; m.hidden = false; } };
+  };
+  if (selected) renderFiche(selected);
+}
+function renderFiche(id){
+  const c = db.clients.find(x => x.id === id); if (!c){ selected = null; return; }
+  const state = clientState(c), subs = db.subs.filter(s => s.client_id === id).sort((a, b) => new Date(b.created_at) - new Date(a.created_at)), pays = db.pays.filter(p => p.client_id === id);
+  const wa = c.phone.replace(/\D/g, "");
+  $("#fiche").innerHTML = `<section class="panel" aria-label="Fiche client">
+    <div class="row" style="justify-content:space-between"><h2>${esc(c.full_name)} ${pill(state.status)}</h2><button class="btn sm" id="f-close">Fermer</button></div>
+    <div class="fiche">
+      <div style="display:grid;gap:14px">
+        <dl class="kv"><dt>Téléphone</dt><dd><span class="mono">${esc(c.phone)}</span> · <a href="https://wa.me/${wa}" target="_blank" rel="noopener">WhatsApp</a></dd><dt>E-mail</dt><dd>${esc(c.email || "—")}</dd><dt>Formule</dt><dd>${state.cycle ? CYCLE[state.cycle] : "—"}</dd><dt>Échéance</dt><dd class="num">${state.ends ? dfmt(state.ends) : "—"}</dd><dt>Origine</dt><dd>${c.source === "crm" ? "Ajouté dans le CRM" : "Landing page"} · ${dfmt(c.created_at)}</dd></dl>
+        <label class="f" for="f-notes">Notes<textarea class="inp" id="f-notes" rows="4" maxlength="2000">${esc(c.notes)}</textarea></label>
+        <div class="row"><button class="btn" id="f-save">Enregistrer les notes</button></div>
+      </div>
+      <div style="display:grid;gap:14px">
+        <div><h3>Abonnements</h3>${subs.length ? `<ul class="mini">${subs.map(s => `<li><span>${CYCLE[s.cycle]} · ${money(s.amount_usd)}</span><span>${pill(effStatus(s))} <span class="muted num">${s.starts_at ? dfmt(s.starts_at) + " → " + dfmt(s.ends_at) : "demandé le " + dfmt(s.created_at)}</span></span></li>`).join("")}</ul>` : `<p class="muted">Aucun abonnement.</p>`}</div>
+        <div><h3>Paiements</h3>${pays.length ? `<ul class="mini">${pays.map(p => `<li><span class="mono">${esc(p.reference)}</span><span>${money(p.amount_usd)} · ${METHOD[p.method] || p.method} · <b>${PAYST[p.status]}</b> <span class="muted num">${dfmt(p.created_at)}</span></span></li>`).join("")}</ul>` : `<p class="muted">Aucun paiement.</p>`}</div>
+        <form class="formgrid" id="mp" novalidate style="border:1px dashed var(--line);border-radius:12px;padding:12px">
+          <h3 style="grid-column:1/-1">Enregistrer un paiement reçu</h3>
+          <label class="f" for="mp-c">Formule<select class="inp" id="mp-c"><option value="mensuel">Mensuel</option><option value="annuel">Annuel</option></select></label>
+          <label class="f" for="mp-a">Montant ($)<input class="inp" id="mp-a" type="number" min="0" step="0.01" value="${db.settings.price_month}"></label>
+          <label class="f" for="mp-m">Moyen<select class="inp" id="mp-m"><option value="mpesa">M-Pesa</option><option value="especes">Espèces</option><option value="autre">Autre</option></select></label>
+          <label class="f" for="mp-r">Code de transaction<input class="inp" id="mp-r" maxlength="30" placeholder="Facultatif en espèces"></label>
+          <div class="row" style="grid-column:1/-1"><button class="btn ok" type="submit">Valider et activer</button></div>
+          <p id="mp-msg" hidden style="grid-column:1/-1"></p>
+        </form>
+      </div>
+    </div></section>`;
+  $("#f-close").onclick = () => { selected = null; paneClients(stats()); };
+  $("#f-save").onclick = async () => { try { await saveNotes(id, $("#f-notes").value); toast("Notes enregistrées."); } catch (e){ toast(frErr(e.message)); } };
+  $("#mp-c").onchange = () => { $("#mp-a").value = $("#mp-c").value === "annuel" ? db.settings.price_year : db.settings.price_month; };
+  $("#mp").onsubmit = async e => { e.preventDefault(); const m = $("#mp-msg");
+    try { await manualPayment(id, $("#mp-c").value, +$("#mp-a").value || 0, $("#mp-m").value, $("#mp-r").value); toast("Paiement enregistré, abonnement activé."); render(); }
+    catch (err){ m.textContent = frErr(err.message); m.className = "note err"; m.hidden = false; } };
+}
+
+function panePays(st){
+  const done = db.pays.filter(p => p.status !== "a_verifier").slice(0, 20);
+  $("#pane").innerHTML = `<div style="display:grid;gap:16px">
+    <section class="panel"><h2>À vérifier (${st.toCheck.length})</h2>
+      <p class="muted" style="font-size:14px">Ouvrez votre relevé M-Pesa et vérifiez que le code et le montant correspondent avant de valider. La validation active l'abonnement et calcule l'échéance.</p>
+      <div class="paylist">${st.toCheck.length ? st.toCheck.map(p => { const c = clientById(p.client_id), s = db.subs.find(x => x.id === p.subscription_id);
+        return `<article class="pay"><div><b>${esc(c.full_name)}</b><br><span class="mono">${esc(c.phone)}</span> · ${s ? CYCLE[s.cycle] : ""}<br><span class="muted" style="font-size:13px">Reçu le ${dfmt(p.created_at)}</span></div><div><span class="amt">${money(p.amount_usd)}</span><br>Code : <span class="mono"><b>${esc(p.reference)}</b></span></div><div class="row" data-zone="${p.id}"><button class="btn ok" data-ok="${p.id}">Valider</button><button class="btn danger" data-no="${p.id}">Rejeter</button></div></article>`; }).join("") : `<p class="empty">Aucun paiement à vérifier. 🎉</p>`}</div>
+    </section>
+    <section class="panel"><h2>Historique récent</h2>
+      <div class="tablewrap"><table><thead><tr><th>Date</th><th>Client</th><th>Montant</th><th>Moyen</th><th>Code</th><th>Statut</th></tr></thead><tbody>
+      ${done.length ? done.map(p => `<tr><td class="num">${dfmt(p.validated_at || p.created_at)}</td><td>${esc(clientById(p.client_id).full_name)}</td><td class="num">${money(p.amount_usd)}</td><td>${METHOD[p.method] || p.method}</td><td class="mono">${esc(p.reference)}</td><td>${PAYST[p.status]}</td></tr>`).join("") : `<tr><td colspan="6" class="empty">Aucun paiement traité.</td></tr>`}
+      </tbody></table></div></section></div>`;
+  const act = async (id, ok, btn) => { btn.disabled = true; try { await validatePayment(id, ok); toast(ok ? "Paiement validé : abonnement activé." : "Paiement rejeté."); render(); } catch (e){ btn.disabled = false; toast(frErr(e.message)); } };
+  document.querySelectorAll("[data-ok]").forEach(b => b.onclick = () => act(b.dataset.ok, true, b));
+  document.querySelectorAll("[data-no]").forEach(b => b.onclick = () => {
+    const z = b.parentElement; z.innerHTML = `<span style="font-size:13px">Rejeter ce paiement ?</span><button class="btn danger sm" data-yes>Oui, rejeter</button><button class="btn sm" data-back>Annuler</button>`;
+    z.querySelector("[data-back]").onclick = () => panePays(stats()); z.querySelector("[data-yes]").onclick = e => act(b.dataset.no, false, e.target);
+  });
+}
+
+function paneRem(st){
+  const first = n => String(n || "").replace(/\s*\(exemple\)\s*/i, "").split(" ")[0];
+  const P = db.settings;
+  const groups = [
+    {title:"Essais qui se terminent", hint:"Essai terminé depuis moins de 7 jours ou qui finit dans 2 jours.", list:st.states.filter(x => x.sub && x.sub.cycle === "essai" && ["essai","expire"].includes(x.status) && x.ends && daysLeft(x.ends) <= 2 && daysLeft(x.ends) > -7 && !st.states.some(y => y.c.id === x.c.id && y.status === "actif")),
+      msg:x => `Bonjour ${first(x.c.full_name)}, votre essai gratuit ImagiKids ${daysLeft(x.ends) >= 0 ? "se termine bientôt" : "est terminé"}. Pour continuer : ${money(P.price_month)} par mois ou ${money(P.price_year)} par an, à payer par M-Pesa${P.mpesa_number ? " au " + P.mpesa_number : ""}. Envoyez-nous ensuite le code de la transaction. Merci !`},
+    {title:"Abonnements qui expirent sous 7 jours", hint:"Renouvellement à proposer avant l'échéance.", list:st.soon,
+      msg:x => `Bonjour ${first(x.c.full_name)}, votre abonnement ImagiKids se termine le ${dfmt(x.ends)}. Pour le renouveler : ${money(x.cycle === "annuel" ? P.price_year : P.price_month)} par M-Pesa${P.mpesa_number ? " au " + P.mpesa_number : ""}, puis envoyez-nous le code de la transaction. Merci de votre confiance !`},
+    {title:"Abonnements expirés (moins de 30 jours)", hint:"Anciens abonnés à faire revenir.", list:st.states.filter(x => x.status === "expire" && x.sub && x.sub.cycle !== "essai" && x.ends && daysLeft(x.ends) > -30),
+      msg:x => `Bonjour ${first(x.c.full_name)}, votre abonnement ImagiKids est arrivé à échéance le ${dfmt(x.ends)}. Vos enfants peuvent reprendre où ils se sont arrêtés : ${money(P.price_month)} par mois ou ${money(P.price_year)} par an, par M-Pesa${P.mpesa_number ? " au " + P.mpesa_number : ""}.`}
+  ];
+  $("#pane").innerHTML = `<div style="display:grid;gap:16px">${groups.map((g, gi) => `<section class="panel"><h2>${g.title} (${g.list.length})</h2><p class="muted" style="font-size:14px">${g.hint}</p>
+    <div class="reminders">${g.list.length ? g.list.map((x, i) => `<article class="rem"><div style="display:grid;gap:6px;min-width:0"><span><b>${esc(x.c.full_name)}</b> · <span class="mono">${esc(x.c.phone)}</span> · ${pill(x.status)} ${x.ends ? `<span class="muted num">échéance ${dfmt(x.ends)}</span>` : ""}</span><textarea class="inp" id="m-${gi}-${i}" aria-label="Message pour ${esc(x.c.full_name)}">${esc(g.msg(x))}</textarea></div>
+      <div class="row"><button class="btn" data-copy="m-${gi}-${i}">Copier</button><a class="btn ok" target="_blank" rel="noopener" data-wa="${x.c.phone.replace(/\D/g, "")}" data-src="m-${gi}-${i}" href="#">WhatsApp</a></div></article>`).join("") : `<p class="empty">Personne à relancer.</p>`}</div></section>`).join("")}
+    <p class="muted" style="font-size:13px">Le bouton WhatsApp ouvre la conversation avec le message prérempli : vérifiez-le avant l'envoi. Pour un SMS, copiez le message.</p></div>`;
+  document.querySelectorAll("[data-copy]").forEach(b => b.onclick = async () => { const t = document.getElementById(b.dataset.copy); try { await navigator.clipboard.writeText(t.value); toast("Message copié."); } catch { t.select(); toast("Message sélectionné : copiez-le."); } });
+  document.querySelectorAll("[data-wa]").forEach(a => { const upd = () => a.href = `https://wa.me/${a.dataset.wa}?text=${encodeURIComponent(document.getElementById(a.dataset.src).value)}`; upd(); document.getElementById(a.dataset.src).addEventListener("input", upd); });
+}
+
+function paneSettings(){
+  const s = db.settings;
+  $("#pane").innerHTML = `<section class="panel" style="max-width:760px">
+    <h2>Paiement et tarifs</h2>
+    <p class="muted" style="font-size:14px">Ces valeurs s'affichent immédiatement sur la landing page.</p>
+    <form class="formgrid" id="sf" novalidate>
+      <label class="f" for="s-num">Numéro marchand M-Pesa<input class="inp" id="s-num" maxlength="30" value="${esc(s.mpesa_number)}" placeholder="Ex. 0812345678 ou numéro Till"></label>
+      <label class="f" for="s-name">Nom affiché du compte<input class="inp" id="s-name" maxlength="60" value="${esc(s.mpesa_name)}"></label>
+      <label class="f" for="s-m">Prix mensuel ($)<input class="inp" id="s-m" type="number" min="0" step="0.01" value="${s.price_month}"></label>
+      <label class="f" for="s-y">Prix annuel ($)<input class="inp" id="s-y" type="number" min="0" step="0.01" value="${s.price_year}"></label>
+      <label class="f" for="s-t">Durée de l'essai (jours)<input class="inp" id="s-t" type="number" min="0" max="30" step="1" value="${s.trial_days}"></label>
+      <div class="row" style="grid-column:1/-1"><button class="btn primary" type="submit">Enregistrer</button><span class="muted" id="s-save-hint" style="font-size:13px"></span></div>
+      <p id="s-msg" hidden style="grid-column:1/-1"></p>
+    </form>
+  </section>`;
+  const hint = () => { const m = +$("#s-m").value, y = +$("#s-y").value; $("#s-save-hint").textContent = m && y ? `Remise annuelle : ${Math.round((1 - y/(m*12))*100)} % (économie de ${money(m*12 - y)})` : ""; };
+  hint(); $("#s-m").oninput = hint; $("#s-y").oninput = hint;
+  $("#sf").onsubmit = async e => { e.preventDefault(); const m = $("#s-msg");
+    const v = {mpesa_number:$("#s-num").value.trim(), mpesa_name:$("#s-name").value.trim() || "ImagiKids", price_month:+$("#s-m").value, price_year:+$("#s-y").value, trial_days:Math.round(+$("#s-t").value)};
+    if (!(v.price_month >= 0 && v.price_year >= 0) || !(v.trial_days >= 0 && v.trial_days <= 30)){ m.textContent = "Vérifiez les prix (positifs) et la durée de l'essai (0 à 30 jours)."; m.className = "note err"; m.hidden = false; return; }
+    try { await saveSettings(v); m.textContent = "Réglages enregistrés."; m.className = "note ok"; m.hidden = false; } catch (err){ m.textContent = frErr(err.message); m.className = "note err"; m.hidden = false; } };
+}
+
+/* ================== CONNEXION ================== */
+function showLogin(msg){
+  $("#logout").hidden = true; $("#who").textContent = "";
+  $("#view").innerHTML = `<section class="panel login">
+    <h2>Accès administrateur</h2>
+    ${cloud ? `<p class="muted" style="font-size:14px">Connectez-vous avec l'adresse e-mail autorisée. Première fois ? Créez votre accès, puis confirmez l'e-mail reçu.</p>
+    <form id="lf" novalidate style="display:grid;gap:12px">
+      <label class="f" for="l-e">Adresse e-mail<input class="inp" id="l-e" type="email" autocomplete="email" required></label>
+      <label class="f" for="l-p">Mot de passe<input class="inp" id="l-p" type="password" autocomplete="current-password" minlength="8" required></label>
+      <div class="row"><button class="btn primary" type="submit">Se connecter</button><button class="btn" type="button" id="l-up">Créer mon accès</button></div>
+      <p id="l-m" ${msg ? "" : "hidden"} class="note err">${esc(msg || "")}</p>
+    </form>` : `<p class="muted" style="font-size:14px">Cet aperçu ne peut pas joindre la base de données : il s'ouvre en démo avec des clients fictifs. Une fois le site hébergé, cette page demande votre e-mail et votre mot de passe.</p>
+    <button class="btn primary" id="demo-in">Ouvrir la démo du CRM</button>`}
+  </section>`;
+  if (!cloud){ $("#demo-in").onclick = async () => { await loadAll(); $("#who").textContent = "Démo"; render(); }; return; }
+  const say = (t, k) => { const m = $("#l-m"); m.textContent = t; m.className = "note " + k; m.hidden = false; };
+  $("#lf").onsubmit = async e => { e.preventDefault();
+    const { error } = await sb.auth.signInWithPassword({email:$("#l-e").value.trim(), password:$("#l-p").value});
+    if (error) return say(/Invalid login/i.test(error.message) ? "E-mail ou mot de passe incorrect." : /not confirmed/i.test(error.message) ? "Confirmez d'abord votre adresse grâce au lien reçu par e-mail." : error.message, "err");
+    enter(); };
+  $("#l-up").onclick = async () => { const email = $("#l-e").value.trim(), password = $("#l-p").value;
+    if (!/^\S+@\S+\.\S+$/.test(email) || password.length < 8) return say("Saisissez votre e-mail et un mot de passe d'au moins 8 caractères.", "err");
+    const { error } = await sb.auth.signUp({email, password, options:{data:{display_name:"Administrateur CRM"}, emailRedirectTo:location.href}});
+    if (error) return say(/already registered/i.test(error.message) ? "Ce compte existe déjà : connectez-vous." : error.message, "err");
+    say("Compte créé. Ouvrez le lien reçu par e-mail pour le confirmer, puis connectez-vous.", "ok"); };
+}
+async function enter(){
+  const { data } = await sb.auth.getUser(); const user = data && data.user;
+  if (!user) return showLogin();
+  const { data: ok } = await sb.rpc("crm_is_admin");
+  if (!ok){ await sb.auth.signOut(); return showLogin("Ce compte n'a pas accès au CRM. Utilisez l'adresse e-mail autorisée."); }
+  $("#who").textContent = user.email; $("#logout").hidden = false;
+  try { await loadAll(); render(); } catch (e){ $("#view").innerHTML = `<p class="note err">Les données n'ont pas pu être chargées : ${esc(e.message)}</p>`; }
+}
+$("#logout").onclick = async () => { if (sb) await sb.auth.signOut(); showLogin(); };
+
+(async function boot(){
+  try {
+    if (window.supabase){ const ctl = new AbortController(), tm = setTimeout(() => ctl.abort(), 3500);
+      const r = await fetch(SB_URL + "/auth/v1/health", {headers:{apikey:SB_KEY}, signal:ctl.signal}); clearTimeout(tm); cloud = r.ok; }
+  } catch { cloud = false; }
+  const b = $("#mode-badge"); b.textContent = cloud ? "En ligne" : "Démo"; b.className = "badge" + (cloud ? " on" : "");
+  if (cloud){ sb = window.supabase.createClient(SB_URL, SB_KEY); const { data } = await sb.auth.getSession(); if (data.session) return enter(); }
+  showLogin();
+})();
+</script>
+
+</body></html>
