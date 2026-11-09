@@ -87,11 +87,13 @@
     <label>Mot de passe<input type="password" name="password" required autocomplete="current-password"></label>
     <button class="btn" type="submit" style="width:100%">Se connecter</button>
     <div class="err" id="login-err"></div>
+    <p class="switch" id="mode-switch" style="margin:14px 0 0;font-size:13px;color:var(--soft)">Pas encore de compte ? <a href="#" id="to-signup">Créer mon compte</a></p>
+    <div class="ok-msg" id="login-ok" style="margin-top:10px;font-size:13px;color:var(--ok)"></div>
   </form>
 </section>
 
 <section id="denied" class="center hidden">
-  <div class="box"><h2 style="margin-top:0">Accès non autorisé</h2><p>Ce compte n'est pas administrateur. Ajoutez son e-mail dans la table <code>crm_admins</code>.</p><button class="btn ghost" id="logout2">Se déconnecter</button></div>
+  <div class="box"><h2 style="margin-top:0">Accès non autorisé</h2><p>Vous êtes connecté avec <b id="denied-email"></b>, mais ce compte n'a pas encore l'accès à l'équipe. Demandez à l'administrateur (ou à Claude) de l'activer, puis rechargez la page.</p><button class="btn ghost" id="logout2">Se déconnecter</button></div>
 </section>
 
 <section id="app" class="hidden">
@@ -160,15 +162,50 @@ async function boot() {
   const { data: { session } } = await sb.auth.getSession();
   if (!session) return screen("login");
   const { data: ok } = await sb.rpc("am_i_crm_admin");
-  if (!ok) return screen("denied");
+  if (!ok) { $("denied-email").textContent = session.user.email; return screen("denied"); }
   screen("app"); loadJobs();
 }
-$("login-form").onsubmit = async (e) => {
-  e.preventDefault(); const f = new FormData(e.target); $("login-err").textContent = "";
-  const { error } = await sb.auth.signInWithPassword({ email: f.get("email"), password: f.get("password") });
-  if (error) return ($("login-err").textContent = "Connexion impossible : " + error.message);
+// ---------- Création de compte et messages en français ----------
+let signupMode = false;
+function frAuthError(m) {
+  if (/invalid login credentials/i.test(m)) return "E-mail ou mot de passe incorrect, ou compte pas encore créé. Cliquez sur « Créer mon compte » si c'est votre première visite.";
+  if (/email not confirmed/i.test(m)) return "Compte créé mais pas encore activé. Demandez son activation, ou cliquez sur le lien reçu par e-mail.";
+  if (/already registered|already exists/i.test(m)) return "Ce compte existe déjà : connectez-vous avec votre mot de passe.";
+  if (/password should be at least|weak password/i.test(m)) return "Mot de passe trop court : 8 caractères minimum.";
+  if (/rate limit/i.test(m)) return "Trop d'essais : patientez quelques minutes.";
+  return m;
+}
+function setMode(signup) {
+  signupMode = signup;
+  const f = document.getElementById("login-form");
+  f.querySelector("button[type=submit]").textContent = signup ? "Créer mon compte" : "Se connecter";
+  f.querySelector("input[name=password]").setAttribute("autocomplete", signup ? "new-password" : "current-password");
+  document.getElementById("mode-switch").innerHTML = signup
+    ? 'Déjà un compte ? <a href="#" id="to-login">Se connecter</a>'
+    : 'Pas encore de compte ? <a href="#" id="to-signup">Créer mon compte</a>';
+  document.getElementById(signup ? "to-login" : "to-signup").onclick = (e) => { e.preventDefault(); setMode(!signup); };
+  document.getElementById("login-err").textContent = ""; document.getElementById("login-ok").textContent = "";
+}
+setMode(false);
+async function submitAuth(e) {
+  e.preventDefault();
+  const f = new FormData(e.target), email = String(f.get("email")).trim().toLowerCase(), password = String(f.get("password"));
+  const err = document.getElementById("login-err"), ok = document.getElementById("login-ok");
+  err.textContent = ""; ok.textContent = "";
+  if (signupMode) {
+    if (password.length < 8) { err.textContent = "Mot de passe trop court : 8 caractères minimum."; return; }
+    const { data, error } = await sb.auth.signUp({ email, password, options: { emailRedirectTo: location.origin + location.pathname } });
+    if (error) { err.textContent = frAuthError(error.message); return; }
+    if (data.session) { boot(); return; }
+    setMode(false);
+    ok.textContent = "Compte créé pour " + email + ". Il doit maintenant être activé : prévenez l'administrateur (ou Claude), ou cliquez sur le lien reçu par e-mail. Ensuite, connectez-vous ici.";
+    return;
+  }
+  const { error } = await sb.auth.signInWithPassword({ email, password });
+  if (error) { err.textContent = frAuthError(error.message); return; }
   boot();
-};
+}
+document.getElementById("login-form").addEventListener("submit", submitAuth);
 const logout = async () => { await sb.auth.signOut(); screen("login"); };
 $("logout").onclick = logout; $("logout2").onclick = logout;
 
