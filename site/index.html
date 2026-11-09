@@ -132,6 +132,41 @@
   .lang-picks label { display: inline-flex; align-items: center; gap: 6px; margin: 0; padding: 7px 12px; border: 1.5px solid var(--line); border-radius: 999px; font-weight: 500; cursor: pointer; background: #fff; }
   .lang-picks label:has(input:checked) { border-color: var(--brand); background: #eff6ff; }
   .lang-picks small { color: var(--ink-soft); font-weight: 400; }
+  .quick { display: flex; gap: 8px; background: #fff; border: 2px solid var(--brand); border-radius: 16px; padding: 8px; margin-top: 26px; box-shadow: 0 10px 30px rgba(29,78,216,.12); }
+  .quick input { flex: 1; border: 0; margin: 0; padding: 12px; min-width: 0; font-size: 1rem; }
+  .quick input:focus { outline: none; }
+  .quick select { width: auto; margin: 0; border: 0; background: var(--paper); padding: 0 10px; border-radius: 10px; font-weight: 600; }
+  .quick .btn { border-radius: 10px; }
+  @media (max-width: 560px) { .quick { flex-wrap: wrap; } .quick input { flex-basis: 100%; } .quick select, .quick .btn { flex: 1; padding: 12px; } }
+  .quick-help { font-size: .9rem; color: var(--ink-soft); margin: 10px 0 0; }
+  .quick-help.err { color: #b91c1c; font-weight: 600; }
+  .screen .demo { position: absolute; inset: 0; display: flex; align-items: flex-end; }
+  .langs-live button { font: inherit; font-size: .75rem; border: 0; cursor: pointer; background: rgba(255,255,255,.22); color: #fff; padding: 4px 10px; border-radius: 999px; }
+  .langs-live button.on { background: #fff; color: var(--ink); font-weight: 700; }
+  .big-play { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -60%); width: 64px; height: 64px; border-radius: 50%; border: 0; background: rgba(255,255,255,.92); color: var(--ink); font-size: 1.5rem; cursor: pointer; box-shadow: 0 8px 24px rgba(0,0,0,.25); }
+  .big-play:hover { transform: translate(-50%, -60%) scale(1.06); }
+  .bubble span { display: block; }
+  .embed { position: absolute; inset: 0; background: #000; }
+  .embed iframe { width: 100%; height: 100%; border: 0; }
+  .embed .nopreview { height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 20px; gap: 8px; color: #fff; }
+  .embed .nopreview small { opacity: .75; word-break: break-all; }
+  .controls { display: flex; align-items: center; gap: 10px; margin-top: 12px; }
+  .ctl { border: 0; background: rgba(255,255,255,.12); color: #fff; border-radius: 8px; padding: 6px 10px; cursor: pointer; font: inherit; font-size: .85rem; }
+  .ctl.voice.on { background: var(--accent); color: var(--ink); font-weight: 600; }
+  .track { flex: 1; height: 6px; background: rgba(255,255,255,.2); border-radius: 6px; cursor: pointer; position: relative; }
+  .track i { display: block; height: 100%; width: 0; background: var(--accent); border-radius: 6px; }
+  .time { font-size: .8rem; opacity: .85; font-variant-numeric: tabular-nums; }
+  .player .meta { align-items: center; }
+  .link { background: none; border: 0; color: #fff; text-decoration: underline; cursor: pointer; font: inherit; font-size: .8rem; opacity: .9; }
+  .after { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 12px; padding-top: 12px; border-top: 1px solid rgba(255,255,255,.15); font-size: .9rem; }
+  .after .btn { padding: 10px 16px; font-size: .9rem; }
+  @media (max-width: 560px) {
+    .screen { aspect-ratio: 4/5; }
+    .langs-live { top: 44px; right: 10px; }
+    .langs-live button { font-size: .7rem; padding: 3px 8px; }
+    .big-play { width: 54px; height: 54px; font-size: 1.2rem; }
+    .after { flex-direction: column; align-items: stretch; text-align: center; }
+  }
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script src="config.js"></script>
@@ -156,21 +191,39 @@
       <div>
         <span class="eyebrow">Sous-titres · Doublage · Résumé · Quiz</span>
         <h1>Chaque savoir, compris dans sa langue.</h1>
-        <p class="lead">Professa-M traduit vos vidéos de formation, de santé, d'enseignement ou de prédication en sous-titres et en voix, du lingala au japonais. Votre public comprend enfin le message, même s'il lit difficilement.</p>
-        <div class="ctas">
-          <a class="btn btn-primary" href="#envoyer">Envoyer une vidéo</a>
-          <a class="btn btn-ghost" href="#comment">Voir comment ça marche</a>
-        </div>
+        <p class="lead">Collez le lien de votre vidéo : Professa-M la traduit en sous-titres et en voix, du lingala au japonais.</p>
+        <form id="quick" class="quick" novalidate>
+          <input id="quick-url" type="url" inputmode="url" placeholder="Collez ici le lien de votre vidéo (YouTube, Facebook...)" aria-label="Lien de la vidéo">
+          <select id="quick-lang" aria-label="Traduire en">
+            <option value="ln">en Lingala</option><option value="sw">en Swahili</option><option value="fr">en Français</option>
+            <option value="en">en Anglais</option><option value="pt">en Portugais</option>
+          </select>
+          <button class="btn btn-primary" type="submit">Traduire</button>
+        </form>
+        <p class="quick-help" id="quick-help">Pas de lien ? <a href="#envoyer" data-file-tab>Envoyez un fichier vidéo</a> · Vos droits sur la vidéo sont requis.</p>
         <p class="trust">13 langues · Relecture humaine pour les langues locales · Paiement M-Pesa</p>
       </div>
-      <div class="player" aria-hidden="true">
-        <div class="screen">
-          <span class="scene">Hygiène de l'eau · 12 min</span>
-          <div class="langs-live"><span class="on">Lingala</span><span>Swahili</span><span>Français</span><span>English</span></div>
-          <div class="bubble"><b>Doublage · Lingala</b>Botoka mai liboso ya komela.<small>Faites bouillir l'eau avant de la boire.</small></div>
+      <div class="player" id="player">
+        <div class="screen" id="screen">
+          <div class="demo" id="demo">
+            <span class="scene" id="demo-title">Démo · Hygiène de l'eau</span>
+            <div class="langs-live" id="demo-langs" role="group" aria-label="Langue des sous-titres"></div>
+            <button class="big-play" id="big-play" type="button" aria-label="Lire la démo">&#9654;</button>
+            <div class="bubble" id="bubble"><b id="bubble-lang">Lingala</b><span id="bubble-text">Appuyez sur lecture pour voir la démo.</span><small id="bubble-src"></small></div>
+          </div>
+          <div class="embed hidden" id="embed"></div>
         </div>
-        <div class="meta"><span>Sous-titres + voix + quiz</span><span>04:18 / 12:00</span></div>
-        <div class="bar"><i></i></div>
+        <div class="controls" id="controls">
+          <button type="button" id="play" class="ctl" aria-label="Lecture">&#9654;</button>
+          <div class="track" id="track"><i id="progress"></i></div>
+          <span class="time" id="time">00:00 / 00:24</span>
+          <button type="button" id="voice" class="ctl voice on" aria-pressed="true" title="Voix (doublage de démonstration)">Voix</button>
+        </div>
+        <div class="meta" id="meta"><span id="meta-left">Démonstration : choisissez une langue, puis lecture</span><button type="button" id="back-demo" class="link hidden">Revenir à la démo</button></div>
+        <div class="after hidden" id="after">
+          <span id="after-text">Vidéo prête à traduire.</span>
+          <a class="btn btn-primary" href="#envoyer" id="after-go">Traduire cette vidéo</a>
+        </div>
       </div>
     </div>
   </section>
@@ -529,6 +582,144 @@
     } finally {
       btn.disabled = false; btn.textContent = "Envoyer pour un devis gratuit";
     }
+  });
+  // ---------- Écran de la page d'accueil ----------
+  const DEMO = {
+    duration: 24,
+    lines: [
+      { t: 0,  src: "Faites bouillir l'eau avant de la boire.", tr: { ln: "Botoka mai liboso ya komela.", sw: "Chemsha maji kabla ya kunywa.", fr: "Faites bouillir l'eau avant de la boire.", en: "Boil the water before drinking it.", pt: "Ferva a água antes de beber." } },
+      { t: 8,  src: "Lavez-vous les mains avec du savon.", tr: { ln: "Sukola maboko na sabuni.", sw: "Nawa mikono kwa sabuni.", fr: "Lavez-vous les mains avec du savon.", en: "Wash your hands with soap.", pt: "Lave as mãos com sabão." } },
+      { t: 16, src: "Couvrez toujours votre nourriture.", tr: { ln: "Zipa bilei na yo ntango nyonso.", sw: "Funika chakula chako kila wakati.", fr: "Couvrez toujours votre nourriture.", en: "Always cover your food.", pt: "Cubra sempre a sua comida." } }
+    ]
+  };
+  const DEMO_LANGS = [["ln", "Lingala"], ["sw", "Swahili"], ["fr", "Français"], ["en", "English"], ["pt", "Português"]];
+  const VOICE_LANG = { ln: "ln", sw: "sw", fr: "fr", en: "en", pt: "pt" };
+  const $id = (x) => document.getElementById(x);
+  let demoLang = "ln", playing = false, t0 = 0, elapsed = 0, timer = null, lastLine = -1, voiceOn = true, mode = "demo";
+  $id("demo-langs").innerHTML = DEMO_LANGS.map(([c, n]) => `<button type="button" data-l="${c}" class="${c === demoLang ? "on" : ""}">${n}</button>`).join("");
+  const fmt = (s) => String(Math.floor(s / 60)).padStart(2, "0") + ":" + String(Math.floor(s % 60)).padStart(2, "0");
+  function lineAt(s) { let i = 0; DEMO.lines.forEach((l, k) => { if (s >= l.t) i = k; }); return i; }
+  function speak(text, lang) {
+    if (!voiceOn || !("speechSynthesis" in window)) return;
+    speechSynthesis.cancel();
+    const voices = speechSynthesis.getVoices();
+    const v = voices.find((x) => x.lang && x.lang.toLowerCase().startsWith(VOICE_LANG[lang]));
+    if (!v) { $id("meta-left").textContent = "Voix " + DEMO_LANGS.find((d) => d[0] === lang)[1] + " non disponible sur cet appareil : sous-titres seulement"; return; }
+    const u = new SpeechSynthesisUtterance(text); u.voice = v; u.lang = v.lang; u.rate = 0.95;
+    speechSynthesis.speak(u);
+  }
+  function render(force) {
+    const i = lineAt(elapsed), line = DEMO.lines[i];
+    $id("progress").style.width = (elapsed / DEMO.duration * 100) + "%";
+    $id("time").textContent = fmt(elapsed) + " / " + fmt(DEMO.duration);
+    if (playing || force) {
+      $id("bubble-lang").textContent = (voiceOn ? "Doublage · " : "Sous-titres · ") + DEMO_LANGS.find((d) => d[0] === demoLang)[1];
+      $id("bubble-text").textContent = line.tr[demoLang];
+      $id("bubble-src").textContent = demoLang === "fr" ? "" : "Original : " + line.src;
+      if (playing && (i !== lastLine || force)) { lastLine = i; speak(line.tr[demoLang], demoLang); }
+    }
+  }
+  function tick() {
+    elapsed = Math.min(DEMO.duration, (performance.now() - t0) / 1000);
+    render(false);
+    if (elapsed >= DEMO.duration) { pause(); elapsed = 0; lastLine = -1; }
+  }
+  function play() {
+    if (mode !== "demo") return;
+    playing = true; t0 = performance.now() - elapsed * 1000; lastLine = -1;
+    $id("play").innerHTML = "&#10074;&#10074;"; $id("play").setAttribute("aria-label", "Pause");
+    $id("big-play").classList.add("hidden");
+    $id("meta-left").textContent = "Démonstration en cours";
+    clearInterval(timer); timer = setInterval(tick, 200); render(true);
+  }
+  function pause() {
+    playing = false; clearInterval(timer);
+    if ("speechSynthesis" in window) speechSynthesis.cancel();
+    $id("play").innerHTML = "&#9654;"; $id("play").setAttribute("aria-label", "Lecture");
+    $id("big-play").classList.remove("hidden");
+  }
+  $id("play").onclick = () => (playing ? pause() : play());
+  $id("big-play").onclick = play;
+  $id("voice").onclick = () => {
+    voiceOn = !voiceOn; $id("voice").classList.toggle("on", voiceOn); $id("voice").setAttribute("aria-pressed", voiceOn);
+    if (!voiceOn && "speechSynthesis" in window) speechSynthesis.cancel();
+    render(true);
+  };
+  $id("track").onclick = (e) => {
+    const r = e.currentTarget.getBoundingClientRect();
+    elapsed = Math.max(0, Math.min(DEMO.duration, (e.clientX - r.left) / r.width * DEMO.duration));
+    t0 = performance.now() - elapsed * 1000; lastLine = -1; render(true);
+  };
+  $id("demo-langs").onclick = (e) => {
+    const b = e.target.closest("button[data-l]"); if (!b) return;
+    demoLang = b.dataset.l;
+    document.querySelectorAll("#demo-langs button").forEach((x) => x.classList.toggle("on", x === b));
+    lastLine = -1; render(true);
+  };
+  if ("speechSynthesis" in window) speechSynthesis.onvoiceschanged = () => {};
+
+  function youtubeId(u) {
+    try {
+      const url = new URL(u);
+      const h = url.hostname.replace(/^www\.|^m\./, "");
+      if (h === "youtu.be") return url.pathname.slice(1).split("/")[0];
+      if (h.endsWith("youtube.com")) {
+        if (url.searchParams.get("v")) return url.searchParams.get("v");
+        const m = url.pathname.match(/^\/(shorts|embed|live)\/([\w-]{6,})/);
+        if (m) return m[2];
+      }
+    } catch (e) {}
+    return null;
+  }
+  function showDemo() {
+    mode = "demo";
+    $id("embed").classList.add("hidden"); $id("embed").innerHTML = "";
+    $id("demo").classList.remove("hidden"); $id("controls").classList.remove("hidden");
+    $id("after").classList.add("hidden"); $id("back-demo").classList.add("hidden");
+    $id("meta-left").textContent = "Démonstration : choisissez une langue, puis lecture";
+  }
+  function showLink(u, lang) {
+    pause(); mode = "link";
+    const id = youtubeId(u);
+    const host = (() => { try { return new URL(u).hostname.replace(/^www\./, ""); } catch (e) { return ""; } })();
+    $id("demo").classList.add("hidden"); $id("controls").classList.add("hidden");
+    $id("embed").classList.remove("hidden");
+    $id("embed").innerHTML = id
+      ? `<iframe src="https://www.youtube-nocookie.com/embed/${encodeURIComponent(id)}?rel=0" title="Aperçu de la vidéo" allow="accelerometer; encrypted-media; gyroscope; picture-in-picture; fullscreen" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe>`
+      : `<div class="nopreview"><strong>Lien reçu</strong><span>L'aperçu n'est disponible que pour YouTube, mais nous pouvons traduire cette vidéo.</span><small>${host}</small></div>`;
+    const name = $id("quick-lang").selectedOptions[0].textContent;
+    $id("meta-left").textContent = id ? "Aperçu de votre vidéo (lecteur YouTube)" : "Vidéo : " + host;
+    $id("back-demo").classList.remove("hidden");
+    $id("after").classList.remove("hidden");
+    $id("after-text").textContent = "Prête à être traduite " + name.toLowerCase() + ".";
+  }
+  $id("back-demo").onclick = showDemo;
+
+  function prefillSend(u, lang) {
+    document.querySelector('.tab[data-tab="link"]').click();
+    sendForm.querySelector("input[name=video_url]").value = u;
+    sendForm.querySelectorAll("input[name=targets]").forEach((c) => (c.checked = c.value === lang));
+  }
+  $id("quick").addEventListener("submit", (e) => {
+    e.preventDefault();
+    const u = $id("quick-url").value.trim(), lang = $id("quick-lang").value, help = $id("quick-help");
+    if (!/^https?:\/\/\S+\.\S+/.test(u)) {
+      help.classList.add("err"); help.textContent = "Collez un lien complet, qui commence par https://";
+      $id("quick-url").focus(); return;
+    }
+    help.classList.remove("err");
+    help.innerHTML = 'Vérifiez l\'aperçu, puis cliquez sur « Traduire cette vidéo ». <a href="#envoyer" data-file-tab>Ou envoyez un fichier</a>.';
+    showLink(u, lang);
+    prefillSend(u, lang);
+  });
+  $id("after-go").addEventListener("click", (e) => {
+    e.preventDefault();
+    $id("envoyer").scrollIntoView({ behavior: "smooth", block: "start" });
+    setTimeout(() => sendForm.querySelector("input[name=org_name]").focus({ preventScroll: true }), 500);
+  });
+  document.addEventListener("click", (e) => {
+    const a = e.target.closest("[data-file-tab]"); if (!a) return;
+    document.querySelector('.tab[data-tab="file"]').click();
   });
 </script>
 </body>
