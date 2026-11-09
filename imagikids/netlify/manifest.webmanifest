@@ -1,0 +1,23 @@
+{
+  "id": "/app/",
+  "name": "Kelasi Kids : apprendre en images",
+  "short_name": "Kelasi Kids",
+  "description": "Plateforme d'apprentissage en images pour les enfants de 3 à 15 ans : 13 matières, 20 niveaux, une voix qui lit les consignes.",
+  "lang": "fr",
+  "dir": "ltr",
+  "start_url": "/app/?source=pwa",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#f5f8fd",
+  "theme_color": "#f4ad1d",
+  "categories": ["education", "kids"],
+  "icons": [
+    {"src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any"},
+    {"src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any"},
+    {"src": "/icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable"}
+  ],
+  "shortcuts": [
+    {"name": "S'abonner", "url": "/#abonnement", "icons": [{"src": "/icons/icon-192.png", "sizes": "192x192"}]}
+  ]
+}
