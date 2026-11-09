@@ -167,6 +167,28 @@
     .big-play { width: 54px; height: 54px; font-size: 1.2rem; }
     .after { flex-direction: column; align-items: stretch; text-align: center; }
   }
+  .quick .file-btn { display: inline-flex; align-items: center; gap: 6px; background: var(--paper); color: var(--ink); border-radius: 10px; padding: 0 14px; }
+  .quick .file-btn:hover { background: var(--accent-soft); }
+  .screen .layer { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .screen video.layer { background: #000; object-fit: contain; }
+  #yt-layer iframe, #yt-layer > div { width: 100%; height: 100%; border: 0; }
+  .nopreview { background: #0b1324; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 20px; gap: 8px; color: #fff; }
+  .nopreview small { opacity: .75; word-break: break-all; }
+  .player.over { outline: 3px dashed var(--accent); outline-offset: 4px; }
+  .player:fullscreen { display: flex; flex-direction: column; justify-content: center; border-radius: 0; }
+  .player:fullscreen .screen { aspect-ratio: auto; flex: 1; }
+  .ctl svg { display: block; }
+  .ctl.main { background: #fff; color: var(--ink); }
+  .ctl:disabled { opacity: .4; cursor: default; }
+  .subbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 10px; font-size: .8rem; }
+  .subbar .cc { display: inline-flex; align-items: center; gap: 6px; margin: 0; font-size: .8rem; font-weight: 500; color: #fff; opacity: .9; }
+  .subbar select { width: auto; margin: 0; padding: 4px 8px; border-radius: 8px; border: 0; font-size: .8rem; background: rgba(255,255,255,.12); color: #fff; }
+  .subbar select option { color: var(--ink); }
+  .meta-left { opacity: .8; flex: 1; min-width: 120px; }
+  .chosen { font-size: .9rem; color: var(--ink-soft); max-width: 100%; overflow-wrap: anywhere; }
+  .linkish { background: none; border: 0; color: var(--brand); text-decoration: underline; cursor: pointer; font: inherit; }
+  .send { padding-top: 0; }
+  @media (max-width: 560px) { .controls { gap: 6px; } .ctl { padding: 6px 7px; } .time { font-size: .72rem; } }
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script src="config.js"></script>
@@ -180,81 +202,89 @@
       <a href="#comment">Comment ça marche</a>
       <a href="#pour-qui">Pour qui</a>
       <a href="#langues">Langues</a>
-      <a class="btn btn-primary" href="#contact">Demander une démo</a>
+      <a class="btn btn-primary" href="#top">Traduire une vidéo</a>
     </nav>
   </div>
 </header>
 
 <main>
-  <section class="hero">
+  <section class="hero" id="top">
     <div class="wrap">
       <div>
         <span class="eyebrow">Sous-titres · Doublage · Résumé · Quiz</span>
         <h1>Chaque savoir, compris dans sa langue.</h1>
-        <p class="lead">Collez le lien de votre vidéo : Professa-M la traduit en sous-titres et en voix, du lingala au japonais.</p>
+        <p class="lead">Collez le lien de votre vidéo ou choisissez un fichier : Professa-M la traduit en sous-titres et en voix, du lingala au japonais.</p>
         <form id="quick" class="quick" novalidate>
-          <input id="quick-url" type="url" inputmode="url" placeholder="Collez ici le lien de votre vidéo (YouTube, Facebook...)" aria-label="Lien de la vidéo">
-          <select id="quick-lang" aria-label="Traduire en">
-            <option value="ln">en Lingala</option><option value="sw">en Swahili</option><option value="fr">en Français</option>
-            <option value="en">en Anglais</option><option value="pt">en Portugais</option>
-          </select>
+          <input id="quick-url" type="url" inputmode="url" autocomplete="off" placeholder="Collez ici le lien de votre vidéo" aria-label="Lien de la vidéo">
+          <button type="button" class="btn file-btn" id="pick-file" title="Choisir un fichier vidéo sur votre appareil">
+            <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M16.5 6.5v10a4.5 4.5 0 0 1-9 0V5a3 3 0 0 1 6 0v10.5a1.5 1.5 0 0 1-3 0V6.5H9v9a3 3 0 0 0 6 0V5a4.5 4.5 0 0 0-9 0v11.5a6 6 0 0 0 12 0v-10z"/></svg>
+            <span>Fichier</span>
+          </button>
           <button class="btn btn-primary" type="submit">Traduire</button>
+          <input type="file" id="quick-file" accept="video/*,audio/*" hidden>
         </form>
-        <p class="quick-help" id="quick-help">Pas de lien ? <a href="#envoyer" data-file-tab>Envoyez un fichier vidéo</a> · Vos droits sur la vidéo sont requis.</p>
+        <p class="quick-help" id="quick-help">YouTube, Facebook, Google Drive… ou un fichier jusqu'à 50 Mo.</p>
         <p class="trust">13 langues · Relecture humaine pour les langues locales · Paiement M-Pesa</p>
       </div>
+
       <div class="player" id="player">
         <div class="screen" id="screen">
-          <div class="demo" id="demo">
-            <span class="scene" id="demo-title">Démo · Hygiène de l'eau</span>
-            <div class="langs-live" id="demo-langs" role="group" aria-label="Langue des sous-titres"></div>
-            <button class="big-play" id="big-play" type="button" aria-label="Lire la démo">&#9654;</button>
+          <div class="layer demo" id="demo">
+            <span class="scene">Démo · Hygiène de l'eau</span>
             <div class="bubble" id="bubble"><b id="bubble-lang">Lingala</b><span id="bubble-text">Appuyez sur lecture pour voir la démo.</span><small id="bubble-src"></small></div>
           </div>
-          <div class="embed hidden" id="embed"></div>
+          <div class="layer hidden" id="yt-layer"><div id="yt-player"></div></div>
+          <video class="layer hidden" id="file-video" playsinline preload="metadata"></video>
+          <div class="layer hidden nopreview" id="link-layer"><strong>Lien reçu</strong><span>L'aperçu n'est disponible que pour YouTube et les fichiers, mais nous pouvons traduire cette vidéo.</span><small id="link-host"></small></div>
+          <button class="big-play" id="big-play" type="button" aria-label="Lecture">
+            <svg viewBox="0 0 24 24" width="30" height="30" aria-hidden="true"><path fill="currentColor" d="M8 5v14l11-7z"/></svg>
+          </button>
         </div>
         <div class="controls" id="controls">
-          <button type="button" id="play" class="ctl" aria-label="Lecture">&#9654;</button>
-          <div class="track" id="track"><i id="progress"></i></div>
-          <span class="time" id="time">00:00 / 00:24</span>
-          <button type="button" id="voice" class="ctl voice on" aria-pressed="true" title="Voix (doublage de démonstration)">Voix</button>
+          <button type="button" class="ctl" id="c-back" aria-label="Reculer de 10 secondes" title="Reculer de 10 s">
+            <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M12 5V1L7 6l5 5V7a6 6 0 1 1-6 6H4a8 8 0 1 0 8-8z"/><text x="12" y="16" font-size="7" text-anchor="middle" fill="currentColor">10</text></svg>
+          </button>
+          <button type="button" class="ctl main" id="c-play" aria-label="Lecture" title="Lecture / pause">
+            <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path id="c-play-icon" fill="currentColor" d="M8 5v14l11-7z"/></svg>
+          </button>
+          <button type="button" class="ctl" id="c-fwd" aria-label="Avancer de 10 secondes" title="Avancer de 10 s">
+            <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M12 5V1l5 5-5 5V7a6 6 0 1 0 6 6h2a8 8 0 1 1-8-8z"/><text x="12" y="16" font-size="7" text-anchor="middle" fill="currentColor">10</text></svg>
+          </button>
+          <div class="track" id="track" role="slider" aria-label="Progression" tabindex="0"><i id="progress"></i></div>
+          <span class="time" id="time">00:00 / 00:00</span>
+          <button type="button" class="ctl" id="c-mute" aria-label="Couper le son" title="Son">
+            <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path id="c-mute-icon" fill="currentColor" d="M3 9v6h4l5 5V4L7 9H3zm13.5 3A4.5 4.5 0 0 0 14 8v8a4.5 4.5 0 0 0 2.5-4zM14 3.2v2.1a7 7 0 0 1 0 13.4v2.1a9 9 0 0 0 0-17.6z"/></svg>
+          </button>
+          <button type="button" class="ctl" id="c-full" aria-label="Plein écran" title="Plein écran">
+            <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/></svg>
+          </button>
         </div>
-        <div class="meta" id="meta"><span id="meta-left">Démonstration : choisissez une langue, puis lecture</span><button type="button" id="back-demo" class="link hidden">Revenir à la démo</button></div>
-        <div class="after hidden" id="after">
-          <span id="after-text">Vidéo prête à traduire.</span>
-          <a class="btn btn-primary" href="#envoyer" id="after-go">Traduire cette vidéo</a>
+        <div class="subbar">
+          <label class="cc">Sous-titres
+            <select id="c-lang" aria-label="Langue des sous-titres">
+              <option value="ln">Lingala</option><option value="sw">Swahili</option><option value="fr">Français</option>
+              <option value="en">English</option><option value="pt">Português</option>
+            </select>
+          </label>
+          <button type="button" class="ctl voice on" id="c-voice" aria-pressed="true" title="Doublage de démonstration">Doublage</button>
+          <span class="meta-left" id="meta-left">Démonstration</span>
+          <button type="button" id="back-demo" class="link hidden">Revenir à la démo</button>
         </div>
       </div>
     </div>
   </section>
 
-  <section id="envoyer" class="send">
+  <section id="envoyer" class="send hidden">
     <div class="wrap">
       <div class="send-card">
         <div class="send-head">
           <div>
-            <span class="eyebrow">Envoyer une vidéo à traduire</span>
-            <h2>Collez un lien ou déposez votre fichier.</h2>
+            <span class="eyebrow">Dernière étape</span>
+            <h2>Où et comment traduire votre vidéo ?</h2>
           </div>
-          <div class="tabs" role="tablist">
-            <button type="button" role="tab" class="tab on" data-tab="link" aria-selected="true">Lien de la vidéo</button>
-            <button type="button" role="tab" class="tab" data-tab="file" aria-selected="false">Fichier vidéo</button>
-          </div>
+          <div class="chosen"><span id="chosen-label">Vidéo :</span> <b id="chosen-name"></b> <button type="button" class="linkish" id="change-video">Changer</button></div>
         </div>
         <form id="send-form" novalidate>
-          <div class="tab-panel" data-panel="link">
-            <label>Lien de la vidéo (YouTube, Facebook, Google Drive...)
-              <input name="video_url" type="url" maxlength="500" placeholder="https://www.youtube.com/watch?v=...">
-            </label>
-          </div>
-          <div class="tab-panel hidden" data-panel="file">
-            <label class="drop" id="drop">
-              <input name="video_file" type="file" accept="video/*,audio/*" hidden>
-              <strong id="drop-title">Choisir un fichier vidéo ou audio</strong>
-              <span id="drop-sub">MP4, MOV, WEBM, MP3... jusqu'à 50 Mo. Plus lourd ? Utilisez l'onglet « Lien » avec Google Drive ou WeTransfer.</span>
-            </label>
-          </div>
-
           <div class="row">
             <label>Langue de la vidéo
               <select name="source_language" id="source-language"></select>
@@ -266,12 +296,10 @@
               <label><input type="radio" name="output" value="both" checked> Les deux</label>
             </fieldset>
           </div>
-
           <fieldset class="targets">
             <legend>Traduire en</legend>
             <div id="target-languages" class="lang-picks"></div>
           </fieldset>
-
           <div class="row">
             <label>Nom de l'organisation *<input name="org_name" required minlength="2" maxlength="160" autocomplete="organization"></label>
             <label>Votre nom *<input name="contact_name" required minlength="2" maxlength="120" autocomplete="name"></label>
@@ -369,14 +397,14 @@
           <h3>Sous-titres</h3>
           <p class="price">1 <small>crédit / minute / langue</small></p>
           <ul><li>Traduction synchronisée</li><li>Résumé, lexique et quiz inclus</li><li>Fichier prêt pour YouTube</li></ul>
-          <a class="btn btn-ghost" href="#contact">Demander un devis</a>
+          <a class="btn btn-ghost" href="#top">Demander un devis</a>
         </div>
         <div class="card featured">
           <span class="tag">Le plus complet</span>
           <h3>Doublage</h3>
           <p class="price">3 <small>crédits / minute / langue</small></p>
           <ul><li>Voix naturelle dans la langue choisie</li><li>Sous-titres inclus</li><li>Résumé, lexique et quiz inclus</li></ul>
-          <a class="btn btn-primary" href="#contact">Demander un devis</a>
+          <a class="btn btn-primary" href="#top">Demander un devis</a>
         </div>
         <div class="card">
           <h3>Relecture humaine</h3>
@@ -406,9 +434,9 @@
   <section id="contact" class="alt contact">
     <div class="wrap">
       <div class="section-head">
-        <span class="eyebrow">Vidéo test</span>
-        <h2>Essayez avec l'une de vos vidéos.</h2>
-        <p>Dites-nous qui vous êtes et ce que vous voulez traduire : nous vous rappelons sous 48 heures.</p>
+        <span class="eyebrow">Une question ?</span>
+        <h2>Parlons de votre projet.</h2>
+        <p>Pour traduire une vidéo, utilisez la barre en haut de la page. Pour toute autre question, laissez-nous un message : nous vous rappelons sous 48 heures.</p>
         <p id="wa"></p>
       </div>
       <form id="lead-form" class="card" novalidate>
@@ -430,7 +458,7 @@
           </label>
           <label>Ville<input name="city" maxlength="80" placeholder="Kinshasa"></label>
         </div>
-        <label>Votre besoin<textarea name="message" rows="3" maxlength="1800" placeholder="Sujet des vidéos, durée, langues souhaitées..."></textarea></label>
+        <label>Votre besoin<textarea name="message" rows="3" maxlength="1800" placeholder="Votre question, le volume de vidéos, vos délais..."></textarea></label>
         <label class="hp" aria-hidden="true">Site web<input name="website" tabindex="-1" autocomplete="off"></label>
         <button class="btn btn-primary" type="submit">Envoyer ma demande</button>
         <div id="form-msg" class="msg" role="status"></div>
@@ -498,39 +526,280 @@
       btn.disabled = false; btn.textContent = "Envoyer ma demande";
     }
   });
-  // ---------- Envoyer une vidéo à traduire ----------
+  // =========================================================
+  // Lecteur de la page d'accueil : démo, YouTube ou fichier
+  // =========================================================
+  const $id = (x) => document.getElementById(x);
   const LANGS = [
     ["fr","Français",1],["en","Anglais",1],["sw","Swahili",1],["ln","Lingala",1],["pt","Portugais",1],
     ["es","Espagnol",2],["ar","Arabe",2],["de","Allemand",2],["zh","Chinois",2],["ja","Japonais",2],["hi","Hindi",2],
     ["lua","Tshiluba",3],["kg","Kikongo",3]
   ];
-  const sendForm = document.getElementById("send-form");
-  const sendMsg = document.getElementById("send-msg");
-  const srcSel = document.getElementById("source-language");
-  srcSel.innerHTML = LANGS.map(([c, n]) => `<option value="${c}">${n}</option>`).join("") + '<option value="">Autre langue</option>';
-  document.getElementById("target-languages").innerHTML = LANGS.map(([c, n, w]) =>
-    `<label><input type="checkbox" name="targets" value="${c}" ${["ln", "sw"].includes(c) ? "checked" : ""}> ${n}${w > 1 ? " <small>bientôt</small>" : ""}</label>`
-  ).join("");
-  let activeTab = "link";
-  document.querySelectorAll(".tab").forEach((t) => t.addEventListener("click", () => {
-    activeTab = t.dataset.tab;
-    document.querySelectorAll(".tab").forEach((x) => { x.classList.toggle("on", x === t); x.setAttribute("aria-selected", x === t); });
-    document.querySelectorAll(".tab-panel").forEach((p) => p.classList.toggle("hidden", p.dataset.panel !== activeTab));
-  }));
-  const fileInput = sendForm.querySelector("input[name=video_file]");
-  const drop = document.getElementById("drop");
-  const MAX = 50 * 1024 * 1024;
-  function showFile() {
-    const f = fileInput.files[0];
-    document.getElementById("drop-title").textContent = f ? f.name : "Choisir un fichier vidéo ou audio";
-    document.getElementById("drop-sub").textContent = f
-      ? (f.size / 1048576).toFixed(1) + " Mo" + (f.size > MAX ? " : trop lourd (50 Mo maximum). Utilisez l'onglet « Lien »." : "")
-      : "MP4, MOV, WEBM, MP3... jusqu'à 50 Mo.";
+  const DEMO = {
+    duration: 24,
+    lines: [
+      { t: 0,  src: "Faites bouillir l'eau avant de la boire.", tr: { ln: "Botoka mai liboso ya komela.", sw: "Chemsha maji kabla ya kunywa.", fr: "Faites bouillir l'eau avant de la boire.", en: "Boil the water before drinking it.", pt: "Ferva a água antes de beber." } },
+      { t: 8,  src: "Lavez-vous les mains avec du savon.", tr: { ln: "Sukola maboko na sabuni.", sw: "Nawa mikono kwa sabuni.", fr: "Lavez-vous les mains avec du savon.", en: "Wash your hands with soap.", pt: "Lave as mãos com sabão." } },
+      { t: 16, src: "Couvrez toujours votre nourriture.", tr: { ln: "Zipa bilei na yo ntango nyonso.", sw: "Funika chakula chako kila wakati.", fr: "Couvrez toujours votre nourriture.", en: "Always cover your food.", pt: "Cubra sempre a sua comida." } }
+    ]
+  };
+  const ICON_PLAY = "M8 5v14l11-7z", ICON_PAUSE = "M6 5h4v14H6zm8 0h4v14h-4z";
+  const ICON_SOUND = "M3 9v6h4l5 5V4L7 9H3zm13.5 3A4.5 4.5 0 0 0 14 8v8a4.5 4.5 0 0 0 2.5-4zM14 3.2v2.1a7 7 0 0 1 0 13.4v2.1a9 9 0 0 0 0-17.6z";
+  const ICON_MUTED = "M3 9v6h4l5 5V4L7 9H3zm13.6 3 2.7-2.7-1.4-1.4-2.7 2.7-2.7-2.7-1.4 1.4 2.7 2.7-2.7 2.7 1.4 1.4 2.7-2.7 2.7 2.7 1.4-1.4z";
+  const fmt = (s) => { s = Math.max(0, Math.floor(s || 0)); return String(Math.floor(s / 60)).padStart(2, "0") + ":" + String(s % 60).padStart(2, "0"); };
+  const langName = (c) => ({ ln: "Lingala", sw: "Swahili", fr: "Français", en: "English", pt: "Português" }[c]);
+
+  // ---- Moteur « démo » (minuterie + voix du navigateur) ----
+  const demoEngine = (() => {
+    let playing = false, t0 = 0, pos = 0, muted = false, lastLine = -1, timer = null;
+    const lineAt = (s) => { let i = 0; DEMO.lines.forEach((l, k) => { if (s >= l.t) i = k; }); return i; };
+    function speak(text) {
+      if (muted || !voiceOn || !("speechSynthesis" in window)) return;
+      speechSynthesis.cancel();
+      const code = $id("c-lang").value;
+      const v = speechSynthesis.getVoices().find((x) => (x.lang || "").toLowerCase().startsWith(code));
+      if (!v) { setMeta("Voix " + langName(code) + " absente de cet appareil : sous-titres seulement"); return; }
+      const u = new SpeechSynthesisUtterance(text); u.voice = v; u.lang = v.lang; u.rate = 0.95;
+      speechSynthesis.speak(u);
+    }
+    function paint(force) {
+      const i = lineAt(pos), line = DEMO.lines[i], code = $id("c-lang").value;
+      if (!(playing || force || pos > 0)) return;
+      $id("bubble-lang").textContent = (voiceOn ? "Doublage · " : "Sous-titres · ") + langName(code);
+      $id("bubble-text").textContent = line.tr[code];
+      $id("bubble-src").textContent = code === "fr" ? "" : "Original : " + line.src;
+      if (playing && (i !== lastLine || force)) { lastLine = i; speak(line.tr[code]); }
+    }
+    function step() {
+      pos = Math.min(DEMO.duration, (performance.now() - t0) / 1000);
+      paint(false);
+      if (pos >= DEMO.duration) { api.pause(); pos = 0; lastLine = -1; ui(); }
+    }
+    const api = {
+      kind: "demo",
+      play() { playing = true; t0 = performance.now() - pos * 1000; lastLine = -1; clearInterval(timer); timer = setInterval(step, 200); paint(true); },
+      pause() { playing = false; clearInterval(timer); if ("speechSynthesis" in window) speechSynthesis.cancel(); },
+      isPlaying: () => playing,
+      current: () => pos,
+      duration: () => DEMO.duration,
+      seek(s) { pos = Math.max(0, Math.min(DEMO.duration, s)); t0 = performance.now() - pos * 1000; lastLine = -1; paint(true); },
+      setMuted(m) { muted = m; if (m && "speechSynthesis" in window) speechSynthesis.cancel(); },
+      isMuted: () => muted,
+      refresh() { lastLine = -1; paint(true); },
+      destroy() { api.pause(); }
+    };
+    return api;
+  })();
+
+  // ---- Moteur « fichier » (<video>) ----
+  function fileEngine(file) {
+    const v = $id("file-video");
+    v.src = URL.createObjectURL(file);
+    v.load();
+    return {
+      kind: "file",
+      play() { v.play().catch(() => {}); },
+      pause() { v.pause(); },
+      isPlaying: () => !v.paused && !v.ended,
+      current: () => v.currentTime || 0,
+      duration: () => (isFinite(v.duration) ? v.duration : 0),
+      seek(s) { v.currentTime = Math.max(0, Math.min(v.duration || 0, s)); },
+      setMuted(m) { v.muted = m; },
+      isMuted: () => v.muted,
+      refresh() {},
+      destroy() { v.pause(); URL.revokeObjectURL(v.src); v.removeAttribute("src"); v.load(); }
+    };
   }
-  fileInput.addEventListener("change", showFile);
-  ["dragover", "dragenter"].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.add("over"); }));
-  ["dragleave", "drop"].forEach((ev) => drop.addEventListener(ev, () => drop.classList.remove("over")));
-  drop.addEventListener("drop", (e) => { e.preventDefault(); if (e.dataTransfer.files.length) { fileInput.files = e.dataTransfer.files; showFile(); } });
+
+  // ---- Moteur « YouTube » (API officielle du lecteur) ----
+  let ytApi = null;
+  function loadYouTubeApi() {
+    if (ytApi) return ytApi;
+    ytApi = new Promise((resolve, reject) => {
+      if (window.YT && window.YT.Player) return resolve(window.YT);
+      window.onYouTubeIframeAPIReady = () => resolve(window.YT);
+      const s = document.createElement("script");
+      s.src = "https://www.youtube.com/iframe_api";
+      s.onerror = () => { ytApi = null; reject(new Error("YouTube indisponible")); };
+      document.head.appendChild(s);
+      setTimeout(() => reject(new Error("YouTube ne répond pas")), 12000);
+    });
+    return ytApi;
+  }
+  async function youtubeEngine(id) {
+    const YT = await loadYouTubeApi();
+    $id("yt-layer").innerHTML = '<div id="yt-player"></div>';
+    let player, ready = false;
+    await new Promise((resolve, reject) => {
+      player = new YT.Player("yt-player", {
+        videoId: id, width: "100%", height: "100%",
+        playerVars: { controls: 0, rel: 0, modestbranding: 1, playsinline: 1, disablekb: 1, fs: 0, iv_load_policy: 3 },
+        events: {
+          onReady: () => { ready = true; resolve(); },
+          onError: (e) => reject(new Error(e.data === 101 || e.data === 150 ? "Le propriétaire n'autorise pas la lecture hors de YouTube" : "Vidéo YouTube introuvable")),
+          onStateChange: () => ui()
+        }
+      });
+      setTimeout(() => { if (!ready) reject(new Error("YouTube ne répond pas")); }, 12000);
+    });
+    return {
+      kind: "youtube",
+      play() { player.playVideo(); },
+      pause() { player.pauseVideo(); },
+      isPlaying: () => player.getPlayerState && player.getPlayerState() === 1,
+      current: () => (player.getCurrentTime ? player.getCurrentTime() : 0),
+      duration: () => (player.getDuration ? player.getDuration() : 0),
+      seek(s) { player.seekTo(Math.max(0, s), true); },
+      setMuted(m) { m ? player.mute() : player.unMute(); },
+      isMuted: () => (player.isMuted ? player.isMuted() : false),
+      refresh() {},
+      destroy() { try { player.destroy(); } catch (e) {} $id("yt-layer").innerHTML = ""; }
+    };
+  }
+
+  // ---- Contrôles communs ----
+  let engine = demoEngine, voiceOn = true;
+  function setMeta(t) { $id("meta-left").textContent = t; }
+  function ui() {
+    const playing = engine.isPlaying(), d = engine.duration(), c = engine.current();
+    $id("c-play-icon").setAttribute("d", playing ? ICON_PAUSE : ICON_PLAY);
+    $id("c-play").setAttribute("aria-label", playing ? "Pause" : "Lecture");
+    $id("big-play").classList.toggle("hidden", playing || engine.kind === "link");
+    $id("progress").style.width = d ? Math.min(100, c / d * 100) + "%" : "0";
+    $id("time").textContent = fmt(c) + " / " + fmt(d);
+    $id("c-mute-icon").setAttribute("d", engine.isMuted() ? ICON_MUTED : ICON_SOUND);
+    $id("c-mute").setAttribute("aria-label", engine.isMuted() ? "Remettre le son" : "Couper le son");
+  }
+  setInterval(ui, 250);
+  const toggle = () => { engine.isPlaying() ? engine.pause() : engine.play(); ui(); };
+  $id("c-play").onclick = toggle;
+  $id("big-play").onclick = toggle;
+  $id("c-back").onclick = () => { engine.seek(engine.current() - 10); ui(); };
+  $id("c-fwd").onclick = () => { engine.seek(engine.current() + 10); ui(); };
+  $id("c-mute").onclick = () => { engine.setMuted(!engine.isMuted()); ui(); };
+  function seekFromEvent(e) {
+    const r = $id("track").getBoundingClientRect();
+    engine.seek((e.clientX - r.left) / r.width * engine.duration()); ui();
+  }
+  $id("track").addEventListener("click", seekFromEvent);
+  $id("track").addEventListener("keydown", (e) => {
+    if (e.key === "ArrowRight") { engine.seek(engine.current() + 5); ui(); }
+    if (e.key === "ArrowLeft") { engine.seek(engine.current() - 5); ui(); }
+  });
+  $id("c-full").onclick = () => {
+    const v = $id("file-video");
+    if (engine.kind === "file" && v.webkitEnterFullscreen && !document.fullscreenEnabled) return v.webkitEnterFullscreen();
+    const el = $id("player");
+    if (document.fullscreenElement) document.exitFullscreen();
+    else if (el.requestFullscreen) el.requestFullscreen().catch(() => {});
+  };
+  $id("c-lang").onchange = () => engine.refresh();
+  $id("c-voice").onclick = () => {
+    voiceOn = !voiceOn;
+    $id("c-voice").classList.toggle("on", voiceOn); $id("c-voice").setAttribute("aria-pressed", voiceOn);
+    if (!voiceOn && "speechSynthesis" in window) speechSynthesis.cancel();
+    engine.refresh();
+  };
+  $id("screen").addEventListener("dblclick", () => $id("c-full").click());
+
+  function showLayer(name) {
+    ["demo", "yt-layer", "file-video", "link-layer"].forEach((x) => $id(x).classList.toggle("hidden", x !== name));
+    const demo = name === "demo";
+    $id("c-lang").disabled = !demo; $id("c-voice").disabled = !demo;
+    $id("back-demo").classList.toggle("hidden", demo);
+  }
+  const linkEngine = { kind: "link", play() {}, pause() {}, isPlaying: () => false, current: () => 0, duration: () => 0, seek() {}, setMuted() {}, isMuted: () => false, refresh() {}, destroy() {} };
+  function useEngine(e, layer, meta) {
+    if (engine !== e) { engine.pause(); if (engine !== demoEngine) engine.destroy(); }
+    engine = e; showLayer(layer); setMeta(meta); ui();
+  }
+  function backToDemo() { useEngine(demoEngine, "demo", "Démonstration"); }
+  $id("back-demo").onclick = backToDemo;
+
+  // =========================================================
+  // Une seule entrée : lien OU fichier, puis la dernière étape
+  // =========================================================
+  const sendForm = $id("send-form");
+  const sendMsg = $id("send-msg");
+  const MAX = 50 * 1024 * 1024;
+  let media = null; // { kind: "link", url } | { kind: "file", file }
+
+  $id("source-language").innerHTML = LANGS.map(([c, n]) => `<option value="${c}">${n}</option>`).join("") + '<option value="">Autre langue</option>';
+  $id("target-languages").innerHTML = LANGS.map(([c, n, w]) =>
+    `<label><input type="checkbox" name="targets" value="${c}" ${["ln", "sw"].includes(c) ? "checked" : ""}> ${n}${w > 1 ? " <small>bientôt</small>" : ""}</label>`).join("");
+
+  function youtubeId(u) {
+    try {
+      const url = new URL(u), h = url.hostname.replace(/^(www|m)\./, "");
+      if (h === "youtu.be") return url.pathname.slice(1).split("/")[0] || null;
+      if (h.endsWith("youtube.com")) {
+        if (url.searchParams.get("v")) return url.searchParams.get("v");
+        const m = url.pathname.match(/^\/(shorts|embed|live)\/([\w-]{6,})/);
+        if (m) return m[2];
+      }
+    } catch (e) {}
+    return null;
+  }
+  function help(text, err) { const h = $id("quick-help"); h.textContent = text; h.classList.toggle("err", !!err); }
+  function openLastStep() {
+    $id("chosen-label").textContent = media.kind === "file" ? "Fichier :" : "Lien :";
+    $id("chosen-name").textContent = media.kind === "file" ? media.file.name + " (" + (media.file.size / 1048576).toFixed(1) + " Mo)" : media.url;
+    $id("envoyer").classList.remove("hidden");
+  }
+  async function useLink(u) {
+    media = { kind: "link", url: u };
+    openLastStep();
+    const id = youtubeId(u);
+    if (id) {
+      help("Chargement de la vidéo YouTube...");
+      try {
+        const e = await youtubeEngine(id);
+        useEngine(e, "yt-layer", "Votre vidéo YouTube");
+        help("Votre vidéo est dans l'écran. Complétez la dernière étape juste en dessous.");
+        return;
+      } catch (err) {
+        help(err.message + ". Nous pouvons quand même la traduire : complétez la dernière étape.", true);
+      }
+    } else {
+      help("Lien reçu. Complétez la dernière étape juste en dessous.");
+    }
+    let host = ""; try { host = new URL(u).hostname.replace(/^www\./, ""); } catch (e) {}
+    $id("link-host").textContent = host;
+    useEngine(linkEngine, "link-layer", "Lien : " + host);
+  }
+  function useFile(file) {
+    if (!file) return;
+    if (file.size > MAX) { help("Ce fichier fait " + (file.size / 1048576).toFixed(0) + " Mo (50 Mo maximum). Mettez-le sur Google Drive et collez le lien.", true); return; }
+    media = { kind: "file", file };
+    $id("quick-url").value = "";
+    useEngine(fileEngine(file), "file-video", "Votre fichier : " + file.name);
+    help("Votre vidéo est dans l'écran. Complétez la dernière étape juste en dessous.");
+    openLastStep();
+  }
+  $id("pick-file").onclick = () => $id("quick-file").click();
+  $id("quick-file").onchange = (e) => useFile(e.target.files[0]);
+  $id("quick").addEventListener("submit", (e) => {
+    e.preventDefault();
+    const u = $id("quick-url").value.trim();
+    if (!u && media) { $id("envoyer").scrollIntoView({ behavior: "smooth" }); return; }
+    if (!/^https?:\/\/\S+\.\S+/.test(u)) { help("Collez un lien complet (il commence par https://) ou cliquez sur « Fichier ».", true); $id("quick-url").focus(); return; }
+    useLink(u).then(() => $id("envoyer").scrollIntoView({ behavior: "smooth", block: "start" }));
+  });
+  $id("quick-url").addEventListener("paste", () => setTimeout(() => {
+    const u = $id("quick-url").value.trim();
+    if (/^https?:\/\/\S+\.\S+/.test(u) && youtubeId(u)) $id("quick").requestSubmit();
+  }, 0));
+  ["dragover", "dragenter"].forEach((ev) => $id("player").addEventListener(ev, (e) => { e.preventDefault(); $id("player").classList.add("over"); }));
+  ["dragleave", "drop"].forEach((ev) => $id("player").addEventListener(ev, () => $id("player").classList.remove("over")));
+  $id("player").addEventListener("drop", (e) => { e.preventDefault(); if (e.dataTransfer.files.length) useFile(e.dataTransfer.files[0]); });
+  $id("change-video").onclick = () => {
+    media = null; $id("envoyer").classList.add("hidden"); $id("quick-url").value = ""; $id("quick-file").value = "";
+    backToDemo(); help("YouTube, Facebook, Google Drive… ou un fichier jusqu'à 50 Mo.");
+    scrollTo({ top: 0, behavior: "smooth" }); $id("quick-url").focus({ preventScroll: true });
+  };
+  document.querySelectorAll('a[href="#top"]').forEach((a) => a.addEventListener("click", (e) => {
+    e.preventDefault(); scrollTo({ top: 0, behavior: "smooth" }); $id("quick-url").focus({ preventScroll: true });
+  }));
 
   function sendShow(kind, text) { sendMsg.className = "msg " + kind; sendMsg.textContent = text; }
   sendForm.addEventListener("submit", async (e) => {
@@ -538,11 +807,7 @@
     const f = new FormData(sendForm);
     const val = (k) => (f.get(k) || "").toString().trim();
     const targets = f.getAll("targets");
-    const url = activeTab === "link" ? val("video_url") : "";
-    const file = activeTab === "file" ? fileInput.files[0] : null;
-    if (activeTab === "link" && !/^https?:\/\/\S+$/.test(url)) return sendShow("err", "Collez un lien valide (il commence par https://).");
-    if (activeTab === "file" && !file) return sendShow("err", "Choisissez un fichier vidéo.");
-    if (file && file.size > MAX) return sendShow("err", "Le fichier dépasse 50 Mo : utilisez l'onglet « Lien » avec Google Drive ou WeTransfer.");
+    if (!media) return sendShow("err", "Ajoutez d'abord votre vidéo en haut de la page.");
     if (!targets.length) return sendShow("err", "Choisissez au moins une langue.");
     if (val("org_name").length < 2 || val("contact_name").length < 2) return sendShow("err", "Indiquez le nom de l'organisation et votre nom.");
     if (!val("phone") && !val("email")) return sendShow("err", "Indiquez au moins un téléphone ou un e-mail.");
@@ -551,12 +816,12 @@
     btn.disabled = true;
     try {
       let path = null;
-      if (file) {
+      if (media.kind === "file") {
         btn.textContent = "Envoi du fichier...";
         const sb = supabase.createClient(cfg.supabaseUrl, cfg.supabaseKey, { auth: { persistSession: false } });
-        const safe = file.name.normalize("NFD").replace(/[^\w.\-]+/g, "_").slice(-80);
+        const safe = media.file.name.normalize("NFD").replace(/[^\w.\-]+/g, "_").slice(-80);
         path = "incoming/" + crypto.randomUUID() + "-" + safe;
-        const { error } = await sb.storage.from("translation-uploads").upload(path, file, { contentType: file.type || "video/mp4", upsert: false });
+        const { error } = await sb.storage.from("translation-uploads").upload(path, media.file, { contentType: media.file.type || "video/mp4", upsert: false });
         if (error) throw new Error(error.message);
       }
       btn.textContent = "Enregistrement...";
@@ -566,16 +831,14 @@
         body: JSON.stringify({
           p_org_name: val("org_name"), p_contact_name: val("contact_name"),
           p_phone: val("phone") || null, p_email: val("email") || null, p_segment: val("segment") || null,
-          p_video_url: url || null, p_storage_path: path, p_file_name: file ? file.name : null,
+          p_video_url: media.kind === "link" ? media.url : null, p_storage_path: path,
+          p_file_name: media.kind === "file" ? media.file.name : null,
           p_source_language: val("source_language") || null, p_target_languages: targets,
           p_output: val("output") || "both", p_rights_confirmed: true, p_message: null, p_website: val("website") || null
         })
       });
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        throw new Error(body.message || "Erreur " + res.status);
-      }
-      sendForm.reset(); showFile();
+      if (!res.ok) { const body = await res.json().catch(() => ({})); throw new Error(body.message || "Erreur " + res.status); }
+      sendForm.reset();
       sendShow("ok", "Merci ! Votre vidéo est bien reçue. Nous vous envoyons un devis sous 48 heures.");
     } catch (err) {
       sendShow("err", "L'envoi n'a pas abouti : " + err.message + ". Réessayez dans un instant.");
@@ -583,144 +846,7 @@
       btn.disabled = false; btn.textContent = "Envoyer pour un devis gratuit";
     }
   });
-  // ---------- Écran de la page d'accueil ----------
-  const DEMO = {
-    duration: 24,
-    lines: [
-      { t: 0,  src: "Faites bouillir l'eau avant de la boire.", tr: { ln: "Botoka mai liboso ya komela.", sw: "Chemsha maji kabla ya kunywa.", fr: "Faites bouillir l'eau avant de la boire.", en: "Boil the water before drinking it.", pt: "Ferva a água antes de beber." } },
-      { t: 8,  src: "Lavez-vous les mains avec du savon.", tr: { ln: "Sukola maboko na sabuni.", sw: "Nawa mikono kwa sabuni.", fr: "Lavez-vous les mains avec du savon.", en: "Wash your hands with soap.", pt: "Lave as mãos com sabão." } },
-      { t: 16, src: "Couvrez toujours votre nourriture.", tr: { ln: "Zipa bilei na yo ntango nyonso.", sw: "Funika chakula chako kila wakati.", fr: "Couvrez toujours votre nourriture.", en: "Always cover your food.", pt: "Cubra sempre a sua comida." } }
-    ]
-  };
-  const DEMO_LANGS = [["ln", "Lingala"], ["sw", "Swahili"], ["fr", "Français"], ["en", "English"], ["pt", "Português"]];
-  const VOICE_LANG = { ln: "ln", sw: "sw", fr: "fr", en: "en", pt: "pt" };
-  const $id = (x) => document.getElementById(x);
-  let demoLang = "ln", playing = false, t0 = 0, elapsed = 0, timer = null, lastLine = -1, voiceOn = true, mode = "demo";
-  $id("demo-langs").innerHTML = DEMO_LANGS.map(([c, n]) => `<button type="button" data-l="${c}" class="${c === demoLang ? "on" : ""}">${n}</button>`).join("");
-  const fmt = (s) => String(Math.floor(s / 60)).padStart(2, "0") + ":" + String(Math.floor(s % 60)).padStart(2, "0");
-  function lineAt(s) { let i = 0; DEMO.lines.forEach((l, k) => { if (s >= l.t) i = k; }); return i; }
-  function speak(text, lang) {
-    if (!voiceOn || !("speechSynthesis" in window)) return;
-    speechSynthesis.cancel();
-    const voices = speechSynthesis.getVoices();
-    const v = voices.find((x) => x.lang && x.lang.toLowerCase().startsWith(VOICE_LANG[lang]));
-    if (!v) { $id("meta-left").textContent = "Voix " + DEMO_LANGS.find((d) => d[0] === lang)[1] + " non disponible sur cet appareil : sous-titres seulement"; return; }
-    const u = new SpeechSynthesisUtterance(text); u.voice = v; u.lang = v.lang; u.rate = 0.95;
-    speechSynthesis.speak(u);
-  }
-  function render(force) {
-    const i = lineAt(elapsed), line = DEMO.lines[i];
-    $id("progress").style.width = (elapsed / DEMO.duration * 100) + "%";
-    $id("time").textContent = fmt(elapsed) + " / " + fmt(DEMO.duration);
-    if (playing || force) {
-      $id("bubble-lang").textContent = (voiceOn ? "Doublage · " : "Sous-titres · ") + DEMO_LANGS.find((d) => d[0] === demoLang)[1];
-      $id("bubble-text").textContent = line.tr[demoLang];
-      $id("bubble-src").textContent = demoLang === "fr" ? "" : "Original : " + line.src;
-      if (playing && (i !== lastLine || force)) { lastLine = i; speak(line.tr[demoLang], demoLang); }
-    }
-  }
-  function tick() {
-    elapsed = Math.min(DEMO.duration, (performance.now() - t0) / 1000);
-    render(false);
-    if (elapsed >= DEMO.duration) { pause(); elapsed = 0; lastLine = -1; }
-  }
-  function play() {
-    if (mode !== "demo") return;
-    playing = true; t0 = performance.now() - elapsed * 1000; lastLine = -1;
-    $id("play").innerHTML = "&#10074;&#10074;"; $id("play").setAttribute("aria-label", "Pause");
-    $id("big-play").classList.add("hidden");
-    $id("meta-left").textContent = "Démonstration en cours";
-    clearInterval(timer); timer = setInterval(tick, 200); render(true);
-  }
-  function pause() {
-    playing = false; clearInterval(timer);
-    if ("speechSynthesis" in window) speechSynthesis.cancel();
-    $id("play").innerHTML = "&#9654;"; $id("play").setAttribute("aria-label", "Lecture");
-    $id("big-play").classList.remove("hidden");
-  }
-  $id("play").onclick = () => (playing ? pause() : play());
-  $id("big-play").onclick = play;
-  $id("voice").onclick = () => {
-    voiceOn = !voiceOn; $id("voice").classList.toggle("on", voiceOn); $id("voice").setAttribute("aria-pressed", voiceOn);
-    if (!voiceOn && "speechSynthesis" in window) speechSynthesis.cancel();
-    render(true);
-  };
-  $id("track").onclick = (e) => {
-    const r = e.currentTarget.getBoundingClientRect();
-    elapsed = Math.max(0, Math.min(DEMO.duration, (e.clientX - r.left) / r.width * DEMO.duration));
-    t0 = performance.now() - elapsed * 1000; lastLine = -1; render(true);
-  };
-  $id("demo-langs").onclick = (e) => {
-    const b = e.target.closest("button[data-l]"); if (!b) return;
-    demoLang = b.dataset.l;
-    document.querySelectorAll("#demo-langs button").forEach((x) => x.classList.toggle("on", x === b));
-    lastLine = -1; render(true);
-  };
-  if ("speechSynthesis" in window) speechSynthesis.onvoiceschanged = () => {};
-
-  function youtubeId(u) {
-    try {
-      const url = new URL(u);
-      const h = url.hostname.replace(/^www\.|^m\./, "");
-      if (h === "youtu.be") return url.pathname.slice(1).split("/")[0];
-      if (h.endsWith("youtube.com")) {
-        if (url.searchParams.get("v")) return url.searchParams.get("v");
-        const m = url.pathname.match(/^\/(shorts|embed|live)\/([\w-]{6,})/);
-        if (m) return m[2];
-      }
-    } catch (e) {}
-    return null;
-  }
-  function showDemo() {
-    mode = "demo";
-    $id("embed").classList.add("hidden"); $id("embed").innerHTML = "";
-    $id("demo").classList.remove("hidden"); $id("controls").classList.remove("hidden");
-    $id("after").classList.add("hidden"); $id("back-demo").classList.add("hidden");
-    $id("meta-left").textContent = "Démonstration : choisissez une langue, puis lecture";
-  }
-  function showLink(u, lang) {
-    pause(); mode = "link";
-    const id = youtubeId(u);
-    const host = (() => { try { return new URL(u).hostname.replace(/^www\./, ""); } catch (e) { return ""; } })();
-    $id("demo").classList.add("hidden"); $id("controls").classList.add("hidden");
-    $id("embed").classList.remove("hidden");
-    $id("embed").innerHTML = id
-      ? `<iframe src="https://www.youtube-nocookie.com/embed/${encodeURIComponent(id)}?rel=0" title="Aperçu de la vidéo" allow="accelerometer; encrypted-media; gyroscope; picture-in-picture; fullscreen" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe>`
-      : `<div class="nopreview"><strong>Lien reçu</strong><span>L'aperçu n'est disponible que pour YouTube, mais nous pouvons traduire cette vidéo.</span><small>${host}</small></div>`;
-    const name = $id("quick-lang").selectedOptions[0].textContent;
-    $id("meta-left").textContent = id ? "Aperçu de votre vidéo (lecteur YouTube)" : "Vidéo : " + host;
-    $id("back-demo").classList.remove("hidden");
-    $id("after").classList.remove("hidden");
-    $id("after-text").textContent = "Prête à être traduite " + name.toLowerCase() + ".";
-  }
-  $id("back-demo").onclick = showDemo;
-
-  function prefillSend(u, lang) {
-    document.querySelector('.tab[data-tab="link"]').click();
-    sendForm.querySelector("input[name=video_url]").value = u;
-    sendForm.querySelectorAll("input[name=targets]").forEach((c) => (c.checked = c.value === lang));
-  }
-  $id("quick").addEventListener("submit", (e) => {
-    e.preventDefault();
-    const u = $id("quick-url").value.trim(), lang = $id("quick-lang").value, help = $id("quick-help");
-    if (!/^https?:\/\/\S+\.\S+/.test(u)) {
-      help.classList.add("err"); help.textContent = "Collez un lien complet, qui commence par https://";
-      $id("quick-url").focus(); return;
-    }
-    help.classList.remove("err");
-    help.innerHTML = 'Vérifiez l\'aperçu, puis cliquez sur « Traduire cette vidéo ». <a href="#envoyer" data-file-tab>Ou envoyez un fichier</a>.';
-    showLink(u, lang);
-    prefillSend(u, lang);
-  });
-  $id("after-go").addEventListener("click", (e) => {
-    e.preventDefault();
-    $id("envoyer").scrollIntoView({ behavior: "smooth", block: "start" });
-    setTimeout(() => sendForm.querySelector("input[name=org_name]").focus({ preventScroll: true }), 500);
-  });
-  document.addEventListener("click", (e) => {
-    const a = e.target.closest("[data-file-tab]"); if (!a) return;
-    document.querySelector('.tab[data-tab="file"]').click();
-  });
+  ui();
 </script>
 </body>
 </html>
