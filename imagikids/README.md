@@ -36,6 +36,13 @@ Après la mise en ligne :
 - reportez l'adresse du site dans `crm_settings.app_url` : c'est le lien d'accès envoyé aux clients ;
 - dans Supabase, réglez *Authentication → URL Configuration → Site URL* sur cette adresse.
 
+## 4. Application installable et Google Play
+
+- Le site est une application installable (PWA) : manifeste, icônes (`netlify/icons/`) et fonctionnement hors connexion (`netlify/sw.js`). Sur téléphone, un bandeau propose « Installer ImagiKids ».
+- Politique de confidentialité : `netlify/confidentialite/`.
+- Pour regénérer les pages du site après une modification de `pages-separees/` : `python3 imagikids/build_netlify.py`.
+- Tout le nécessaire pour Google Play (textes, captures, icône, réponses aux questionnaires, étapes à suivre) se trouve dans `play-store/GUIDE-PLAY-STORE.md`.
+
 ## Bon à savoir
 
 - Si la base Supabase n'est pas joignable, les pages s'ouvrent en mode démo, avec des données fictives gardées sur l'appareil.

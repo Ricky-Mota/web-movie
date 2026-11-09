@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" fill="#f4ad1d"/>
+  <g transform="translate(256 256) scale(1) translate(-256 -256)">
+    <rect x="56" y="56" width="400" height="400" rx="96" fill="#ffffff" transform="rotate(-6 256 256)"/>
+    <g transform="rotate(-6 256 256)">
+      <text x="256" y="318" text-anchor="middle" font-family="Arial Black, Arial, sans-serif" font-weight="900" font-size="190" fill="#1c2643">i<tspan fill="#2a76d2">K</tspan></text>
+      <g transform="translate(330 120) rotate(35)">
+        <rect x="-16" y="-10" width="32" height="96" rx="6" fill="#e2533f"/>
+        <rect x="-16" y="-10" width="32" height="18" fill="#1c2643"/>
+        <polygon points="-16,86 16,86 0,122" fill="#f5d0a9"/>
+        <polygon points="-6,108 6,108 0,122" fill="#1c2643"/>
+      </g>
+    </g>
+  </g>
+</svg>
