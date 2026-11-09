@@ -14,9 +14,13 @@ Elles sont déjà appliquées sur le projet et sont copiées ici à l'identique 
 | `20261109200752_workflow.sql` | Parcours de validation, réservation / remboursement des crédits |
 | `20261109200755_rls.sql` | Règles RLS : chaque centre ne voit que ses données |
 | `20261109202311_crm.sql` | CRM : prospects, historique, administrateurs, formulaire public `submit_lead` |
+| `20261109215444_translation.sql` | Traduction : 13 langues, vidéos, transcriptions, traductions, crédits à la minute, dépôt de vidéos depuis le site |
 
 ## Tests critiques (`tests/`)
 
 `critical_rls_and_credits.sql` vérifie la séparation des centres et le décompte des crédits.
 Collez-le dans l'éditeur SQL de Supabase et lancez-le : le résultat attendu est le message
 `RESULTAT : 23 tests réussis (données de test annulées)`. Aucune donnée n'est conservée.
+
+`translation_test.sql` vérifie la partie traduction (séparation des clients, verrous, crédits à la minute,
+formulaire public). Résultat attendu : `RESULTAT : 20 tests réussis (données de test annulées)`.

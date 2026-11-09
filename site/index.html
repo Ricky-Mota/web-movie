@@ -113,7 +113,27 @@
   .chips { display: flex; flex-wrap: wrap; gap: 8px; }
   .chips span { background: var(--accent-soft); color: #92400e; padding: 6px 12px; border-radius: 999px; font-weight: 500; font-size: .9rem; }
   select { width: 100%; margin-top: 6px; padding: 12px 14px; border: 1.5px solid var(--line); border-radius: 10px; font: inherit; background: #fff; color: var(--ink); }
+  .send { padding: 0 0 72px; }
+  .send-card { background: var(--card); border: 1px solid var(--line); border-radius: 20px; padding: 28px; box-shadow: 0 12px 40px rgba(20,33,61,.08); }
+  .send-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 20px; flex-wrap: wrap; margin-bottom: 20px; }
+  .send-head h2 { font-size: clamp(1.5rem, 3vw, 2rem); margin: 0; }
+  .tabs { display: inline-flex; background: var(--paper); border: 1px solid var(--line); border-radius: 999px; padding: 4px; }
+  .tab { border: 0; background: transparent; padding: 10px 18px; border-radius: 999px; font: inherit; font-weight: 600; color: var(--ink-soft); cursor: pointer; }
+  .tab.on { background: var(--ink); color: #fff; }
+  .hidden { display: none !important; }
+  .drop { display: flex; flex-direction: column; align-items: center; gap: 6px; text-align: center; border: 2px dashed var(--line); border-radius: 14px; padding: 28px 16px; cursor: pointer; background: var(--paper); }
+  .drop:hover, .drop.over { border-color: var(--brand); }
+  .drop span { font-weight: 400; color: var(--ink-soft); font-size: .9rem; }
+  fieldset { border: 0; padding: 0; margin: 0 0 14px; min-width: 0; }
+  legend { font-weight: 500; font-size: .9rem; margin-bottom: 8px; padding: 0; }
+  .outputs label, .check { display: flex; align-items: center; gap: 8px; font-weight: 400; margin-bottom: 6px; }
+  .outputs input, .check input, .lang-picks input { width: auto; margin: 0; }
+  .lang-picks { display: flex; flex-wrap: wrap; gap: 8px; }
+  .lang-picks label { display: inline-flex; align-items: center; gap: 6px; margin: 0; padding: 7px 12px; border: 1.5px solid var(--line); border-radius: 999px; font-weight: 500; cursor: pointer; background: #fff; }
+  .lang-picks label:has(input:checked) { border-color: var(--brand); background: #eff6ff; }
+  .lang-picks small { color: var(--ink-soft); font-weight: 400; }
 </style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script src="config.js"></script>
 </head>
 <body>
@@ -138,7 +158,7 @@
         <h1>Chaque savoir, compris dans sa langue.</h1>
         <p class="lead">Professa-M traduit vos vidéos de formation, de santé, d'enseignement ou de prédication en sous-titres et en voix, du lingala au japonais. Votre public comprend enfin le message, même s'il lit difficilement.</p>
         <div class="ctas">
-          <a class="btn btn-primary" href="#contact">Traduire une vidéo test</a>
+          <a class="btn btn-primary" href="#envoyer">Envoyer une vidéo</a>
           <a class="btn btn-ghost" href="#comment">Voir comment ça marche</a>
         </div>
         <p class="trust">13 langues · Relecture humaine pour les langues locales · Paiement M-Pesa</p>
@@ -151,6 +171,74 @@
         </div>
         <div class="meta"><span>Sous-titres + voix + quiz</span><span>04:18 / 12:00</span></div>
         <div class="bar"><i></i></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="envoyer" class="send">
+    <div class="wrap">
+      <div class="send-card">
+        <div class="send-head">
+          <div>
+            <span class="eyebrow">Envoyer une vidéo à traduire</span>
+            <h2>Collez un lien ou déposez votre fichier.</h2>
+          </div>
+          <div class="tabs" role="tablist">
+            <button type="button" role="tab" class="tab on" data-tab="link" aria-selected="true">Lien de la vidéo</button>
+            <button type="button" role="tab" class="tab" data-tab="file" aria-selected="false">Fichier vidéo</button>
+          </div>
+        </div>
+        <form id="send-form" novalidate>
+          <div class="tab-panel" data-panel="link">
+            <label>Lien de la vidéo (YouTube, Facebook, Google Drive...)
+              <input name="video_url" type="url" maxlength="500" placeholder="https://www.youtube.com/watch?v=...">
+            </label>
+          </div>
+          <div class="tab-panel hidden" data-panel="file">
+            <label class="drop" id="drop">
+              <input name="video_file" type="file" accept="video/*,audio/*" hidden>
+              <strong id="drop-title">Choisir un fichier vidéo ou audio</strong>
+              <span id="drop-sub">MP4, MOV, WEBM, MP3... jusqu'à 50 Mo. Plus lourd ? Utilisez l'onglet « Lien » avec Google Drive ou WeTransfer.</span>
+            </label>
+          </div>
+
+          <div class="row">
+            <label>Langue de la vidéo
+              <select name="source_language" id="source-language"></select>
+            </label>
+            <fieldset class="outputs">
+              <legend>Je veux</legend>
+              <label><input type="radio" name="output" value="subtitles"> Sous-titres</label>
+              <label><input type="radio" name="output" value="dubbing"> Doublage</label>
+              <label><input type="radio" name="output" value="both" checked> Les deux</label>
+            </fieldset>
+          </div>
+
+          <fieldset class="targets">
+            <legend>Traduire en</legend>
+            <div id="target-languages" class="lang-picks"></div>
+          </fieldset>
+
+          <div class="row">
+            <label>Nom de l'organisation *<input name="org_name" required minlength="2" maxlength="160" autocomplete="organization"></label>
+            <label>Votre nom *<input name="contact_name" required minlength="2" maxlength="120" autocomplete="name"></label>
+          </div>
+          <div class="row">
+            <label>Téléphone (M-Pesa / WhatsApp)<input name="phone" type="tel" maxlength="40" placeholder="+243 ..." autocomplete="tel"></label>
+            <label>E-mail<input name="email" type="email" maxlength="200" autocomplete="email"></label>
+          </div>
+          <label>Vous êtes
+            <select name="segment">
+              <option value="">Choisir...</option>
+              <option>ONG ou projet de santé</option><option>Église</option><option>École ou université</option>
+              <option>Entreprise</option><option>Créateur de contenu</option><option>Autre</option>
+            </select>
+          </label>
+          <label class="check"><input type="checkbox" name="rights"> Je certifie que cette vidéo m'appartient ou que j'ai l'autorisation de la faire traduire.</label>
+          <label class="hp" aria-hidden="true">Site web<input name="website" tabindex="-1" autocomplete="off"></label>
+          <button class="btn btn-primary" type="submit">Envoyer pour un devis gratuit</button>
+          <div id="send-msg" class="msg" role="status"></div>
+        </form>
       </div>
     </div>
   </section>
@@ -355,6 +443,91 @@
       show("err", "L'envoi n'a pas abouti : " + err.message + ". Réessayez dans un instant.");
     } finally {
       btn.disabled = false; btn.textContent = "Envoyer ma demande";
+    }
+  });
+  // ---------- Envoyer une vidéo à traduire ----------
+  const LANGS = [
+    ["fr","Français",1],["en","Anglais",1],["sw","Swahili",1],["ln","Lingala",1],["pt","Portugais",1],
+    ["es","Espagnol",2],["ar","Arabe",2],["de","Allemand",2],["zh","Chinois",2],["ja","Japonais",2],["hi","Hindi",2],
+    ["lua","Tshiluba",3],["kg","Kikongo",3]
+  ];
+  const sendForm = document.getElementById("send-form");
+  const sendMsg = document.getElementById("send-msg");
+  const srcSel = document.getElementById("source-language");
+  srcSel.innerHTML = LANGS.map(([c, n]) => `<option value="${c}">${n}</option>`).join("") + '<option value="">Autre langue</option>';
+  document.getElementById("target-languages").innerHTML = LANGS.map(([c, n, w]) =>
+    `<label><input type="checkbox" name="targets" value="${c}" ${["ln", "sw"].includes(c) ? "checked" : ""}> ${n}${w > 1 ? " <small>bientôt</small>" : ""}</label>`
+  ).join("");
+  let activeTab = "link";
+  document.querySelectorAll(".tab").forEach((t) => t.addEventListener("click", () => {
+    activeTab = t.dataset.tab;
+    document.querySelectorAll(".tab").forEach((x) => { x.classList.toggle("on", x === t); x.setAttribute("aria-selected", x === t); });
+    document.querySelectorAll(".tab-panel").forEach((p) => p.classList.toggle("hidden", p.dataset.panel !== activeTab));
+  }));
+  const fileInput = sendForm.querySelector("input[name=video_file]");
+  const drop = document.getElementById("drop");
+  const MAX = 50 * 1024 * 1024;
+  function showFile() {
+    const f = fileInput.files[0];
+    document.getElementById("drop-title").textContent = f ? f.name : "Choisir un fichier vidéo ou audio";
+    document.getElementById("drop-sub").textContent = f
+      ? (f.size / 1048576).toFixed(1) + " Mo" + (f.size > MAX ? " : trop lourd (50 Mo maximum). Utilisez l'onglet « Lien »." : "")
+      : "MP4, MOV, WEBM, MP3... jusqu'à 50 Mo.";
+  }
+  fileInput.addEventListener("change", showFile);
+  ["dragover", "dragenter"].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.add("over"); }));
+  ["dragleave", "drop"].forEach((ev) => drop.addEventListener(ev, () => drop.classList.remove("over")));
+  drop.addEventListener("drop", (e) => { e.preventDefault(); if (e.dataTransfer.files.length) { fileInput.files = e.dataTransfer.files; showFile(); } });
+
+  function sendShow(kind, text) { sendMsg.className = "msg " + kind; sendMsg.textContent = text; }
+  sendForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const f = new FormData(sendForm);
+    const val = (k) => (f.get(k) || "").toString().trim();
+    const targets = f.getAll("targets");
+    const url = activeTab === "link" ? val("video_url") : "";
+    const file = activeTab === "file" ? fileInput.files[0] : null;
+    if (activeTab === "link" && !/^https?:\/\/\S+$/.test(url)) return sendShow("err", "Collez un lien valide (il commence par https://).");
+    if (activeTab === "file" && !file) return sendShow("err", "Choisissez un fichier vidéo.");
+    if (file && file.size > MAX) return sendShow("err", "Le fichier dépasse 50 Mo : utilisez l'onglet « Lien » avec Google Drive ou WeTransfer.");
+    if (!targets.length) return sendShow("err", "Choisissez au moins une langue.");
+    if (val("org_name").length < 2 || val("contact_name").length < 2) return sendShow("err", "Indiquez le nom de l'organisation et votre nom.");
+    if (!val("phone") && !val("email")) return sendShow("err", "Indiquez au moins un téléphone ou un e-mail.");
+    if (!f.get("rights")) return sendShow("err", "Cochez la case qui confirme que vous avez le droit de faire traduire cette vidéo.");
+    const btn = sendForm.querySelector("button[type=submit]");
+    btn.disabled = true;
+    try {
+      let path = null;
+      if (file) {
+        btn.textContent = "Envoi du fichier...";
+        const sb = supabase.createClient(cfg.supabaseUrl, cfg.supabaseKey, { auth: { persistSession: false } });
+        const safe = file.name.normalize("NFD").replace(/[^\w.\-]+/g, "_").slice(-80);
+        path = "incoming/" + crypto.randomUUID() + "-" + safe;
+        const { error } = await sb.storage.from("translation-uploads").upload(path, file, { contentType: file.type || "video/mp4", upsert: false });
+        if (error) throw new Error(error.message);
+      }
+      btn.textContent = "Enregistrement...";
+      const res = await fetch(cfg.supabaseUrl + "/rest/v1/rpc/submit_translation_request", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", apikey: cfg.supabaseKey },
+        body: JSON.stringify({
+          p_org_name: val("org_name"), p_contact_name: val("contact_name"),
+          p_phone: val("phone") || null, p_email: val("email") || null, p_segment: val("segment") || null,
+          p_video_url: url || null, p_storage_path: path, p_file_name: file ? file.name : null,
+          p_source_language: val("source_language") || null, p_target_languages: targets,
+          p_output: val("output") || "both", p_rights_confirmed: true, p_message: null, p_website: val("website") || null
+        })
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.message || "Erreur " + res.status);
+      }
+      sendForm.reset(); showFile();
+      sendShow("ok", "Merci ! Votre vidéo est bien reçue. Nous vous envoyons un devis sous 48 heures.");
+    } catch (err) {
+      sendShow("err", "L'envoi n'a pas abouti : " + err.message + ". Réessayez dans un instant.");
+    } finally {
+      btn.disabled = false; btn.textContent = "Envoyer pour un devis gratuit";
     }
   });
 </script>

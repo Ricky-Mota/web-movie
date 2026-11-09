@@ -333,6 +333,7 @@ async function openLead(id) {
             <button class="btn" type="submit">${isNew ? "Créer" : "Enregistrer"}</button>
           </div>
         </form>
+        ${isNew ? "" : `<div class="panel"><h4>Vidéos à traduire</h4><div id="reqs">Chargement...</div></div>`}
         ${isNew ? "" : `<div class="panel">
           <h4>Historique</h4>
           <form id="note-form" style="margin-bottom:14px">
@@ -387,7 +388,36 @@ async function openLead(id) {
       e.target.reset(); loadNotes(lead.id);
     };
     loadNotes(lead.id);
+    loadRequests(lead.id);
   }
+}
+const LANG_NAME = { fr: "Français", en: "Anglais", sw: "Swahili", ln: "Lingala", pt: "Portugais", es: "Espagnol", ar: "Arabe",
+  de: "Allemand", zh: "Chinois", ja: "Japonais", hi: "Hindi", lua: "Tshiluba", kg: "Kikongo" };
+const OUTPUT_LABEL = { subtitles: "Sous-titres", dubbing: "Doublage", both: "Sous-titres + doublage" };
+const REQ_STATUS = [["new", "Nouvelle"], ["quoted", "Devis envoyé"], ["accepted", "Acceptée"], ["done", "Livrée"], ["rejected", "Refusée"]];
+async function loadRequests(leadId) {
+  const box = $("reqs");
+  const { data, error } = await sb.from("translation_requests").select("*").eq("lead_id", leadId).order("created_at", { ascending: false });
+  if (error) { box.textContent = "Erreur : " + error.message; return; }
+  if (!data.length) { box.innerHTML = '<div class="empty" style="padding:10px 0">Aucune vidéo envoyée.</div>'; return; }
+  box.innerHTML = data.map((r) => `
+    <div class="note" data-req="${r.id}">
+      <small>${new Date(r.created_at).toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" })} · ${OUTPUT_LABEL[r.output] || r.output}</small>
+      <p>${r.video_url ? `<a href="${esc(r.video_url)}" target="_blank" rel="noopener noreferrer">${esc(r.video_url)}</a>`
+                       : `<button class="btn ghost small" data-file="${esc(r.storage_path)}">Télécharger ${esc(r.file_name || "le fichier")}</button>`}</p>
+      <p>${esc(LANG_NAME[r.source_language] || r.source_language || "Langue inconnue")} → ${r.target_languages.map((c) => esc(LANG_NAME[c] || c)).join(", ")}</p>
+      <select data-status style="max-width:200px;margin-top:6px">${REQ_STATUS.map(([k, v]) => `<option value="${k}" ${r.status === k ? "selected" : ""}>${v}</option>`).join("")}</select>
+    </div>`).join("");
+  box.querySelectorAll("[data-file]").forEach((b) => (b.onclick = async () => {
+    const { data: signed, error: err } = await sb.storage.from("translation-uploads").createSignedUrl(b.dataset.file, 3600);
+    if (err) return toast("Erreur : " + err.message);
+    window.open(signed.signedUrl, "_blank", "noopener");
+  }));
+  box.querySelectorAll("[data-status]").forEach((sel) => (sel.onchange = async () => {
+    const id = sel.closest("[data-req]").dataset.req;
+    const { error: err } = await sb.from("translation_requests").update({ status: sel.value }).eq("id", id);
+    toast(err ? "Erreur : " + err.message : "Statut de la demande mis à jour");
+  }));
 }
 async function loadNotes(leadId) {
   const { data, error } = await sb.from("crm_notes").select("*").eq("lead_id", leadId).order("created_at", { ascending: false });
