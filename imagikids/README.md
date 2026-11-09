@@ -1,6 +1,6 @@
-# ImagiKids : deux versions à comparer
+# Kelasi Kids : deux versions à comparer
 
-Chaque fichier s'ouvre directement dans un navigateur (double-clic). Les deux versions utilisent la même base Supabase (projet « ImagiKids »).
+Chaque fichier s'ouvre directement dans un navigateur (double-clic). Les deux versions utilisent la même base Supabase (projet « Kelasi Kids »).
 
 ## 1. Version tout-en-un : `tout-en-un/index.html`
 
@@ -14,7 +14,7 @@ Une seule page qui contient :
 
 | Fichier | Rôle |
 |---|---|
-| `application.html` | L'application ImagiKids (13 matières, 20 niveaux) |
+| `application.html` | L'application Kelasi Kids (13 matières, 20 niveaux) |
 | `abonnement.html` | La landing page d'abonnement (essai, mensuel, annuel, paiement M-Pesa) |
 | `crm.html` | Le CRM : clients, paiements à valider, relances, réglages |
 
@@ -23,7 +23,7 @@ Une seule page qui contient :
 | Adresse | Contenu |
 |---|---|
 | `/` | Landing page d'abonnement |
-| `/app/` | Application ImagiKids |
+| `/app/` | Application Kelasi Kids |
 | `/crm/` | CRM (non référencé par les moteurs de recherche) |
 
 Deux façons de le mettre en ligne gratuitement :
@@ -38,7 +38,7 @@ Après la mise en ligne :
 
 ## 4. Application installable et Google Play
 
-- Le site est une application installable (PWA) : manifeste, icônes (`netlify/icons/`) et fonctionnement hors connexion (`netlify/sw.js`). Sur téléphone, un bandeau propose « Installer ImagiKids ».
+- Le site est une application installable (PWA) : manifeste, icônes (`netlify/icons/`) et fonctionnement hors connexion (`netlify/sw.js`). Sur téléphone, un bandeau propose « Installer Kelasi Kids ».
 - Politique de confidentialité : `netlify/confidentialite/`.
 - Pour regénérer les pages du site après une modification de `pages-separees/` : `python3 imagikids/build_netlify.py`.
 - Tout le nécessaire pour Google Play (textes, captures, icône, réponses aux questionnaires, étapes à suivre) se trouve dans `play-store/GUIDE-PLAY-STORE.md`.

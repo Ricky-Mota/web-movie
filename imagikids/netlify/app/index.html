@@ -4,10 +4,10 @@
 <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="ImagiKids">
+<meta name="apple-mobile-web-app-title" content="Kelasi Kids">
 </head><body>
 <script>window.IK_HOSTED = true;</script>
-<title>ImagiKids</title>
+<title>Kelasi Kids</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -308,7 +308,7 @@ img,svg{max-width:100%}
 
 <div class="wrap">
   <header class="top">
-    <button class="logo" id="go-home" aria-label="Accueil ImagiKids"><span class="dot" aria-hidden="true">🖍️</span>Imagi<b>Kids</b></button>
+    <button class="logo" id="go-home" aria-label="Accueil Kelasi Kids"><span class="dot" aria-hidden="true">🖍️</span>Kelasi<b>Kids</b></button>
     <div class="row">
       <label class="vol" for="lang"><span aria-hidden="true">🌐</span><span id="lang-lbl">Langue</span><select id="lang" class="langsel"></select></label>
       <span class="badge" id="review" hidden></span>
@@ -326,7 +326,7 @@ img,svg{max-width:100%}
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script>
 "use strict";
-/* ================== CONTENUS PÉDAGOGIQUES ImagiKids ==================
+/* ================== CONTENUS PÉDAGOGIQUES Kelasi Kids ==================
    11 matières × 5 niveaux. Chaque générateur reçoit a (tranche d'âge 0-3) et s (niveau 1-5)
    et renvoie 5 questions : {q, say, lang?, visual?, opts:[{t, img?, svg?, big?, small?, good}], ex} */
 
@@ -1249,7 +1249,7 @@ const STR = {
   hw_empty:["Écrivez l'énoncé du devoir ou ajoutez une photo.","Type the homework or add a photo.","Koma mosala to bakisa foto.","Andika kazi au ongeza picha.","","","Escriba el enunciado o añada una foto.","Escreva o enunciado ou adicione uma fotografia.","اكتب نص الواجب أو أضف صورة.","请输入题目或添加照片。"],
   hw_thinking:["Réflexion en cours… La première réponse peut demander jusqu'à une minute.","Thinking… The first answer can take up to a minute.","Kokanisa… Eyano ya liboso ekoki koumela tii miniti moko.","Inafikiri… Jibu la kwanza linaweza kuchukua hadi dakika moja.","","","Pensando… La primera respuesta puede tardar hasta un minuto.","A pensar… A primeira resposta pode demorar até um minuto.","جارٍ التفكير… قد تستغرق الإجابة الأولى حتى دقيقة.","思考中……首次回答可能需要一分钟。"],
   hw_stopped:["Demande arrêtée.","Request stopped.","Esengeli etelemi.","Ombi limesimamishwa.","","","Solicitud detenida.","Pedido interrompido.","تم إيقاف الطلب.","已停止。"],
-  hw_unavailable:["L'explication de tous les devoirs est disponible dans la version ImagiKids ouverte sur claude.ai. Ici, utilisez la calculatrice expliquée ci-dessous.","Full homework explanations are available in the ImagiKids version opened on claude.ai. Here, use the explained calculator below.","Bolimboli ya misala nyonso ezali na ImagiKids na claude.ai. Awa, salela calculatrice na nse.","Maelezo kamili ya kazi yanapatikana katika ImagiKids kwenye claude.ai. Hapa, tumia kikokotoo kilicho hapa chini.","","","Las explicaciones completas están disponibles en la versión de ImagiKids abierta en claude.ai. Aquí, use la calculadora explicada.","As explicações completas estão disponíveis na versão ImagiKids aberta no claude.ai. Aqui, use a calculadora explicada.","الشرح الكامل للواجبات متاح في نسخة ImagiKids على claude.ai. هنا استخدم الآلة الحاسبة المشروحة أدناه.","完整的作业讲解仅在 claude.ai 上打开的 ImagiKids 中可用。此处请使用下方的讲解计算器。"],
+  hw_unavailable:["L'explication de tous les devoirs est disponible dans la version Kelasi Kids ouverte sur claude.ai. Ici, utilisez la calculatrice expliquée ci-dessous.","Full homework explanations are available in the Kelasi Kids version opened on claude.ai. Here, use the explained calculator below.","Bolimboli ya misala nyonso ezali na Kelasi Kids na claude.ai. Awa, salela calculatrice na nse.","Maelezo kamili ya kazi yanapatikana katika Kelasi Kids kwenye claude.ai. Hapa, tumia kikokotoo kilicho hapa chini.","","","Las explicaciones completas están disponibles en la versión de Kelasi Kids abierta en claude.ai. Aquí, use la calculadora explicada.","As explicações completas estão disponíveis na versão Kelasi Kids aberta no claude.ai. Aqui, use a calculadora explicada.","الشرح الكامل للواجبات متاح في نسخة Kelasi Kids على claude.ai. هنا استخدم الآلة الحاسبة المشروحة أدناه.","完整的作业讲解仅在 claude.ai 上打开的 Kelasi Kids 中可用。此处请使用下方的讲解计算器。"],
   hw_error:["Une erreur passagère est survenue. Réessayez.","A temporary error occurred. Please try again.","Libunga moke esalemi. Meka lisusu.","Hitilafu ya muda imetokea. Jaribu tena.","","","Se produjo un error temporal. Inténtelo de nuevo.","Ocorreu um erro temporário. Tente novamente.","حدث خطأ مؤقت. حاول مجددًا.","出现临时错误，请重试。"],
   hw_denied:["L'accès à Claude n'a pas été autorisé pour cette page. La calculatrice expliquée reste disponible.","Access to Claude was not allowed for this page. The explained calculator is still available.","Claude endimami te na lokasa oyo. Calculatrice ezali kaka.","Ufikiaji wa Claude haukuruhusiwa kwa ukurasa huu. Kikokotoo bado kinapatikana.","","","No se autorizó el acceso a Claude en esta página. La calculadora sigue disponible.","O acesso ao Claude não foi autorizado nesta página. A calculadora continua disponível.","لم يُسمح بالوصول إلى Claude لهذه الصفحة. تبقى الآلة الحاسبة متاحة.","此页面未获准使用 Claude，讲解计算器仍可使用。"],
   hw_busy:["Trop de demandes pour le moment. Réessayez dans quelques minutes.","Too many requests right now. Try again in a few minutes.","Masengi mingi sikoyo. Meka lisusu sima ya miniti moke.","Maombi mengi kwa sasa. Jaribu tena baada ya dakika chache.","","","Demasiadas solicitudes. Inténtelo en unos minutos.","Demasiados pedidos. Tente daqui a alguns minutos.","طلبات كثيرة حاليًا. حاول بعد دقائق.","请求过多，请几分钟后再试。"],
@@ -1268,7 +1268,7 @@ const STR = {
   calc_zero:["Division par zéro impossible.","Division by zero is impossible.","Kokabola na zero ekoki te.","Haiwezekani kugawanya kwa sifuri.","","","No se puede dividir entre cero.","Não é possível dividir por zero.","القسمة على صفر مستحيلة.","不能除以零。"],
   calc_paren_err:["Les parenthèses ne sont pas équilibrées.","The brackets are not balanced.","Ba parenthèses ekokani te.","Mabano hayajasawazishwa.","","","Los paréntesis no están equilibrados.","Os parênteses não estão equilibrados.","الأقواس غير متوازنة.","括号不匹配。"],
   courses_fr:["Les cours sont en français.","Lessons are in French.","Mateya ezali na français.","Masomo yako kwa Kifaransa.","Malongi kele na français.","Malongesha adi mu français.","Las lecciones están en francés.","As aulas são em francês.","الدروس باللغة الفرنسية.","课程内容为法语。"],
-  footer:["ImagiKids · apprendre en images de 3 à 15 ans · 13 matières, 20 niveaux, aide aux devoirs, 10 langues · aucune publicité, aucune messagerie, données des enfants réduites au prénom et à l'avatar.","ImagiKids · learning with pictures from 3 to 15 · 13 subjects, 20 levels, homework help, 10 languages · no ads, no messaging, children's data limited to first name and avatar.","ImagiKids · koyekola na bilili banda mbula 3 tii 15 · mateya 13, mitambe 20, lisalisi na misala, makota 10 · piblisite te, bosolo te.","ImagiKids · kujifunza kwa picha, miaka 3 hadi 15 · masomo 13, viwango 20, msaada wa kazi, lugha 10 · hakuna matangazo wala ujumbe.","","","ImagiKids · aprender con imágenes de 3 a 15 años · 13 asignaturas, 20 niveles, ayuda con los deberes, 10 idiomas · sin publicidad ni mensajería.","ImagiKids · aprender com imagens dos 3 aos 15 anos · 13 disciplinas, 20 níveis, ajuda nos trabalhos, 10 idiomas · sem publicidade nem mensagens.","ImagiKids · التعلم بالصور من 3 إلى 15 سنة · 13 مادة، 20 مستوى، مساعدة في الواجبات، 10 لغات · بلا إعلانات ولا رسائل.","ImagiKids · 3 至 15 岁看图学习 · 13 门学科、20 个级别、作业辅导、10 种语言 · 无广告、无聊天。"],
+  footer:["Kelasi Kids · apprendre en images de 3 à 15 ans · 13 matières, 20 niveaux, aide aux devoirs, 10 langues · aucune publicité, aucune messagerie, données des enfants réduites au prénom et à l'avatar.","Kelasi Kids · learning with pictures from 3 to 15 · 13 subjects, 20 levels, homework help, 10 languages · no ads, no messaging, children's data limited to first name and avatar.","Kelasi Kids · koyekola na bilili banda mbula 3 tii 15 · mateya 13, mitambe 20, lisalisi na misala, makota 10 · piblisite te, bosolo te.","Kelasi Kids · kujifunza kwa picha, miaka 3 hadi 15 · masomo 13, viwango 20, msaada wa kazi, lugha 10 · hakuna matangazo wala ujumbe.","","","Kelasi Kids · aprender con imágenes de 3 a 15 años · 13 asignaturas, 20 niveles, ayuda con los deberes, 10 idiomas · sin publicidad ni mensajería.","Kelasi Kids · aprender com imagens dos 3 aos 15 anos · 13 disciplinas, 20 níveis, ajuda nos trabalhos, 10 idiomas · sem publicidade nem mensagens.","Kelasi Kids · التعلم بالصور من 3 إلى 15 سنة · 13 مادة، 20 مستوى، مساعدة في الواجبات، 10 لغات · بلا إعلانات ولا رسائل.","Kelasi Kids · 3 至 15 岁看图学习 · 13 门学科、20 个级别、作业辅导、10 种语言 · 无广告、无聊天。"],
   start_lesson:["Commencer la leçon","Start the lesson","Banda liteya","Anza somo","Banda dilongi","Tuadija dilongesha","Empezar la lección","Começar a lição","ابدأ الدرس","开始学习"],
   click_subject:["Touchez une matière pour commencer la leçon tout de suite, sans créer de compte.","Tap a subject to start the lesson right away, no account needed.","Simba liteya moko mpo na kobanda sikoyo, kɔnti esengeli te.","Gusa somo ili uanze mara moja, bila kufungua akaunti.","","","Toca una asignatura para empezar la lección enseguida, sin crear cuenta.","Toque numa disciplina para começar a lição já, sem criar conta.","المس مادة لتبدأ الدرس فورًا، دون إنشاء حساب.","点一门学科即可立即开始学习，无需注册。"],
   guest_name:["Visiteur","Visitor","Mopaya","Mgeni","Nzenza","Mutuilu","Visitante","Visitante","زائر","访客"],
@@ -1566,7 +1566,7 @@ function showAuth(tab){
     <form class="form" id="auth-form" novalidate>
       ${tab === "up" ? `<label class="f" for="a-name">${t("your_name")}<input class="inp" id="a-name" maxlength="60" required></label>
       <label class="f" for="a-role">${t("you_are")}<select class="inp" id="a-role"><option value="parent">${t("parent")}</option><option value="enseignant">${t("teacher")}</option></select></label>` : ""}
-      <label class="f" for="a-mail">${t("email")}<input class="inp" id="a-mail" type="email" autocomplete="email" required ${demo ? 'value="demo@imagikids.test"' : ""}></label>
+      <label class="f" for="a-mail">${t("email")}<input class="inp" id="a-mail" type="email" autocomplete="email" required ${demo ? 'value="demo@kelasikids.test"' : ""}></label>
       <label class="f" for="a-pass">${t("password")}<input class="inp" id="a-pass" type="password" minlength="8" autocomplete="${tab === "in" ? "current-password" : "new-password"}" required ${demo ? 'value="demo-demo"' : ""}></label>
       ${tab === "up" ? `<label class="row" for="a-adult" style="font-size:14px;align-items:flex-start;flex-wrap:nowrap"><input type="checkbox" id="a-adult"> <span>${t("adult_check")}</span></label>` : ""}
       <p id="a-msg" hidden></p>
@@ -1968,7 +1968,7 @@ setupVolume();
 
 
 <script>
-/* Application installable : service worker + bandeau « Installer ImagiKids » */
+/* Application installable : service worker + bandeau « Installer Kelasi Kids » */
 (function () {
   /* Ouvert depuis l'application Google Play : pas de prix ni de bouton d'abonnement (règles de paiement de Google) */
   try { if (document.referrer.indexOf("android-app://") === 0) sessionStorage.setItem("ik-play", "1");
@@ -1983,7 +1983,7 @@ setupVolume();
   function bar(html, canInstall) {
     if (el) return;
     el = document.createElement("div");
-    el.setAttribute("role", "region"); el.setAttribute("aria-label", "Installer ImagiKids");
+    el.setAttribute("role", "region"); el.setAttribute("aria-label", "Installer Kelasi Kids");
     el.style.cssText = "position:fixed;left:50%;transform:translateX(-50%);bottom:calc(12px + env(safe-area-inset-bottom,0px));z-index:60;width:min(560px,calc(100% - 24px));" +
       "display:flex;gap:10px;align-items:center;padding:12px 14px;border-radius:16px;background:#1c2643;color:#fff;font:15px/1.4 Lexend,system-ui,sans-serif;box-shadow:0 6px 24px rgba(0,0,0,.25)";
     el.innerHTML = '<img src="/icons/icon-192.png" alt="" width="40" height="40" style="border-radius:10px;flex:none">' +
@@ -1995,9 +1995,9 @@ setupVolume();
     var b = el.querySelector("[data-i]");
     if (b) b.onclick = function () { if (!deferred) return; deferred.prompt(); deferred.userChoice.then(function (c) { close(c && c.outcome !== "accepted"); }); deferred = null; };
   }
-  addEventListener("beforeinstallprompt", function (e) { e.preventDefault(); deferred = e; bar("<b>Installez ImagiKids</b> sur votre écran d'accueil : il s'ouvre comme une vraie application.", true); });
+  addEventListener("beforeinstallprompt", function (e) { e.preventDefault(); deferred = e; bar("<b>Installez Kelasi Kids</b> sur votre écran d'accueil : il s'ouvre comme une vraie application.", true); });
   addEventListener("appinstalled", function () { close(false); });
-  if (ios) setTimeout(function () { bar("Pour installer ImagiKids : touchez <b>Partager</b> ⬆️ puis <b>Sur l'écran d'accueil</b>.", false); }, 2500);
+  if (ios) setTimeout(function () { bar("Pour installer Kelasi Kids : touchez <b>Partager</b> ⬆️ puis <b>Sur l'écran d'accueil</b>.", false); }, 2500);
 })();
 </script>
 </body></html>

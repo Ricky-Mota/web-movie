@@ -1,14 +1,14 @@
 <!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
 <meta name="robots" content="noindex, nofollow">
 <script>window.IK_HOSTED = true;</script>
-<title>ImagiKids CRM</title>
+<title>Kelasi Kids CRM</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Grandstander:wght@800&family=Lexend:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap">
 <style>
 /* Concept : le registre de l'école. Fond uni et calme, la couleur sert uniquement à l'état
-   (actif, essai, en attente, expiré) ; le logo reprend la marque ImagiKids. */
+   (actif, essai, en attente, expiré) ; le logo reprend la marque Kelasi Kids. */
 :root{
   --bg:#f4f6fa; --panel:#ffffff; --ink:#1b2440; --muted:#5a6683; --line:#dde3ee; --soft:#eef2f8;
   --accent:#2a76d2; --accent-soft:#e1eefc; --sun:#f4ad1d;
@@ -124,7 +124,7 @@ tbody tr.click:hover,tbody tr.sel{background:var(--soft)}
 
 <div class="wrap">
   <header class="top">
-    <div class="brand"><span class="dot" aria-hidden="true">🖍️</span><div><b>Imagi<i>Kids</i></b><small>CRM · abonnements</small></div></div>
+    <div class="brand"><span class="dot" aria-hidden="true">🖍️</span><div><b>Kelasi<i>Kids</i></b><small>CRM · abonnements</small></div></div>
     <div class="row"><span class="badge" id="mode-badge">Démo</span><span class="muted" id="who" style="font-size:13px"></span><button class="btn sm" id="logout" hidden>Déconnexion</button></div>
   </header>
   <main id="view"></main>
@@ -151,7 +151,7 @@ const METHOD = {mpesa:"M-Pesa", especes:"Espèces", autre:"Autre"};
 const pill = s => `<span class="pill st-${s}">${STATUS[s] || s}</span>`;
 
 /* ================== DONNÉES ================== */
-const db = {settings:{mpesa_number:"", mpesa_name:"ImagiKids", price_month:10, price_year:80, trial_days:2}, clients:[], subs:[], pays:[]};
+const db = {settings:{mpesa_number:"", mpesa_name:"Kelasi Kids", price_month:10, price_year:80, trial_days:2}, clients:[], subs:[], pays:[]};
 let sb = null, cloud = false;
 
 /* --- Démo : exemples fictifs enregistrés sur cet appareil --- */
@@ -168,7 +168,7 @@ function demoSeed(){
   const P = (id, c, s, amt, ref, st, cr, v) => ({id, client_id:c, subscription_id:s, amount_usd:amt, method:"mpesa", reference:ref, status:st, created_at:cr, validated_at:v});
   const pays = [P("p1","k1","s9",10,"QW8E1R2T3Y","valide",ago(55),ago(55)), P("p2","k1","s1",10,"ZX9C8V7B6N","valide",ago(25),ago(25)), P("p3","k2","s2",80,"AS5D4F3G2H","valide",ago(6),ago(6)),
     P("p4","k3","s3",80,"PL0O9K8I7U","valide",ago(90),ago(90)), P("p5","k5","s5",10,"MN4B3V2C1X","a_verifier",ago(0.2),null), P("p6","k6","s6",10,"TY6U5I4O3P","valide",ago(33),ago(33))];
-  return {settings:{mpesa_number:"", mpesa_name:"ImagiKids", price_month:10, price_year:80, trial_days:2}, clients, subs, pays};
+  return {settings:{mpesa_number:"", mpesa_name:"Kelasi Kids", price_month:10, price_year:80, trial_days:2}, clients, subs, pays};
 }
 let mem = null;
 function demoLoad(){ try { const s = localStorage.getItem(DEMO_KEY); if (s) return JSON.parse(s); } catch {} return mem || demoSeed(); }
@@ -389,11 +389,11 @@ function paneRem(st){
   const P = db.settings;
   const groups = [
     {title:"Essais qui se terminent", hint:"Essai terminé depuis moins de 7 jours ou qui finit dans 2 jours.", list:st.states.filter(x => x.sub && x.sub.cycle === "essai" && ["essai","expire"].includes(x.status) && x.ends && daysLeft(x.ends) <= 2 && daysLeft(x.ends) > -7 && !st.states.some(y => y.c.id === x.c.id && y.status === "actif")),
-      msg:x => `Bonjour ${first(x.c.full_name)}, votre essai gratuit ImagiKids ${daysLeft(x.ends) >= 0 ? "se termine bientôt" : "est terminé"}. Pour continuer : ${money(P.price_month)} par mois ou ${money(P.price_year)} par an, à payer par M-Pesa${P.mpesa_number ? " au " + P.mpesa_number : ""}. Envoyez-nous ensuite le code de la transaction. Merci !`},
+      msg:x => `Bonjour ${first(x.c.full_name)}, votre essai gratuit Kelasi Kids ${daysLeft(x.ends) >= 0 ? "se termine bientôt" : "est terminé"}. Pour continuer : ${money(P.price_month)} par mois ou ${money(P.price_year)} par an, à payer par M-Pesa${P.mpesa_number ? " au " + P.mpesa_number : ""}. Envoyez-nous ensuite le code de la transaction. Merci !`},
     {title:"Abonnements qui expirent sous 7 jours", hint:"Renouvellement à proposer avant l'échéance.", list:st.soon,
-      msg:x => `Bonjour ${first(x.c.full_name)}, votre abonnement ImagiKids se termine le ${dfmt(x.ends)}. Pour le renouveler : ${money(x.cycle === "annuel" ? P.price_year : P.price_month)} par M-Pesa${P.mpesa_number ? " au " + P.mpesa_number : ""}, puis envoyez-nous le code de la transaction. Merci de votre confiance !`},
+      msg:x => `Bonjour ${first(x.c.full_name)}, votre abonnement Kelasi Kids se termine le ${dfmt(x.ends)}. Pour le renouveler : ${money(x.cycle === "annuel" ? P.price_year : P.price_month)} par M-Pesa${P.mpesa_number ? " au " + P.mpesa_number : ""}, puis envoyez-nous le code de la transaction. Merci de votre confiance !`},
     {title:"Abonnements expirés (moins de 30 jours)", hint:"Anciens abonnés à faire revenir.", list:st.states.filter(x => x.status === "expire" && x.sub && x.sub.cycle !== "essai" && x.ends && daysLeft(x.ends) > -30),
-      msg:x => `Bonjour ${first(x.c.full_name)}, votre abonnement ImagiKids est arrivé à échéance le ${dfmt(x.ends)}. Vos enfants peuvent reprendre où ils se sont arrêtés : ${money(P.price_month)} par mois ou ${money(P.price_year)} par an, par M-Pesa${P.mpesa_number ? " au " + P.mpesa_number : ""}.`}
+      msg:x => `Bonjour ${first(x.c.full_name)}, votre abonnement Kelasi Kids est arrivé à échéance le ${dfmt(x.ends)}. Vos enfants peuvent reprendre où ils se sont arrêtés : ${money(P.price_month)} par mois ou ${money(P.price_year)} par an, par M-Pesa${P.mpesa_number ? " au " + P.mpesa_number : ""}.`}
   ];
   $("#pane").innerHTML = `<div style="display:grid;gap:16px">${groups.map((g, gi) => `<section class="panel"><h2>${g.title} (${g.list.length})</h2><p class="muted" style="font-size:14px">${g.hint}</p>
     <div class="reminders">${g.list.length ? g.list.map((x, i) => `<article class="rem"><div style="display:grid;gap:6px;min-width:0"><span><b>${esc(x.c.full_name)}</b> · <span class="mono">${esc(x.c.phone)}</span> · ${pill(x.status)} ${x.ends ? `<span class="muted num">échéance ${dfmt(x.ends)}</span>` : ""}</span><textarea class="inp" id="m-${gi}-${i}" aria-label="Message pour ${esc(x.c.full_name)}">${esc(g.msg(x))}</textarea></div>
@@ -421,7 +421,7 @@ function paneSettings(){
   const hint = () => { const m = +$("#s-m").value, y = +$("#s-y").value; $("#s-save-hint").textContent = m && y ? `Remise annuelle : ${Math.round((1 - y/(m*12))*100)} % (économie de ${money(m*12 - y)})` : ""; };
   hint(); $("#s-m").oninput = hint; $("#s-y").oninput = hint;
   $("#sf").onsubmit = async e => { e.preventDefault(); const m = $("#s-msg");
-    const v = {mpesa_number:$("#s-num").value.trim(), mpesa_name:$("#s-name").value.trim() || "ImagiKids", price_month:+$("#s-m").value, price_year:+$("#s-y").value, trial_days:Math.round(+$("#s-t").value)};
+    const v = {mpesa_number:$("#s-num").value.trim(), mpesa_name:$("#s-name").value.trim() || "Kelasi Kids", price_month:+$("#s-m").value, price_year:+$("#s-y").value, trial_days:Math.round(+$("#s-t").value)};
     if (!(v.price_month >= 0 && v.price_year >= 0) || !(v.trial_days >= 0 && v.trial_days <= 30)){ m.textContent = "Vérifiez les prix (positifs) et la durée de l'essai (0 à 30 jours)."; m.className = "note err"; m.hidden = false; return; }
     try { await saveSettings(v); m.textContent = "Réglages enregistrés."; m.className = "note ok"; m.hidden = false; } catch (err){ m.textContent = frErr(err.message); m.className = "note err"; m.hidden = false; } };
 }

@@ -4,7 +4,7 @@
 Pour chaque page, le script :
   - active le mode hébergé (liens /app/ et /#abonnement) ;
   - ajoute les balises d'application installable (manifest, icônes, couleur) ;
-  - ajoute le bandeau « Installer ImagiKids » et l'enregistrement du service worker.
+  - ajoute le bandeau « Installer Kelasi Kids » et l'enregistrement du service worker.
 
 Usage : python3 imagikids/build_netlify.py
 """
@@ -19,12 +19,12 @@ HEAD = """<link rel="manifest" href="/manifest.webmanifest">
 <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="ImagiKids">
+<meta name="apple-mobile-web-app-title" content="Kelasi Kids">
 """
 
 INSTALL = """
 <script>
-/* Application installable : service worker + bandeau « Installer ImagiKids » */
+/* Application installable : service worker + bandeau « Installer Kelasi Kids » */
 (function () {
   /* Ouvert depuis l'application Google Play : pas de prix ni de bouton d'abonnement (règles de paiement de Google) */
   try { if (document.referrer.indexOf("android-app://") === 0) sessionStorage.setItem("ik-play", "1");
@@ -39,7 +39,7 @@ INSTALL = """
   function bar(html, canInstall) {
     if (el) return;
     el = document.createElement("div");
-    el.setAttribute("role", "region"); el.setAttribute("aria-label", "Installer ImagiKids");
+    el.setAttribute("role", "region"); el.setAttribute("aria-label", "Installer Kelasi Kids");
     el.style.cssText = "position:fixed;left:50%;transform:translateX(-50%);bottom:calc(12px + env(safe-area-inset-bottom,0px));z-index:60;width:min(560px,calc(100% - 24px));" +
       "display:flex;gap:10px;align-items:center;padding:12px 14px;border-radius:16px;background:#1c2643;color:#fff;font:15px/1.4 Lexend,system-ui,sans-serif;box-shadow:0 6px 24px rgba(0,0,0,.25)";
     el.innerHTML = '<img src="/icons/icon-192.png" alt="" width="40" height="40" style="border-radius:10px;flex:none">' +
@@ -51,9 +51,9 @@ INSTALL = """
     var b = el.querySelector("[data-i]");
     if (b) b.onclick = function () { if (!deferred) return; deferred.prompt(); deferred.userChoice.then(function (c) { close(c && c.outcome !== "accepted"); }); deferred = null; };
   }
-  addEventListener("beforeinstallprompt", function (e) { e.preventDefault(); deferred = e; bar("<b>Installez ImagiKids</b> sur votre écran d'accueil : il s'ouvre comme une vraie application.", true); });
+  addEventListener("beforeinstallprompt", function (e) { e.preventDefault(); deferred = e; bar("<b>Installez Kelasi Kids</b> sur votre écran d'accueil : il s'ouvre comme une vraie application.", true); });
   addEventListener("appinstalled", function () { close(false); });
-  if (ios) setTimeout(function () { bar("Pour installer ImagiKids : touchez <b>Partager</b> ⬆️ puis <b>Sur l'écran d'accueil</b>.", false); }, 2500);
+  if (ios) setTimeout(function () { bar("Pour installer Kelasi Kids : touchez <b>Partager</b> ⬆️ puis <b>Sur l'écran d'accueil</b>.", false); }, 2500);
 })();
 </script>
 """
@@ -68,7 +68,7 @@ for src, dst, pwa in PAGES:
         s = s.replace("</head>", HEAD + "</head>", 1).replace("</body>", INSTALL + "</body>", 1)
         # lien vers la politique de confidentialité (exigé par Google Play pour une application pour enfants)
         s = s.replace('<footer id="foot"></footer>', '<footer id="foot"></footer>\n  <p style="font-size:13px;margin:-16px 0 0"><a href="/confidentialite/" style="color:inherit">Politique de confidentialité</a></p>', 1)
-        s = s.replace('<span>© ImagiKids · Kinshasa, RDC</span>', '<span>© ImagiKids · Kinshasa, RDC · <a href="/confidentialite/" style="color:inherit">Politique de confidentialité</a></span>', 1)
+        s = s.replace('<span>© Kelasi Kids · Kinshasa, RDC</span>', '<span>© Kelasi Kids · Kinshasa, RDC · <a href="/confidentialite/" style="color:inherit">Politique de confidentialité</a></span>', 1)
     else:  # le CRM n'est ni installable ni référencé
         s = s.replace("<body>", '<body>\n<meta name="robots" content="noindex, nofollow">', 1)
     out = OUT / dst
