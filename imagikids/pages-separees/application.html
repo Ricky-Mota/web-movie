@@ -304,7 +304,7 @@ img,svg{max-width:100%}
     <div class="row">
       <label class="vol" for="lang"><span aria-hidden="true">🌐</span><span id="lang-lbl">Langue</span><select id="lang" class="langsel"></select></label>
       <span class="badge" id="review" hidden></span>
-      <label class="vol" for="vol"><span id="vol-ico" aria-hidden="true">🔊</span><span id="vol-lbl">Volume</span><input type="range" id="vol" min="0" max="100" step="5" value="80" aria-label="Volume de la voix et des sons"></label>
+      <label class="vol" for="vol"><span id="vol-ico" aria-hidden="true">🔊</span><span id="vol-lbl">Volume</span><input type="range" id="vol" min="0" max="100" step="5" value="100" aria-label="Volume de la voix et des sons"></label>
       <span class="badge" id="mode-badge">Mode démo</span>
       <span id="nav" class="row"></span>
     </div>
@@ -824,16 +824,35 @@ const MAX_LEVEL = 20;
 const PALIERS = ["Débutant","Apprenti","Confirmé","Avancé","Champion"];
 const palierOf = n => Math.ceil(n/4);
 const isChallenge = n => n % 4 === 0;
+/* Mémoire des questions déjà posées, par enfant et par matière : chaque questionnaire
+   donne d'abord des questions jamais vues ; quand tout a été vu, les plus anciennes reviennent. */
+const QHIST_KEY = "imagikids-qhist-v1", QHIST_MAX = 250;
+let QHIST = null, QOWNER = "invite";
+function qhist(){ if (QHIST) return QHIST; try { QHIST = JSON.parse(localStorage.getItem(QHIST_KEY) || "{}") || {}; } catch { QHIST = {}; } return QHIST; }
+function qhistSave(){ try { localStorage.setItem(QHIST_KEY, JSON.stringify(QHIST)); } catch {} }
+const qkey = q => String(q.q) + "|" + String(q.ex);
 function genLevel(subj, a, n){
-  const S = SUBJECTS[subj], p = palierOf(n), sub = (n - 1) % 4;
+  const S = SUBJECTS[subj], p = palierOf(n), sub = (n - 1) % 4, H = qhist(), hk = QOWNER + ":" + subj, past = H[hk] || [];
+  const age = new Map(past.map((k, i) => [k, i])); /* indice petit = question ancienne */
   try {
-    const ch = isChallenge(n), out = [], seen = new Set();
+    const ch = isChallenge(n), pool = new Map();
+    const add = (qs, lv) => { for (const q of qs || []) { const k = qkey(q); if (!pool.has(k)) pool.set(k, {q, lv}); } };
     BOOST = ch ? 2 : sub;
-    for (let tries = 0; out.length < 5 && tries < 12; tries++){
-      const batch = ch ? [S.gen(a, tries < 1 ? p : rnd(1, p))[rnd(0, 4)]] : S.gen(a, p);
-      for (const q of batch){ const key = q.q + "|" + q.ex; if (out.length < 5 && !seen.has(key)){ seen.add(key); out.push(q); } }
+    for (let t = 0; t < 10; t++) add(S.gen(a, ch ? rnd(1, p) : p), p);
+    const unseen = () => shuffle([...pool.values()].filter(x => !age.has(qkey(x.q)))).sort((x, y) => (x.lv !== p) - (y.lv !== p));
+    let fresh = unseen();
+    if (fresh.length < 5 && !ch){ /* niveau épuisé : questions jamais vues des niveaux voisins */
+      for (const lv of [p - 1, p + 1].filter(x => x >= 1 && x <= 5)) for (let t = 0; t < 6; t++) add(S.gen(a, lv), lv);
+      fresh = unseen();
+    }
+    let out = fresh.slice(0, 5).map(x => x.q);
+    if (out.length < 5){ /* tout a déjà été vu : on reprend les plus anciennes */
+      const old = [...pool.values()].filter(x => x.lv === p && age.has(qkey(x.q))).sort((x, y) => age.get(qkey(x.q)) - age.get(qkey(y.q)));
+      out = out.concat(old.slice(0, 5 - out.length).map(x => x.q));
     }
     while (out.length < 5) out.push(S.gen(a, p)[out.length]);
+    const keys = out.map(qkey);
+    H[hk] = past.filter(k => !keys.includes(k)).concat(keys).slice(-QHIST_MAX); qhistSave();
     return ch ? out : shuffle(out);
   } finally { BOOST = 0; }
 }
@@ -900,6 +919,128 @@ const WGEO_BANK = [
 ];
 SUBJECTS.monde_hist = {name:"Histoire du monde", ico:"🏛️", c:"var(--coral)", from:1, gen:(a, s) => fromBank(WHIST_BANK, s), desc:"Égypte ancienne, grands empires africains, guerres mondiales, indépendances, ONU."};
 SUBJECTS.monde_geo = {name:"Géographie du monde", ico:"🌐", c:"var(--leaf)", from:1, gen:(a, s) => fromBank(WGEO_BANK, s), desc:"Continents, océans, capitales, montagnes, fleuves, climats."};
+
+/* ================== BANQUES ENRICHIES (plus de questionnaires différents) ================== */
+COMPARE.push(["Lequel est le plus rapide ?",[["🐆","guépard"],["🐢","tortue"],["🐌","escargot"]]],["Lequel est le plus haut ?",[["🏢","immeuble"],["🏠","maison"],["⛺","tente"]]],
+  ["Lequel est le plus froid ?",[["🧊","glaçon"],["☕","café chaud"],["🔥","feu"]]],["Lequel est le plus lent ?",[["🐌","escargot"],["🐎","cheval"],["✈️","avion"]]],
+  ["Lequel est le plus gros ?",[["🐋","baleine"],["🐟","poisson"],["🦐","crevette"]]],["Lequel est le plus léger ?",[["🎈","ballon"],["🪨","rocher"],["🚗","voiture"]]]);
+GEO_BANK.push(
+  [1,"Quelle est la couleur de fond du drapeau de la RDC ?","🇨🇩",[["🔵","Bleu ciel"],["🟢","Vert"],["⚫","Noir"]],"Le fond du drapeau est bleu ciel."],
+  [1,"Dans quel océan se jette le fleuve Congo ?","🌊",[["","L'océan Atlantique"],["","L'océan Indien"],["","L'océan Pacifique"]],"Le fleuve se jette dans l'Atlantique, près de Muanda et Banana."],
+  [1,"Quelle grande forêt couvre une grande partie de la RDC ?","🌳",[["","La forêt équatoriale"],["","La taïga"],["","Le désert"]],"La forêt du bassin du Congo est la 2e plus grande forêt tropicale du monde."],
+  [1,"Quelle grande ville se trouve au bord du fleuve, en face de Brazzaville ?","🏙️",[["","Kinshasa"],["","Goma"],["","Lubumbashi"]],"Kinshasa et Brazzaville se font face de part et d'autre du fleuve Congo."],
+  [2,"Dans quelle province se trouve la ville de Goma ?","📍",[["","Le Nord-Kivu"],["","Le Sud-Kivu"],["","L'Ituri"]],"Goma est le chef-lieu du Nord-Kivu."],
+  [2,"Dans quelle province se trouve Lubumbashi ?","📍",[["","Le Haut-Katanga"],["","Le Lualaba"],["","Le Tanganyika"]],"Lubumbashi est le chef-lieu du Haut-Katanga."],
+  [2,"Dans quelle province se trouve Bukavu ?","📍",[["","Le Sud-Kivu"],["","Le Nord-Kivu"],["","Le Maniema"]],"Bukavu est le chef-lieu du Sud-Kivu."],
+  [2,"Sur quel fleuve se trouve la ville de Kisangani ?","🏞️",[["","Le fleuve Congo"],["","La rivière Kasaï"],["","L'Ubangi"]],"Kisangani est un grand port sur le fleuve Congo."],
+  [4,"Quelles chutes se trouvent près de Kisangani ?","💦",[["","Les chutes Boyoma"],["","Les chutes Victoria"],["","Les chutes du Niagara"]],"Les chutes Boyoma s'appelaient autrefois chutes Stanley."],
+  [4,"Quel parc national, au cœur de la forêt, protège les bonobos ?","🐒",[["","Le parc de la Salonga"],["","Le parc des Virunga"],["","Le parc de la Garamba"]],"La Salonga est le plus grand parc de forêt tropicale d'Afrique."],
+  [4,"Quel parc national près de Bukavu protège les gorilles des plaines de l'Est ?","🦍",[["","Le parc de Kahuzi-Biega"],["","Le parc de la Salonga"],["","Le parc de l'Upemba"]],"Kahuzi-Biega est inscrit au patrimoine mondial."],
+  [4,"Quelle rivière passe par Tshikapa et Ilebo ?","🏞️",[["","La rivière Kasaï"],["","L'Ubangi"],["","La Lomami"]],"Le Kasaï est un grand affluent du fleuve Congo."],
+  [5,"Combien d'habitants environ compte la RDC ?","👥",[["","Plus de 100 millions"],["","Environ 10 millions"],["","Environ 1 milliard"]],"La RDC est l'un des pays les plus peuplés d'Afrique."],
+  [5,"Quel rang occupe la RDC parmi les plus grands pays d'Afrique par la superficie ?","📐",[["","2e, après l'Algérie"],["","1er"],["","10e"]],"L'Algérie est 1re ; la RDC est 2e."],
+  [5,"Quelle ville, chef-lieu du Lualaba, est un grand centre minier du cuivre et du cobalt ?","⛏️",[["","Kolwezi"],["","Kindu"],["","Gemena"]],"Kolwezi est au cœur de la ceinture de cuivre."],
+  [5,"Quel lac sépare la RDC de la Tanzanie ?","🏞️",[["","Le lac Tanganyika"],["","Le lac Kivu"],["","Le lac Albert"]],"Kalemie est au bord du lac Tanganyika."]);
+HIST_BANK.push(
+  [1,"Comment s'appelle notre pays aujourd'hui ?","🇨🇩",[["","La République démocratique du Congo"],["","Le Zaïre"],["","Le Congo belge"]],"Depuis 1997, le pays s'appelle de nouveau République démocratique du Congo."],
+  [1,"Quelle est la devise de la RDC ?","🛡️",[["","Justice – Paix – Travail"],["","Liberté – Égalité – Fraternité"],["","Unité – Travail – Progrès"]],"« Justice – Paix – Travail » figure sur les armoiries du pays."],
+  [2,"Comment s'appelait Mbandaka autrefois ?","🏙️",[["","Coquilhatville"],["","Stanleyville"],["","Léopoldville"]],"Coquilhatville est devenue Mbandaka."],
+  [2,"Comment s'appelait Kananga autrefois ?","🏙️",[["","Luluabourg"],["","Élisabethville"],["","Jadotville"]],"Luluabourg est devenue Kananga."],
+  [2,"Comment s'appelait Likasi autrefois ?","🏙️",[["","Jadotville"],["","Luluabourg"],["","Coquilhatville"]],"Jadotville est devenue Likasi."],
+  [3,"Quel roi du Kongo, baptisé, régna au début du XVIe siècle ?","👑",[["","Afonso Ier (Mvemba a Nzinga)"],["","Msiri"],["","Le Mwant Yav"]],"Afonso Ier régna de 1509 à 1542 environ."],
+  [3,"Comment s'appelait la capitale du royaume Kongo ?","🏰",[["","Mbanza-Kongo"],["","Matadi"],["","Boma"]],"Mbanza-Kongo se trouve aujourd'hui en Angola."],
+  [3,"Quelle ville fut la capitale du Congo avant Léopoldville ?","🏛️",[["","Boma"],["","Matadi"],["","Kisangani"]],"Boma fut la capitale jusqu'au transfert à Léopoldville dans les années 1920."],
+  [4,"Qui proclama la sécession du Sud-Kasaï en 1960 ?","⚔️",[["","Albert Kalonji"],["","Moïse Tshombe"],["","Antoine Gizenga"]],"Le Sud-Kasaï fit sécession en août 1960."],
+  [4,"En quelle année le pays prend-il le nom de Zaïre ?","🗓️",[["","1971"],["","1960"],["","1997"]],"Le Congo devient le Zaïre le 27 octobre 1971."],
+  [4,"Quelle monnaie Mobutu créa-t-il en 1967 ?","💵",[["","Le zaïre"],["","Le franc congolais"],["","Le franc belge"]],"Le zaïre a été la monnaie jusqu'en 1998."],
+  [5,"En quelle année ont eu lieu les premières élections pluralistes de la Troisième République ?","🗳️",[["","2006"],["","1990"],["","2018"]],"Les élections de 2006 ont suivi l'adoption de la nouvelle Constitution."],
+  [5,"Quel mouvement, dirigé par Laurent-Désiré Kabila, renversa Mobutu en 1997 ?","⚔️",[["","L'AFDL"],["","Le MLC"],["","Le MPR"]],"L'Alliance des forces démocratiques pour la libération entra à Kinshasa en mai 1997."],
+  [5,"En quelle année Mobutu annonce-t-il la fin du parti unique ?","🗓️",[["","1990"],["","1965"],["","2001"]],"Le 24 avril 1990, il annonce le multipartisme."]);
+SCI_BANK.push(
+  [1,"Lequel est un légume ?","🥗",[["🥕","La carotte"],["🍎","La pomme"],["🍌","La banane"]],"La carotte est un légume."],
+  [1,"Quelle boisson est la meilleure pour la santé ?","🚰",[["💧","L'eau"],["🥤","Le soda"],["☕","Le café"]],"L'eau est la meilleure boisson."],
+  [1,"Quel animal nous donne du lait ?","🥛",[["🐄","La vache"],["🐔","La poule"],["🐟","Le poisson"]],"La vache donne du lait."],
+  [1,"Avec quoi voit-on ?","👀",[["👁️","Les yeux"],["👂","Les oreilles"],["👃","Le nez"]],"On voit avec les yeux."],
+  [2,"Que fabriquent les abeilles ?","🐝",[["🍯","Du miel"],["🥛","Du lait"],["🧵","De la soie"]],"Les abeilles fabriquent du miel."],
+  [2,"Le petit de la vache s'appelle…","🐄",[["","Le veau"],["","Le poulain"],["","L'agneau"]],"Le poulain est le petit du cheval, l'agneau celui du mouton."],
+  [2,"Pourquoi faut-il se laver les mains avec du savon ?","🧼",[["","Pour enlever les microbes"],["","Pour les faire grandir"],["","Pour les colorer"]],"Le savon enlève les microbes qui rendent malade."],
+  [3,"Combien de dents a un adulte ?","🦷",[["","32"],["","20"],["","50"]],"Un adulte a 32 dents ; un enfant a 20 dents de lait."],
+  [3,"Lequel de ces animaux est un reptile ?","🦎",[["🐊","Le crocodile"],["🦇","La chauve-souris"],["🐬","Le dauphin"]],"Le crocodile a des écailles et pond des œufs : c'est un reptile."],
+  [3,"Quel insecte transmet le paludisme ?","🦟",[["🦟","Le moustique"],["🪰","La mouche"],["🐝","L'abeille"]],"Dormir sous une moustiquaire protège du paludisme."],
+  [3,"Que mange un animal herbivore ?","🌿",[["","Des plantes"],["","De la viande"],["","Des cailloux"]],"La vache et le zèbre sont herbivores."],
+  [4,"De quels éléments l'eau est-elle composée ?","💧",[["","D'hydrogène et d'oxygène"],["","De carbone et d'azote"],["","De fer et de soufre"]],"La formule de l'eau est H₂O."],
+  [4,"Qu'attire un aimant ?","🧲",[["","Le fer"],["","Le bois"],["","Le plastique"]],"Un aimant attire le fer et l'acier."],
+  [4,"Quel matériau conduit bien l'électricité ?","🔌",[["","Le cuivre"],["","Le bois"],["","Le caoutchouc"]],"On fait les fils électriques en cuivre."],
+  [4,"Combien de temps met la lumière du Soleil pour arriver sur Terre ?","☀️",[["","Environ 8 minutes"],["","Environ 8 secondes"],["","Environ 8 heures"]],"La lumière parcourt 150 millions de km en un peu plus de 8 minutes."],
+  [5,"Quelle est la plus grande planète du système solaire ?","🪐",[["","Jupiter"],["","Mars"],["","Vénus"]],"Jupiter est plus de 1 000 fois plus grosse que la Terre en volume."],
+  [5,"Combien de planètes compte le système solaire ?","🌌",[["","8"],["","9"],["","12"]],"Mercure, Vénus, la Terre, Mars, Jupiter, Saturne, Uranus et Neptune."],
+  [5,"Quel organe filtre le sang et fabrique l'urine ?","🫘",[["","Les reins"],["","Le cœur"],["","L'estomac"]],"Nous avons deux reins."],
+  [5,"Quelle vitamine le corps fabrique-t-il grâce au soleil ?","🌞",[["","La vitamine D"],["","La vitamine C"],["","La vitamine A"]],"La vitamine D aide à avoir des os solides."]);
+GEOL_BANK.push(
+  [1,"Comment s'appelle une montagne qui peut cracher de la lave ?","🌋",[["","Un volcan"],["","Une colline"],["","Une dune"]],"Les volcans rejettent de la lave, des cendres et des gaz."],
+  [1,"Le diamant est…","💎",[["","Une pierre précieuse"],["","Un métal"],["","Un fossile"]],"Le diamant est fait de carbone."],
+  [1,"Qu'est-ce qu'un caillou ?","🪨",[["","Un petit morceau de roche"],["","Une graine"],["","Un os"]],"Les cailloux viennent de roches cassées et usées."],
+  [2,"Avec quoi fabrique-t-on surtout le verre ?","🪟",[["","Le sable"],["","Le charbon"],["","Le bois"]],"Le sable fondu à très haute température devient du verre."],
+  [2,"À quoi sert l'argile ?","🧱",[["","À fabriquer des briques et des poteries"],["","À fabriquer des vitres"],["","À fabriquer des pièces de monnaie"]],"L'argile mouillée se modèle, puis durcit à la cuisson."],
+  [2,"Comment s'appelle le minéral du sel de cuisine ?","🧂",[["","La halite"],["","Le quartz"],["","Le talc"]],"La halite est du chlorure de sodium."],
+  [3,"Quel phénomène peut provoquer un tsunami ?","🌊",[["","Un séisme sous la mer"],["","Une forte pluie"],["","Le vent du soir"]],"Le fond de la mer bouge et soulève une énorme vague."],
+  [3,"Qu'est-ce qu'une faille ?","🪓",[["","Une cassure dans les roches"],["","Un fleuve souterrain"],["","Un fossile"]],"Les séismes se produisent souvent le long des failles."],
+  [4,"Dans quelle région de la RDC extrait-on surtout le cuivre ?","⛏️",[["","Au Katanga (Haut-Katanga et Lualaba)"],["","À l'Équateur"],["","Au Kongo-Central"]],"C'est la « ceinture de cuivre » de l'Afrique centrale."],
+  [4,"Dans quelle province se trouvent les mines d'or de Kilo-Moto ?","🥇",[["","L'Ituri et le Haut-Uele"],["","Le Kwango"],["","Le Kwilu"]],"Kilo-Moto est une région aurifère du nord-est."],
+  [4,"Que mesure l'échelle de magnitude d'un séisme ?","📈",[["","L'énergie libérée par le séisme"],["","La dureté des roches"],["","La température du magma"]],"Plus la magnitude est élevée, plus le séisme est puissant."],
+  [5,"Comment s'appelle le supercontinent qui réunissait toutes les terres il y a 300 millions d'années ?","🌍",[["","La Pangée"],["","L'Atlantide"],["","La Polynésie"]],"La Pangée s'est ensuite séparée en plusieurs continents."],
+  [5,"Qui a proposé la théorie de la dérive des continents ?","🧭",[["","Alfred Wegener"],["","Isaac Newton"],["","Charles Darwin"]],"Wegener l'a présentée en 1912."],
+  [5,"Dans quel ordre sont les couches de la Terre, de la surface vers le centre ?","🌍",[["","Croûte, manteau, noyau"],["","Noyau, manteau, croûte"],["","Manteau, croûte, noyau"]],"La croûte est en surface, le noyau au centre."]);
+INFO_BANK.push(
+  [1,"Avec quoi allume-t-on l'ordinateur ?","🔘",[["🔘","Le bouton marche-arrêt"],["🖱️","La souris"],["🖥️","L'écran"]],"On appuie sur le bouton marche-arrêt."],
+  [1,"Quel appareil emporte-t-on partout pour appeler ?","📞",[["📱","Le téléphone portable"],["🖨️","L'imprimante"],["🖥️","L'écran"]],"Le téléphone portable sert à appeler et à envoyer des messages."],
+  [1,"Où branche-t-on une clé USB ?","🔌",[["","Dans un port USB"],["","Dans l'écran"],["","Dans la souris"]],"Le port USB est une petite prise rectangulaire."],
+  [2,"Une page sur internet te fait peur ou te gêne. Que fais-tu ?","🙋",[["","Je la ferme et j'en parle à un adulte"],["","Je continue à regarder"],["","Je l'envoie à mes amis"]],"Un adulte de confiance peut t'aider."],
+  [2,"À quoi sert Ctrl + S ?","💾",[["","Enregistrer"],["","Supprimer"],["","Imprimer"]],"Ctrl + S enregistre le document."],
+  [2,"À quoi sert un moteur de recherche ?","🔍",[["","À trouver des informations sur internet"],["","À réparer l'ordinateur"],["","À recharger la batterie"]],"On tape des mots-clés et il trouve des pages."],
+  [3,"Qu'est-ce qu'un logiciel ?","🧩",[["","Un programme qui fait une tâche"],["","Une pièce de l'ordinateur"],["","Un câble"]],"Un traitement de texte ou un jeu sont des logiciels."],
+  [3,"Que veut dire « télécharger » ?","⬇️",[["","Copier un fichier d'internet sur son appareil"],["","Supprimer un fichier"],["","Imprimer un fichier"]],"On télécharge une application, une image ou un document."],
+  [3,"À quoi sert une adresse e-mail ?","📧",[["","À recevoir et envoyer des messages électroniques"],["","À ouvrir une porte"],["","À allumer l'écran"]],"Exemple : nom@exemple.cd"],
+  [4,"En binaire, que vaut 1000 ?","🔢",[["","8"],["","1 000"],["","4"]],"1000 = 8 + 0 + 0 + 0 = 8."],
+  [4,"Combien de valeurs différentes peut prendre un bit ?","0️⃣",[["","2 (0 ou 1)"],["","1"],["","10"]],"Un bit vaut 0 ou 1."],
+  [4,"Qu'est-ce qu'une variable en programmation ?","📦",[["","Une boîte qui garde une valeur"],["","Une erreur"],["","Un câble"]],"Exemple : score = 10."],
+  [4,"Que fait l'instruction « si… alors… » ?","🔀",[["","Elle choisit quoi faire selon une condition"],["","Elle répète une action"],["","Elle efface le programme"]],"Si il pleut, alors je prends un parapluie."],
+  [5,"Que signifie « https » avec un cadenas dans le navigateur ?","🔒",[["","La connexion est chiffrée"],["","Le site est gratuit"],["","Le site est lent"]],"Les informations échangées sont protégées pendant le transport."],
+  [5,"Qu'est-ce que la validation en deux étapes ?","📲",[["","Le mot de passe plus un code reçu"],["","Deux mots de passe identiques"],["","Deux ordinateurs"]],"Même si on vole ton mot de passe, il manque le code."],
+  [5,"Que veut dire « logiciel libre » (open source) ?","📖",[["","Son code est public et peut être étudié"],["","Il est toujours payant"],["","Il marche sans électricité"]],"Linux et Firefox sont des logiciels libres."],
+  [5,"À quoi sert le langage CSS ?","🎨",[["","À mettre en forme une page web"],["","À stocker des données"],["","À envoyer des e-mails"]],"HTML structure la page, CSS lui donne ses couleurs et sa mise en page."]);
+(typeof WHIST_BANK !== "undefined" ? WHIST_BANK : HISTM_BANK).push(
+  [1,"Comment s'appelaient les navigateurs du Nord aux bateaux à tête de dragon ?","⛵",[["","Les Vikings"],["","Les Romains"],["","Les Incas"]],"Les Vikings venaient de Scandinavie."],
+  [1,"Avant l'écriture, comment les griots transmettaient-ils l'histoire ?","🎶",[["","En la racontant et en la chantant"],["","En l'imprimant"],["","Avec des ordinateurs"]],"Les griots sont la mémoire des peuples d'Afrique de l'Ouest."],
+  [2,"Quel peuple a construit des pyramides-temples au Mexique et au Guatemala ?","🛕",[["","Les Mayas"],["","Les Vikings"],["","Les Celtes"]],"Les Mayas avaient aussi un calendrier très précis."],
+  [2,"Quelle reine d'Égypte est célèbre pour son alliance avec Rome ?","👑",[["","Cléopâtre"],["","Élisabeth"],["","Njinga"]],"Cléopâtre fut la dernière reine de l'Égypte ancienne."],
+  [3,"Quel empire d'Afrique de l'Ouest avait pour capitale Gao ?","🏰",[["","L'empire songhaï"],["","L'empire zoulou"],["","L'Empire romain"]],"L'empire songhaï domina la boucle du Niger aux XVe et XVIe siècles."],
+  [3,"Quelle expédition a fait le premier tour du monde, de 1519 à 1522 ?","🌐",[["","L'expédition de Magellan"],["","Celle de Christophe Colomb"],["","Celle de Stanley"]],"Magellan mourut en route ; son équipage termina le voyage."],
+  [3,"Quel roi zoulou bâtit un puissant royaume au début du XIXe siècle ?","🛡️",[["","Chaka"],["","Msiri"],["","Soundiata"]],"Chaka réorganisa l'armée zouloue."],
+  [4,"Quel pays d'Afrique fut fondé en 1847 avec d'anciens esclaves venus d'Amérique ?","🇱🇷",[["","Le Liberia"],["","Le Ghana"],["","Le Kenya"]],"Sa capitale, Monrovia, porte le nom du président américain Monroe."],
+  [4,"Qui a dirigé la lutte non violente pour l'indépendance de l'Inde ?","🕊️",[["","Gandhi"],["","Nelson Mandela"],["","Napoléon"]],"L'Inde devient indépendante en 1947."],
+  [4,"En quelle année l'esclavage est-il aboli aux États-Unis ?","⛓️",[["","1865"],["","1789"],["","1960"]],"Le 13e amendement de la Constitution l'abolit en 1865."],
+  [5,"Quel traité a mis fin en 1919 à la guerre avec l'Allemagne ?","📜",[["","Le traité de Versailles"],["","L'acte de Berlin"],["","L'accord de Pretoria"]],"Il a été signé le 28 juin 1919."],
+  [5,"En quelle année de nombreux pays d'Afrique deviennent-ils indépendants (« l'année de l'Afrique ») ?","🌍",[["","1960"],["","1945"],["","1990"]],"La RDC, le Sénégal, le Nigeria et beaucoup d'autres en 1960."],
+  [5,"Quel pays a lancé le premier satellite artificiel, Spoutnik, en 1957 ?","🛰️",[["","L'URSS"],["","Les États-Unis"],["","La Chine"]],"Spoutnik 1 a ouvert la conquête spatiale."]);
+(typeof WGEO_BANK !== "undefined" ? WGEO_BANK : GEOM_BANK).push(
+  [1,"Combien d'océans principaux compte-t-on sur la Terre ?","🌊",[["","5"],["","2"],["","12"]],"Pacifique, Atlantique, Indien, Arctique et Austral."],
+  [1,"Quel continent compte le plus d'habitants ?","👥",[["","L'Asie"],["","L'Océanie"],["","L'Europe"]],"L'Inde et la Chine sont en Asie."],
+  [1,"Qu'est-ce qu'une île ?","🏝️",[["","Une terre entourée d'eau"],["","Une haute montagne"],["","Une grande ville"]],"Madagascar est une grande île d'Afrique."],
+  [2,"Quelle est la capitale du Nigeria ?","🇳🇬",[["","Abuja"],["","Lagos"],["","Accra"]],"Lagos est la plus grande ville, mais la capitale est Abuja."],
+  [2,"Quelle est la capitale du Rwanda ?","🇷🇼",[["","Kigali"],["","Bujumbura"],["","Goma"]],"Bujumbura est au Burundi, Goma en RDC."],
+  [2,"Quelle est la capitale de l'Angola ?","🇦🇴",[["","Luanda"],["","Lobito"],["","Maputo"]],"Maputo est la capitale du Mozambique."],
+  [2,"Quelle est la capitale de la Chine ?","🇨🇳",[["","Pékin"],["","Shanghai"],["","Tokyo"]],"Pékin (Beijing) est la capitale de la Chine."],
+  [3,"Quel est le plus long fleuve d'Europe ?","🏞️",[["","La Volga"],["","Le Danube"],["","La Seine"]],"La Volga traverse la Russie."],
+  [3,"Dans quel pays se trouve le mont Fuji ?","🗻",[["","Le Japon"],["","La Chine"],["","L'Inde"]],"C'est un volcan, symbole du Japon."],
+  [3,"Quel désert s'étend surtout au Botswana ?","🏜️",[["","Le Kalahari"],["","Le Sahara"],["","L'Atacama"]],"Le Kalahari est en Afrique australe."],
+  [4,"Quel détroit sépare l'Europe de l'Afrique ?","⛴️",[["","Le détroit de Gibraltar"],["","Le Bosphore"],["","Le détroit de Béring"]],"À peine 14 km séparent l'Espagne du Maroc."],
+  [4,"Quelle chaîne de montagnes longe toute l'Amérique du Sud ?","⛰️",[["","La cordillère des Andes"],["","Les Alpes"],["","L'Himalaya"]],"C'est la plus longue chaîne de montagnes du monde."],
+  [4,"Sur quel continent se trouve le désert de Gobi ?","🐫",[["","L'Asie"],["","L'Afrique"],["","L'Amérique"]],"Il s'étend entre la Chine et la Mongolie."],
+  [5,"Qu'est-ce que la latitude ?","🧭",[["","La position d'un lieu au nord ou au sud de l'équateur"],["","La hauteur d'une montagne"],["","La distance à Greenwich"]],"La distance à Greenwich, c'est la longitude."],
+  [5,"Qu'appelle-t-on une mousson ?","🌧️",[["","Un vent saisonnier qui apporte de fortes pluies"],["","Un volcan sous la mer"],["","Un courant d'eau froide"]],"La mousson est très forte en Inde."],
+  [5,"Qu'est-ce qu'un delta ?","🏞️",[["","L'embouchure d'un fleuve divisée en plusieurs bras"],["","Une montagne pointue"],["","Un désert de sel"]],"Le delta du Nil est en Égypte."],
+  [5,"Quel est le plus petit pays du monde ?","📏",[["","Le Vatican"],["","Monaco"],["","Le Rwanda"]],"Le Vatican mesure moins de 0,5 km²."]);
 
 /* ================== LANGUES DE L'INTERFACE ==================
    Ordre des colonnes : fr, en, ln, sw, kg, lua, es, pt, ar, zh.
@@ -1253,8 +1394,8 @@ async function detectCloud(){
 
 /* ---------- État ---------- */
 let store = DemoStore;
-const app = {signed:false, profile:null, children:[], progress:[], voice:true, volume:.8};
-try { const v = localStorage.getItem("imagikids-volume"); if (v !== null) app.volume = Math.max(0, Math.min(1, +v)); } catch {}
+const app = {signed:false, profile:null, children:[], progress:[], voice:true, volume:1};
+try { const v = localStorage.getItem("imagikids-volume-v2"); if (v !== null) app.volume = Math.max(0, Math.min(1, +v)); } catch {}
 async function loadData(){ app.profile = await store.profile(); app.children = await store.children(); app.progress = await store.progress(); }
 
 /* best[subj][step] = meilleures étoiles ; un niveau s'ouvre quand le précédent a au moins 1 étoile */
@@ -1328,7 +1469,7 @@ function setupVolume(){
   const r = $("#vol"), ico = $("#vol-ico");
   const paint = () => { ico.textContent = app.volume === 0 ? "🔇" : app.volume < .5 ? "🔉" : "🔊"; };
   r.value = Math.round(app.volume*100); paint();
-  r.oninput = () => { app.volume = r.value/100; paint(); try { localStorage.setItem("imagikids-volume", app.volume); } catch {} };
+  r.oninput = () => { app.volume = r.value/100; paint(); try { localStorage.setItem("imagikids-volume-v2", app.volume); } catch {} };
   r.onchange = () => { sfx(true); speak(t("volume"), true, LANG); };
 }
 const frNote = () => LANG === "fr" ? "" : `<p class="note">🌐 ${t("courses_fr")}</p>`;
@@ -1662,6 +1803,7 @@ Si l'énoncé est incomplet ou illisible, dis-le dans la première partie et exp
 const ARROW = `<svg viewBox="0 0 64 64" aria-hidden="true"><path d="M24 4h16v30h14L32 60 10 34h14z" fill="var(--pointer)" stroke="#fff" stroke-width="3" stroke-linejoin="round"/></svg>`;
 function runActivity(c, subj, step){
   app.rerender = () => showSteps(c, subj);
+  QOWNER = String(c.id || "invite");
   const a = ageIdx(c.level), S = SUBJECTS[subj], qs = genLevel(subj, a, step), speakAuto = a <= 1 || subj === "anglais";
   const res = []; let i = 0, tries = 0, helped = false, t0 = Date.now(), tick = null;
   const view = $("#view");
@@ -1750,7 +1892,7 @@ try { if (window.speechSynthesis) speechSynthesis.onvoiceschanged = () => { for 
 let actx = null;
 function sfx(ok){
   if (app.volume === 0) return;
-  try { actx = actx || new (window.AudioContext || window.webkitAudioContext)(); const t0 = actx.currentTime, peak = .2*app.volume;
+  try { actx = actx || new (window.AudioContext || window.webkitAudioContext)(); const t0 = actx.currentTime, peak = .45*app.volume;
     (ok ? [523, 659, 784] : [220, 196]).forEach((f, k) => { const o = actx.createOscillator(), g = actx.createGain(); o.frequency.value = f; o.type = ok ? "triangle" : "sine";
       g.gain.setValueAtTime(.0001, t0 + k*.09); g.gain.exponentialRampToValueAtTime(Math.max(.0002, peak), t0 + k*.09 + .02); g.gain.exponentialRampToValueAtTime(.0001, t0 + k*.09 + .25);
       o.connect(g); g.connect(actx.destination); o.start(t0 + k*.09); o.stop(t0 + k*.09 + .3); }); } catch {}
