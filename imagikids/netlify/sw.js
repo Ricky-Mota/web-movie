@@ -1,7 +1,7 @@
 /* Kelasi Kids : fonctionnement hors connexion.
    Pages : réseau d'abord, copie gardée en secours. Images et icônes : copie d'abord.
    Le CRM et les appels à la base de données ne sont jamais mis en cache. */
-const VERSION = "kk-v2";
+const VERSION = "kk-v3";
 const SHELL = ["/", "/app/", "/manifest.webmanifest", "/icons/icon-192.png", "/icons/icon-512.png"];
 self.addEventListener("install", e => { e.waitUntil(caches.open(VERSION).then(c => c.addAll(SHELL)).then(() => self.skipWaiting())); });
 self.addEventListener("activate", e => { e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== VERSION).map(k => caches.delete(k)))).then(() => self.clients.claim())); });

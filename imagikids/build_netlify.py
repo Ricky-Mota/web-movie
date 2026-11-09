@@ -64,6 +64,8 @@ for src, dst, pwa in PAGES:
     s = (SRC / src).read_text(encoding="utf8")
     assert s.count("<body>") == 1 and s.count("</head>") == 1 and s.count("</body>") == 1, src
     s = s.replace("<body>", "<body>\n<script>window.IK_HOSTED = true;</script>", 1)
+    # logo Kelasi Kids (Kk, crayon et souris) à la place de l'émoji 🖍️ dans l'en-tête
+    s = s.replace('<span class="dot" aria-hidden="true">🖍️</span>', '<img src="/icons/icon-192.png" alt="" width="34" height="34" style="border-radius:9px;flex:none">')
     if pwa:
         s = s.replace("</head>", HEAD + "</head>", 1).replace("</body>", INSTALL + "</body>", 1)
         # lien vers la politique de confidentialité (exigé par Google Play pour une application pour enfants)
