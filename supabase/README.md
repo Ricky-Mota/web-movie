@@ -13,6 +13,7 @@ Elles sont déjà appliquées sur le projet et sont copiées ici à l'identique 
 | `20261109200705_commerce_credits.sql` | Offres, paiements, productions, journal des crédits (ajout seul), soldes |
 | `20261109200752_workflow.sql` | Parcours de validation, réservation / remboursement des crédits |
 | `20261109200755_rls.sql` | Règles RLS : chaque centre ne voit que ses données |
+| `20261109202311_crm.sql` | CRM : prospects, historique, administrateurs, formulaire public `submit_lead` |
 
 ## Tests critiques (`tests/`)
 

@@ -1,0 +1,317 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Professa-M · Vos cours d'anglais en épisodes vidéo</title>
+<meta name="description" content="Professa-M transforme le programme d'anglais de votre centre en épisodes vidéo prêts pour la classe. Conçu en RDC, paiement M-Pesa.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ink: #14213d;
+    --ink-soft: #46506a;
+    --paper: #fbf8f2;
+    --card: #ffffff;
+    --line: #e7e1d5;
+    --brand: #1d4ed8;
+    --brand-dark: #1e3a8a;
+    --accent: #f59e0b;
+    --accent-soft: #fef3c7;
+    --ok: #15803d;
+    --radius: 14px;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body { margin: 0; font-family: Inter, system-ui, sans-serif; color: var(--ink); background: var(--paper); line-height: 1.6; }
+  h1, h2, h3 { font-family: Fraunces, Georgia, serif; line-height: 1.15; margin: 0 0 .5em; }
+  a { color: var(--brand); }
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 0 20px; }
+  .btn { display: inline-block; padding: 14px 24px; border-radius: 999px; font-weight: 600; text-decoration: none; border: 0; cursor: pointer; font-size: 1rem; font-family: inherit; }
+  .btn-primary { background: var(--brand); color: #fff; }
+  .btn-primary:hover { background: var(--brand-dark); }
+  .btn-ghost { background: transparent; color: var(--ink); border: 1.5px solid var(--ink); }
+  .eyebrow { display: inline-block; font-size: .8rem; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--brand); margin-bottom: 12px; }
+
+  header.top { position: sticky; top: 0; z-index: 10; background: rgba(251,248,242,.92); backdrop-filter: blur(8px); border-bottom: 1px solid var(--line); }
+  header.top .wrap { display: flex; align-items: center; justify-content: space-between; height: 64px; }
+  .logo { font-family: Fraunces, serif; font-weight: 700; font-size: 1.4rem; color: var(--ink); text-decoration: none; }
+  .logo span { color: var(--accent); }
+  nav a { margin-left: 22px; color: var(--ink-soft); text-decoration: none; font-weight: 500; }
+  nav a.btn { color: #fff; margin-left: 22px; padding: 10px 18px; }
+  @media (max-width: 760px) { nav a:not(.btn) { display: none; } }
+
+  .hero { padding: 72px 0 56px; }
+  .hero .wrap { display: grid; grid-template-columns: 1.1fr .9fr; gap: 48px; align-items: center; }
+  .hero h1 { font-size: clamp(2.2rem, 5vw, 3.6rem); }
+  .hero p.lead { font-size: 1.15rem; color: var(--ink-soft); max-width: 34em; }
+  .hero .ctas { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 28px; }
+  .hero .trust { margin-top: 22px; font-size: .9rem; color: var(--ink-soft); }
+  @media (max-width: 860px) { .hero .wrap { grid-template-columns: 1fr; } }
+
+  .player { background: var(--ink); border-radius: 20px; padding: 18px; color: #fff; box-shadow: 0 24px 60px rgba(20,33,61,.25); }
+  .screen { aspect-ratio: 16/10; border-radius: 12px; background: linear-gradient(160deg, #f59e0b 0%, #ea580c 45%, #1d4ed8 100%); position: relative; overflow: hidden; display: flex; align-items: flex-end; }
+  .screen .scene { position: absolute; top: 14px; left: 14px; font-size: .75rem; background: rgba(0,0,0,.35); padding: 4px 10px; border-radius: 999px; }
+  .bubble { margin: 14px; background: #fff; color: var(--ink); padding: 12px 14px; border-radius: 12px; max-width: 80%; }
+  .bubble b { display: block; font-size: .8rem; color: var(--brand); }
+  .bubble small { display: block; color: var(--ink-soft); }
+  .player .meta { display: flex; justify-content: space-between; font-size: .8rem; opacity: .8; margin-top: 12px; }
+  .bar { height: 4px; background: rgba(255,255,255,.2); border-radius: 4px; margin-top: 8px; }
+  .bar i { display: block; width: 38%; height: 100%; background: var(--accent); border-radius: 4px; }
+
+  section { padding: 72px 0; }
+  section.alt { background: var(--card); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+  .section-head { max-width: 680px; margin-bottom: 40px; }
+  .section-head h2 { font-size: clamp(1.8rem, 3.5vw, 2.5rem); }
+  .section-head p { color: var(--ink-soft); font-size: 1.05rem; }
+
+  .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+  .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; }
+  @media (max-width: 900px) { .grid-3, .grid-4 { grid-template-columns: 1fr 1fr; } }
+  @media (max-width: 560px) { .grid-3, .grid-4 { grid-template-columns: 1fr; } }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 24px; }
+  section.alt .card { background: var(--paper); }
+  .card h3 { font-size: 1.2rem; }
+  .card p { color: var(--ink-soft); margin: 0; }
+  .num { width: 36px; height: 36px; border-radius: 50%; background: var(--accent-soft); color: #92400e; font-weight: 700; display: grid; place-items: center; margin-bottom: 14px; }
+
+  .pricing .card { display: flex; flex-direction: column; }
+  .pricing .card.featured { border: 2px solid var(--brand); position: relative; }
+  .pricing .tag { position: absolute; top: -12px; left: 24px; background: var(--brand); color: #fff; font-size: .75rem; font-weight: 600; padding: 3px 10px; border-radius: 999px; }
+  .price { font-family: Fraunces, serif; font-size: 2.6rem; font-weight: 700; margin: 8px 0 0; }
+  .price small { font-family: Inter, sans-serif; font-size: 1rem; font-weight: 500; color: var(--ink-soft); }
+  .pricing ul { padding: 0; list-style: none; margin: 18px 0 24px; flex: 1; }
+  .pricing li { padding: 6px 0 6px 26px; position: relative; color: var(--ink-soft); }
+  .pricing li::before { content: "✓"; position: absolute; left: 0; color: var(--ok); font-weight: 700; }
+  .note { font-size: .9rem; color: var(--ink-soft); margin-top: 18px; }
+
+  .faq details { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 18px 22px; margin-bottom: 12px; }
+  .faq summary { font-weight: 600; cursor: pointer; }
+  .faq details p { color: var(--ink-soft); margin: 12px 0 0; }
+
+  .contact .wrap { display: grid; grid-template-columns: .9fr 1.1fr; gap: 48px; }
+  @media (max-width: 860px) { .contact .wrap { grid-template-columns: 1fr; } }
+  form .row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  @media (max-width: 560px) { form .row { grid-template-columns: 1fr; } }
+  label { display: block; font-weight: 500; font-size: .9rem; margin-bottom: 14px; }
+  input, textarea { width: 100%; margin-top: 6px; padding: 12px 14px; border: 1.5px solid var(--line); border-radius: 10px; font: inherit; background: #fff; color: var(--ink); }
+  input:focus, textarea:focus { outline: none; border-color: var(--brand); }
+  .hp { position: absolute; left: -9999px; }
+  .msg { margin-top: 14px; padding: 12px 14px; border-radius: 10px; display: none; }
+  .msg.ok { display: block; background: #dcfce7; color: #14532d; }
+  .msg.err { display: block; background: #fee2e2; color: #7f1d1d; }
+
+  footer { padding: 32px 0; color: var(--ink-soft); font-size: .9rem; border-top: 1px solid var(--line); }
+  footer .wrap { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+  footer a { color: var(--ink-soft); }
+</style>
+<script src="config.js"></script>
+</head>
+<body>
+
+<header class="top">
+  <div class="wrap">
+    <a class="logo" href="#">Professa<span>-M</span></a>
+    <nav>
+      <a href="#comment">Comment ça marche</a>
+      <a href="#tarifs">Tarifs</a>
+      <a href="#faq">Questions</a>
+      <a class="btn btn-primary" href="#contact">Demander une démo</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <section class="hero">
+    <div class="wrap">
+      <div>
+        <span class="eyebrow">Pour les centres de langues en RDC</span>
+        <h1>Votre programme d'anglais, transformé en série vidéo.</h1>
+        <p class="lead">Professa-M crée pour votre centre des épisodes de 15 minutes, avec des personnages, des dialogues de la vie courante et des exercices. Vos enseignants valident chaque script avant la production.</p>
+        <div class="ctas">
+          <a class="btn btn-primary" href="#contact">Demander une démo gratuite</a>
+          <a class="btn btn-ghost" href="#comment">Voir comment ça marche</a>
+        </div>
+        <p class="trust">Paiement M-Pesa · Prix en USD et en CDF · Niveaux A1 à C2</p>
+      </div>
+      <div class="player" aria-hidden="true">
+        <div class="screen">
+          <span class="scene">Épisode 3 · At the shop</span>
+          <div class="bubble"><b>Grace</b>How much is this water?<small>Combien coûte cette eau ?</small></div>
+        </div>
+        <div class="meta"><span>Adultes débutants · A1</span><span>05:42 / 15:00</span></div>
+        <div class="bar"><i></i></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="alt">
+    <div class="wrap">
+      <div class="section-head">
+        <span class="eyebrow">Pourquoi Professa-M</span>
+        <h2>Des cours plus vivants, sans studio ni budget de tournage.</h2>
+      </div>
+      <div class="grid-3">
+        <div class="card"><h3>Des situations réelles</h3><p>Au marché, à la banque, en entretien d'embauche : chaque épisode met en scène une situation que vos apprenants vivent vraiment.</p></div>
+        <div class="card"><h3>Vous gardez la main</h3><p>L'IA propose le script, vos enseignants le corrigent et l'approuvent. Aucune vidéo n'est produite sans votre accord.</p></div>
+        <div class="card"><h3>Prêt pour la classe</h3><p>Vidéo, dialogues traduits, vocabulaire et exercices corrigés en PDF : tout le matériel du cours, en un seul endroit.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="comment">
+    <div class="wrap">
+      <div class="section-head">
+        <span class="eyebrow">Comment ça marche</span>
+        <h2>Quatre étapes, de votre programme à la vidéo.</h2>
+      </div>
+      <div class="grid-4">
+        <div class="card"><div class="num">1</div><h3>Décrivez le parcours</h3><p>Public, niveau CECRL, modules et objectifs de chaque leçon.</p></div>
+        <div class="card"><div class="num">2</div><h3>Relisez le script</h3><p>L'IA rédige dialogues, traductions et exercices. L'enseignant corrige.</p></div>
+        <div class="card"><div class="num">3</div><h3>Lancez la production</h3><p>Images, voix et vidéo sont générées. 1 crédit par épisode.</p></div>
+        <div class="card"><div class="num">4</div><h3>Validez et diffusez</h3><p>Le responsable valide la vidéo, puis la publie pour les classes.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="tarifs" class="alt pricing">
+    <div class="wrap">
+      <div class="section-head">
+        <span class="eyebrow">Tarifs</span>
+        <h2>1 crédit = 1 épisode de 15 minutes.</h2>
+        <p>Un module de 4 épisodes coûte environ 20 USD. Pour une classe de 15 apprenants, c'est moins de 1,50 USD par apprenant.</p>
+      </div>
+      <div class="grid-3">
+        <div class="card">
+          <h3>Découverte</h3>
+          <p class="price">20 USD</p>
+          <p>4 crédits · 5 USD l'épisode</p>
+          <ul><li>Un module complet</li><li>Jusqu'à 6 personnages ou décors nouveaux par épisode</li><li>2 régénérations par scène</li></ul>
+          <a class="btn btn-ghost" href="#contact">Commencer</a>
+        </div>
+        <div class="card featured">
+          <span class="tag">Le plus choisi</span>
+          <h3>Centre</h3>
+          <p class="price">54 USD</p>
+          <p>12 crédits · 4,50 USD l'épisode</p>
+          <ul><li>Trois modules complets</li><li>Personnages et voix réutilisables</li><li>Supports PDF inclus</li></ul>
+          <a class="btn btn-primary" href="#contact">Choisir Centre</a>
+        </div>
+        <div class="card">
+          <h3>Réseau</h3>
+          <p class="price">160 USD</p>
+          <p>40 crédits · 4 USD l'épisode</p>
+          <ul><li>Dix modules complets</li><li>Plusieurs enseignants</li><li>Accompagnement au démarrage</li></ul>
+          <a class="btn btn-ghost" href="#contact">Nous contacter</a>
+        </div>
+      </div>
+      <p class="note">Paiement par M-Pesa (Airtel Money et Orange Money bientôt). Prix affichés en USD, payables en CDF au taux du jour. En cas d'échec technique, le crédit est remboursé automatiquement.</p>
+    </div>
+  </section>
+
+  <section id="faq" class="faq">
+    <div class="wrap">
+      <div class="section-head">
+        <span class="eyebrow">Questions fréquentes</span>
+        <h2>Ce que les centres nous demandent.</h2>
+      </div>
+      <details><summary>Faut-il des compétences techniques ?</summary><p>Non. Si vous savez remplir un formulaire et relire un texte, vous savez utiliser Professa-M.</p></details>
+      <details><summary>Les apprenants doivent-ils créer un compte ?</summary><p>Non. Les vidéos sont diffusées en classe ou partagées par le centre. Seuls le responsable et les enseignants ont un compte.</p></details>
+      <details><summary>Les données de mon centre sont-elles protégées ?</summary><p>Oui. Chaque centre ne voit que ses propres parcours, vidéos et paiements. Nous n'enregistrons jamais de code secret M-Pesa ni de numéro de carte.</p></details>
+      <details><summary>Que se passe-t-il si une vidéo échoue ?</summary><p>Le crédit réservé vous est rendu automatiquement, et vous pouvez relancer la production.</p></details>
+      <details><summary>Peut-on faire d'autres langues que l'anglais ?</summary><p>Le premier lancement porte sur l'anglais pour les francophones. D'autres langues et publics (enfants, professionnels) suivront.</p></details>
+    </div>
+  </section>
+
+  <section id="contact" class="alt contact">
+    <div class="wrap">
+      <div class="section-head">
+        <span class="eyebrow">Démo gratuite</span>
+        <h2>Voyons ensemble un épisode pour votre centre.</h2>
+        <p>Laissez vos coordonnées : nous vous rappelons sous 48 heures pour vous montrer un épisode adapté à vos apprenants.</p>
+        <p id="wa"></p>
+      </div>
+      <form id="lead-form" class="card" novalidate>
+        <div class="row">
+          <label>Nom du centre *<input name="center_name" required minlength="2" maxlength="160" autocomplete="organization"></label>
+          <label>Votre nom *<input name="contact_name" required minlength="2" maxlength="120" autocomplete="name"></label>
+        </div>
+        <div class="row">
+          <label>Téléphone (M-Pesa / WhatsApp)<input name="phone" type="tel" maxlength="40" placeholder="+243 ..." autocomplete="tel"></label>
+          <label>E-mail<input name="email" type="email" maxlength="200" autocomplete="email"></label>
+        </div>
+        <div class="row">
+          <label>Ville<input name="city" maxlength="80" placeholder="Kinshasa"></label>
+          <label>Nombre d'apprenants<input name="learners_estimate" type="number" min="0" max="100000"></label>
+        </div>
+        <label>Votre besoin<textarea name="message" rows="3" maxlength="2000" placeholder="Niveaux enseignés, nombre de classes..."></textarea></label>
+        <label class="hp" aria-hidden="true">Site web<input name="website" tabindex="-1" autocomplete="off"></label>
+        <button class="btn btn-primary" type="submit">Envoyer ma demande</button>
+        <div id="form-msg" class="msg" role="status"></div>
+      </form>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <span>© <span id="year"></span> Professa-M · Une initiative de Zandoboss center, RDC</span>
+    <a href="crm.html">Espace équipe</a>
+  </div>
+</footer>
+
+<script>
+  document.getElementById("year").textContent = new Date().getFullYear();
+  const cfg = window.PROFESSA_CONFIG;
+  if (cfg.whatsapp) {
+    document.getElementById("wa").innerHTML =
+      'Ou écrivez-nous directement sur <a href="https://wa.me/' + encodeURIComponent(cfg.whatsapp) + '" target="_blank" rel="noopener">WhatsApp</a>.';
+  }
+
+  const form = document.getElementById("lead-form");
+  const msg = document.getElementById("form-msg");
+  function show(kind, text) { msg.className = "msg " + kind; msg.textContent = text; }
+
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const f = new FormData(form);
+    const val = (k) => (f.get(k) || "").toString().trim();
+    if (val("center_name").length < 2 || val("contact_name").length < 2) {
+      return show("err", "Indiquez le nom du centre et votre nom.");
+    }
+    if (!val("phone") && !val("email")) {
+      return show("err", "Indiquez au moins un téléphone ou un e-mail.");
+    }
+    const btn = form.querySelector("button");
+    btn.disabled = true; btn.textContent = "Envoi...";
+    try {
+      const res = await fetch(cfg.supabaseUrl + "/rest/v1/rpc/submit_lead", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", apikey: cfg.supabaseKey },
+        body: JSON.stringify({
+          p_center_name: val("center_name"),
+          p_contact_name: val("contact_name"),
+          p_phone: val("phone") || null,
+          p_email: val("email") || null,
+          p_city: val("city") || null,
+          p_learners_estimate: val("learners_estimate") ? parseInt(val("learners_estimate"), 10) : null,
+          p_message: val("message") || null,
+          p_website: val("website") || null
+        })
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.message || "Erreur " + res.status);
+      }
+      form.reset();
+      show("ok", "Merci ! Votre demande est bien reçue. Nous vous rappelons sous 48 heures.");
+    } catch (err) {
+      show("err", "L'envoi n'a pas abouti : " + err.message + ". Réessayez dans un instant.");
+    } finally {
+      btn.disabled = false; btn.textContent = "Envoyer ma demande";
+    }
+  });
+</script>
+</body>
+</html>
