@@ -230,6 +230,14 @@
     .station .big-play { top: 38%; }
     .translate-row select { flex-basis: 100%; }
   }
+  .vol { -webkit-appearance: none; appearance: none; width: 80px; height: 6px; margin: 0; padding: 0; border: 0; border-radius: 6px; cursor: pointer;
+    background: linear-gradient(to right, var(--accent) var(--v, 100%), rgba(255,255,255,.25) var(--v, 100%)); }
+  .vol::-webkit-slider-thumb { -webkit-appearance: none; width: 14px; height: 14px; border-radius: 50%; background: #fff; border: 0; }
+  .vol::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; background: #fff; border: 0; }
+  .vol:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
+  @media (max-width: 560px) { .vol { width: 64px; } }
+  @media (max-width: 560px) { .controls { gap: 5px; } .ctl { padding: 6px 6px; } .vol { width: 52px; } .time { font-size: .7rem; } }
+  @media (max-width: 360px) { #c-back, #c-fwd { display: none; } }
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script src="config.js"></script>
@@ -298,6 +306,7 @@
           <button type="button" class="ctl" id="c-mute" aria-label="Couper le son" title="Son">
             <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path id="c-mute-icon" fill="currentColor" d="M3 9v6h4l5 5V4L7 9H3zm13.5 3A4.5 4.5 0 0 0 14 8v8a4.5 4.5 0 0 0 2.5-4zM14 3.2v2.1a7 7 0 0 1 0 13.4v2.1a9 9 0 0 0 0-17.6z"/></svg>
           </button>
+          <input type="range" id="c-vol" class="vol" min="0" max="100" step="1" value="100" aria-label="Volume" title="Volume : 100 %">
           <button type="button" class="ctl" id="c-full" aria-label="Plein écran" title="Plein écran">
             <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/></svg>
           </button>
@@ -594,6 +603,7 @@
   const fmt = (s) => { s = Math.max(0, Math.floor(s || 0)); return String(Math.floor(s / 60)).padStart(2, "0") + ":" + String(s % 60).padStart(2, "0"); };
   const langName = (c) => (LANGS.find((l) => l[0] === c) || [c, c])[1];
 
+  let volume = 1; // son au maximum par défaut
   // ---- Moteur « démo » (minuterie + voix du navigateur) ----
   const demoEngine = (() => {
     let playing = false, t0 = 0, pos = 0, muted = false, lastLine = -1, timer = null;
@@ -604,7 +614,7 @@
       const code = $id("t-lang").value;
       const v = speechSynthesis.getVoices().find((x) => (x.lang || "").toLowerCase().startsWith(code));
       if (!v) { setMeta("Voix " + langName(code) + " absente de cet appareil : sous-titres seulement"); return; }
-      const u = new SpeechSynthesisUtterance(text); u.voice = v; u.lang = v.lang; u.rate = 0.95;
+      const u = new SpeechSynthesisUtterance(text); u.voice = v; u.lang = v.lang; u.rate = 0.95; u.volume = volume;
       speechSynthesis.speak(u);
     }
     function paint(force) {
@@ -631,6 +641,7 @@
       seek(s) { pos = Math.max(0, Math.min(DEMO.duration, s)); t0 = performance.now() - pos * 1000; lastLine = -1; paint(true); },
       setMuted(m) { muted = m; if (m && "speechSynthesis" in window) speechSynthesis.cancel(); },
       isMuted: () => muted,
+      setVolume() {},
       refresh() { lastLine = -1; paint(true); },
       destroy() { api.pause(); }
     };
@@ -641,6 +652,7 @@
   function fileEngine(file) {
     const v = $id("file-video");
     v.src = URL.createObjectURL(file);
+    v.muted = false; v.volume = volume;
     v.load();
     return {
       kind: "file",
@@ -652,6 +664,7 @@
       seek(s) { v.currentTime = Math.max(0, Math.min(v.duration || 0, s)); },
       setMuted(m) { v.muted = m; },
       isMuted: () => v.muted,
+      setVolume(x) { v.volume = x; },
       refresh() {},
       destroy() { v.pause(); URL.revokeObjectURL(v.src); v.removeAttribute("src"); v.load(); }
     };
@@ -681,7 +694,7 @@
         videoId: id, width: "100%", height: "100%",
         playerVars: { controls: 0, rel: 0, modestbranding: 1, playsinline: 1, disablekb: 1, fs: 0, iv_load_policy: 3 },
         events: {
-          onReady: () => { ready = true; resolve(); },
+          onReady: () => { ready = true; try { player.unMute(); player.setVolume(Math.round(volume * 100)); } catch (e) {} resolve(); },
           onError: (e) => reject(new Error(e.data === 101 || e.data === 150 ? "Le propriétaire n'autorise pas la lecture hors de YouTube" : "Vidéo YouTube introuvable")),
           onStateChange: () => ui()
         }
@@ -698,6 +711,7 @@
       seek(s) { player.seekTo(Math.max(0, s), true); },
       setMuted(m) { m ? player.mute() : player.unMute(); },
       isMuted: () => (player.isMuted ? player.isMuted() : false),
+      setVolume(x) { player.setVolume(Math.round(x * 100)); },
       refresh() {},
       destroy() { try { player.destroy(); } catch (e) {} $id("yt-layer").innerHTML = ""; }
     };
@@ -722,7 +736,24 @@
   $id("big-play").onclick = toggle;
   $id("c-back").onclick = () => { engine.seek(engine.current() - 10); ui(); };
   $id("c-fwd").onclick = () => { engine.seek(engine.current() + 10); ui(); };
-  $id("c-mute").onclick = () => { engine.setMuted(!engine.isMuted()); ui(); };
+  $id("c-mute").onclick = () => {
+    const m = !engine.isMuted();
+    engine.setMuted(m);
+    if (!m && volume === 0) { volume = 1; $id("c-vol").value = 100; engine.setVolume(1); }
+    ui();
+  };
+  function paintVol() {
+    const pct = Math.round(volume * 100);
+    $id("c-vol").style.setProperty("--v", pct + "%");
+    $id("c-vol").title = "Volume : " + pct + " %";
+  }
+  $id("c-vol").addEventListener("input", (e) => {
+    volume = Number(e.target.value) / 100;
+    engine.setVolume(volume);
+    engine.setMuted(volume === 0);
+    paintVol(); ui();
+  });
+  paintVol();
   function seekFromEvent(e) {
     const r = $id("track").getBoundingClientRect();
     engine.seek((e.clientX - r.left) / r.width * engine.duration()); ui();
@@ -756,10 +787,10 @@
     $id("c-voice").classList.toggle("hidden", !demo);
     $id("back-demo").classList.toggle("hidden", demo);
   }
-  const linkEngine = { kind: "link", play() {}, pause() {}, isPlaying: () => false, current: () => 0, duration: () => 0, seek() {}, setMuted() {}, isMuted: () => false, refresh() {}, destroy() {} };
+  const linkEngine = { kind: "link", play() {}, pause() {}, isPlaying: () => false, current: () => 0, duration: () => 0, seek() {}, setMuted() {}, isMuted: () => false, setVolume() {}, refresh() {}, destroy() {} };
   function useEngine(e, layer, meta) {
     if (engine !== e) { engine.pause(); if (engine !== demoEngine) engine.destroy(); }
-    engine = e; showLayer(layer); setMeta(meta); ui();
+    engine = e; engine.setVolume(volume); showLayer(layer); setMeta(meta); ui();
   }
   function backToDemo() { loadingUrl = null; media = null; $id("quick-url").value = ""; $id("envoyer").classList.add("hidden"); useEngine(demoEngine, "demo", "Démonstration"); }
   $id("back-demo").onclick = backToDemo;
