@@ -360,6 +360,7 @@ a.btn{text-decoration:none;color:inherit}
       <label class="vol" for="lang"><span aria-hidden="true">🌐</span><span id="lang-lbl">Langue</span><select id="lang" class="langsel"></select></label>
       <span class="badge" id="review" hidden></span>
       <label class="vol" for="vol"><span id="vol-ico" aria-hidden="true">🔊</span><span id="vol-lbl">Volume</span><input type="range" id="vol" min="0" max="100" step="5" value="100" aria-label="Volume de la voix et des sons"></label>
+      <button type="button" class="btn ghost" id="snd-test" style="padding:5px 10px;font-size:14px" title="Tester le son">🔔 Tester le son</button>
       <span class="badge" id="mode-badge">Mode démo</span>
       <span id="nav" class="row"></span>
     </div>
@@ -2313,28 +2314,67 @@ function runActivity(c, subj, step){
    La voix suit la langue demandée ; sans voix installée pour le lingala, le kikongo ou le tshiluba,
    la phrase est lue par la voix française (prononciation approchée). */
 const voiceCache = {};
+/* Voix : on attend que la liste des voix soit chargée (sinon aucune voix n'est choisie)
+   et on préfère une voix installée sur l'appareil, plus fiable qu'une voix en ligne. */
 function pickVoice(code){
-  if (code in voiceCache) return voiceCache[code];
+  if (voiceCache[code]) return voiceCache[code];
   const L = LANGS.find(x => x.code === code), list = (window.speechSynthesis && speechSynthesis.getVoices()) || [];
+  if (!list.length) return null;
   const want = (L && L.tts) ? L.tts.toLowerCase().split("-")[0] : null;
-  const v = want ? list.find(x => x.lang.toLowerCase().startsWith(want)) : null;
-  return (voiceCache[code] = v ? {voice:v, lang:v.lang} : null);
+  const cands = want ? list.filter(x => x.lang.toLowerCase().replace("_", "-").startsWith(want)) : [];
+  const v = cands.find(x => x.localService) || cands[0];
+  return v ? (voiceCache[code] = {voice:v, lang:v.lang}) : null;
 }
+let speakTimer = null, keepAlive = null;
+const isAndroid = /Android/i.test(navigator.userAgent || "");
 function speak(text, force, lang){
   if ((!app.voice && !force) || app.volume === 0) return;
-  try { const s = window.speechSynthesis; if (!s) return; s.cancel();
-    const code = lang || "fr", got = pickVoice(code) || pickVoice("fr");
-    const u = new SpeechSynthesisUtterance(text); u.lang = got ? got.lang : "fr-FR"; u.rate = .9; u.volume = app.volume; if (got) u.voice = got.voice; s.speak(u); } catch {}
+  try { const s = window.speechSynthesis; if (!s) return;
+    s.cancel(); clearTimeout(speakTimer); clearInterval(keepAlive);
+    const code = lang || "fr", got = pickVoice(code) || pickVoice("fr"), L = LANGS.find(x => x.code === code);
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = got ? got.lang : ((L && L.tts) || "fr-FR"); u.rate = .9; u.pitch = 1.05; u.volume = Math.min(1, app.volume); if (got) u.voice = got.voice;
+    u.onend = u.onerror = () => clearInterval(keepAlive);
+    /* petit délai après cancel() : sinon Chrome avale parfois la phrase */
+    speakTimer = setTimeout(() => { try { s.resume(); s.speak(u);
+      if (!isAndroid) keepAlive = setInterval(() => { if (!s.speaking) return clearInterval(keepAlive); s.pause(); s.resume(); }, 9000);
+    } catch {} }, 90);
+  } catch {}
 }
 try { if (window.speechSynthesis) speechSynthesis.onvoiceschanged = () => { for (const k in voiceCache) delete voiceCache[k]; }; } catch {}
-let actx = null;
+/* Sons : un compresseur + un gain fort rendent les sons bien audibles sans saturer */
+let actx = null, master = null;
+function audio(){
+  if (!actx){ const C = window.AudioContext || window.webkitAudioContext; if (!C) return null; actx = new C();
+    const comp = actx.createDynamicsCompressor(); comp.threshold.value = -20; comp.knee.value = 10; comp.ratio.value = 8;
+    master = actx.createGain(); master.gain.value = 2.2; master.connect(comp); comp.connect(actx.destination); }
+  if (actx.state === "suspended") actx.resume();
+  return actx;
+}
 function sfx(ok){
   if (app.volume === 0) return;
-  try { actx = actx || new (window.AudioContext || window.webkitAudioContext)(); const t0 = actx.currentTime, peak = .45*app.volume;
-    (ok ? [523, 659, 784] : [220, 196]).forEach((f, k) => { const o = actx.createOscillator(), g = actx.createGain(); o.frequency.value = f; o.type = ok ? "triangle" : "sine";
-      g.gain.setValueAtTime(.0001, t0 + k*.09); g.gain.exponentialRampToValueAtTime(Math.max(.0002, peak), t0 + k*.09 + .02); g.gain.exponentialRampToValueAtTime(.0001, t0 + k*.09 + .25);
-      o.connect(g); g.connect(actx.destination); o.start(t0 + k*.09); o.stop(t0 + k*.09 + .3); }); } catch {}
+  try { const ac = audio(); if (!ac) return; const t0 = ac.currentTime + .02, peak = .9*app.volume;
+    (ok ? [523, 659, 784, 1047] : [262, 196]).forEach((f, k) => { const o = ac.createOscillator(), g = ac.createGain(); o.frequency.value = f; o.type = "triangle";
+      const s0 = t0 + k*.1; g.gain.setValueAtTime(.0001, s0); g.gain.exponentialRampToValueAtTime(Math.max(.0002, peak), s0 + .02); g.gain.exponentialRampToValueAtTime(.0001, s0 + .35);
+      o.connect(g); g.connect(master); o.start(s0); o.stop(s0 + .4); }); } catch {}
 }
+/* Débloque le son au premier toucher : téléphones et navigateurs coupent le son tant qu'on n'a pas touché la page */
+function unlockAudio(){ try { audio(); const s = window.speechSynthesis; if (s){ s.resume(); const u = new SpeechSynthesisUtterance(" "); u.volume = 0; s.speak(u); } } catch {} }
+document.addEventListener("pointerdown", unlockAudio, {once:true});
+document.addEventListener("keydown", unlockAudio, {once:true});
+/* Bouton « Tester le son » */
+(function(){ const b = document.getElementById("snd-test"); if (!b) return;
+  b.onclick = () => {
+    if (app.volume < 1){ app.volume = 1; const r = document.getElementById("vol"); if (r){ r.value = 100; r.oninput && r.oninput(); } }
+    sfx(true); setTimeout(() => speak("Bonjour ! Le son fonctionne. Si tu m'entends mal, monte le volume de l'appareil.", true, "fr"), 500);
+    setTimeout(() => {
+      const s = window.speechSynthesis, n = s ? s.getVoices().length : 0;
+      if (!s) toast("Ce navigateur ne lit pas la voix. Essayez Google Chrome.");
+      else if (!n) toast("Aucune voix installée sur cet appareil. Ajoutez une voix française dans les paramètres (Synthèse vocale), ou utilisez Google Chrome.");
+      else toast("Son au maximum. Si vous n'entendez rien, montez le volume de l'appareil et vérifiez qu'il n'est pas en silencieux.");
+    }, 1400);
+  };
+})();
 
 /* ---------- Démarrage ---------- */
 $("#go-home").onclick = showHome;
