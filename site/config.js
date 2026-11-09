@@ -4,5 +4,5 @@
 window.PROFESSA_CONFIG = {
   supabaseUrl: "https://hjeztmyagnliuojwluhn.supabase.co",
   supabaseKey: "sb_publishable_3ZPbn6I_YONtckzRV4xvPQ_K77h90Cx",
-  whatsapp: "" // ex. "243810000000" (sans +) pour afficher un bouton WhatsApp
+  whatsapp: "243825565647" // numéro WhatsApp affiché sur la landing page (sans +)
 };
