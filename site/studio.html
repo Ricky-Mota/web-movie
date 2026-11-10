@@ -1,0 +1,395 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Studio de doublage Professa-M</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root { --ink: #14213d; --soft: #5b6478; --bg: #f4f2ed; --card: #fff; --line: #e4dfd4; --brand: #1d4ed8; --accent: #f59e0b; --danger: #b91c1c; --ok: #15803d; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: Inter, system-ui, sans-serif; background: var(--bg); color: var(--ink); font-size: 14px; }
+  button, input, select { font: inherit; }
+  .btn { border: 0; border-radius: 8px; padding: 10px 16px; font-weight: 600; cursor: pointer; background: var(--brand); color: #fff; }
+  .btn.ghost { background: #fff; color: var(--ink); border: 1px solid var(--line); }
+  .btn.small { padding: 6px 10px; font-size: 13px; }
+  .btn:disabled { opacity: .55; cursor: default; }
+  input, select { width: 100%; padding: 9px 11px; border: 1px solid var(--line); border-radius: 8px; background: #fff; color: var(--ink); }
+  label { display: block; font-size: 12px; font-weight: 600; color: var(--soft); margin-bottom: 12px; }
+  label > input, label > select { margin-top: 4px; font-weight: 400; color: var(--ink); font-size: 14px; }
+  .hidden { display: none !important; }
+  .center { min-height: 100vh; display: grid; place-items: center; padding: 16px; }
+  .box { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 28px; width: 100%; max-width: 380px; }
+  .err { color: var(--danger); margin-top: 10px; font-size: 13px; }
+  header { background: var(--ink); color: #fff; padding: 0 16px; height: 56px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  header b span { color: var(--accent); }
+  header nav { display: flex; gap: 6px; align-items: center; }
+  header nav a { color: #fff; opacity: .8; text-decoration: none; padding: 6px 10px; border-radius: 8px; }
+  header nav a.on { background: rgba(255,255,255,.12); opacity: 1; }
+  header .btn.ghost { background: transparent; color: #fff; border-color: rgba(255,255,255,.3); }
+  main { max-width: 1180px; margin: 0 auto; padding: 16px; display: grid; grid-template-columns: 360px 1fr; gap: 16px; align-items: start; }
+  @media (max-width: 900px) { main { grid-template-columns: 1fr; } }
+  .panel { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 16px; margin-bottom: 16px; }
+  .panel h2 { margin: 0 0 12px; font-size: 16px; }
+  .langs { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0 14px; }
+  .langs label { display: inline-flex; align-items: center; gap: 6px; margin: 0; padding: 6px 10px; border: 1px solid var(--line); border-radius: 999px; color: var(--ink); font-weight: 500; font-size: 13px; cursor: pointer; }
+  .langs label:has(input:checked) { border-color: var(--brand); background: #eff6ff; }
+  .langs input { width: auto; margin: 0; }
+  .radio { display: flex; gap: 14px; margin: 4px 0 14px; }
+  .radio label { display: inline-flex; gap: 6px; align-items: center; margin: 0; color: var(--ink); font-weight: 500; font-size: 13px; }
+  .radio input { width: auto; margin: 0; }
+  .note { font-size: 12px; color: var(--soft); margin: 8px 0 0; }
+  .steps { list-style: none; padding: 0; margin: 12px 0 0; }
+  .steps li { display: flex; gap: 8px; align-items: center; padding: 6px 0; border-top: 1px solid var(--line); font-size: 13px; }
+  .steps li:first-child { border-top: 0; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--line); flex: none; }
+  .steps li.run .dot { background: var(--accent); animation: pulse 1s infinite; }
+  .steps li.done .dot { background: var(--ok); }
+  .steps li.fail .dot { background: var(--danger); }
+  .steps li.fail { color: var(--danger); }
+  @keyframes pulse { 50% { opacity: .3; } }
+  .jobs button { display: block; width: 100%; text-align: left; background: none; border: 0; border-top: 1px solid var(--line); padding: 8px 2px; cursor: pointer; }
+  .jobs button:hover { color: var(--brand); }
+  .jobs small { color: var(--soft); display: block; }
+
+  .stage { background: var(--ink); border-radius: 16px; padding: 14px; color: #fff; }
+  .screen { position: relative; aspect-ratio: 16/9; background: #000; border-radius: 10px; overflow: hidden; }
+  .screen video { width: 100%; height: 100%; object-fit: contain; display: block; }
+  .empty { position: absolute; inset: 0; display: grid; place-items: center; text-align: center; color: rgba(255,255,255,.7); padding: 20px; }
+  .sub { position: absolute; left: 50%; bottom: 7%; transform: translateX(-50%); max-width: 90%; text-align: center; background: rgba(0,0,0,.72); padding: 6px 12px; border-radius: 8px; font-size: clamp(14px, 2.2vw, 20px); line-height: 1.35; }
+  .tracks { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 12px; }
+  .tracks button { border: 0; border-radius: 999px; padding: 7px 12px; cursor: pointer; background: rgba(255,255,255,.14); color: #fff; font-weight: 600; }
+  .tracks button.on { background: #fff; color: var(--ink); }
+  .mix { display: flex; gap: 16px; flex-wrap: wrap; align-items: center; margin-top: 12px; font-size: 13px; }
+  .mix label { color: #fff; margin: 0; display: flex; align-items: center; gap: 8px; font-weight: 500; font-size: 13px; }
+  .mix input[type=range] { width: 120px; padding: 0; border: 0; accent-color: var(--accent); }
+  .downloads { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+  .downloads .btn { background: rgba(255,255,255,.12); }
+  .lines { max-height: 320px; overflow: auto; margin-top: 12px; }
+  .lines div { display: grid; grid-template-columns: 70px 1fr; gap: 10px; padding: 6px 4px; border-top: 1px solid var(--line); cursor: pointer; }
+  .lines div.now { background: #fef3c7; }
+  .lines small { color: var(--soft); }
+  .toast { position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%); background: var(--ink); color: #fff; padding: 10px 16px; border-radius: 10px; z-index: 30; max-width: 90%; }
+</style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script src="config.js"></script>
+</head>
+<body>
+
+<section id="login" class="center hidden">
+  <form class="box" id="login-form">
+    <h1 style="margin:0 0 4px;font-size:22px">Studio de doublage</h1>
+    <p style="color:var(--soft);margin:0 0 20px">Espace réservé à l'équipe Professa-M.</p>
+    <label>E-mail<input type="email" name="email" required autocomplete="username"></label>
+    <label>Mot de passe<input type="password" name="password" required autocomplete="current-password"></label>
+    <button class="btn" type="submit" style="width:100%">Se connecter</button>
+    <div class="err" id="login-err"></div>
+    <p class="switch" id="mode-switch" style="margin:14px 0 0;font-size:13px;color:var(--soft)">Pas encore de compte ? <a href="#" id="to-signup">Créer mon compte</a></p>
+    <div class="ok-msg" id="login-ok" style="margin-top:10px;font-size:13px;color:var(--ok)"></div>
+  </form>
+</section>
+
+<section id="denied" class="center hidden">
+  <div class="box"><h2 style="margin-top:0">Accès non autorisé</h2><p>Vous êtes connecté avec <b id="denied-email"></b>, mais ce compte n'a pas encore l'accès à l'équipe. Demandez à l'administrateur (ou à Claude) de l'activer, puis rechargez la page.</p><button class="btn ghost" id="logout2">Se déconnecter</button></div>
+</section>
+
+<section id="app" class="hidden">
+  <header>
+    <b>Professa<span>-M</span></b>
+    <nav><a href="crm.html">CRM</a><a href="studio.html" class="on">Studio</a><button class="btn ghost small" id="logout">Déconnexion</button></nav>
+  </header>
+  <main>
+    <div>
+      <form class="panel" id="new-form">
+        <h2>Doubler une vidéo</h2>
+        <label>Fichier vidéo ou audio (25 Mo et 10 minutes maximum)<input type="file" id="file" accept="video/*,audio/*" required></label>
+        <label>Langue parlée dans la vidéo<select id="src"></select></label>
+        <div style="font-size:12px;font-weight:600;color:var(--soft)">Traduire en</div>
+        <div class="langs" id="targets"></div>
+        <div class="radio">
+          <label><input type="radio" name="out" value="voice" checked> Voix + sous-titres</label>
+          <label><input type="radio" name="out" value="subs"> Sous-titres seuls</label>
+        </div>
+        <button class="btn" type="submit" id="go" style="width:100%">Lancer le doublage</button>
+        <p class="note">Chaque langue est traitée l'une après l'autre. Comptez environ 1 minute par langue pour une vidéo de 3 minutes.</p>
+        <ul class="steps" id="steps"></ul>
+      </form>
+      <div class="panel">
+        <h2>Travaux récents</h2>
+        <div class="jobs" id="jobs"><small style="color:var(--soft)">Chargement…</small></div>
+      </div>
+    </div>
+
+    <div>
+      <div class="stage">
+        <div class="screen">
+          <video id="video" playsinline controls></video>
+          <div class="empty" id="empty">Choisissez une vidéo à gauche, ou ouvrez un travail récent.</div>
+          <div class="sub hidden" id="sub"></div>
+        </div>
+        <div class="tracks" id="tracks"></div>
+        <div class="mix">
+          <label>Son d'origine <input type="range" id="orig-vol" min="0" max="100" value="15"></label>
+          <label>Voix traduite <input type="range" id="dub-vol" min="0" max="100" value="100"></label>
+          <label><input type="checkbox" id="show-sub" checked style="width:auto"> Sous-titres</label>
+        </div>
+        <div class="downloads" id="downloads"></div>
+      </div>
+      <div class="panel" style="margin-top:16px">
+        <h2 id="lines-title">Texte</h2>
+        <div class="lines" id="lines"><small style="color:var(--soft)">Le texte apparaîtra ici après la transcription.</small></div>
+      </div>
+    </div>
+  </main>
+</section>
+
+<script>
+const LANGS = [["fr","Français"],["en","Anglais"],["sw","Swahili"],["ln","Lingala"],["pt","Portugais"],["es","Espagnol"],["ar","Arabe"],["de","Allemand"],["zh","Chinois"],["ja","Japonais"],["hi","Hindi"],["lua","Tshiluba"],["kg","Kikongo"]];
+const NAME = Object.fromEntries(LANGS);
+const cfg = window.PROFESSA_CONFIG;
+const sb = supabase.createClient(cfg.supabaseUrl, cfg.supabaseKey);
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const fmt = (s) => { s = Math.max(0, Math.floor(s || 0)); return String(Math.floor(s / 60)).padStart(2, "0") + ":" + String(s % 60).padStart(2, "0"); };
+function toast(t) { const d = document.createElement("div"); d.className = "toast"; d.textContent = t; document.body.appendChild(d); setTimeout(() => d.remove(), 4000); }
+function screen(n) { ["login", "denied", "app"].forEach((x) => $(x).classList.toggle("hidden", x !== n)); }
+
+// ---------- Connexion ----------
+async function boot() {
+  const { data: { session } } = await sb.auth.getSession();
+  if (!session) return screen("login");
+  const { data: ok } = await sb.rpc("am_i_crm_admin");
+  if (!ok) { $("denied-email").textContent = session.user.email; return screen("denied"); }
+  screen("app"); loadJobs();
+}
+// ---------- Création de compte et messages en français ----------
+let signupMode = false;
+function frAuthError(m) {
+  if (/invalid login credentials/i.test(m)) return "E-mail ou mot de passe incorrect, ou compte pas encore créé. Cliquez sur « Créer mon compte » si c'est votre première visite.";
+  if (/email not confirmed/i.test(m)) return "Compte créé mais pas encore activé. Demandez son activation, ou cliquez sur le lien reçu par e-mail.";
+  if (/already registered|already exists/i.test(m)) return "Ce compte existe déjà : connectez-vous avec votre mot de passe.";
+  if (/password should be at least|weak password/i.test(m)) return "Mot de passe trop court : 8 caractères minimum.";
+  if (/rate limit/i.test(m)) return "Trop d'essais : patientez quelques minutes.";
+  return m;
+}
+function setMode(signup) {
+  signupMode = signup;
+  const f = document.getElementById("login-form");
+  f.querySelector("button[type=submit]").textContent = signup ? "Créer mon compte" : "Se connecter";
+  f.querySelector("input[name=password]").setAttribute("autocomplete", signup ? "new-password" : "current-password");
+  document.getElementById("mode-switch").innerHTML = signup
+    ? 'Déjà un compte ? <a href="#" id="to-login">Se connecter</a>'
+    : 'Pas encore de compte ? <a href="#" id="to-signup">Créer mon compte</a>';
+  document.getElementById(signup ? "to-login" : "to-signup").onclick = (e) => { e.preventDefault(); setMode(!signup); };
+  document.getElementById("login-err").textContent = ""; document.getElementById("login-ok").textContent = "";
+}
+setMode(false);
+async function submitAuth(e) {
+  e.preventDefault();
+  const f = new FormData(e.target), email = String(f.get("email")).trim().toLowerCase(), password = String(f.get("password"));
+  const err = document.getElementById("login-err"), ok = document.getElementById("login-ok");
+  err.textContent = ""; ok.textContent = "";
+  if (signupMode) {
+    if (password.length < 8) { err.textContent = "Mot de passe trop court : 8 caractères minimum."; return; }
+    const { data, error } = await sb.auth.signUp({ email, password, options: { emailRedirectTo: location.origin + location.pathname } });
+    if (error) { err.textContent = frAuthError(error.message); return; }
+    if (data.session) { boot(); return; }
+    setMode(false);
+    ok.textContent = "Compte créé pour " + email + ". Il doit maintenant être activé : prévenez l'administrateur (ou Claude), ou cliquez sur le lien reçu par e-mail. Ensuite, connectez-vous ici.";
+    return;
+  }
+  const { error } = await sb.auth.signInWithPassword({ email, password });
+  if (error) { err.textContent = frAuthError(error.message); return; }
+  boot();
+}
+document.getElementById("login-form").addEventListener("submit", submitAuth);
+const logout = async () => { await sb.auth.signOut(); screen("login"); };
+$("logout").onclick = logout; $("logout2").onclick = logout;
+
+// ---------- Appel de la fonction serveur ----------
+async function api(body) {
+  const { data, error } = await sb.functions.invoke("dub", { body });
+  if (error) {
+    let msg = error.message;
+    try { const j = await error.context.json(); if (j && j.error) msg = j.error; } catch (e) {}
+    throw new Error(msg);
+  }
+  if (data && data.error) throw new Error(data.error);
+  return data;
+}
+
+// ---------- Formulaire ----------
+$("src").innerHTML = LANGS.map(([c, n]) => `<option value="${c}">${n}</option>`).join("");
+$("targets").innerHTML = LANGS.map(([c, n]) => `<label><input type="checkbox" value="${c}" ${["ln", "sw"].includes(c) ? "checked" : ""}> ${n}</label>`).join("");
+function step(text) {
+  const li = document.createElement("li"); li.className = "run"; li.innerHTML = '<span class="dot"></span><span></span>';
+  li.lastChild.textContent = text; $("steps").appendChild(li);
+  return { done(t) { li.className = "done"; if (t) li.lastChild.textContent = t; }, fail(t) { li.className = "fail"; li.lastChild.textContent = t; } };
+}
+$("file").onchange = () => {
+  const f = $("file").files[0]; if (!f) return;
+  if (f.size > 25 * 1024 * 1024) { toast("Ce fichier dépasse 25 Mo : réduisez-le avant de l'envoyer."); $("file").value = ""; return; }
+  setSource(URL.createObjectURL(f)); job = null; tracks = {}; renderTracks(); renderLines();
+};
+$("new-form").onsubmit = async (e) => {
+  e.preventDefault();
+  const f = $("file").files[0], src = $("src").value;
+  const targets = [...document.querySelectorAll("#targets input:checked")].map((x) => x.value).filter((x) => x !== src);
+  const voice = document.querySelector("input[name=out]:checked").value === "voice";
+  if (!f) return toast("Choisissez un fichier.");
+  if (!targets.length) return toast("Choisissez au moins une langue différente de celle de la vidéo.");
+  $("go").disabled = true; $("steps").innerHTML = "";
+  try {
+    let s = step("Envoi du fichier…");
+    const path = "incoming/studio-" + crypto.randomUUID() + "-" + f.name.normalize("NFD").replace(/[^\w.\-]+/g, "_").slice(-60);
+    const up = await sb.storage.from("translation-uploads").upload(path, f, { contentType: f.type || "video/mp4", upsert: false });
+    if (up.error) { s.fail("Envoi impossible : " + up.error.message); throw up.error; }
+    s.done("Fichier envoyé");
+    s = step("Transcription (écoute de la vidéo)…");
+    try { job = await api({ action: "transcribe", path, source_language: src, file_name: f.name }); }
+    catch (err) { s.fail("Transcription : " + err.message); throw err; }
+    s.done("Transcription : " + job.segments.length + " passages, " + fmt(job.duration));
+    tracks = {}; renderLines(); renderTracks();
+    for (const t of targets) {
+      s = step((voice ? "Traduction et voix en " : "Traduction en ") + NAME[t] + "…");
+      try { tracks[t] = await api({ action: "dub", job_id: job.job_id, target: t, voice }); s.done(NAME[t] + " prêt"); renderTracks(); selectTrack(t); }
+      catch (err) { s.fail(NAME[t] + " : " + err.message); }
+    }
+    loadJobs();
+  } catch (err) {
+    toast(err.message || String(err));
+  } finally { $("go").disabled = false; }
+};
+
+// ---------- Travaux récents ----------
+async function loadJobs() {
+  try {
+    const { jobs } = await api({ action: "list" });
+    $("jobs").innerHTML = jobs.length ? jobs.map((j) => `<button data-job="${j.job_id}">${esc(j.file_name || "Vidéo")}<small>${new Date(j.created_at).toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" })} · ${fmt(j.duration)} · ${esc(NAME[j.source_language] || j.source_language || "")}</small></button>`).join("") : '<small style="color:var(--soft)">Aucun travail pour l\'instant.</small>';
+    $("jobs").querySelectorAll("[data-job]").forEach((b) => (b.onclick = () => openJob(b.dataset.job)));
+  } catch (err) { $("jobs").innerHTML = `<small style="color:var(--danger)">${esc(err.message)}</small>`; }
+}
+async function openJob(id) {
+  try {
+    const j = await api({ action: "get", job_id: id });
+    job = j; tracks = Object.fromEntries(j.tracks.map((t) => [t.language, t]));
+    setSource(j.source_url); renderLines(); renderTracks(); selectTrack(j.tracks[0] ? j.tracks[0].language : "orig");
+  } catch (err) { toast(err.message); }
+}
+
+// ---------- Lecteur avec voix synchronisée ----------
+const video = $("video");
+let job = null, tracks = {}, current = "orig", audios = [], playingIdx = -1, playingAudio = null;
+function setSource(url) { video.src = url || ""; $("empty").classList.toggle("hidden", !!url); }
+function renderTracks() {
+  const btns = [["orig", "Original"]].concat(Object.keys(tracks).map((l) => [l, NAME[l] || l]));
+  $("tracks").innerHTML = btns.map(([k, n]) => `<button data-t="${k}" class="${k === current ? "on" : ""}">${n}</button>`).join("");
+  $("tracks").querySelectorAll("button").forEach((b) => (b.onclick = () => selectTrack(b.dataset.t)));
+  renderDownloads();
+}
+function selectTrack(t) {
+  stopVoice(); current = t; playingIdx = -1;
+  const tr = tracks[t];
+  audios = tr ? tr.segments.map((s) => {
+    if (!s.audio_url) return null;
+    const a = new Audio(); a.preload = "auto"; a.src = s.audio_url; a.crossOrigin = "anonymous"; return a;
+  }) : [];
+  applyVolumes(); renderTracks(); renderLines(); renderDownloads();
+}
+function applyVolumes() {
+  const hasVoice = audios.some(Boolean);
+  video.volume = hasVoice ? Number($("orig-vol").value) / 100 : 1;
+  audios.forEach((a) => a && (a.volume = Number($("dub-vol").value) / 100));
+}
+$("orig-vol").oninput = applyVolumes; $("dub-vol").oninput = applyVolumes;
+function stopVoice() { if (playingAudio) { playingAudio.pause(); playingAudio = null; } }
+function segAt(t) {
+  const segs = job ? job.segments : [];
+  for (let i = 0; i < segs.length; i++) if (t >= segs[i].start && t < segs[i].end) return i;
+  return -1;
+}
+function tick() {
+  const t = video.currentTime, i = segAt(t);
+  const tr = tracks[current], segs = job ? job.segments : [];
+  const text = i < 0 ? "" : tr ? tr.segments[i].text : segs[i].text;
+  $("sub").textContent = text; $("sub").classList.toggle("hidden", !text || !$("show-sub").checked);
+  if (i !== playingIdx) {
+    playingIdx = i; stopVoice();
+    document.querySelectorAll("#lines [data-i]").forEach((d) => d.classList.toggle("now", Number(d.dataset.i) === i));
+    const a = i >= 0 ? audios[i] : null;
+    if (a && !video.paused) {
+      const slot = segs[i].end - Math.max(segs[i].start, t);
+      const startVoice = () => {
+        if (playingIdx !== i || video.paused) return;
+        const d = isFinite(a.duration) ? a.duration : slot;
+        a.playbackRate = Math.min(1.25, Math.max(1, d / Math.max(0.5, slot)));
+        a.currentTime = 0; a.play().catch(() => {}); playingAudio = a;
+      };
+      a.readyState >= 1 ? startVoice() : a.addEventListener("loadedmetadata", startVoice, { once: true });
+    }
+  }
+  requestAnimationFrame(tick);
+}
+requestAnimationFrame(tick);
+video.addEventListener("pause", stopVoice);
+video.addEventListener("seeking", () => { stopVoice(); playingIdx = -1; });
+video.addEventListener("play", () => { playingIdx = -1; });
+$("show-sub").onchange = () => {};
+
+function renderLines() {
+  if (!job) { $("lines").innerHTML = '<small style="color:var(--soft)">Le texte apparaîtra ici après la transcription.</small>'; return; }
+  const tr = tracks[current];
+  $("lines-title").textContent = tr ? "Texte : " + (NAME[current] || current) : "Texte original";
+  $("lines").innerHTML = job.segments.map((s, i) => `<div data-i="${i}"><small>${fmt(s.start)}</small><span>${esc(tr ? tr.segments[i].text : s.text)}${tr ? `<br><small>${esc(s.text)}</small>` : ""}</span></div>`).join("");
+  $("lines").querySelectorAll("[data-i]").forEach((d) => (d.onclick = () => { video.currentTime = job.segments[d.dataset.i].start + 0.01; video.play(); }));
+}
+
+// ---------- Téléchargements : sous-titres (.srt) et piste de voix (.wav) ----------
+function srtTime(s) { const ms = Math.round(s * 1000); const h = Math.floor(ms / 3600000), m = Math.floor(ms / 60000) % 60, sec = Math.floor(ms / 1000) % 60; return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(sec).padStart(2, "0")},${String(ms % 1000).padStart(3, "0")}`; }
+function download(name, blob) { const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 5000); }
+function baseName() { return (job.file_name || "video").replace(/\.[^.]+$/, ""); }
+function renderDownloads() {
+  if (!job) { $("downloads").innerHTML = ""; return; }
+  const tr = tracks[current], lang = tr ? current : "orig";
+  let html = `<button class="btn small" id="dl-srt">Sous-titres ${tr ? NAME[current] : "originaux"} (.srt)</button>`;
+  if (tr && tr.segments.some((s) => s.audio_url)) html += ` <button class="btn small" id="dl-wav">Piste de voix ${NAME[current]} (.wav)</button>`;
+  $("downloads").innerHTML = html;
+  $("dl-srt").onclick = () => {
+    const segs = job.segments.map((s, i) => ({ ...s, text: tr ? tr.segments[i].text : s.text }));
+    download(`${baseName()}-${lang}.srt`, new Blob([segs.map((s, i) => `${i + 1}\n${srtTime(s.start)} --> ${srtTime(s.end)}\n${s.text}\n`).join("\n")], { type: "text/plain" }));
+  };
+  if ($("dl-wav")) $("dl-wav").onclick = () => exportWav(tr);
+}
+async function exportWav(tr) {
+  const btn = $("dl-wav"); btn.disabled = true; btn.textContent = "Préparation…";
+  try {
+    const rate = 24000, total = Math.ceil((job.duration + 2) * rate);
+    const ctx = new OfflineAudioContext(1, total, rate);
+    const decoder = new (window.AudioContext || window.webkitAudioContext)();
+    for (let i = 0; i < tr.segments.length; i++) {
+      const s = tr.segments[i]; if (!s.audio_url) continue;
+      const buf = await decoder.decodeAudioData(await (await fetch(s.audio_url)).arrayBuffer());
+      const src = ctx.createBufferSource(); src.buffer = buf;
+      const slot = Math.max(0.5, job.segments[i].end - job.segments[i].start);
+      src.playbackRate.value = Math.min(1.25, Math.max(1, buf.duration / slot));
+      src.connect(ctx.destination); src.start(job.segments[i].start);
+    }
+    decoder.close && decoder.close();
+    const out = await ctx.startRendering(), data = out.getChannelData(0);
+    const wav = new DataView(new ArrayBuffer(44 + data.length * 2));
+    const w = (o, s) => [...s].forEach((c, k) => wav.setUint8(o + k, c.charCodeAt(0)));
+    w(0, "RIFF"); wav.setUint32(4, 36 + data.length * 2, true); w(8, "WAVEfmt "); wav.setUint32(16, 16, true); wav.setUint16(20, 1, true); wav.setUint16(22, 1, true);
+    wav.setUint32(24, rate, true); wav.setUint32(28, rate * 2, true); wav.setUint16(32, 2, true); wav.setUint16(34, 16, true); w(36, "data"); wav.setUint32(40, data.length * 2, true);
+    for (let k = 0; k < data.length; k++) wav.setInt16(44 + k * 2, Math.max(-1, Math.min(1, data[k])) * 0x7fff, true);
+    download(`${baseName()}-voix-${current}.wav`, new Blob([wav], { type: "audio/wav" }));
+  } catch (err) { toast("Export impossible : " + err.message); }
+  finally { btn.disabled = false; btn.textContent = `Piste de voix ${NAME[current]} (.wav)`; }
+}
+
+boot();
+</script>
+</body>
+</html>

@@ -1,0 +1,490 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>CRM Professa-M</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ink: #14213d; --soft: #5b6478; --bg: #f4f2ed; --card: #fff; --line: #e4dfd4;
+    --brand: #1d4ed8; --accent: #f59e0b; --danger: #b91c1c; --ok: #15803d;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: Inter, system-ui, sans-serif; background: var(--bg); color: var(--ink); font-size: 14px; }
+  button, input, select, textarea { font: inherit; }
+  .btn { border: 0; border-radius: 8px; padding: 9px 14px; font-weight: 600; cursor: pointer; background: var(--brand); color: #fff; }
+  .btn.ghost { background: transparent; color: var(--ink); border: 1px solid var(--line); }
+  .btn.small { padding: 6px 10px; font-size: 13px; }
+  .btn:disabled { opacity: .6; cursor: default; }
+  input, select, textarea { width: 100%; padding: 9px 11px; border: 1px solid var(--line); border-radius: 8px; background: #fff; color: var(--ink); }
+  label { display: block; font-size: 12px; font-weight: 600; color: var(--soft); margin-bottom: 10px; }
+  label > input, label > select, label > textarea { margin-top: 4px; font-weight: 400; color: var(--ink); font-size: 14px; }
+  .hidden { display: none !important; }
+
+  #login { min-height: 100vh; display: grid; place-items: center; padding: 16px; }
+  #login .box { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 28px; width: 100%; max-width: 380px; }
+  #login h1 { margin: 0 0 4px; font-size: 22px; }
+  #login p { color: var(--soft); margin: 0 0 20px; }
+  .err { color: var(--danger); margin-top: 10px; font-size: 13px; }
+
+  header { background: var(--ink); color: #fff; padding: 0 16px; height: 56px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  header b { font-size: 16px; }
+  header b span { color: var(--accent); }
+  header .who { font-size: 13px; opacity: .8; display: flex; align-items: center; gap: 10px; }
+  header .btn.ghost { color: #fff; border-color: rgba(255,255,255,.3); }
+
+  main { padding: 16px; max-width: 1400px; margin: 0 auto; }
+  .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 16px; }
+  @media (max-width: 720px) { .stats { grid-template-columns: 1fr 1fr; } }
+  .stat { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 14px; }
+  .stat small { color: var(--soft); font-weight: 600; font-size: 12px; }
+  .stat div { font-size: 24px; font-weight: 700; margin-top: 4px; }
+
+  .toolbar { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; align-items: center; }
+  .toolbar input { max-width: 280px; }
+  .toolbar select { max-width: 200px; }
+  .toolbar .spacer { flex: 1; }
+  .views button { border: 1px solid var(--line); background: #fff; padding: 8px 12px; cursor: pointer; }
+  .views button:first-child { border-radius: 8px 0 0 8px; }
+  .views button:last-child { border-radius: 0 8px 8px 0; border-left: 0; }
+  .views button.on { background: var(--ink); color: #fff; border-color: var(--ink); }
+
+  .board { display: grid; grid-template-columns: repeat(6, minmax(200px, 1fr)); gap: 12px; overflow-x: auto; padding-bottom: 8px; }
+  .col { background: #ebe7de; border-radius: 12px; padding: 10px; min-height: 200px; }
+  .col h3 { margin: 0 0 10px; font-size: 13px; display: flex; justify-content: space-between; }
+  .col h3 span { color: var(--soft); font-weight: 500; }
+  .col.drop { outline: 2px dashed var(--brand); }
+  .lead { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 10px; margin-bottom: 8px; cursor: pointer; }
+  .lead:hover { border-color: var(--brand); }
+  .lead b { display: block; }
+  .lead .sub { color: var(--soft); font-size: 12px; margin-top: 2px; }
+  .lead .due { font-size: 12px; margin-top: 6px; font-weight: 600; }
+  .due.late { color: var(--danger); }
+  .due.today { color: #b45309; }
+
+  table { width: 100%; border-collapse: collapse; background: var(--card); border-radius: 12px; overflow: hidden; border: 1px solid var(--line); }
+  th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { font-size: 12px; color: var(--soft); background: #faf8f4; }
+  tr.clickable { cursor: pointer; }
+  tr.clickable:hover td { background: #f8f6f1; }
+  .table-wrap { overflow-x: auto; }
+
+  .pill { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; }
+  .s-new { background: #dbeafe; color: #1e3a8a; }
+  .s-contacted { background: #e0e7ff; color: #3730a3; }
+  .s-demo_scheduled { background: #fef3c7; color: #92400e; }
+  .s-trial { background: #fce7f3; color: #9d174d; }
+  .s-won { background: #dcfce7; color: #14532d; }
+  .s-lost { background: #f3f4f6; color: #4b5563; }
+
+  .drawer-bg { position: fixed; inset: 0; background: rgba(20,33,61,.35); z-index: 20; }
+  .drawer { position: fixed; top: 0; right: 0; bottom: 0; width: min(520px, 100%); background: var(--bg); z-index: 21; overflow-y: auto; box-shadow: -10px 0 40px rgba(0,0,0,.15); }
+  .drawer .head { position: sticky; top: 0; background: var(--card); border-bottom: 1px solid var(--line); padding: 14px 16px; display: flex; justify-content: space-between; align-items: center; z-index: 1; }
+  .drawer .head h2 { margin: 0; font-size: 17px; }
+  .drawer .body { padding: 16px; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 12px; }
+  @media (max-width: 480px) { .grid2 { grid-template-columns: 1fr; } }
+  .panel { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 14px; margin-bottom: 14px; }
+  .panel h4 { margin: 0 0 10px; font-size: 13px; }
+  .quick { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+  .quick a { font-size: 13px; text-decoration: none; padding: 6px 10px; border-radius: 8px; border: 1px solid var(--line); color: var(--ink); background: #fff; }
+  .note { border-left: 3px solid var(--line); padding: 4px 0 4px 10px; margin-bottom: 10px; }
+  .note small { color: var(--soft); display: block; }
+  .note p { margin: 2px 0 0; white-space: pre-wrap; }
+  .note.stage { border-left-color: var(--accent); }
+  .actions { display: flex; gap: 8px; justify-content: space-between; margin-top: 4px; }
+  .toast { position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%); background: var(--ink); color: #fff; padding: 10px 16px; border-radius: 10px; z-index: 30; }
+  .empty { color: var(--soft); text-align: center; padding: 40px 0; }
+</style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script src="config.js"></script>
+</head>
+<body>
+
+<section id="login" class="hidden">
+  <form class="box" id="login-form">
+    <h1>CRM Professa-M</h1>
+    <p>Espace réservé à l'équipe commerciale.</p>
+    <label>E-mail<input type="email" name="email" required autocomplete="username"></label>
+    <label>Mot de passe<input type="password" name="password" required autocomplete="current-password"></label>
+    <button class="btn" type="submit" style="width:100%">Se connecter</button>
+    <div class="err" id="login-err"></div>
+    <p class="switch" id="mode-switch" style="margin:14px 0 0;font-size:13px;color:var(--soft)">Pas encore de compte ? <a href="#" id="to-signup">Créer mon compte</a></p>
+    <div class="ok-msg" id="login-ok" style="margin-top:10px;font-size:13px;color:var(--ok)"></div>
+  </form>
+</section>
+
+<section id="app" class="hidden">
+  <header>
+    <b>Professa<span>-M</span> · CRM</b>
+    <div class="who"><a href="studio.html" style="color:#fff;font-weight:600;text-decoration:none;background:rgba(255,255,255,.12);padding:6px 10px;border-radius:8px">Studio de doublage</a><span id="who"></span><button class="btn ghost small" id="logout">Déconnexion</button></div>
+  </header>
+  <main>
+    <div class="stats">
+      <div class="stat"><small>Prospects actifs</small><div id="st-active">0</div></div>
+      <div class="stat"><small>Démos planifiées</small><div id="st-demo">0</div></div>
+      <div class="stat"><small>Clients gagnés</small><div id="st-won">0</div></div>
+      <div class="stat"><small>Relances en retard</small><div id="st-late">0</div></div>
+    </div>
+    <div class="toolbar">
+      <input id="q" type="search" placeholder="Rechercher un centre, un nom, un téléphone...">
+      <select id="f-source">
+        <option value="">Toutes les sources</option>
+        <option value="landing">Site web</option><option value="manual">Saisie</option>
+        <option value="referral">Recommandation</option><option value="event">Événement</option>
+        <option value="social">Réseaux sociaux</option>
+      </select>
+      <div class="views"><button data-view="board" class="on">Tableau</button><button data-view="list">Liste</button></div>
+      <span class="spacer"></span>
+      <button class="btn ghost" id="export">Exporter CSV</button>
+      <button class="btn" id="add">+ Nouveau prospect</button>
+    </div>
+    <div id="board" class="board"></div>
+    <div id="list" class="table-wrap hidden"></div>
+  </main>
+</section>
+
+<section id="denied" class="hidden" style="min-height:100vh;display:grid;place-items:center;padding:16px">
+  <div class="panel" style="max-width:440px">
+    <h4>Accès non autorisé</h4>
+    <p>Vous êtes connecté avec <b id="denied-email"></b>, mais ce compte n'a pas encore l'accès à l'équipe. Demandez à l'administrateur (ou à Claude) de l'activer, puis rechargez la page.</p>
+    <button class="btn ghost" id="logout2">Se déconnecter</button>
+  </div>
+</section>
+
+<div id="drawer-root"></div>
+
+<script>
+const STAGES = [
+  ["new", "Nouveau"], ["contacted", "Contacté"], ["demo_scheduled", "Démo planifiée"],
+  ["trial", "Essai"], ["won", "Client"], ["lost", "Perdu"]
+];
+const STAGE_LABEL = Object.fromEntries(STAGES);
+const SOURCE_LABEL = { landing: "Site web", manual: "Saisie", referral: "Recommandation", event: "Événement", social: "Réseaux sociaux" };
+const KIND_LABEL = { note: "Note", call: "Appel", whatsapp: "WhatsApp", email: "E-mail", meeting: "Rendez-vous", stage: "Étape" };
+
+const cfg = window.PROFESSA_CONFIG;
+const sb = supabase.createClient(cfg.supabaseUrl, cfg.supabaseKey);
+let leads = [];
+let view = "board";
+let me = null;
+
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+function toast(text) {
+  const t = document.createElement("div"); t.className = "toast"; t.textContent = text;
+  document.body.appendChild(t); setTimeout(() => t.remove(), 2600);
+}
+function screen(name) {
+  for (const id of ["login", "app", "denied"]) $(id).classList.toggle("hidden", id !== name);
+}
+function todayISO() {
+  const d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+  return d.toISOString().slice(0, 10);
+}
+function dueInfo(lead) {
+  if (!lead.next_action_on || ["won", "lost"].includes(lead.stage)) return null;
+  const t = todayISO();
+  const cls = lead.next_action_on < t ? "late" : lead.next_action_on === t ? "today" : "";
+  const [y, m, d] = lead.next_action_on.split("-");
+  return { cls, text: (lead.next_action || "Relance") + " · " + d + "/" + m + "/" + y };
+}
+
+// ---------- Authentification ----------
+async function boot() {
+  const { data: { session } } = await sb.auth.getSession();
+  if (!session) return screen("login");
+  me = session.user;
+  const { data: ok, error } = await sb.rpc("am_i_crm_admin");
+  if (error || !ok) { $("denied-email").textContent = me.email; return screen("denied"); }
+  $("who").textContent = me.email;
+  screen("app");
+  await load();
+}
+// ---------- Création de compte et messages en français ----------
+let signupMode = false;
+function frAuthError(m) {
+  if (/invalid login credentials/i.test(m)) return "E-mail ou mot de passe incorrect, ou compte pas encore créé. Cliquez sur « Créer mon compte » si c'est votre première visite.";
+  if (/email not confirmed/i.test(m)) return "Compte créé mais pas encore activé. Demandez son activation, ou cliquez sur le lien reçu par e-mail.";
+  if (/already registered|already exists/i.test(m)) return "Ce compte existe déjà : connectez-vous avec votre mot de passe.";
+  if (/password should be at least|weak password/i.test(m)) return "Mot de passe trop court : 8 caractères minimum.";
+  if (/rate limit/i.test(m)) return "Trop d'essais : patientez quelques minutes.";
+  return m;
+}
+function setMode(signup) {
+  signupMode = signup;
+  const f = document.getElementById("login-form");
+  f.querySelector("button[type=submit]").textContent = signup ? "Créer mon compte" : "Se connecter";
+  f.querySelector("input[name=password]").setAttribute("autocomplete", signup ? "new-password" : "current-password");
+  document.getElementById("mode-switch").innerHTML = signup
+    ? 'Déjà un compte ? <a href="#" id="to-login">Se connecter</a>'
+    : 'Pas encore de compte ? <a href="#" id="to-signup">Créer mon compte</a>';
+  document.getElementById(signup ? "to-login" : "to-signup").onclick = (e) => { e.preventDefault(); setMode(!signup); };
+  document.getElementById("login-err").textContent = ""; document.getElementById("login-ok").textContent = "";
+}
+setMode(false);
+async function submitAuth(e) {
+  e.preventDefault();
+  const f = new FormData(e.target), email = String(f.get("email")).trim().toLowerCase(), password = String(f.get("password"));
+  const err = document.getElementById("login-err"), ok = document.getElementById("login-ok");
+  err.textContent = ""; ok.textContent = "";
+  if (signupMode) {
+    if (password.length < 8) { err.textContent = "Mot de passe trop court : 8 caractères minimum."; return; }
+    const { data, error } = await sb.auth.signUp({ email, password, options: { emailRedirectTo: location.origin + location.pathname } });
+    if (error) { err.textContent = frAuthError(error.message); return; }
+    if (data.session) { boot(); return; }
+    setMode(false);
+    ok.textContent = "Compte créé pour " + email + ". Il doit maintenant être activé : prévenez l'administrateur (ou Claude), ou cliquez sur le lien reçu par e-mail. Ensuite, connectez-vous ici.";
+    return;
+  }
+  const { error } = await sb.auth.signInWithPassword({ email, password });
+  if (error) { err.textContent = frAuthError(error.message); return; }
+  boot();
+}
+document.getElementById("login-form").addEventListener("submit", submitAuth);
+async function logout() { await sb.auth.signOut(); screen("login"); }
+$("logout").onclick = logout;
+$("logout2").onclick = logout;
+
+// ---------- Données ----------
+async function load() {
+  const { data, error } = await sb.from("crm_leads").select("*").order("created_at", { ascending: false });
+  if (error) return toast("Erreur de chargement : " + error.message);
+  leads = data;
+  render();
+}
+function filtered() {
+  const q = $("q").value.trim().toLowerCase();
+  const src = $("f-source").value;
+  return leads.filter((l) =>
+    (!src || l.source === src) &&
+    (!q || [l.center_name, l.contact_name, l.phone, l.email, l.city].some((v) => (v || "").toLowerCase().includes(q)))
+  );
+}
+function render() {
+  const t = todayISO();
+  $("st-active").textContent = leads.filter((l) => !["won", "lost"].includes(l.stage)).length;
+  $("st-demo").textContent = leads.filter((l) => l.stage === "demo_scheduled").length;
+  $("st-won").textContent = leads.filter((l) => l.stage === "won").length;
+  $("st-late").textContent = leads.filter((l) => l.next_action_on && l.next_action_on < t && !["won", "lost"].includes(l.stage)).length;
+  const rows = filtered();
+  $("board").classList.toggle("hidden", view !== "board");
+  $("list").classList.toggle("hidden", view !== "list");
+  view === "board" ? renderBoard(rows) : renderList(rows);
+}
+function renderBoard(rows) {
+  $("board").innerHTML = STAGES.map(([key, label]) => {
+    const items = rows.filter((l) => l.stage === key);
+    return `<div class="col" data-stage="${key}"><h3>${label}<span>${items.length}</span></h3>${
+      items.map((l) => {
+        const due = dueInfo(l);
+        return `<div class="lead" draggable="true" data-id="${l.id}">
+          <b>${esc(l.center_name)}</b>
+          <div class="sub">${esc(l.contact_name)}${l.city ? " · " + esc(l.city) : ""}</div>
+          ${l.learners_estimate ? `<div class="sub">${l.learners_estimate} apprenants</div>` : ""}
+          ${due ? `<div class="due ${due.cls}">${esc(due.text)}</div>` : ""}
+        </div>`;
+      }).join("")
+    }</div>`;
+  }).join("");
+  document.querySelectorAll(".lead").forEach((el) => {
+    el.onclick = () => openLead(el.dataset.id);
+    el.ondragstart = (e) => e.dataTransfer.setData("text/plain", el.dataset.id);
+  });
+  document.querySelectorAll(".col").forEach((col) => {
+    col.ondragover = (e) => { e.preventDefault(); col.classList.add("drop"); };
+    col.ondragleave = () => col.classList.remove("drop");
+    col.ondrop = (e) => {
+      e.preventDefault(); col.classList.remove("drop");
+      changeStage(e.dataTransfer.getData("text/plain"), col.dataset.stage);
+    };
+  });
+}
+function renderList(rows) {
+  if (!rows.length) { $("list").innerHTML = '<div class="empty">Aucun prospect.</div>'; return; }
+  $("list").innerHTML = `<table><thead><tr>
+      <th>Centre</th><th>Contact</th><th>Téléphone</th><th>Ville</th><th>Apprenants</th><th>Étape</th><th>Prochaine action</th><th>Source</th><th>Reçu le</th>
+    </tr></thead><tbody>${rows.map((l) => {
+      const due = dueInfo(l);
+      return `<tr class="clickable" data-id="${l.id}">
+        <td><b>${esc(l.center_name)}</b></td><td>${esc(l.contact_name)}</td><td>${esc(l.phone || l.email || "")}</td>
+        <td>${esc(l.city || "")}</td><td>${l.learners_estimate ?? ""}</td>
+        <td><span class="pill s-${l.stage}">${STAGE_LABEL[l.stage]}</span></td>
+        <td>${due ? `<span class="due ${due.cls}">${esc(due.text)}</span>` : ""}</td>
+        <td>${SOURCE_LABEL[l.source] || l.source}</td>
+        <td>${new Date(l.created_at).toLocaleDateString("fr-FR")}</td></tr>`;
+    }).join("")}</tbody></table>`;
+  document.querySelectorAll("tr.clickable").forEach((tr) => (tr.onclick = () => openLead(tr.dataset.id)));
+}
+
+async function changeStage(id, stage) {
+  const lead = leads.find((l) => l.id === id);
+  if (!lead || lead.stage === stage) return;
+  const { error } = await sb.from("crm_leads").update({ stage }).eq("id", id);
+  if (error) return toast("Erreur : " + error.message);
+  await sb.from("crm_notes").insert({ lead_id: id, kind: "stage", body: STAGE_LABEL[lead.stage] + " → " + STAGE_LABEL[stage], author_id: me.id });
+  lead.stage = stage;
+  render();
+  toast("Étape mise à jour : " + STAGE_LABEL[stage]);
+}
+
+// ---------- Fiche prospect ----------
+function closeDrawer() { $("drawer-root").innerHTML = ""; }
+async function openLead(id) {
+  const lead = id ? leads.find((l) => l.id === id) : { stage: "new", source: "manual", country_code: "CD" };
+  const isNew = !id;
+  const phoneDigits = (lead.phone || "").replace(/[^0-9]/g, "");
+  $("drawer-root").innerHTML = `
+    <div class="drawer-bg" id="dbg"></div>
+    <aside class="drawer">
+      <div class="head"><h2>${isNew ? "Nouveau prospect" : esc(lead.center_name)}</h2><button class="btn ghost small" id="dclose">Fermer</button></div>
+      <div class="body">
+        ${!isNew && (lead.phone || lead.email) ? `<div class="quick">
+          ${lead.phone ? `<a href="tel:${esc(lead.phone)}">Appeler</a><a href="https://wa.me/${phoneDigits}" target="_blank" rel="noopener">WhatsApp</a>` : ""}
+          ${lead.email ? `<a href="mailto:${esc(lead.email)}">E-mail</a>` : ""}
+        </div>` : ""}
+        <form class="panel" id="lead-form">
+          <h4>Informations</h4>
+          <div class="grid2">
+            <label>Centre *<input name="center_name" required value="${esc(lead.center_name)}"></label>
+            <label>Contact *<input name="contact_name" required value="${esc(lead.contact_name)}"></label>
+            <label>Téléphone<input name="phone" value="${esc(lead.phone)}"></label>
+            <label>E-mail<input name="email" type="email" value="${esc(lead.email)}"></label>
+            <label>Ville<input name="city" value="${esc(lead.city)}"></label>
+            <label>Apprenants<input name="learners_estimate" type="number" min="0" value="${lead.learners_estimate ?? ""}"></label>
+            <label>Étape<select name="stage">${STAGES.map(([k, v]) => `<option value="${k}" ${lead.stage === k ? "selected" : ""}>${v}</option>`).join("")}</select></label>
+            <label>Source<select name="source">${Object.entries(SOURCE_LABEL).map(([k, v]) => `<option value="${k}" ${lead.source === k ? "selected" : ""}>${v}</option>`).join("")}</select></label>
+            <label>Prochaine action<input name="next_action" value="${esc(lead.next_action)}" placeholder="Rappeler, envoyer devis..."></label>
+            <label>Date<input name="next_action_on" type="date" value="${esc(lead.next_action_on)}"></label>
+            <label>Crédits envisagés<input name="expected_credits" type="number" min="0" value="${lead.expected_credits ?? ""}"></label>
+          </div>
+          <label>Message / besoin<textarea name="message" rows="3">${esc(lead.message)}</textarea></label>
+          <div class="actions">
+            ${isNew ? "<span></span>" : `<button type="button" class="btn ghost small" id="del" style="color:var(--danger)">Supprimer</button>`}
+            <button class="btn" type="submit">${isNew ? "Créer" : "Enregistrer"}</button>
+          </div>
+        </form>
+        ${isNew ? "" : `<div class="panel"><h4>Vidéos à traduire</h4><div id="reqs">Chargement...</div></div>`}
+        ${isNew ? "" : `<div class="panel">
+          <h4>Historique</h4>
+          <form id="note-form" style="margin-bottom:14px">
+            <div class="grid2">
+              <label>Type<select name="kind">${["note", "call", "whatsapp", "email", "meeting"].map((k) => `<option value="${k}">${KIND_LABEL[k]}</option>`).join("")}</select></label>
+            </div>
+            <label>Compte rendu<textarea name="body" rows="2" required placeholder="Ce qui a été dit, ce qui est convenu..."></textarea></label>
+            <button class="btn small" type="submit">Ajouter</button>
+          </form>
+          <div id="notes">Chargement...</div>
+        </div>`}
+      </div>
+    </aside>`;
+  $("dbg").onclick = closeDrawer;
+  $("dclose").onclick = closeDrawer;
+
+  $("lead-form").onsubmit = async (e) => {
+    e.preventDefault();
+    const f = new FormData(e.target);
+    const v = (k) => { const s = (f.get(k) || "").toString().trim(); return s === "" ? null : s; };
+    const row = {
+      center_name: v("center_name"), contact_name: v("contact_name"), phone: v("phone"), email: v("email"),
+      city: v("city"), learners_estimate: v("learners_estimate") ? parseInt(v("learners_estimate"), 10) : null,
+      stage: v("stage"), source: v("source"), next_action: v("next_action"), next_action_on: v("next_action_on"),
+      expected_credits: v("expected_credits") ? parseInt(v("expected_credits"), 10) : null, message: v("message")
+    };
+    if (!row.phone && !row.email) return toast("Indiquez un téléphone ou un e-mail.");
+    const oldStage = lead.stage;
+    const q = isNew ? sb.from("crm_leads").insert(row).select().single() : sb.from("crm_leads").update(row).eq("id", lead.id).select().single();
+    const { data, error } = await q;
+    if (error) return toast("Erreur : " + error.message);
+    if (!isNew && oldStage !== row.stage) {
+      await sb.from("crm_notes").insert({ lead_id: lead.id, kind: "stage", body: STAGE_LABEL[oldStage] + " → " + STAGE_LABEL[row.stage], author_id: me.id });
+    }
+    toast(isNew ? "Prospect créé" : "Modifications enregistrées");
+    await load();
+    openLead(data.id);
+  };
+
+  if (!isNew) {
+    $("del").onclick = async () => {
+      if (!confirm("Supprimer définitivement « " + lead.center_name + " » et son historique ?")) return;
+      const { error } = await sb.from("crm_leads").delete().eq("id", lead.id);
+      if (error) return toast("Erreur : " + error.message);
+      closeDrawer(); toast("Prospect supprimé"); load();
+    };
+    $("note-form").onsubmit = async (e) => {
+      e.preventDefault();
+      const f = new FormData(e.target);
+      const { error } = await sb.from("crm_notes").insert({ lead_id: lead.id, kind: f.get("kind"), body: f.get("body"), author_id: me.id });
+      if (error) return toast("Erreur : " + error.message);
+      e.target.reset(); loadNotes(lead.id);
+    };
+    loadNotes(lead.id);
+    loadRequests(lead.id);
+  }
+}
+const LANG_NAME = { fr: "Français", en: "Anglais", sw: "Swahili", ln: "Lingala", pt: "Portugais", es: "Espagnol", ar: "Arabe",
+  de: "Allemand", zh: "Chinois", ja: "Japonais", hi: "Hindi", lua: "Tshiluba", kg: "Kikongo" };
+const OUTPUT_LABEL = { subtitles: "Sous-titres", dubbing: "Doublage", both: "Sous-titres + doublage" };
+const REQ_STATUS = [["new", "Nouvelle"], ["quoted", "Devis envoyé"], ["accepted", "Acceptée"], ["done", "Livrée"], ["rejected", "Refusée"]];
+async function loadRequests(leadId) {
+  const box = $("reqs");
+  const { data, error } = await sb.from("translation_requests").select("*").eq("lead_id", leadId).order("created_at", { ascending: false });
+  if (error) { box.textContent = "Erreur : " + error.message; return; }
+  if (!data.length) { box.innerHTML = '<div class="empty" style="padding:10px 0">Aucune vidéo envoyée.</div>'; return; }
+  box.innerHTML = data.map((r) => `
+    <div class="note" data-req="${r.id}">
+      <small>${new Date(r.created_at).toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" })} · ${OUTPUT_LABEL[r.output] || r.output}</small>
+      <p>${r.video_url ? `<a href="${esc(r.video_url)}" target="_blank" rel="noopener noreferrer">${esc(r.video_url)}</a>`
+                       : `<button class="btn ghost small" data-file="${esc(r.storage_path)}">Télécharger ${esc(r.file_name || "le fichier")}</button>`}</p>
+      <p>${esc(LANG_NAME[r.source_language] || r.source_language || "Langue inconnue")} → ${r.target_languages.map((c) => esc(LANG_NAME[c] || c)).join(", ")}</p>
+      <select data-status style="max-width:200px;margin-top:6px">${REQ_STATUS.map(([k, v]) => `<option value="${k}" ${r.status === k ? "selected" : ""}>${v}</option>`).join("")}</select>
+    </div>`).join("");
+  box.querySelectorAll("[data-file]").forEach((b) => (b.onclick = async () => {
+    const { data: signed, error: err } = await sb.storage.from("translation-uploads").createSignedUrl(b.dataset.file, 3600);
+    if (err) return toast("Erreur : " + err.message);
+    window.open(signed.signedUrl, "_blank", "noopener");
+  }));
+  box.querySelectorAll("[data-status]").forEach((sel) => (sel.onchange = async () => {
+    const id = sel.closest("[data-req]").dataset.req;
+    const { error: err } = await sb.from("translation_requests").update({ status: sel.value }).eq("id", id);
+    toast(err ? "Erreur : " + err.message : "Statut de la demande mis à jour");
+  }));
+}
+async function loadNotes(leadId) {
+  const { data, error } = await sb.from("crm_notes").select("*").eq("lead_id", leadId).order("created_at", { ascending: false });
+  if (error) { $("notes").textContent = "Erreur : " + error.message; return; }
+  $("notes").innerHTML = data.length ? data.map((n) => `
+    <div class="note ${n.kind === "stage" ? "stage" : ""}">
+      <small>${KIND_LABEL[n.kind] || n.kind} · ${new Date(n.created_at).toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" })}</small>
+      <p>${esc(n.body)}</p>
+    </div>`).join("") : '<div class="empty" style="padding:10px 0">Aucune note pour l\'instant.</div>';
+}
+
+// ---------- Barre d'outils ----------
+$("q").oninput = render;
+$("f-source").onchange = render;
+document.querySelectorAll(".views button").forEach((b) => (b.onclick = () => {
+  view = b.dataset.view;
+  document.querySelectorAll(".views button").forEach((x) => x.classList.toggle("on", x === b));
+  render();
+}));
+$("add").onclick = () => openLead(null);
+$("export").onclick = () => {
+  const cols = ["center_name", "contact_name", "phone", "email", "city", "learners_estimate", "stage", "source", "next_action", "next_action_on", "expected_credits", "message", "created_at"];
+  const cell = (v) => '"' + String(v ?? "").replace(/"/g, '""') + '"';
+  const csv = [cols.join(";")].concat(filtered().map((l) => cols.map((c) => cell(c === "stage" ? STAGE_LABEL[l.stage] : l[c])).join(";"))).join("\n");
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8" }));
+  a.download = "prospects-professa-m-" + todayISO() + ".csv";
+  a.click();
+};
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeDrawer(); });
+
+boot();
+</script>
+</body>
+</html>
