@@ -1,0 +1,1016 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Professa Studio</title>
+<meta name="description" content="Studio de doublage vidéo : transcription, traduction et voix dans 10 langues.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%235b4bdb'/%3E%3Cpath d='M12 9l12 7-12 7z' fill='white'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@500;700&display=swap">
+<style>
+:root{
+  --bg:#f2f2f7; --surface:#fff; --fg:#191927; --muted:#5e5e74; --line:#dcdce8;
+  --accent:#5b4bdb; --accent-fg:#fff; --ok:#15803d; --warn:#b45309; --err:#b91c1c;
+  --player:#14141c; --player-fg:#f2f2f7; --pbtn:#262636; --pline:#3a3a52;
+  --display:"Space Grotesk",system-ui,sans-serif; --body:"Inter",system-ui,sans-serif;
+}
+@media (prefers-color-scheme: dark){:root{
+  --bg:#0e0e15; --surface:#181822; --fg:#ececf4; --muted:#a3a3b9; --line:#2c2c3c;
+  --accent:#8b7cf6; --accent-fg:#0e0e15; --ok:#4ade80; --warn:#fbbf24; --err:#f87171; color-scheme:dark}}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--body);font-size:15px;line-height:1.5}
+header.top{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;padding:14px max(16px,env(safe-area-inset-left));border-bottom:1px solid var(--line);background:var(--surface)}
+.brand{font-family:var(--display);font-weight:700;font-size:20px}
+.brand span{font-weight:500;color:var(--muted);font-size:15px;margin-left:6px}
+.status{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.chip{font-size:12px;padding:3px 10px;border-radius:20px;border:1px solid currentColor;color:var(--muted)}
+.chip.ok{color:var(--ok)} .chip.bad{color:var(--err)}
+.lock{display:flex;gap:6px;align-items:center}
+.lock input{min-width:0;width:160px;font:inherit;font-size:13px;padding:5px 8px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--fg)}
+.lock .btn{padding:5px 10px;font-size:13px}
+main{max-width:1080px;margin:0 auto;padding:24px max(16px,env(safe-area-inset-left)) 64px;display:grid;gap:20px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:18px;display:grid;gap:14px;min-width:0}
+h2{font-family:var(--display);font-size:18px;margin:0;display:flex;align-items:center;gap:10px}
+h2 .n{width:26px;height:26px;border-radius:50%;background:var(--accent);color:var(--accent-fg);display:inline-grid;place-items:center;font-size:14px;flex:none}
+.hint{font-size:13px;color:var(--muted);margin:0}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.btn{background:var(--surface);color:var(--fg);border:1px solid var(--line);border-radius:9px;padding:8px 14px;font:inherit;font-size:14px;cursor:pointer;position:relative}
+.btn:hover{border-color:var(--accent)}
+.btn:disabled{opacity:.5;cursor:default}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-fg);font-weight:600}
+.btn.big{font-size:16px;padding:12px 22px}
+.btn input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%}
+input[type=text],input[type=url]{flex:1;min-width:200px;font:inherit;padding:8px 10px;border:1px solid var(--line);border-radius:9px;background:var(--bg);color:var(--fg)}
+select.field{font:inherit;font-size:14px;padding:7px 10px;border:1px solid var(--line);border-radius:9px;background:var(--bg);color:var(--fg)}
+.drop{border:2px dashed var(--line);border-radius:12px;padding:22px;text-align:center;display:grid;gap:8px;justify-items:center}
+.drop.over{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 8%,transparent)}
+.langs{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:8px}
+.lang{display:flex;gap:8px;align-items:center;border:1px solid var(--line);border-radius:9px;padding:8px 10px;cursor:pointer}
+.lang small{color:var(--muted);font-size:12px;margin-left:auto}
+.lang small.sub{color:var(--warn)}
+.steps{display:grid;gap:6px}
+.step{display:grid;grid-template-columns:150px 1fr auto;gap:10px;align-items:center;font-size:14px}
+.step .pb{height:6px;background:var(--line);border-radius:4px;overflow:hidden}
+.step .pb i{display:block;height:100%;width:0;background:var(--accent);transition:width .3s}
+.step .s{font-size:13px;color:var(--muted);min-width:120px;text-align:right}
+.step .s.ok{color:var(--ok)} .step .s.warn{color:var(--warn)} .step .s.err{color:var(--err)}
+@media (max-width:600px){.step{grid-template-columns:1fr}.step .s{text-align:left}}
+
+/* Écran */
+.player{background:var(--player);color:var(--player-fg);border-radius:14px;overflow:hidden;position:relative}
+.screen{position:relative;background:#000;aspect-ratio:16/9;display:flex;align-items:center;justify-content:center}
+.screen video{width:100%;height:100%;object-fit:contain;display:block}
+.screen:fullscreen{aspect-ratio:auto}
+.sub{position:absolute;left:5%;right:5%;bottom:6%;text-align:center;pointer-events:none}
+.sub span{background:rgba(0,0,0,.72);color:#fff;font-weight:600;font-size:clamp(14px,2.4vw,26px);padding:4px 10px;border-radius:6px;line-height:1.5;box-decoration-break:clone;-webkit-box-decoration-break:clone}
+.bigplay{position:absolute;inset:0;margin:auto;width:78px;height:78px;border-radius:50%;border:0;background:var(--accent);color:var(--accent-fg);font-size:30px;cursor:pointer}
+.empty{position:absolute;color:#9a9ab0;font-size:15px}
+.rec{position:absolute;top:12px;left:12px;background:#e11d48;color:#fff;padding:3px 10px;border-radius:20px;font-size:13px;font-weight:600;animation:blink 1s infinite}
+@keyframes blink{50%{opacity:.45}}
+.bar{padding:8px 12px 12px;display:grid;gap:8px}
+.seek{width:100%;accent-color:var(--accent)}
+.ctrls{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
+.ctrls button,.ctrls select{background:var(--pbtn);color:var(--player-fg);border:1px solid var(--pline);border-radius:8px;padding:7px 10px;font:inherit;font-size:14px;cursor:pointer;min-width:40px}
+.ctrls button:hover{filter:brightness(1.25)}
+.ctrls button:disabled{opacity:.5;cursor:default}
+.ctrls .main{background:var(--accent);border-color:var(--accent);color:var(--accent-fg);min-width:52px;font-weight:600}
+.ctrls .exp{background:#16a34a;border-color:#16a34a;color:#fff;font-weight:600}
+.time{font-size:13px;opacity:.85;font-variant-numeric:tabular-nums;min-width:96px}
+.sp{flex:1}
+.vol{display:flex;align-items:center;gap:6px}
+.vol input{width:110px;accent-color:var(--accent)}
+.vol .pct{font-size:13px;min-width:42px;text-align:center;font-variant-numeric:tabular-nums}
+.toast{position:absolute;left:50%;top:16px;transform:translateX(-50%);background:rgba(0,0,0,.85);color:#fff;padding:10px 14px;border-radius:10px;font-size:14px;max-width:90%;text-align:center;opacity:0;pointer-events:none;transition:opacity .3s;z-index:3}
+.toast.on{opacity:1}
+@media (max-width:600px){.vol input{width:76px}.sp{display:none}.ctrls button{padding:6px 8px}}
+
+/* Exports et correction */
+.exports{display:flex;flex-wrap:wrap;gap:8px}
+.tablewrap{max-height:420px;overflow:auto;border:1px solid var(--line);border-radius:10px}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th,td{padding:6px 8px;border-bottom:1px solid var(--line);vertical-align:top;text-align:left}
+th{position:sticky;top:0;background:var(--surface);font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);z-index:1}
+td.t{white-space:nowrap;font-variant-numeric:tabular-nums;color:var(--muted);cursor:pointer}
+td textarea{width:100%;min-height:42px;resize:vertical;font:inherit;font-size:14px;padding:4px 6px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--fg)}
+td textarea.changed{border-color:var(--warn)}
+tr.now td{background:color-mix(in srgb,var(--accent) 10%,transparent)}
+
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.72);display:flex;align-items:center;justify-content:center;z-index:50;padding:16px}
+.mcard{background:var(--surface);color:var(--fg);border-radius:14px;padding:16px;width:min(880px,100%);display:grid;gap:12px}
+.mcard video{width:100%;border-radius:10px;background:#000;max-height:70vh}
+.mcard .info{flex:1;color:var(--muted);font-size:14px;min-width:0}
+a.btn{text-decoration:none;display:inline-block}
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="brand">Professa <span>Studio de doublage</span></div>
+  <div class="status">
+    <span id="status" class="status"><span class="chip">Vérification des services…</span></span>
+    <form class="lock" id="lock" hidden>
+      <input type="password" id="pass" placeholder="Mot de passe du studio" autocomplete="current-password" aria-label="Mot de passe du studio">
+      <button class="btn primary" type="submit">Entrer</button>
+    </form>
+  </div>
+</header>
+
+<main>
+  <!-- 1. Source -->
+  <section class="card">
+    <h2><span class="n">1</span> Vidéo source</h2>
+    <div class="drop" id="drop">
+      <div>Glisse ta vidéo MP4 ici</div>
+      <label class="btn primary">Choisir un fichier vidéo<input type="file" id="file" accept="video/*"></label>
+    </div>
+    <div class="row">
+      <input type="url" id="url" placeholder="Ou colle un lien direct vers un fichier MP4 (https://…/video.mp4)">
+      <button class="btn" id="loadUrl">Charger le lien</button>
+    </div>
+    <div class="row">
+      <label for="srcLang">Langue parlée dans la vidéo</label>
+      <select class="field" id="srcLang"></select>
+      <span class="hint">L'indiquer rend la transcription plus fiable.</span>
+    </div>
+    <p class="hint">Les liens YouTube, Facebook ou TikTok ne peuvent pas être doublés. Pour tes propres vidéos YouTube : YouTube Studio → Contenu → ⋮ → Télécharger, puis importe le fichier MP4 ici.</p>
+    <p class="hint" id="srcInfo"></p>
+  </section>
+
+  <!-- 2. Langues -->
+  <section class="card">
+    <h2><span class="n">2</span> Langues de doublage</h2>
+    <div class="row">
+      <button class="btn" id="allLangs">Tout cocher</button>
+      <button class="btn" id="noLangs">Tout décocher</button>
+    </div>
+    <div class="langs" id="langs"></div>
+    <div class="row">
+      <label for="bg">Son original en fond</label>
+      <input type="range" id="bg" min="0" max="40" value="12" style="accent-color:var(--accent)">
+      <span id="bgPct">12 %</span>
+      <span class="hint">Garde la musique et l'ambiance sous la voix traduite. Réglable à tout moment.</span>
+    </div>
+  </section>
+
+  <!-- 3. Doublage -->
+  <section class="card">
+    <h2><span class="n">3</span> Doublage</h2>
+    <div class="row">
+      <button class="btn primary big" id="go" disabled>Lancer le doublage</button>
+      <span class="hint" id="goHint">Choisis d'abord une vidéo.</span>
+    </div>
+    <div class="steps" id="steps"></div>
+    <p class="hint">Garde cet onglet ouvert pendant le doublage. Rien n'est stocké en ligne : pense à « Enregistrer le projet » (étape 5) pour reprendre plus tard sans tout refaire.</p>
+  </section>
+
+  <!-- 4. Écran -->
+  <section class="card">
+    <h2><span class="n">4</span> Écran</h2>
+    <div class="player">
+      <div class="screen" id="screen">
+        <video id="video" playsinline preload="metadata"></video>
+        <span class="empty" id="empty">Aucune vidéo chargée</span>
+        <div class="sub" id="sub"></div>
+        <button class="bigplay" id="bigplay" aria-label="Lire" hidden>▶</button>
+        <span class="rec" id="rec" hidden>● REC</span>
+      </div>
+      <div class="bar">
+        <input type="range" class="seek" id="seek" min="0" max="1000" value="0" aria-label="Position dans la vidéo">
+        <div class="ctrls">
+          <button data-a="start" title="Début" aria-label="Début">⏮</button>
+          <button data-a="back" title="Reculer de 10 s (←)" aria-label="Reculer de 10 secondes">↺10</button>
+          <button data-a="toggle" class="main" title="Lecture / Pause (Espace)" aria-label="Lecture ou pause">▶</button>
+          <button data-a="stop" title="Arrêter" aria-label="Arrêter">⏹</button>
+          <button data-a="fwd" title="Avancer de 10 s (→)" aria-label="Avancer de 10 secondes">10↻</button>
+          <button data-a="end" title="Fin" aria-label="Fin">⏭</button>
+          <span class="time" id="time">0:00 / 0:00</span>
+          <span class="sp"></span>
+          <select id="lang" title="Langue du doublage" aria-label="Langue du doublage"></select>
+          <select id="rate" title="Vitesse" aria-label="Vitesse">
+            <option value="0.75">0.75×</option><option value="1" selected>1×</option>
+            <option value="1.25">1.25×</option><option value="1.5">1.5×</option>
+          </select>
+          <button data-a="cc" title="Sous-titres (C)" aria-label="Sous-titres">CC</button>
+          <span class="vol">
+            <button data-a="mute" title="Muet (M)" aria-label="Muet">🔊</button>
+            <input type="range" id="vol" min="0" max="400" step="5" value="100" aria-label="Volume">
+            <span class="pct" id="volPct">100%</span>
+            <button data-a="max" title="Volume maximum (400 %)" aria-label="Volume maximum">MAX</button>
+          </span>
+          <button data-a="fs" title="Plein écran (F)" aria-label="Plein écran">⛶</button>
+          <button data-a="export" class="exp" title="Créer la vidéo doublée">⬇ Télécharger</button>
+        </div>
+      </div>
+      <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    </div>
+  </section>
+
+  <!-- 5. Exports -->
+  <section class="card">
+    <h2><span class="n">5</span> Télécharger</h2>
+    <p class="hint">Les fichiers concernent la langue choisie sur l'écran. La vidéo se crée en rejouant le film en entier : laisse l'onglet visible jusqu'à la fin (s'il passe en arrière-plan, l'enregistrement se met en pause).</p>
+    <div class="exports">
+      <button class="btn primary" data-a="export">⬇ Vidéo doublée (image + voix)</button>
+      <button class="btn" id="dlWav">⬇ Piste audio seule (WAV)</button>
+      <button class="btn" id="dlSrt">⬇ Sous-titres (SRT)</button>
+      <button class="btn" id="dlTxt">⬇ Texte complet (TXT)</button>
+    </div>
+    <p class="hint">Projet : transcription, traductions et voix dans un seul fichier. Recharge la même vidéo puis ouvre le projet pour tout retrouver sans consommer de quota.</p>
+    <div class="exports">
+      <button class="btn" id="saveProj">💾 Enregistrer le projet</button>
+      <label class="btn">📂 Ouvrir un projet<input type="file" id="openProj" accept=".json,application/json"></label>
+    </div>
+  </section>
+
+  <!-- 6. Correction -->
+  <section class="card">
+    <h2><span class="n">6</span> Corriger les textes</h2>
+    <p class="hint" id="editHint">Les phrases de la langue affichée sur l'écran apparaîtront ici. Clique sur un temps pour y aller.</p>
+    <div class="tablewrap"><table><thead><tr><th>Temps</th><th>Texte</th></tr></thead><tbody id="rows"></tbody></table></div>
+    <div class="row">
+      <button class="btn primary" id="regen" disabled>Régénérer la voix de cette langue</button>
+      <button class="btn" id="retranslate" hidden>Retraduire toutes les langues avec ce texte</button>
+      <span class="hint" id="regenHint"></span>
+    </div>
+  </section>
+</main>
+
+<div class="modal" id="modal" hidden>
+  <div class="mcard" role="dialog" aria-modal="true" aria-label="Vidéo prête">
+    <h2>Ta vidéo doublée est prête</h2>
+    <video id="preview" controls playsinline></video>
+    <div class="row">
+      <span class="info" id="mInfo"></span>
+      <a class="btn primary" id="mDl">⬇ Enregistrer la vidéo</a>
+      <button class="btn" id="mClose">Fermer</button>
+    </div>
+  </div>
+</div>
+
+<script>
+'use strict';
+/* ================= Configuration ================= */
+var LANGS = [
+  { code: 'fr', name: 'Français',  llm: 'French',                        tts: 'fr-FR',  whisper: ['french', 'fr'] },
+  { code: 'en', name: 'Anglais',   llm: 'English',                       tts: 'en-US',  whisper: ['english', 'en'] },
+  { code: 'pt', name: 'Portugais', llm: 'European Portuguese',           tts: 'pt-PT',  whisper: ['portuguese', 'pt'] },
+  { code: 'es', name: 'Espagnol',  llm: 'Spanish',                       tts: 'es-ES',  whisper: ['spanish', 'es'] },
+  { code: 'ar', name: 'Arabe',     llm: 'Modern Standard Arabic',        tts: 'ar-XA',  whisper: ['arabic', 'ar'] },
+  { code: 'sw', name: 'Swahili',   llm: 'Swahili',                       tts: 'sw-KE',  whisper: ['swahili', 'sw'] },
+  { code: 'de', name: 'Allemand',  llm: 'German',                        tts: 'de-DE',  whisper: ['german', 'de'] },
+  { code: 'zh', name: 'Chinois',   llm: 'Simplified Chinese (Mandarin)', tts: 'cmn-CN', whisper: ['chinese', 'zh'] },
+  { code: 'ln', name: 'Lingala',   llm: 'Lingala',                       tts: null,     whisper: ['lingala', 'ln'] },
+  { code: 'kg', name: 'Kikongo',   llm: 'Kikongo (Kituba)',              tts: null,     whisper: ['kongo', 'kg'], noStt: true }
+];
+var BOOST_MAX = 4;          // volume jusqu'à 400 %
+var STT_SR = 16000;         // fréquence envoyée à Whisper
+var STT_CHUNK_S = 100;      // secondes d'audio par envoi (reste sous la limite de 6 Mo de Netlify)
+var CLIP_SR = 24000;        // fréquence des voix Google (économise la mémoire)
+var TRANSLATE_BATCH = 25;
+var TTS_BATCH = 6;
+var PASS_KEY = 'professa.pass';
+
+/* ================= État ================= */
+var $ = function (s) { return document.querySelector(s); };
+var video = $('#video');
+var S = {
+  name: 'video', srcBlob: null, stt: null, duration: 0,
+  srcLang: null, transcript: [], dub: {}, cur: 'orig',
+  cc: true, vol: 1, muted: false, busy: false, recording: false, rec: null,
+  bg: 0.12, health: null, pass: ''
+};
+try { S.pass = localStorage.getItem(PASS_KEY) || ''; } catch (e) {}
+
+/* ================= Audio : routage, amplification, voix ================= */
+// vidéo → origGain ┐
+// voix  → voiceGain ┴→ bus ─→ master (volume ≤ 400 %) → limiteur → haut-parleurs
+//                         └→ limiteur doux → enregistrement (toujours à 100 %)
+var ctx, bus, master, limiter, recDest, origGain, voiceGain, mediaSrc;
+var playingClips = [], dubT0 = 0, dubPos0 = 0;
+function audio() {
+  if (!ctx) {
+    ctx = new (window.AudioContext || window.webkitAudioContext)();
+    bus = ctx.createGain();
+    master = ctx.createGain();
+    limiter = ctx.createDynamicsCompressor();
+    limiter.threshold.value = -8; limiter.knee.value = 4; limiter.ratio.value = 20;
+    limiter.attack.value = 0.002; limiter.release.value = 0.2;
+    var recLim = ctx.createDynamicsCompressor();
+    recLim.threshold.value = -2; recLim.knee.value = 2; recLim.ratio.value = 12;
+    recLim.attack.value = 0.003; recLim.release.value = 0.2;
+    recDest = ctx.createMediaStreamDestination();
+    bus.connect(master); master.connect(limiter); limiter.connect(ctx.destination);
+    bus.connect(recLim); recLim.connect(recDest);
+    origGain = ctx.createGain(); origGain.connect(bus);
+    voiceGain = ctx.createGain(); voiceGain.connect(bus);
+    mediaSrc = ctx.createMediaElementSource(video); mediaSrc.connect(origGain);
+    applyVol();
+  }
+  if (ctx.state === 'suspended') ctx.resume();
+}
+function applyVol() { if (master) master.gain.setTargetAtTime(S.muted ? 0 : S.vol, ctx.currentTime, 0.01); }
+function hasDubVoice() { var d = S.dub[S.cur]; return S.cur !== 'orig' && d && d.voice && d.dec; }
+function applyOrigLevel() { if (origGain) origGain.gain.setTargetAtTime(hasDubVoice() ? S.bg : 1, ctx.currentTime, 0.02); }
+
+// Les voix sont gardées compressées (MP3) et seule la langue affichée est décodée :
+// la mémoire reste raisonnable même avec 8 langues sur une vidéo longue.
+var decCtx = null;
+function decodeB64(b64) {
+  if (!decCtx) decCtx = new (window.OfflineAudioContext || window.webkitOfflineAudioContext)(1, 1, CLIP_SR);
+  return decCtx.decodeAudioData(bufFromB64(b64));
+}
+function ensureDecoded(code) {
+  var d = S.dub[code];
+  if (!d || !d.voice) return Promise.resolve();
+  if (d.dec) return Promise.resolve();
+  if (!d._decoding) {
+    d._decoding = pool(d.clips.map(function (c, i) { return i; }), 4, async function (i) {
+      if (!d.clips[i]) return null;
+      try { return await decodeB64(d.clips[i]); } catch (e) { return null; }
+    }).then(function (bufs) { d.dec = bufs; d._decoding = null; });
+  }
+  return d._decoding;
+}
+function freeDecoded(keep) { for (var c in S.dub) if (c !== keep && !S.dub[c]._decoding) S.dub[c].dec = null; }
+
+// Calcule à quel moment chaque phrase démarre (sans chevauchement entre deux phrases).
+function place(d) {
+  var prevEnd = 0;
+  d.at = d.segs.map(function (s, i) {
+    if (!d.clips[i] || !d.dur[i]) return null;
+    var t = Math.max(s.start, prevEnd); prevEnd = t + d.dur[i]; return t;
+  });
+}
+
+function stopDub() {
+  playingClips.forEach(function (s) { try { s.stop(); } catch (e) {} s.disconnect(); });
+  playingClips = []; dubT0 = 0;
+}
+function startDub() {
+  stopDub();
+  if (!ctx || video.paused || !hasDubVoice()) return;
+  var d = S.dub[S.cur], pos = video.currentTime, r = video.playbackRate || 1, now = ctx.currentTime + 0.03;
+  d.segs.forEach(function (s, i) {
+    var b = d.dec[i], at = d.at[i];
+    if (!b || at == null || at + d.dur[i] <= pos) return;
+    var src = ctx.createBufferSource();
+    src.buffer = b; src.playbackRate.value = r; src.connect(voiceGain);
+    if (at >= pos) src.start(now + (at - pos) / r); else src.start(now, pos - at);
+    playingClips.push(src);
+  });
+  dubT0 = now; dubPos0 = pos;
+}
+function route() { audio(); applyOrigLevel(); startDub(); }
+video.addEventListener('playing', route);
+video.addEventListener('waiting', stopDub);
+video.addEventListener('pause', function () { stopDub(); ui(); });
+video.addEventListener('seeking', stopDub);
+video.addEventListener('seeked', function () { if (!video.paused) startDub(); });
+video.addEventListener('ratechange', function () { if (!video.paused) startDub(); });
+video.addEventListener('ended', function () { stopDub(); ui(); });
+setInterval(function () { // corrige le décalage voix / image (mise en mémoire tampon, onglet ralenti…)
+  if (dubT0 && !video.paused && ctx.currentTime > dubT0) {
+    var expected = dubPos0 + (ctx.currentTime - dubT0) * video.playbackRate;
+    if (Math.abs(expected - video.currentTime) > 0.25) startDub();
+  }
+}, 1000);
+
+/* ================= Outils ================= */
+function toast(msg, ms) {
+  var t = $('#toast'); t.textContent = msg; t.classList.add('on');
+  clearTimeout(t._h); t._h = setTimeout(function () { t.classList.remove('on'); }, ms || 4500);
+}
+function fmt(t) { t = Math.max(0, t || 0); var h = Math.floor(t / 3600), m = Math.floor(t % 3600 / 60), s = Math.floor(t % 60); return (h ? h + ':' + (m < 10 ? '0' : '') : '') + m + ':' + (s < 10 ? '0' : '') + s; }
+function srtTime(t) {
+  var ms = Math.round(t * 1000), h = Math.floor(ms / 3600000), m = Math.floor(ms % 3600000 / 60000), s = Math.floor(ms % 60000 / 1000), r = ms % 1000;
+  var p = function (n, w) { return String(n).padStart(w, '0'); };
+  return p(h, 2) + ':' + p(m, 2) + ':' + p(s, 2) + ',' + p(r, 3);
+}
+function esc(t) { return String(t).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+function sleep(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
+function langBy(code) { return LANGS.find(function (l) { return l.code === code; }); }
+function b64FromBuf(buf) {
+  var bytes = new Uint8Array(buf), s = '';
+  for (var i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+  return btoa(s);
+}
+function bufFromB64(b64) { var s = atob(b64), a = new Uint8Array(s.length); for (var i = 0; i < s.length; i++) a[i] = s.charCodeAt(i); return a.buffer; }
+function wav16(channels, sr) {
+  var n = channels[0].length, ch = channels.length, buf = new ArrayBuffer(44 + n * ch * 2), v = new DataView(buf);
+  var w = function (o, s) { for (var i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i)); };
+  w(0, 'RIFF'); v.setUint32(4, 36 + n * ch * 2, true); w(8, 'WAVE'); w(12, 'fmt ');
+  v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, ch, true); v.setUint32(24, sr, true);
+  v.setUint32(28, sr * ch * 2, true); v.setUint16(32, ch * 2, true); v.setUint16(34, 16, true); w(36, 'data'); v.setUint32(40, n * ch * 2, true);
+  var o = 44;
+  for (var i = 0; i < n; i++) for (var c = 0; c < ch; c++) { var x = Math.max(-1, Math.min(1, channels[c][i])); v.setInt16(o, x < 0 ? x * 0x8000 : x * 0x7fff, true); o += 2; }
+  return buf;
+}
+function saveBlob(blob, name) {
+  var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(function () { URL.revokeObjectURL(a.href); }, 60000);
+}
+async function pool(items, n, fn) {
+  var i = 0, out = new Array(items.length);
+  async function worker() { while (i < items.length) { var k = i++; out[k] = await fn(items[k], k); } }
+  var ws = []; for (var w = 0; w < Math.min(n, items.length); w++) ws.push(worker());
+  await Promise.all(ws);
+  return out;
+}
+async function api(name, body) {
+  var last, MAX = 5;
+  for (var attempt = 1; attempt <= MAX; attempt++) {
+    var r, d;
+    try {
+      r = await fetch('/.netlify/functions/' + name, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Studio-Pass': S.pass },
+        body: JSON.stringify(body)
+      });
+      d = await r.json().catch(function () { return { error: 'Réponse invalide du serveur (' + r.status + ').' }; });
+    } catch (e) { d = { error: 'Connexion impossible au serveur.' }; r = { ok: false, status: 0 }; }
+    if (r.ok && !d.error) return d;
+    last = new Error(d.error || ('Erreur ' + r.status));
+    last.data = d; last.status = r.status;
+    if (r.status === 401) { showLock(true); break; }
+    if (d.voiceUnavailable || d.retrySmaller || d.missingKey || (r.status >= 400 && r.status < 500 && r.status !== 429 && r.status !== 408)) break;
+    if (attempt === MAX) break;
+    // Quota dépassé (429) : on attend le délai demandé par le service avant de réessayer.
+    var wait = r.status === 429 ? (d.retryAfter ? d.retryAfter * 1000 + 500 : 6000 * attempt) : 1500 * attempt;
+    await sleep(Math.min(wait, 90000));
+  }
+  throw last;
+}
+
+/* ================= Accès et état des services ================= */
+function showLock(on) { $('#lock').hidden = !on; if (on) setTimeout(function () { $('#pass').focus(); }, 50); }
+$('#lock').addEventListener('submit', function (e) {
+  e.preventDefault();
+  S.pass = $('#pass').value;
+  try { localStorage.setItem(PASS_KEY, S.pass); } catch (er) {}
+  checkHealth();
+});
+async function checkHealth() {
+  var el = $('#status');
+  try {
+    var r = await fetch('/.netlify/functions/health', { cache: 'no-store', headers: { 'X-Studio-Pass': S.pass } });
+    if (!r.ok) throw new Error();
+    var h = await r.json(); S.health = h;
+    if (h.locked && !h.authed) {
+      el.innerHTML = '<span class="chip bad">🔒 Studio protégé</span>';
+      showLock(true);
+      if (S.pass) $('#pass').setCustomValidity('Mot de passe incorrect'), $('#pass').reportValidity();
+      return;
+    }
+    $('#pass').setCustomValidity(''); showLock(false);
+    el.innerHTML = '<span class="chip ' + (h.groq ? 'ok' : 'bad') + '">Transcription & traduction ' + (h.groq ? '✓' : '✗ clé Groq manquante') + '</span>' +
+      '<span class="chip ' + (h.google ? 'ok' : 'bad') + '">Voix ' + (h.google ? '✓' : '✗ clé Google manquante') + '</span>';
+  } catch (e) {
+    el.innerHTML = '<span class="chip bad">Fonctions Netlify introuvables (voir LISEZMOI)</span>';
+  }
+}
+$('#pass').addEventListener('input', function () { this.setCustomValidity(''); });
+
+/* ================= Étape 1 : charger la vidéo ================= */
+// Lit le son de la vidéo une seule fois, directement en 16 kHz mono (format attendu par Whisper).
+async function decodeForStt(blob) {
+  var tmp = new (window.OfflineAudioContext || window.webkitOfflineAudioContext)(1, 1, STT_SR);
+  var buf = await tmp.decodeAudioData(await blob.arrayBuffer());
+  var n = buf.length, nc = buf.numberOfChannels, mono = new Float32Array(n);
+  for (var c = 0; c < nc; c++) { var ch = buf.getChannelData(c); for (var i = 0; i < n; i++) mono[i] += ch[i] / nc; }
+  return { mono: mono, duration: buf.duration };
+}
+async function loadSource(blob, name) {
+  if (S.busy || S.recording) return toast('Attends la fin de l\'opération en cours.');
+  audio();
+  stopDub(); video.pause();
+  S.srcBlob = blob; S.name = (name || 'video').replace(/\.[^.]+$/, '').replace(/[^\w\-]+/g, '-').slice(0, 60) || 'video';
+  S.transcript = []; S.dub = {}; S.cur = 'orig'; S.srcLang = null; S.stt = null; stepState = {};
+  if (video._url) URL.revokeObjectURL(video._url);
+  video._url = URL.createObjectURL(blob); video.src = video._url;
+  $('#empty').hidden = true;
+  $('#srcInfo').textContent = 'Lecture du son de la vidéo…';
+  buildLangSelect(); renderSteps(); renderRows(); ui();
+  try {
+    var r = await decodeForStt(blob);
+    if (S.srcBlob !== blob) return; // une autre vidéo a été choisie entre-temps
+    S.stt = r.mono; S.duration = r.duration;
+    $('#srcInfo').textContent = '✅ ' + (name || 'Vidéo') + ' · ' + fmt(S.duration) + ' · ' + (blob.size / 1048576).toFixed(1) + ' Mo';
+  } catch (e) {
+    if (S.srcBlob !== blob) return;
+    S.stt = null;
+    $('#srcInfo').textContent = '⚠️ Impossible de lire le son de cette vidéo. Essaie un MP4 (H.264 + AAC).';
+  }
+  ui();
+}
+$('#file').addEventListener('change', function () { if (this.files[0]) loadSource(this.files[0], this.files[0].name); this.value = ''; });
+var drop = $('#drop');
+['dragenter', 'dragover'].forEach(function (ev) { drop.addEventListener(ev, function (e) { e.preventDefault(); drop.classList.add('over'); }); });
+['dragleave', 'drop'].forEach(function (ev) { drop.addEventListener(ev, function (e) { e.preventDefault(); drop.classList.remove('over'); }); });
+drop.addEventListener('drop', function (e) { var f = e.dataTransfer.files[0]; if (f) loadSource(f, f.name); });
+$('#loadUrl').addEventListener('click', async function () {
+  var url = $('#url').value.trim();
+  if (!url) return;
+  if (/youtu\.?be|facebook\.com|fb\.watch|tiktok\.com|instagram\.com/i.test(url)) {
+    $('#srcInfo').textContent = '⚠️ Ce lien vient d\'une plateforme qui bloque le téléchargement. Télécharge la vidéo en MP4 puis importe le fichier.';
+    return;
+  }
+  audio(); // à faire pendant le clic, avant l'attente du téléchargement
+  $('#srcInfo').textContent = 'Téléchargement de la vidéo…';
+  try {
+    var r = await fetch(url); if (!r.ok) throw new Error('HTTP ' + r.status);
+    var blob = await r.blob();
+    loadSource(blob, decodeURIComponent(url.split('/').pop().split('?')[0]));
+  } catch (e) {
+    $('#srcInfo').textContent = '⚠️ Ce lien refuse d\'être lu depuis un autre site. Télécharge la vidéo puis importe le fichier.';
+  }
+});
+$('#srcLang').innerHTML = '<option value="">Détection automatique</option>' + LANGS.filter(function (l) { return !l.noStt; })
+  .map(function (l) { return '<option value="' + l.whisper[1] + '">' + l.name + '</option>'; }).join('');
+
+/* ================= Étape 2 : langues ================= */
+function renderLangs() {
+  $('#langs').innerHTML = LANGS.map(function (l) {
+    return '<label class="lang"><input type="checkbox" value="' + l.code + '" checked> ' + l.name +
+      (l.tts ? '<small>voix</small>' : '<small class="sub">sous-titres</small>') + '</label>';
+  }).join('');
+}
+function chosenLangs() { return Array.prototype.map.call(document.querySelectorAll('#langs input:checked'), function (i) { return langBy(i.value); }); }
+$('#allLangs').onclick = function () { document.querySelectorAll('#langs input').forEach(function (i) { i.checked = true; }); };
+$('#noLangs').onclick = function () { document.querySelectorAll('#langs input').forEach(function (i) { i.checked = false; }); };
+$('#bg').addEventListener('input', function () {
+  S.bg = this.value / 100; $('#bgPct').textContent = this.value + ' %';
+  applyOrigLevel(); // effet immédiat, sans recalcul
+});
+
+/* ================= Étape 3 : doublage ================= */
+var stepState = {};
+function setStep(key, label, pct, status, cls) {
+  stepState[key] = { label: label, pct: pct, status: status, cls: cls || '' };
+  renderSteps();
+}
+function renderSteps() {
+  $('#steps').innerHTML = Object.keys(stepState).map(function (k) {
+    var s = stepState[k];
+    return '<div class="step"><span>' + esc(s.label) + '</span><span class="pb"><i style="width:' + Math.round(s.pct) + '%"></i></span>' +
+      '<span class="s ' + s.cls + '">' + esc(s.status) + '</span></div>';
+  }).join('');
+}
+
+async function transcribe() {
+  var mono = S.stt, chunks = [], CH = STT_CHUNK_S * STT_SR, hint = $('#srcLang').value;
+  for (var i = 0; i < mono.length; i += CH) chunks.push({ off: i / STT_SR, data: mono.subarray(i, Math.min(mono.length, i + CH)) });
+  var done = 0;
+  setStep('stt', 'Transcription', 2, 'En cours…');
+  var res = await pool(chunks, 2, async function (c) {
+    var d = await api('transcribe', { audio: b64FromBuf(wav16([c.data], STT_SR)), language: hint || undefined });
+    done++; setStep('stt', 'Transcription', done / chunks.length * 100, done + '/' + chunks.length + ' parties');
+    return { c: c, d: d };
+  });
+  var segs = [], lang = hint || null;
+  res.forEach(function (x) {
+    lang = lang || x.d.language;
+    x.d.segments.forEach(function (sg) { segs.push({ start: sg.start + x.c.off, end: Math.min(sg.end + x.c.off, S.duration), text: sg.text }); });
+  });
+  segs.sort(function (a, b) { return a.start - b.start; });
+  return { segs: segs.filter(function (s) { return s.end > s.start && s.text; }), lang: (lang || '').toLowerCase() };
+}
+
+function isSourceLang(L) { return S.srcLang && L.whisper.indexOf(S.srcLang) >= 0; }
+
+async function translateAll(L, texts) {
+  var batches = [];
+  for (var i = 0; i < texts.length; i += TRANSLATE_BATCH) batches.push({ i: i, items: texts.slice(i, i + TRANSLATE_BATCH) });
+  var out = new Array(texts.length), done = 0;
+  await pool(batches, 2, async function (b) {
+    var t;
+    try { t = (await api('translate', { target: L.llm, texts: b.items })).t; }
+    catch (e) {
+      if (!(e.data && e.data.retrySmaller)) throw e;
+      t = []; // en cas de décalage, on traduit phrase par phrase
+      for (var k = 0; k < b.items.length; k++) t.push((await api('translate', { target: L.llm, texts: [b.items[k]] })).t[0]);
+    }
+    t.forEach(function (x, k) { out[b.i + k] = x; });
+    done += b.items.length;
+    setStep(L.code, L.name, done / texts.length * 40, 'Traduction ' + Math.round(done / texts.length * 100) + ' %');
+  });
+  return out;
+}
+
+// Crée les voix. Seules les phrases nouvelles ou modifiées sont envoyées à Google (économie de quota).
+async function voices(L, d, pctFrom) {
+  var segs = d.segs, n = segs.length, dec = new Array(n);
+  var todo = []; segs.forEach(function (s, i) {
+    if (!s.text) { d.clips[i] = null; d.dur[i] = 0; d.spoken[i] = ''; return; }
+    if (!(d.clips[i] && d.spoken[i] === s.text)) todo.push(i);
+  });
+  var slot = function (i) { var next = i + 1 < n ? segs[i + 1].start : S.duration; return Math.max(0.4, next - segs[i].start - 0.05); };
+  var done = 0, total = todo.length * 1.2 || 1, failed = 0;
+  async function run(list, rateOf, label) {
+    var batches = [];
+    for (var i = 0; i < list.length; i += TTS_BATCH) batches.push(list.slice(i, i + TTS_BATCH));
+    await pool(batches, 3, async function (b) {
+      var res = await api('tts', { lang: L.tts, items: b.map(function (i) { return { text: segs[i].text, rate: rateOf(i) }; }) });
+      for (var k = 0; k < b.length; k++) {
+        var i = b[k], a = res.audio[k];
+        if (!a) continue;
+        try { dec[i] = await decodeB64(a); d.clips[i] = a; d.dur[i] = dec[i].duration; d.spoken[i] = segs[i].text; } catch (e) {}
+      }
+      done += b.length;
+      setStep(L.code, L.name, pctFrom + Math.min(1, done / total) * (95 - pctFrom), label);
+    });
+  }
+  if (todo.length) await run(todo, function () { return 1; }, 'Création des voix…');
+  // Les phrases trop longues pour leur créneau sont relues un peu plus vite.
+  var tooLong = todo.filter(function (i) { return dec[i] && dec[i].duration > slot(i) * 1.08; });
+  if (tooLong.length) await run(tooLong, function (i) { return Math.min(1.5, dec[i].duration / slot(i) * 1.03); }, 'Ajustement du rythme…');
+  todo.forEach(function (i) { if (!dec[i] || d.spoken[i] !== segs[i].text) { failed++; d.clips[i] = null; d.dur[i] = 0; d.spoken[i] = ''; } });
+  return { failed: failed, generated: todo.length - failed };
+}
+
+function newDub(segs, prev) {
+  var same = prev && prev.clips && prev.clips.length === segs.length;
+  var n = segs.length, blank = function (v) { return new Array(n).fill(v); };
+  return {
+    segs: segs,
+    clips: same ? prev.clips.slice() : blank(null),
+    spoken: same ? prev.spoken.slice() : blank(''),
+    dur: same ? prev.dur.slice() : blank(0),
+    at: [], dec: null, voice: false, original: false
+  };
+}
+
+async function dubLanguage(L, texts) {
+  var prev = S.dub[L.code];
+  try {
+    var edited = !!texts;
+    if (!texts) {
+      var src = S.transcript.map(function (s) { return s.text; });
+      texts = isSourceLang(L) ? src : await translateAll(L, src);
+    }
+    var segs = S.transcript.map(function (s, i) { return { start: s.start, end: s.end, text: String(texts[i] || '').trim() }; });
+    var d = newDub(segs, prev);
+    if (!prev) { S.dub[L.code] = d; buildLangSelect(); } // sous-titres disponibles tout de suite
+    if (!L.tts) { S.dub[L.code] = d; setStep(L.code, L.name, 100, 'Sous-titres prêts', 'warn'); buildLangSelect(); return; }
+    if (isSourceLang(L) && !edited) { d.original = true; S.dub[L.code] = d; setStep(L.code, L.name, 100, 'Langue d\'origine', 'ok'); buildLangSelect(); return; }
+    setStep(L.code, L.name, 40, 'Création des voix…');
+    var res = await voices(L, d, 40);
+    place(d);
+    d.voice = d.clips.some(Boolean);
+    S.dub[L.code] = d;
+    if (S.cur === L.code) { await ensureDecoded(L.code); applyOrigLevel(); if (!video.paused) startDub(); }
+    var note = res.generated ? '' : ' (aucune phrase modifiée)';
+    if (res.failed) setStep(L.code, L.name, 100, 'Prêt · ' + res.failed + ' phrase(s) sans voix', 'warn');
+    else setStep(L.code, L.name, 100, 'Prêt ✓' + note, 'ok');
+    buildLangSelect();
+  } catch (e) {
+    if (e.data && e.data.voiceUnavailable) {
+      if (!S.dub[L.code] || !S.dub[L.code].voice) S.dub[L.code] = d || newDub(S.transcript.map(function (s, i) { return { start: s.start, end: s.end, text: String((texts || [])[i] || '').trim() }; }));
+      setStep(L.code, L.name, 100, 'Voix indisponible : sous-titres', 'warn');
+      buildLangSelect();
+    } else setStep(L.code, L.name, 100, 'Erreur : ' + e.message, 'err');
+  }
+}
+
+$('#go').addEventListener('click', async function () {
+  if (S.busy || !S.stt) return;
+  var langs = chosenLangs();
+  if (!langs.length) return toast('Coche au moins une langue.');
+  S.busy = true; ui(); renderRows(); stepState = {};
+  try {
+    if (!S.transcript.length) {
+      var r = await transcribe();
+      if (!r.segs.length) throw new Error('Aucune parole détectée dans la vidéo.');
+      S.transcript = r.segs; S.srcLang = r.lang;
+      setStep('stt', 'Transcription', 100, r.segs.length + ' phrases · langue : ' + (r.lang || '?'), 'ok');
+      buildLangSelect(); renderRows();
+    }
+    langs.forEach(function (L) { setStep(L.code, L.name, 0, 'En attente'); });
+    await pool(langs, 2, function (L) { return dubLanguage(L); });
+    var firstReady = langs.find(function (L) { return S.dub[L.code] && S.dub[L.code].voice; });
+    if (firstReady && S.cur === 'orig') setLang(firstReady.code);
+    toast('Doublage terminé. Choisis la langue sur l\'écran.');
+  } catch (e) {
+    setStep('stt', 'Transcription', 100, 'Erreur : ' + e.message, 'err');
+  }
+  S.busy = false; ui(); renderRows();
+});
+
+/* ================= Étape 4 : écran ================= */
+function buildLangSelect() {
+  var sel = $('#lang'), cur = S.cur;
+  var opts = ['<option value="orig">Original' + (S.srcLang ? ' (' + esc(S.srcLang) + ')' : '') + '</option>'];
+  LANGS.forEach(function (L) {
+    var d = S.dub[L.code]; if (!d) return;
+    opts.push('<option value="' + L.code + '">' + L.name + (d.voice ? '' : d.original ? ' (voix originale)' : ' (sous-titres)') + '</option>');
+  });
+  sel.innerHTML = opts.join('');
+  sel.value = S.dub[cur] || cur === 'orig' ? cur : 'orig';
+}
+async function setLang(code) {
+  S.cur = code; $('#lang').value = code;
+  var d = S.dub[code];
+  freeDecoded(code);
+  if (d && !d.voice && !d.original) { S.cc = true; toast('Pas de voix pour cette langue : sous-titres affichés.'); }
+  renderRows(); ui();
+  if (d && d.voice && !d.dec) {
+    toast('Préparation de la voix…', 2000);
+    await ensureDecoded(code);
+    if (S.cur !== code) return;
+  }
+  if (ctx) { applyOrigLevel(); if (!video.paused) startDub(); }
+}
+$('#lang').addEventListener('change', function () { setLang(this.value); });
+$('#rate').addEventListener('change', function () { video.playbackRate = parseFloat(this.value); });
+
+function currentSegs() { return S.cur === 'orig' ? S.transcript : (S.dub[S.cur] ? S.dub[S.cur].segs : []); }
+function segAt(segs, t) { for (var i = 0; i < segs.length; i++) if (t >= segs[i].start && t < segs[i].end + 0.15) return i; return -1; }
+
+var lastRow = -1, seeking = false;
+function tick() {
+  var t = video.currentTime || 0, d = video.duration || S.duration || 0;
+  if (!seeking && d) $('#seek').value = Math.round(t / d * 1000);
+  $('#time').textContent = fmt(t) + ' / ' + fmt(d);
+  var segs = currentSegs(), i = segAt(segs, t);
+  var text = S.cc && i >= 0 ? segs[i].text : '';
+  var sub = $('#sub');
+  if (sub._t !== text) { sub._t = text; sub.innerHTML = text ? '<span>' + esc(text) + '</span>' : ''; }
+  if (i !== lastRow) {
+    lastRow = i;
+    document.querySelectorAll('#rows tr.now').forEach(function (r) { r.classList.remove('now'); });
+    var row = document.querySelector('#rows tr[data-i="' + i + '"]'); if (row) row.classList.add('now');
+  }
+  requestAnimationFrame(tick);
+}
+$('#seek').addEventListener('input', function () { if (S.recording) return; seeking = true; var d = video.duration || 0; if (d) video.currentTime = this.value / 1000 * d; });
+$('#seek').addEventListener('change', function () { seeking = false; });
+
+function toggle() {
+  if (!video.src) return toast('Choisis d\'abord une vidéo.');
+  audio();
+  if (video.paused) video.play().catch(function () {}); else video.pause();
+}
+function setVol(v) { S.vol = Math.max(0, Math.min(BOOST_MAX, v)); S.muted = S.vol === 0; applyVol(); ui(); }
+function fullscreen() {
+  var el = $('#screen');
+  try {
+    if (document.fullscreenElement) document.exitFullscreen();
+    else { var p = (el.requestFullscreen || el.webkitRequestFullscreen).call(el); if (p && p.catch) p.catch(function () {}); }
+  } catch (e) {}
+}
+function seekBy(fn) { if (S.recording) return toast('Enregistrement en cours : utilise ⏹ pour l\'arrêter.'); fn(); }
+var actions = {
+  start: function () { seekBy(function () { video.currentTime = 0; }); },
+  back: function () { seekBy(function () { video.currentTime = Math.max(0, video.currentTime - 10); }); },
+  toggle: toggle,
+  stop: function () { if (S.recording && S.rec) S.rec.stop(); video.pause(); video.currentTime = 0; },
+  fwd: function () { seekBy(function () { video.currentTime = Math.min(video.duration || 0, video.currentTime + 10); }); },
+  end: function () { seekBy(function () { video.currentTime = Math.max(0, (video.duration || 0) - 0.1); }); },
+  cc: function () { S.cc = !S.cc; ui(); },
+  mute: function () { audio(); S.muted = !S.muted; if (!S.muted && S.vol === 0) S.vol = 1; applyVol(); ui(); },
+  max: function () { audio(); setVol(BOOST_MAX); },
+  fs: fullscreen,
+  export: exportVideo
+};
+document.addEventListener('click', function (e) {
+  var b = e.target.closest('button[data-a]'); if (b && actions[b.dataset.a]) actions[b.dataset.a]();
+});
+$('#bigplay').onclick = toggle; video.addEventListener('click', toggle);
+$('#vol').addEventListener('input', function () { audio(); setVol(this.value / 100); });
+video.addEventListener('play', ui); video.addEventListener('loadedmetadata', ui);
+document.addEventListener('keydown', function (e) {
+  var a = document.activeElement;
+  if (a && (/INPUT|TEXTAREA|SELECT/.test(a.tagName) || a.isContentEditable)) return;
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+  var k = e.key;
+  if (k === 'Escape' && !$('#modal').hidden) return closeModal();
+  if (k === ' ') { e.preventDefault(); toggle(); }
+  else if (k === 'ArrowRight') actions.fwd(); else if (k === 'ArrowLeft') actions.back();
+  else if (k === 'ArrowUp') { e.preventDefault(); audio(); setVol(S.vol + 0.25); }
+  else if (k === 'ArrowDown') { e.preventDefault(); audio(); setVol(S.vol - 0.25); }
+  else if (k === 'm' || k === 'M') actions.mute(); else if (k === 'f' || k === 'F') fullscreen();
+  else if (k === 'c' || k === 'C') actions.cc();
+});
+
+function ui() {
+  var playing = !video.paused && !video.ended;
+  document.querySelector('.ctrls .main').textContent = playing ? '⏸' : '▶';
+  $('#bigplay').hidden = !video.src || playing || S.recording;
+  var v = S.muted ? 0 : S.vol;
+  $('#vol').value = Math.round(v * 100); $('#volPct').textContent = Math.round(v * 100) + '%';
+  document.querySelector('[data-a=mute]').textContent = v === 0 ? '🔇' : (v > 1 ? '📢' : '🔊');
+  document.querySelector('[data-a=cc]').style.opacity = S.cc ? 1 : 0.45;
+  $('#rec').hidden = !S.recording;
+  document.querySelectorAll('[data-a=export]').forEach(function (b) { b.disabled = S.recording || S.busy || !video.src; });
+  $('#dlWav').disabled = S.recording || !S.srcBlob;
+  $('#saveProj').disabled = !S.transcript.length;
+  var go = $('#go');
+  go.disabled = S.busy || S.recording || !S.stt;
+  go.textContent = S.busy ? 'Doublage en cours…' : (S.transcript.length ? 'Doubler les langues cochées' : 'Lancer le doublage');
+  $('#goHint').textContent = !S.srcBlob ? 'Choisis d\'abord une vidéo.' : (S.stt ? 'Environ 1 à 3 minutes par langue pour 10 minutes de vidéo.' : (S.duration ? 'Le son de cette vidéo est illisible.' : 'Lecture du son…'));
+}
+
+/* ================= Étape 5 : exports ================= */
+function pickMime() {
+  if (!window.MediaRecorder) return null;
+  var c = ['video/mp4;codecs=avc1.42E01E,mp4a.40.2', 'video/mp4', 'video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm'];
+  for (var i = 0; i < c.length; i++) if (MediaRecorder.isTypeSupported(c[i])) return c[i];
+  return '';
+}
+function langSuffix() { return S.cur === 'orig' ? 'original' : S.cur; }
+function drawSubtitle(g, w, h) {
+  if (!S.cc) return;
+  var segs = currentSegs(), i = segAt(segs, video.currentTime); if (i < 0) return;
+  var size = Math.round(h / 20); g.font = '600 ' + size + 'px Inter,system-ui,sans-serif'; g.textAlign = 'center';
+  var words = segs[i].text.split(/\s+/), lines = [], line = '';
+  words.forEach(function (wd) { var t = line ? line + ' ' + wd : wd; if (g.measureText(t).width > w * 0.86 && line) { lines.push(line); line = wd; } else line = t; });
+  if (line) lines.push(line); lines = lines.slice(-3);
+  var lh = size * 1.35, y0 = h - h * 0.06 - lines.length * lh;
+  lines.forEach(function (l, k) {
+    var tw = g.measureText(l).width;
+    g.fillStyle = 'rgba(0,0,0,.72)'; g.fillRect((w - tw) / 2 - size * 0.4, y0 + k * lh, tw + size * 0.8, lh);
+    g.fillStyle = '#fff'; g.fillText(l, w / 2, y0 + k * lh + size * 1.05);
+  });
+}
+async function exportVideo() {
+  if (S.recording || S.busy || !video.src) return;
+  var mime = pickMime();
+  if (mime === null || !HTMLCanvasElement.prototype.captureStream) return toast('Ce navigateur ne sait pas créer de vidéo. Utilise Chrome ou Edge sur ordinateur.', 7000);
+  audio();
+  await ensureDecoded(S.cur);
+  var vw = video.videoWidth || 1280, vh = video.videoHeight || 720;
+  var w = Math.min(1280, vw), h = Math.round(w * vh / vw / 2) * 2;
+  var cv = document.createElement('canvas'); cv.width = w; cv.height = h; var g = cv.getContext('2d');
+  var oldRate = video.playbackRate;
+  video.pause(); video.playbackRate = 1;
+  if (video.currentTime !== 0) { video.currentTime = 0; await new Promise(function (r) { video.addEventListener('seeked', r, { once: true }); }); }
+  var raf, draw = function () { g.drawImage(video, 0, 0, w, h); drawSubtitle(g, w, h); raf = requestAnimationFrame(draw); };
+  draw();
+  var stream = new MediaStream(cv.captureStream(30).getVideoTracks().concat(recDest.stream.getAudioTracks().map(function (t) { return t.clone(); })));
+  var opts = { videoBitsPerSecond: 5e6, audioBitsPerSecond: 192000 }; if (mime) opts.mimeType = mime;
+  var rec = new MediaRecorder(stream, opts), chunks = [];
+  // Si la lecture s'interrompt (pause, onglet caché), l'enregistrement s'interrompt aussi.
+  var onPause = function () { if (rec.state === 'recording') rec.pause(); };
+  var onPlay = function () { if (rec.state === 'paused') rec.resume(); };
+  var onHide = function () {
+    if (document.hidden && !video.paused) { rec._auto = true; video.pause(); }
+    else if (!document.hidden && rec._auto && rec.state === 'paused') { rec._auto = false; video.play().catch(function () {}); toast('Enregistrement repris.'); }
+  };
+  var onEnd = function () { setTimeout(function () { if (rec.state !== 'inactive') rec.stop(); }, 400); };
+  video.addEventListener('pause', onPause); video.addEventListener('play', onPlay);
+  video.addEventListener('ended', onEnd); document.addEventListener('visibilitychange', onHide);
+  rec.ondataavailable = function (e) { if (e.data && e.data.size) chunks.push(e.data); };
+  rec.onstop = function () {
+    cancelAnimationFrame(raf); stream.getTracks().forEach(function (t) { t.stop(); });
+    video.removeEventListener('pause', onPause); video.removeEventListener('play', onPlay);
+    video.removeEventListener('ended', onEnd); document.removeEventListener('visibilitychange', onHide);
+    video.playbackRate = oldRate;
+    S.recording = false; S.rec = null; ui();
+    if (!chunks.length) return;
+    var type = (rec.mimeType || mime || 'video/webm').split(';')[0];
+    var blob = new Blob(chunks, { type: type }), name = S.name + '-' + langSuffix() + '.' + (/mp4/.test(type) ? 'mp4' : 'webm');
+    var pv = $('#preview'); if (pv._url) URL.revokeObjectURL(pv._url);
+    pv._url = URL.createObjectURL(blob); pv.src = pv._url;
+    $('#mDl').href = pv._url; $('#mDl').download = name;
+    $('#mInfo').textContent = name + ' · ' + (blob.size / 1048576).toFixed(1) + ' Mo';
+    $('#modal').hidden = false; $('#mClose').focus();
+  };
+  S.rec = rec; S.recording = true; ui();
+  rec.start(1000);
+  toast('Enregistrement en cours… laisse l\'onglet visible jusqu\'à la fin de la vidéo.', 6000);
+  video.play().catch(function () {});
+}
+function closeModal() { $('#modal').hidden = true; $('#preview').pause(); }
+$('#mClose').onclick = closeModal;
+$('#modal').addEventListener('click', function (e) { if (e.target === this) closeModal(); });
+
+// Mixage hors ligne (son original en fond + voix) pour le fichier WAV.
+async function renderMix(code) {
+  var d = S.dub[code], voiced = code !== 'orig' && d && d.voice;
+  if (voiced) await ensureDecoded(code);
+  var SR = 44100, AC = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+  var src = await new AC(2, 1, SR).decodeAudioData(await S.srcBlob.arrayBuffer());
+  var off = new AC(2, Math.ceil((src.duration + 1) * SR), SR);
+  var lim = off.createDynamicsCompressor();
+  lim.threshold.value = -2; lim.knee.value = 2; lim.ratio.value = 12; lim.attack.value = 0.003; lim.release.value = 0.2;
+  lim.connect(off.destination);
+  var bgLevel = voiced ? S.bg : 1;
+  if (bgLevel > 0) { var s = off.createBufferSource(), gn = off.createGain(); s.buffer = src; gn.gain.value = bgLevel; s.connect(gn); gn.connect(lim); s.start(0); }
+  if (voiced) d.segs.forEach(function (sg, i) {
+    var b = d.dec && d.dec[i]; if (!b || d.at[i] == null) return;
+    var c = off.createBufferSource(); c.buffer = b; c.connect(lim); c.start(d.at[i]);
+  });
+  return off.startRendering();
+}
+$('#dlWav').onclick = async function () {
+  if (!S.srcBlob) return toast('Aucune piste audio pour l\'instant.');
+  var btn = this; btn.disabled = true; toast('Préparation de la piste audio…', 3000);
+  try {
+    var code = S.cur, buf = await renderMix(code);
+    var chans = []; for (var c = 0; c < Math.min(2, buf.numberOfChannels); c++) chans.push(buf.getChannelData(c));
+    saveBlob(new Blob([wav16(chans, buf.sampleRate)], { type: 'audio/wav' }), S.name + '-' + (code === 'orig' ? 'original' : code) + '.wav');
+  } catch (e) { toast('Impossible de créer la piste audio : ' + e.message, 7000); }
+  btn.disabled = false; ui();
+};
+$('#dlSrt').onclick = function () {
+  var segs = currentSegs(); if (!segs.length) return toast('Aucun texte pour l\'instant : lance le doublage.');
+  var srt = segs.filter(function (s) { return s.text; }).map(function (s, i) { return (i + 1) + '\n' + srtTime(s.start) + ' --> ' + srtTime(s.end) + '\n' + s.text + '\n'; }).join('\n');
+  saveBlob(new Blob(['﻿' + srt], { type: 'text/plain;charset=utf-8' }), S.name + '-' + langSuffix() + '.srt');
+};
+$('#dlTxt').onclick = function () {
+  var segs = currentSegs(); if (!segs.length) return toast('Aucun texte pour l\'instant : lance le doublage.');
+  saveBlob(new Blob(['﻿' + segs.map(function (s) { return s.text; }).join('\n')], { type: 'text/plain;charset=utf-8' }), S.name + '-' + langSuffix() + '.txt');
+};
+
+// Projet : tout le travail (textes + voix MP3) dans un fichier JSON, pour reprendre plus tard.
+$('#saveProj').onclick = function () {
+  if (!S.transcript.length) return toast('Rien à enregistrer pour l\'instant.');
+  var dub = {};
+  for (var c in S.dub) { var d = S.dub[c]; dub[c] = { segs: d.segs, clips: d.clips, spoken: d.spoken, dur: d.dur, voice: d.voice, original: d.original }; }
+  var p = { app: 'professa-studio', version: 1, name: S.name, duration: S.duration, srcLang: S.srcLang, bg: S.bg, transcript: S.transcript, dub: dub };
+  saveBlob(new Blob([JSON.stringify(p)], { type: 'application/json' }), S.name + '.professa.json');
+};
+$('#openProj').addEventListener('change', async function () {
+  var f = this.files[0]; this.value = '';
+  if (!f) return;
+  if (S.busy || S.recording) return toast('Attends la fin de l\'opération en cours.');
+  if (!S.srcBlob) return toast('Charge d\'abord la vidéo du projet (étape 1), puis ouvre le projet.', 6000);
+  try {
+    var p = JSON.parse(await f.text());
+    if (p.app !== 'professa-studio' || !Array.isArray(p.transcript)) throw new Error('fichier non reconnu');
+    if (S.duration && p.duration && Math.abs(S.duration - p.duration) > 2) toast('⚠️ Ce projet semble venir d\'une autre vidéo (durée différente).', 7000);
+    stopDub();
+    S.transcript = p.transcript.map(function (s) { return { start: +s.start, end: +s.end, text: String(s.text || '') }; });
+    S.srcLang = p.srcLang || null; S.dub = {}; stepState = {};
+    if (typeof p.bg === 'number') { S.bg = p.bg; $('#bg').value = Math.round(p.bg * 100); $('#bgPct').textContent = Math.round(p.bg * 100) + ' %'; }
+    Object.keys(p.dub || {}).forEach(function (c) {
+      var L = langBy(c), x = p.dub[c]; if (!L || !x || !Array.isArray(x.segs)) return;
+      var n = x.segs.length, arr = function (a, v) { return Array.isArray(a) && a.length === n ? a : new Array(n).fill(v); };
+      var d = { segs: x.segs.map(function (s) { return { start: +s.start, end: +s.end, text: String(s.text || '') }; }),
+        clips: arr(x.clips, null), spoken: arr(x.spoken, ''), dur: arr(x.dur, 0), at: [], dec: null, voice: !!x.voice, original: !!x.original };
+      place(d); S.dub[c] = d;
+      setStep(c, L.name, 100, d.voice ? 'Prêt ✓ (projet)' : d.original ? 'Langue d\'origine' : 'Sous-titres', d.voice || d.original ? 'ok' : 'warn');
+    });
+    setStep('stt', 'Transcription', 100, S.transcript.length + ' phrases · projet ouvert', 'ok');
+    S.cur = 'orig'; buildLangSelect();
+    var first = LANGS.find(function (L) { return S.dub[L.code] && S.dub[L.code].voice; });
+    if (first) await setLang(first.code); else { renderRows(); ui(); }
+    toast('Projet ouvert.');
+  } catch (e) { toast('Impossible d\'ouvrir ce projet : ' + e.message, 7000); }
+});
+
+/* ================= Étape 6 : correction ================= */
+function renderRows() {
+  var segs = currentSegs(), L = langBy(S.cur), d = S.dub[S.cur];
+  $('#rows').innerHTML = segs.map(function (s, i) {
+    var changed = d && d.voice && d.spoken[i] !== s.text;
+    return '<tr data-i="' + i + '"><td class="t" data-t="' + s.start + '">' + fmt(s.start) + '</td><td><textarea id="seg-' + i + '"' + (changed ? ' class="changed"' : '') + ' aria-label="Phrase ' + (i + 1) + '">' + esc(s.text) + '</textarea></td></tr>';
+  }).join('');
+  lastRow = -2;
+  $('#editHint').textContent = !segs.length ? 'Les phrases de la langue affichée sur l\'écran apparaîtront ici après le doublage.' :
+    (S.cur === 'orig' ? 'Texte original transcrit. Corrige-le puis retraduis toutes les langues.' : 'Texte en ' + L.name + '. Corrige-le puis régénère la voix : seules les phrases modifiées (bordure orange) sont recréées.');
+  $('#regen').hidden = S.cur === 'orig';
+  $('#regen').disabled = S.busy || S.recording || !segs.length || !L || !L.tts;
+  $('#retranslate').hidden = S.cur !== 'orig' || !segs.length;
+  $('#retranslate').disabled = S.busy || S.recording;
+  updateRegenHint();
+}
+function updateRegenHint() {
+  var d = S.dub[S.cur], n = 0;
+  if (d && d.voice) d.segs.forEach(function (s, i) { if (s.text && d.spoken[i] !== s.text) n++; });
+  $('#regenHint').textContent = n ? n + ' phrase(s) modifiée(s)' : '';
+}
+$('#rows').addEventListener('click', function (e) { var td = e.target.closest('td.t'); if (td && !S.recording) { video.currentTime = parseFloat(td.dataset.t); } });
+$('#rows').addEventListener('input', function (e) {
+  var m = /^seg-(\d+)$/.exec(e.target.id); if (!m) return;
+  var segs = currentSegs(), i = +m[1], d = S.dub[S.cur];
+  if (!segs[i]) return;
+  segs[i].text = e.target.value;
+  if (d && d.voice) { e.target.classList.toggle('changed', d.spoken[i] !== segs[i].text); updateRegenHint(); }
+});
+$('#regen').addEventListener('click', async function () {
+  var L = langBy(S.cur); if (!L || S.busy || !S.dub[L.code]) return;
+  S.busy = true; ui(); renderRows();
+  var texts = S.dub[L.code].segs.map(function (s) { return s.text; });
+  await dubLanguage(L, texts);
+  S.busy = false; ui(); renderRows();
+  toast('Voix mise à jour en ' + L.name + '.');
+});
+$('#retranslate').addEventListener('click', function () {
+  var langs = Object.keys(S.dub).map(langBy);
+  if (!langs.length) return toast('Aucune langue doublée pour l\'instant.');
+  langs.forEach(function (L) { document.querySelector('#langs input[value="' + L.code + '"]').checked = true; });
+  $('#go').click();
+});
+
+// Évite de perdre un travail en fermant l'onglet par erreur.
+window.addEventListener('beforeunload', function (e) { if (S.busy || S.recording || S.transcript.length) { e.preventDefault(); e.returnValue = ''; } });
+
+/* ================= Démarrage ================= */
+renderLangs(); buildLangSelect(); renderSteps(); renderRows(); ui(); checkHealth();
+requestAnimationFrame(tick);
+</script>
+</body>
+</html>
