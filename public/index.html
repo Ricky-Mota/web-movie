@@ -583,10 +583,10 @@ function isSourceLang(L) { return S.srcLang && L.whisper.indexOf(S.srcLang) >= 0
 async function translateAll(L, texts) {
   var batches = [];
   for (var i = 0; i < texts.length; i += TRANSLATE_BATCH) batches.push({ i: i, items: texts.slice(i, i + TRANSLATE_BATCH) });
-  var out = new Array(texts.length), done = 0;
+  var out = new Array(texts.length), done = 0, light = false;
   await pool(batches, 2, async function (b) {
     var t;
-    try { t = (await api('translate', { target: L.llm, texts: b.items })).t; }
+    try { var res = await api('translate', { target: L.llm, texts: b.items }); t = res.t; if (res.model && /instant|8b/i.test(res.model)) light = true; }
     catch (e) {
       if (!(e.data && e.data.retrySmaller)) throw e;
       t = []; // en cas de décalage, on traduit phrase par phrase
@@ -594,8 +594,9 @@ async function translateAll(L, texts) {
     }
     t.forEach(function (x, k) { out[b.i + k] = x; });
     done += b.items.length;
-    setStep(L.code, L.name, done / texts.length * 40, 'Traduction ' + Math.round(done / texts.length * 100) + ' %');
+    setStep(L.code, L.name, done / texts.length * 40, 'Traduction ' + Math.round(done / texts.length * 100) + ' %' + (light ? ' (modèle léger)' : ''));
   });
+  if (light) toast('Quota du jour atteint : ' + L.name + ' traduit avec le modèle léger.', 6000);
   return out;
 }
 

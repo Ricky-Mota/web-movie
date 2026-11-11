@@ -64,6 +64,7 @@ Ouvre ensuite `https://ton-site.netlify.app/` : en haut à droite, les deux past
 |---|---|---|
 | `GOOGLE_TTS_VOICES` | `{"fr-FR":"fr-FR-Neural2-A","en-US":"en-US-Neural2-D"}` | Choisir des voix plus naturelles par langue |
 | `GROQ_TEXT_MODEL` | `llama-3.3-70b-versatile` | Changer le modèle de traduction si Groq le remplace |
+| `GROQ_FALLBACK_MODEL` | `llama-3.1-8b-instant` | Modèle léger utilisé automatiquement quand le quota du jour du modèle principal est épuisé (`none` pour désactiver) |
 | `GROQ_STT_MODEL` | `whisper-large-v3` | Transcription plus précise (un peu plus lente) |
 
 ## Bon à savoir
