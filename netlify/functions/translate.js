@@ -1,7 +1,12 @@
 // Traduction des phrases pour le doublage, avec un modèle de langue sur Groq.
 // Reçoit : { target: "French", texts: ["...", "..."] }
 // Renvoie : { t: ["...", "..."] }  (même nombre de phrases, même ordre)
-const { json, guard, upstream } = require('../lib/common');
+const { json, guard, upstream, pickModel } = require('../lib/common');
+
+// Du meilleur au plus léger. Le premier disponible sur le compte Groq est utilisé.
+const TEXT_PREFS = ['llama-3.3-70b-versatile', 'openai/gpt-oss-120b', 'meta-llama/llama-4-maverick-17b-128e-instruct', 'moonshotai/kimi-k2-instruct', 'qwen/qwen3-32b', 'openai/gpt-oss-20b', 'meta-llama/llama-4-scout-17b-16e-instruct', 'llama-3.1-8b-instant'];
+const LIGHT_PREFS = ['llama-3.1-8b-instant', 'openai/gpt-oss-20b', 'meta-llama/llama-4-scout-17b-16e-instruct'];
+const isTextModel = (id) => !/whisper|tts|guard|playai|orpheus|prompt|compound|distil/i.test(id);
 
 const MAX_ITEMS = 60;
 const MAX_CHARS = 2000;
@@ -36,17 +41,20 @@ exports.handler = async (event) => {
   });
 
   try {
-    let model = process.env.GROQ_TEXT_MODEL || 'llama-3.3-70b-versatile';
+    let light = false;
+    let model = await pickModel(key, process.env.GROQ_TEXT_MODEL, TEXT_PREFS, isTextModel);
     let r = await call(model);
     let d = await r.json().catch(() => ({}));
     // Quota du JOUR épuisé sur le meilleur modèle : on bascule sur le modèle léger
     // (quota bien plus large) au lieu de bloquer jusqu'au lendemain.
-    const fallback = process.env.GROQ_FALLBACK_MODEL || 'llama-3.1-8b-instant';
+    const fallback = process.env.GROQ_FALLBACK_MODEL === 'none' ? 'none'
+      : await pickModel(key, process.env.GROQ_FALLBACK_MODEL, LIGHT_PREFS.filter((m) => m !== model), isTextModel);
     if (r.status === 429 && fallback !== 'none' && fallback !== model) {
       const msg = String((d.error && d.error.message) || '');
       const wait = parseFloat(r.headers.get('retry-after'));
       if (/per day|\bTPD\b|\bRPD\b/i.test(msg) || wait > 60) {
         model = fallback;
+        light = true;
         r = await call(model);
         d = await r.json().catch(() => ({}));
       }
@@ -57,7 +65,7 @@ exports.handler = async (event) => {
     try { out = JSON.parse(d.choices[0].message.content); } catch (e) { return json(502, { error: 'Réponse de traduction illisible.', retrySmaller: true }); }
     const t = Array.isArray(out.t) ? out.t.map((x) => String(x == null ? '' : x)) : null;
     if (!t || t.length !== texts.length) return json(502, { error: 'Nombre de phrases traduites incorrect.', retrySmaller: true });
-    return json(200, { t, model });
+    return json(200, { t, model, light });
   } catch (e) {
     return json(502, { error: 'Groq injoignable : ' + e.message });
   }

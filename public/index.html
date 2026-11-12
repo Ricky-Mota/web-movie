@@ -595,7 +595,7 @@ async function translateAll(L, texts) {
   var out = new Array(texts.length), done = 0, light = false;
   await pool(batches, 2, async function (b) {
     var t;
-    try { var res = await api('translate', { target: L.llm, texts: b.items }); t = res.t; if (res.model && /instant|8b/i.test(res.model)) light = true; }
+    try { var res = await api('translate', { target: L.llm, texts: b.items }); t = res.t; if (res.light) light = true; }
     catch (e) {
       if (!(e.data && e.data.retrySmaller)) throw e;
       t = []; // en cas de décalage, on traduit phrase par phrase
