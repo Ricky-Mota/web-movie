@@ -1,7 +1,7 @@
 // Transcription (voix -> texte) avec Whisper sur Groq.
 // Reçoit : { audio: "<WAV en base64>", language?: "fr" }
 // Renvoie : { language, segments: [{ start, end, text }] }
-const { json, guard, upstream } = require('../lib/common');
+const { json, guard, upstream, pickModel } = require('../lib/common');
 
 const MAX_B64 = 5.5 * 1024 * 1024; // Netlify refuse les requêtes de plus de 6 Mo
 
@@ -21,7 +21,8 @@ exports.handler = async (event) => {
 
   const fd = new FormData();
   fd.append('file', new Blob([Buffer.from(body.audio, 'base64')], { type: 'audio/wav' }), 'extrait.wav');
-  fd.append('model', process.env.GROQ_STT_MODEL || 'whisper-large-v3-turbo');
+  const model = await pickModel(key, process.env.GROQ_STT_MODEL, ['whisper-large-v3-turbo', 'whisper-large-v3'], (id) => /whisper/i.test(id));
+  fd.append('model', model);
   fd.append('response_format', 'verbose_json');
   fd.append('temperature', '0');
   if (body.language && /^[a-z]{2,3}$/.test(body.language)) fd.append('language', body.language);

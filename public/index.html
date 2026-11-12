@@ -269,7 +269,7 @@ var STT_SR = 16000;         // fréquence envoyée à Whisper
 var STT_CHUNK_S = 100;      // secondes d'audio par envoi (reste sous la limite de 6 Mo de Netlify)
 var CLIP_SR = 24000;        // fréquence des voix Google (économise la mémoire)
 var TRANSLATE_BATCH = 25;
-var TTS_BATCH = 6;
+var TTS_BATCH = 4;
 var PASS_KEY = 'professa.pass';
 
 /* ================= État ================= */
@@ -412,6 +412,14 @@ function saveBlob(blob, name) {
   document.body.appendChild(a); a.click(); a.remove();
   setTimeout(function () { URL.revokeObjectURL(a.href); }, 60000);
 }
+// Limite globale du nombre d'envois simultanés vers le service de voix (toutes langues confondues).
+var ttsGate = { max: 3, busy: 0, q: [] };
+function gated(fn) {
+  return new Promise(function (resolve, reject) {
+    function run() { ttsGate.busy++; fn().then(resolve, reject).finally(function () { ttsGate.busy--; var n = ttsGate.q.shift(); if (n) n(); }); }
+    if (ttsGate.busy < ttsGate.max) run(); else ttsGate.q.push(run);
+  });
+}
 async function pool(items, n, fn) {
   var i = 0, out = new Array(items.length);
   async function worker() { while (i < items.length) { var k = i++; out[k] = await fn(items[k], k); } }
@@ -466,7 +474,8 @@ async function checkHealth() {
     }
     $('#pass').setCustomValidity(''); showLock(false);
     el.innerHTML = '<span class="chip ' + (h.groq ? 'ok' : 'bad') + '">Transcription & traduction ' + (h.groq ? '✓' : '✗ clé Groq manquante') + '</span>' +
-      '<span class="chip ' + (h.google ? 'ok' : 'bad') + '">Voix ' + (h.google ? '✓' : '✗ clé Google manquante') + '</span>';
+      '<span class="chip ' + (h.voice ? 'ok' : 'bad') + '">Voix ' + (h.voice ? '✓ ' + (h.voiceProvider === 'elevenlabs' ? 'ElevenLabs' : 'Google') : '✗ clé ElevenLabs manquante') + '</span>';
+    ttsGate.max = h.voiceProvider === 'elevenlabs' ? 1 : 3; // formule gratuite ElevenLabs : 2 voix à la fois au maximum
   } catch (e) {
     el.innerHTML = '<span class="chip bad">Fonctions Netlify introuvables (voir LISEZMOI)</span>';
   }
@@ -586,7 +595,7 @@ async function translateAll(L, texts) {
   var out = new Array(texts.length), done = 0, light = false;
   await pool(batches, 2, async function (b) {
     var t;
-    try { var res = await api('translate', { target: L.llm, texts: b.items }); t = res.t; if (res.model && /instant|8b/i.test(res.model)) light = true; }
+    try { var res = await api('translate', { target: L.llm, texts: b.items }); t = res.t; if (res.light) light = true; }
     catch (e) {
       if (!(e.data && e.data.retrySmaller)) throw e;
       t = []; // en cas de décalage, on traduit phrase par phrase
@@ -613,7 +622,7 @@ async function voices(L, d, pctFrom) {
     var batches = [];
     for (var i = 0; i < list.length; i += TTS_BATCH) batches.push(list.slice(i, i + TTS_BATCH));
     await pool(batches, 3, async function (b) {
-      var res = await api('tts', { lang: L.tts, items: b.map(function (i) { return { text: segs[i].text, rate: rateOf(i) }; }) });
+      var res = await gated(function () { return api('tts', { lang: L.tts, items: b.map(function (i) { return { text: segs[i].text, rate: rateOf(i) }; }) }); });
       for (var k = 0; k < b.length; k++) {
         var i = b[k], a = res.audio[k];
         if (!a) continue;

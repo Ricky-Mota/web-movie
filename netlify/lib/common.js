@@ -41,4 +41,26 @@ function upstream(r, d, label) {
   });
 }
 
-module.exports = { json, passOk, guard, upstream };
+// Groq retire et remplace régulièrement ses modèles. On lit la liste des modèles
+// disponibles pour ce compte (gardée en mémoire 10 min) et on prend le premier
+// modèle de la liste de préférences qui existe, au lieu de tomber en erreur.
+let modelCache = { at: 0, ids: null };
+async function groqModels(key) {
+  if (modelCache.ids && Date.now() - modelCache.at < 600000) return modelCache.ids;
+  try {
+    const r = await fetch('https://api.groq.com/openai/v1/models', { headers: { Authorization: 'Bearer ' + key } });
+    if (!r.ok) return null;
+    const d = await r.json();
+    const ids = (d.data || []).filter((m) => m.active !== false).map((m) => m.id);
+    modelCache = { at: Date.now(), ids };
+    return ids;
+  } catch (e) { return null; }
+}
+async function pickModel(key, wanted, prefs, accept) {
+  const ids = await groqModels(key);
+  if (!ids) return wanted || prefs[0]; // liste illisible : on tente quand même
+  if (wanted && ids.includes(wanted)) return wanted;
+  return prefs.find((m) => ids.includes(m)) || ids.find(accept) || wanted || prefs[0];
+}
+
+module.exports = { json, passOk, guard, upstream, pickModel };
