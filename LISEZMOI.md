@@ -68,7 +68,7 @@ Ouvre ensuite `https://ton-site.netlify.app/` : en haut à droite, les deux past
 
 | Nom | Exemple | Effet |
 |---|---|---|
-| `ELEVENLABS_VOICE_ID` | `JBFqnCBsd6RMkjVDRZzb` | Voix ElevenLabs utilisée pour toutes les langues |
+| `ELEVENLABS_VOICE_ID` | `onwK4e9ZLuTAKqWW03F9` | Voix ElevenLabs pour toutes les langues (par défaut « Daniel », voix masculine) |
 | `ELEVENLABS_VOICES` | `{"fr":"<id>","ar":"<id>"}` | Une voix ElevenLabs différente par langue |
 | `GOOGLE_TTS_VOICES` | `{"fr-FR":"fr-FR-Neural2-A","en-US":"en-US-Neural2-D"}` | Choisir des voix plus naturelles par langue |
 | `GROQ_TEXT_MODEL` | `llama-3.3-70b-versatile` | Changer le modèle de traduction si Groq le remplace |

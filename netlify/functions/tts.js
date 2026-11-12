@@ -4,7 +4,7 @@
 // Renvoie : { audio: ["<MP3 base64>" | null, ...], errors: [null | "message", ...] }
 //
 // Options :
-//   ELEVENLABS_VOICE_ID = identifiant de la voix ElevenLabs (par défaut : une voix multilingue prédéfinie)
+//   ELEVENLABS_VOICE_ID = identifiant de la voix ElevenLabs (par défaut : « Daniel », voix masculine prédéfinie, claire et posée)
 //   ELEVENLABS_VOICES   = {"fr":"<voice_id>","en":"<voice_id>"} pour choisir une voix par langue
 //   ELEVENLABS_MODEL    = modèle ElevenLabs (par défaut eleven_flash_v2_5 : rapide et 2× moins de crédits)
 //   GOOGLE_TTS_VOICES   = {"fr-FR":"fr-FR-Neural2-A"} pour choisir des voix Google précises
@@ -13,7 +13,7 @@ const { json, passOk } = require('../lib/common');
 const parse = (s) => { try { return JSON.parse(s || '{}'); } catch (e) { return {}; } };
 const GOOGLE_VOICES = parse(process.env.GOOGLE_TTS_VOICES);
 const ELEVEN_VOICES = parse(process.env.ELEVENLABS_VOICES);
-const ELEVEN_DEFAULT_VOICE = process.env.ELEVENLABS_VOICE_ID || 'JBFqnCBsd6RMkjVDRZzb';
+const ELEVEN_DEFAULT_VOICE = process.env.ELEVENLABS_VOICE_ID || 'onwK4e9ZLuTAKqWW03F9';
 const ELEVEN_MODEL = process.env.ELEVENLABS_MODEL || 'eleven_flash_v2_5';
 
 // Code de langue court attendu par ElevenLabs (fr-FR -> fr, cmn-CN -> zh).
