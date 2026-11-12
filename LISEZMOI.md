@@ -9,7 +9,7 @@ Studio de doublage : on importe une vidéo MP4, on coche les langues, le studio 
 | `public/index.html` | La page du studio (écran, boutons, volume jusqu'à 400 %, téléchargements, projets) |
 | `netlify/functions/transcribe.js` | Voix → texte (Whisper sur Groq) |
 | `netlify/functions/translate.js` | Traduction des phrases (modèle de langue sur Groq) |
-| `netlify/functions/tts.js` | Texte → voix MP3 (Google Cloud Text-to-Speech) |
+| `netlify/functions/tts.js` | Texte → voix MP3 (ElevenLabs, ou Google Cloud Text-to-Speech) |
 | `netlify/functions/health.js` | Indique au studio si les clés sont bien configurées |
 | `netlify/lib/common.js` | Vérifications communes (mot de passe, clés, quotas) |
 | `netlify.toml` | Dit à Netlify où trouver les fonctions |
@@ -22,7 +22,13 @@ Tes clés ne sont jamais dans la page : elles restent cachées côté serveur, d
 1. Va sur https://console.groq.com et crée un compte.
 2. Menu **API Keys** → **Create API Key** → copie la clé (elle commence par `gsk_`).
 
-**Clé Google** (voix)
+**Clé ElevenLabs** (voix — recommandé, sans carte bancaire)
+1. Va sur https://elevenlabs.io et crée un compte gratuit.
+2. En bas à gauche : ton profil → **API Keys** (ou https://elevenlabs.io/app/settings/api-keys) → **Create API Key**.
+3. Donne-lui un nom (`professa`), laisse au minimum la permission **Text to Speech** activée, puis copie la clé (elle commence par `sk_`).
+4. Formule gratuite : environ 20 minutes de voix par mois avec le modèle par défaut (`eleven_flash_v2_5`).
+
+**Clé Google** (voix — alternative, carte bancaire obligatoire)
 1. Va sur https://console.cloud.google.com et crée un projet (ex. « professa »).
 2. Active la facturation sur le projet (obligatoire, mais tu ne paies rien sous le quota gratuit mensuel).
 3. Menu **API et services** → **Bibliothèque** → active **Cloud Text-to-Speech API**.
@@ -49,7 +55,7 @@ Netlify → ton site → **Site configuration** → **Environment variables** �
 | Nom | Valeur |
 |---|---|
 | `GROQ_API_KEY` | ta clé Groq (`gsk_…`) |
-| `GOOGLE_TTS_API_KEY` | ta clé Google |
+| `ELEVENLABS_API_KEY` | ta clé ElevenLabs (`sk_…`) — ou `GOOGLE_TTS_API_KEY` avec ta clé Google |
 | `STUDIO_PASSWORD` | un mot de passe de ton choix (**fortement conseillé**) |
 
 Sans `STUDIO_PASSWORD`, toute personne qui trouve l'adresse de ton site peut utiliser tes quotas Groq et Google. Avec, le studio demande le mot de passe une fois (il est ensuite mémorisé sur l'appareil).
@@ -62,6 +68,8 @@ Ouvre ensuite `https://ton-site.netlify.app/` : en haut à droite, les deux past
 
 | Nom | Exemple | Effet |
 |---|---|---|
+| `ELEVENLABS_VOICE_ID` | `JBFqnCBsd6RMkjVDRZzb` | Voix ElevenLabs utilisée pour toutes les langues |
+| `ELEVENLABS_VOICES` | `{"fr":"<id>","ar":"<id>"}` | Une voix ElevenLabs différente par langue |
 | `GOOGLE_TTS_VOICES` | `{"fr-FR":"fr-FR-Neural2-A","en-US":"en-US-Neural2-D"}` | Choisir des voix plus naturelles par langue |
 | `GROQ_TEXT_MODEL` | `llama-3.3-70b-versatile` | Changer le modèle de traduction si Groq le remplace |
 | `GROQ_FALLBACK_MODEL` | `llama-3.1-8b-instant` | Modèle léger utilisé automatiquement quand le quota du jour du modèle principal est épuisé (`none` pour désactiver) |
