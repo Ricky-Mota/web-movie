@@ -105,7 +105,11 @@ def ambiance(duree_s, plans, sortie):
 
 def piste_audio(duree_s, plans, sortie, dossier_tmp):
     amb = os.path.join(dossier_tmp, "ambiance.wav")
-    ambiance(duree_s, plans, amb)
+    if os.path.exists(os.path.join(RACINE, "scenario", "evenements_son.json")):
+        import sons  # bruitages calés sur l'animation (pas, taxis-bus, valise...)
+        sons.generer(amb)
+    else:
+        ambiance(duree_s, plans, amb)
     voix = []
     t0 = 0.0
     for p in plans:
@@ -119,7 +123,7 @@ def piste_audio(duree_s, plans, sortie, dossier_tmp):
         os.replace(amb, sortie)
         return 0
     entrees = ["-i", amb]
-    filtres = ["[0]volume=0.6[a0]"]
+    filtres = ["[0]volume=0.85[a0]"]
     noms = ["[a0]"]
     for k, (f, t, place) in enumerate(voix, 1):
         entrees += ["-i", f]
@@ -128,7 +132,8 @@ def piste_audio(duree_s, plans, sortie, dossier_tmp):
         tempo = min(1.2, max(1.0, (duree(f) - 0.1) / max(place, 0.5)))
         filtres.append(f"[{k}]aformat=channel_layouts=stereo,atempo={tempo:.3f},adelay={ms}|{ms},volume=1.6[v{k}]")
         noms.append(f"[v{k}]")
-    filtres.append("".join(noms) + f"amix=inputs={len(noms)}:normalize=0,atrim=0:{duree_s}[out]")
+    filtres.append("".join(noms) + f"amix=inputs={len(noms)}:normalize=0,atrim=0:{duree_s},"
+                   "alimiter=limit=0.89:level=disabled[out]")
     ff(*entrees, "-filter_complex", ";".join(filtres), "-map", "[out]", "-ar", "48000", sortie)
     return len(voix)
 

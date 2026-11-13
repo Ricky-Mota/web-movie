@@ -283,6 +283,7 @@ def texte(nom, corps, loc, taille, m, parent=None, rot=(rad(90), 0, 0), coll="De
 # Images clés
 # --------------------------------------------------------------------------------------
 CLES = {}  # (objet, propriété) -> {image: valeur}
+EVENEMENTS = []  # bruitages : pas, taxis-bus (temps en secondes) -> scenario/evenements_son.json
 
 
 def cle(obj, frame, loc=None, rot=None, ech=None):
@@ -518,6 +519,7 @@ def marche(p, f0, f1, depart, arrivee, pas=12, amplitude=24, bras=True):
     k = 0
     f = f0
     while f <= f1:
+        EVENEMENTS.append({"type": "pas", "qui": p.code, "t": round((f - 1) / FPS, 3)})
         sgn = 1 if k % 2 == 0 else -1
         cle(p.hanche["G"], f, rot=(sgn * amplitude, 0, 0))
         cle(p.hanche["D"], f, rot=(-sgn * amplitude, 0, 0))
@@ -1321,6 +1323,24 @@ else:
 scene.render.resolution_percentage = 100
 scene.render.film_transparent = False
 scene.render.image_settings.file_format = "PNG"
+
+def secondes(f):
+    return round((f - 1) / FPS, 3)
+
+
+EVENEMENTS += [
+    {"type": "bus_passe", "debut": secondes(1), "fin": secondes(F(2, 1)), "distance": 9},
+    {"type": "bus_passe", "debut": secondes(F(8) + 1), "fin": secondes(F(10, 2)), "distance": 9},
+    {"type": "bus_arrive", "debut": secondes(F(14)), "fin": secondes(F(14, 2.2)), "distance": 5},
+    {"type": "bus_moteur", "debut": secondes(F(14, 2.2)), "fin": secondes(F(19, 0.2)), "distance": 5},
+    {"type": "bus_part", "debut": secondes(F(19, 0.2)), "fin": secondes(FIN_TOTALE), "distance": 5},
+    {"type": "valise", "debut": secondes(F(1, 3.0)), "fin": secondes(F(2, 2.4))},
+    {"type": "valise", "debut": secondes(F(18, 0.9)), "fin": secondes(F(18, 4.8))},
+    {"type": "journal", "t": secondes(F(3, 1.6))},
+    {"type": "journal", "t": secondes(F(19, 0.4))},
+]
+with open(os.path.join(RACINE, "scenario", "evenements_son.json"), "w", encoding="utf-8") as fj:
+    json.dump({"duree": secondes(FIN_TOTALE + 1), "evenements": EVENEMENTS}, fj, ensure_ascii=False, indent=0)
 
 blend = opt("--blend", os.path.join(RACINE, "blender", "where_is_zando.blend"))
 os.makedirs(os.path.dirname(blend), exist_ok=True)
