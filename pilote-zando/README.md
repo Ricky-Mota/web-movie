@@ -37,7 +37,23 @@ a été fait avec Cycles sur processeur, en 640×360 à 12 images/s (`--qualite 
 
 Commencez par les plans 3, 6 et 10 (les trois personnages qui parlent), comme le conseille le document.
 
-## Les voix (ElevenLabs)
+## Les voix
+
+**Version actuelle : voix neuronales provisoires** (Microsoft, via `edge-tts`) pour les 19 répliques, débit lent pour
+le niveau débutant : Mr. Chen = anglais de Hong Kong, Papa Fiston et Grace = anglais nigérian, receveur = anglais kényan.
+
+```bash
+pip install edge-tts
+python3 voix/generer_voix_edge.py --tout   # génère voix/audio/*.mp3
+python3 montage/recaler_plans.py           # ajuste la durée des plans aux voix
+blender -b -P blender/construire_scene.py -- --rendu   # bouche et gestes suivent les voix
+python3 montage/assembler.py
+```
+
+Ces voix ne sont pas prévues pour un usage commercial : avant de monétiser, remplacez-les par ElevenLabs
+(ci-dessous, mêmes noms de fichiers). Les 7 prises ElevenLabs déjà faites sont dans `voix/elevenlabs/`.
+
+### ElevenLabs (version finale)
 
 1. Dans ElevenLabs → *Voice Design*, créez les 4 voix avec les descriptions de `voix/voix.json`.
 2. Copiez leurs identifiants dans `voix/voix.json`.
