@@ -1,0 +1,25 @@
+[Script Info]
+ScriptType: v4.00+
+PlayResX: 1920
+PlayResY: 1080
+WrapStyle: 0
+
+[V4+ Styles]
+Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+Style: Defaut,DejaVu Sans,58,&H00FFFFFF,&H00FFFFFF,&H00000000,&H96000000,0,0,0,0,100,100,0,0,3,3,0,2,140,140,70,1
+Style: Nom,DejaVu Sans,40,&H0080D0FF,&H00FFFFFF,&H00000000,&H96000000,1,0,0,0,100,100,0,0,3,3,0,2,140,140,150,1
+
+[Events]
+Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+Dialogue: 0,0:00:13.30,0:00:16.20,Defaut,,0,0,0,,{\fs40\b1\c&H0080D0FF&}Papa Fiston{\r}\NGood morning, my friend! Welcome!
+Dialogue: 0,0:00:38.80,0:00:43.20,Defaut,,0,0,0,,{\fs40\b1\c&H0080D0FF&}Papa Fiston{\r}\NNo, no. It is very near. Twenty minutes.
+Dialogue: 0,0:00:47.30,0:00:51.70,Defaut,,0,0,0,,{\fs40\b1\c&H0080D0FF&}Grace{\r}\NExcuse me. Sorry, Papa. That is not correct.
+Dialogue: 0,0:00:52.90,0:00:54.80,Defaut,,0,0,0,,{\fs40\b1\c&H0080D0FF&}Papa Fiston{\r}\NNot correct? Why?
+Dialogue: 0,0:01:06.30,0:01:14.70,Defaut,,0,0,0,,{\fs40\b1\c&H0080D0FF&}Grace{\r}\NYes. Gombe. Take a taxi-bus. The driver says "Zando! Zando!". You get in. It is easy.
+Dialogue: 0,0:01:14.90,0:01:16.30,Defaut,,0,0,0,,{\fs40\b1\c&H0080D0FF&}Conductor{\r}\NZando! Zando!
+Dialogue: 0,0:01:17.30,0:01:20.20,Defaut,,0,0,0,,{\fs40\b1\c&H0080D0FF&}Mr. Chen{\r}\NHow much is the bus?
+Dialogue: 0,0:01:20.40,0:01:24.80,Defaut,,0,0,0,,{\fs40\b1\c&H0080D0FF&}Grace{\r}\NIt is cheap. Have small money with you.
+Dialogue: 0,0:01:25.80,0:01:31.20,Defaut,,0,0,0,,{\fs40\b1\c&H0080D0FF&}Papa Fiston{\r}\NAh! Sorry, sorry! Limete is a different market. My mistake!
+Dialogue: 0,0:01:32.20,0:01:38.10,Defaut,,0,0,0,,{\fs40\b1\c&H0080D0FF&}Mr. Chen{\r}\NNo problem. Thank you, sir. And thank you very much, miss.
+Dialogue: 0,0:01:38.30,0:01:43.70,Defaut,,0,0,0,,{\fs40\b1\c&H0080D0FF&}Grace{\r}\NYou're welcome. Come, the bus stop is here. Follow me.
+Dialogue: 0,0:01:44.80,0:01:46.70,Defaut,,0,0,0,,{\fs40\b1\c&H0080D0FF&}Mr. Chen{\r}\NGreat! Goodbye, sir!
