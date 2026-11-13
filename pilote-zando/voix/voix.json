@@ -1,0 +1,6 @@
+{
+  "CHEN":     {"voice_id": "A_REMPLIR", "vitesse": 0.85, "description": "Homme, 40 ans, voix calme et posée, léger accent chinois, débit lent et clair"},
+  "FISTON":   {"voice_id": "A_REMPLIR", "vitesse": 0.9,  "description": "Homme, 55 ans, voix grave et chaleureuse, accent congolais, débit expressif"},
+  "GRACE":    {"voice_id": "A_REMPLIR", "vitesse": 0.9,  "description": "Femme, 24 ans, voix claire et souriante, accent congolais léger, anglais fluide"},
+  "RECEVEUR": {"voice_id": "A_REMPLIR", "vitesse": 1.0,  "description": "Homme, 30 ans, voix forte et chantante, accent congolais"}
+}
