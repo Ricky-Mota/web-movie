@@ -1,76 +1,76 @@
 1
-00:00:09,600 --> 00:00:12,550
+00:00:09,600 --> 00:00:13,540
 Mr. Chen: Excuse me, sir. Good morning.
 
 2
-00:00:13,300 --> 00:00:16,200
+00:00:14,800 --> 00:00:18,140
 Papa Fiston: Good morning, my friend! Welcome!
 
 3
-00:00:17,300 --> 00:00:22,810
+00:00:19,300 --> 00:00:25,810
 Mr. Chen: Thank you. I am looking for Zando. Where is Zando market?
 
 4
-00:00:23,800 --> 00:00:30,670
+00:00:26,800 --> 00:00:36,210
 Papa Fiston: Zando? Easy! It is in Limete. Take a bus to Matete. Go straight, then turn right.
 
 5
-00:00:31,800 --> 00:00:37,860
+00:00:37,300 --> 00:00:43,660
 Mr. Chen: Limete... a bus to Matete... OK. Is it far?
 
 6
-00:00:38,800 --> 00:00:43,200
+00:00:44,800 --> 00:00:49,790
 Papa Fiston: No, no. It is very near. Twenty minutes.
 
 7
-00:00:47,300 --> 00:00:51,700
+00:00:53,800 --> 00:00:59,540
 Grace: Excuse me. Sorry, Papa. That is not correct.
 
 8
-00:00:52,900 --> 00:00:54,800
+00:01:00,900 --> 00:01:03,370
 Papa Fiston: Not correct? Why?
 
 9
-00:00:55,800 --> 00:01:01,620
+00:01:04,300 --> 00:01:10,900
 Grace: Zando is not in Limete. Zando is in Gombe. It is in the city centre.
 
 10
-00:01:02,900 --> 00:01:05,590
+00:01:11,900 --> 00:01:15,210
 Mr. Chen: In Gombe? Not in Limete?
 
 11
-00:01:06,300 --> 00:01:14,700
+00:01:16,300 --> 00:01:28,130
 Grace: Yes. Gombe. Take a taxi-bus. The driver says "Zando! Zando!". You get in. It is easy.
 
 12
-00:01:14,900 --> 00:01:16,300
+00:01:28,480 --> 00:01:30,550
 Conductor: Zando! Zando!
 
 13
-00:01:17,300 --> 00:01:20,200
+00:01:31,800 --> 00:01:33,340
 Mr. Chen: How much is the bus?
 
 14
-00:01:20,400 --> 00:01:24,800
+00:01:33,690 --> 00:01:36,930
 Grace: It is cheap. Have small money with you.
 
 15
-00:01:25,800 --> 00:01:31,200
+00:01:38,300 --> 00:01:45,380
 Papa Fiston: Ah! Sorry, sorry! Limete is a different market. My mistake!
 
 16
-00:01:32,200 --> 00:01:38,100
+00:01:46,200 --> 00:01:53,520
 Mr. Chen: No problem. Thank you, sir. And thank you very much, miss.
 
 17
-00:01:38,300 --> 00:01:43,700
+00:01:53,870 --> 00:01:59,390
 Grace: You're welcome. Come, the bus stop is here. Follow me.
 
 18
-00:01:44,800 --> 00:01:46,700
+00:02:00,300 --> 00:02:03,710
 Mr. Chen: Great! Goodbye, sir!
 
 19
-00:01:46,900 --> 00:01:49,930
+00:02:04,060 --> 00:02:07,230
 Papa Fiston: Goodbye! Welcome to Kinshasa!
 
