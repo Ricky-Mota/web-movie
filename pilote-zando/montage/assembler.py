@@ -122,19 +122,35 @@ def piste_audio(duree_s, plans, sortie, dossier_tmp):
         print("[info] pas de voix dans voix/audio : ambiance seule (voir voix/generer_voix.py)")
         os.replace(amb, sortie)
         return 0
-    entrees = ["-i", amb]
-    filtres = ["[0]volume=0.85[a0]"]
-    noms = ["[a0]"]
-    for k, (f, t, place) in enumerate(voix, 1):
-        entrees += ["-i", f]
-        ms = int(t * 1000)
-        # si la voix dépasse sa place dans le plan, on l'accélère légèrement (au plus x1,2)
+    import numpy as np
+    from scipy.io import wavfile
+    from scipy.ndimage import maximum_filter1d, uniform_filter1d
+    sr, ambi = wavfile.read(amb)
+    ambi = ambi.astype(np.float32) / 32768
+    n = int(duree_s * sr)
+    ambi = np.pad(ambi, ((0, max(0, n - len(ambi))), (0, 0)))[:n]
+    piste_voix = np.zeros((n, 2), np.float32)
+    for f, t, place in voix:
+        # chaque réplique ramenée au même volume perçu (-16 LUFS, la norme des vidéos en ligne),
+        # légèrement accélérée seulement si elle dépasse sa place dans le plan (au plus x1,2)
         tempo = min(1.2, max(1.0, (duree(f) - 0.1) / max(place, 0.5)))
-        filtres.append(f"[{k}]aformat=channel_layouts=stereo,atempo={tempo:.3f},adelay={ms}|{ms},volume=1.6[v{k}]")
-        noms.append(f"[v{k}]")
-    filtres.append("".join(noms) + f"amix=inputs={len(noms)}:normalize=0,atrim=0:{duree_s},"
-                   "alimiter=limit=0.89:level=disabled[out]")
-    ff(*entrees, "-filter_complex", ";".join(filtres), "-map", "[out]", "-ar", "48000", sortie)
+        brut = subprocess.run(["ffmpeg", "-v", "error", "-i", f, "-af",
+                               f"loudnorm=I=-16:TP=-1.5:LRA=7,atempo={tempo:.3f},aresample={sr}",
+                               "-ac", "2", "-f", "s16le", "-"], capture_output=True, check=True).stdout
+        v = np.frombuffer(brut, np.int16).astype(np.float32).reshape(-1, 2) / 32768
+        i = int(t * sr)
+        m = min(len(v), n - i)
+        if m > 0:
+            piste_voix[i:i + m] += v[:m]
+    # « ducking » : l'ambiance baisse de ~7 dB quand quelqu'un parle, puis remonte doucement
+    niveau = maximum_filter1d(np.abs(piste_voix).mean(axis=1), size=int(0.25 * sr))
+    parle = uniform_filter1d((niveau > 0.02).astype(np.float32), size=int(0.35 * sr))
+    gain_amb = 0.85 * (1 - 0.55 * parle)
+    mix = ambi * gain_amb[:, None] + piste_voix * 1.1
+    crete = np.abs(mix).max()
+    if crete > 0.89:
+        mix *= 0.89 / crete
+    wavfile.write(sortie, sr, (mix * 32767).astype(np.int16))
     return len(voix)
 
 
