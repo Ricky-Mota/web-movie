@@ -2,8 +2,9 @@
 -- Zbsoss-center · Plateforme de formation et CRM · Phase 4
 -- Structure des données (Supabase / Postgres)
 --
--- Vente : chaque formation à l'unité ET abonnement mensuel donnant accès à tout.
--- Formation (produit) → modules → leçons (vidéos).
+-- Vente des formations vidéo PAR MODULE, plus un abonnement mensuel donnant
+-- accès à tout. Les autres produits (livrets, applications…) se vendent à l'unité.
+-- Formation (produit) → modules (vendus séparément) → leçons (vidéos).
 -- Paiement : mobile money (M-Pesa, Airtel, Orange) ou carte, via agrégateur,
 -- ou en semi-manuel (l'étudiant déclare la référence, l'admin valide).
 --
@@ -78,7 +79,10 @@ create table public.modules (
   id            bigint generated always as identity primary key,
   formation_id  bigint not null references public.produits (id) on delete cascade,
   titre         text not null,
-  ordre         int not null default 0
+  description   text,
+  ordre         int not null default 0,
+  prix_usd      numeric(10,2) check (prix_usd >= 0),   -- prix du module à l'unité
+  prix_cdf      numeric(14,0) check (prix_cdf >= 0)
 );
 create index modules_formation_id_idx on public.modules (formation_id, ordre);
 
@@ -111,6 +115,7 @@ create table public.commandes (
   id                     bigint generated always as identity primary key,
   user_id                uuid not null references public.profils (id) on delete cascade,
   produit_id             bigint references public.produits (id),
+  module_id              bigint references public.modules (id),
   plan_id                bigint references public.plans_abonnement (id),
   nb_places              int not null default 1 check (nb_places >= 1),   -- > 1 = licence de groupe
   montant                numeric(14,2) not null check (montant >= 0),
@@ -120,10 +125,11 @@ create table public.commandes (
   statut                 public.statut_commande not null default 'en_attente',
   created_at             timestamptz not null default now(),
   payee_le               timestamptz,
-  constraint commande_un_seul_objet check (num_nonnulls(produit_id, plan_id) = 1)
+  constraint commande_un_seul_objet check (num_nonnulls(produit_id, module_id, plan_id) = 1)
 );
 create index commandes_user_id_idx on public.commandes (user_id);
 create index commandes_produit_id_idx on public.commandes (produit_id);
+create index commandes_module_id_idx on public.commandes (module_id);
 create index commandes_plan_id_idx on public.commandes (plan_id);
 create index commandes_statut_idx on public.commandes (statut, created_at);
 create unique index commandes_reference_unique on public.commandes (reference_transaction)
@@ -133,25 +139,32 @@ create table public.licences_groupe (
   id            bigint generated always as identity primary key,
   commande_id   bigint not null unique references public.commandes (id) on delete cascade,
   acheteur_id   uuid not null references public.profils (id) on delete cascade,
-  produit_id    bigint not null references public.produits (id),
+  produit_id    bigint references public.produits (id),
+  module_id     bigint references public.modules (id),
   nb_places     int not null check (nb_places >= 1),
   code_invitation text not null unique default encode(extensions.gen_random_bytes(6), 'hex'),
-  created_at    timestamptz not null default now()
+  created_at    timestamptz not null default now(),
+  constraint licence_un_seul_objet check (num_nonnulls(produit_id, module_id) = 1)
 );
 create index licences_groupe_acheteur_idx on public.licences_groupe (acheteur_id);
 create index licences_groupe_produit_idx on public.licences_groupe (produit_id);
+create index licences_groupe_module_idx on public.licences_groupe (module_id);
 
 create table public.acces (
   id           bigint generated always as identity primary key,
   user_id      uuid not null references public.profils (id) on delete cascade,
-  produit_id   bigint not null references public.produits (id) on delete cascade,
+  produit_id   bigint references public.produits (id) on delete cascade,   -- produit entier (livret, application…)
+  module_id    bigint references public.modules (id) on delete cascade,    -- un module de formation
   origine      public.origine_acces not null default 'achat',
   commande_id  bigint references public.commandes (id) on delete set null,
   licence_id   bigint references public.licences_groupe (id) on delete set null,
   created_at   timestamptz not null default now(),
-  unique (user_id, produit_id)
+  constraint acces_un_seul_objet check (num_nonnulls(produit_id, module_id) = 1),
+  unique (user_id, produit_id),
+  unique (user_id, module_id)
 );
 create index acces_produit_id_idx on public.acces (produit_id);
+create index acces_module_id_idx on public.acces (module_id);
 create index acces_commande_id_idx on public.acces (commande_id);
 create index acces_licence_id_idx on public.acces (licence_id);
 
@@ -176,9 +189,8 @@ create table public.progression (
 );
 create index progression_lecon_id_idx on public.progression (lecon_id);
 
--- L'utilisateur connecté a-t-il accès à cette formation ?
--- (achat ou licence de groupe, OU abonnement actif = accès à tout)
-create or replace function public.a_acces(p_produit_id bigint)
+-- L'utilisateur connecté a-t-il un abonnement actif (= accès à tout) ?
+create or replace function public.est_abonne()
 returns boolean
 language sql
 stable
@@ -186,11 +198,39 @@ security definer
 set search_path = ''
 as $$
   select exists (
-           select 1 from public.acces
-           where user_id = (select auth.uid()) and produit_id = p_produit_id)
+    select 1 from public.abonnements
+    where user_id = (select auth.uid()) and statut = 'actif' and fin > now());
+$$;
+
+-- L'utilisateur connecté a-t-il accès à ce module ?
+-- (module acheté ou reçu par licence, formation entière offerte, OU abonnement actif)
+create or replace function public.a_acces_module(p_module_id bigint)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select public.est_abonne()
       or exists (
-           select 1 from public.abonnements
-           where user_id = (select auth.uid()) and statut = 'actif' and fin > now());
+           select 1 from public.acces a
+           where a.user_id = (select auth.uid())
+             and (a.module_id = p_module_id
+                  or a.produit_id = (select formation_id from public.modules where id = p_module_id)));
+$$;
+
+-- L'utilisateur connecté a-t-il accès à ce produit (livret, application…) ?
+create or replace function public.a_acces_produit(p_produit_id bigint)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select public.est_abonne()
+      or exists (
+           select 1 from public.acces
+           where user_id = (select auth.uid()) and produit_id = p_produit_id);
 $$;
 
 -- ---------------------------------------------------------------------
@@ -327,8 +367,13 @@ begin
     values (new.user_id, new.plan_id, now(), v_fin + make_interval(days => v_duree), new.id);
 
   elsif new.nb_places > 1 then
-    insert into public.licences_groupe (commande_id, acheteur_id, produit_id, nb_places)
-    values (new.id, new.user_id, new.produit_id, new.nb_places);
+    insert into public.licences_groupe (commande_id, acheteur_id, produit_id, module_id, nb_places)
+    values (new.id, new.user_id, new.produit_id, new.module_id, new.nb_places);
+
+  elsif new.module_id is not null then
+    insert into public.acces (user_id, module_id, origine, commande_id)
+    values (new.user_id, new.module_id, 'achat', new.id)
+    on conflict (user_id, module_id) do nothing;
 
   else
     insert into public.acces (user_id, produit_id, origine, commande_id)
@@ -376,11 +421,22 @@ begin
     raise exception 'Toutes les places de cette licence sont utilisées';
   end if;
 
-  insert into public.acces (user_id, produit_id, origine, licence_id)
-  values ((select auth.uid()), v_licence.produit_id, 'licence_groupe', v_licence.id)
-  on conflict (user_id, produit_id) do nothing;
+  if exists (select 1 from public.acces
+             where licence_id = v_licence.id and user_id = (select auth.uid())) then
+    return v_licence.id;   -- déjà inscrit : ne consomme pas de place
+  end if;
 
-  return v_licence.produit_id;
+  if v_licence.module_id is not null then
+    insert into public.acces (user_id, module_id, origine, licence_id)
+    values ((select auth.uid()), v_licence.module_id, 'licence_groupe', v_licence.id)
+    on conflict (user_id, module_id) do nothing;
+  else
+    insert into public.acces (user_id, produit_id, origine, licence_id)
+    values ((select auth.uid()), v_licence.produit_id, 'licence_groupe', v_licence.id)
+    on conflict (user_id, produit_id) do nothing;
+  end if;
+
+  return v_licence.id;
 end;
 $$;
 
@@ -516,7 +572,7 @@ as $$
   from public.lecons l
   join public.modules m on m.id = l.module_id
   where l.id = p_lecon_id
-    and (l.apercu_gratuit or public.a_acces(m.formation_id) or public.est_admin());
+    and (l.apercu_gratuit or public.a_acces_module(m.id) or public.est_admin());
 $$;
 
 create policy plans_lecture on public.plans_abonnement for select to anon, authenticated
@@ -533,7 +589,7 @@ create policy commandes_creation on public.commandes for insert to authenticated
 create policy commandes_admin on public.commandes for update to authenticated
   using ((select public.est_admin())) with check ((select public.est_admin()));
 revoke insert, update on public.commandes from authenticated;
-grant insert (user_id, produit_id, plan_id, nb_places, montant, devise, methode, reference_transaction)
+grant insert (user_id, produit_id, module_id, plan_id, nb_places, montant, devise, methode, reference_transaction)
   on public.commandes to authenticated;
 grant update (statut, payee_le, reference_transaction) on public.commandes to authenticated;
 
@@ -597,12 +653,14 @@ where statut = 'payee' and (select public.est_admin())
 group by 1, 2;
 
 create view public.tb_ventes_par_produit with (security_invoker = true) as
-select coalesce(p.titre, pl.nom) as produit,
+select coalesce(p.titre, f.titre || ' — ' || m.titre, pl.nom) as produit,
        c.devise,
        count(*)       as nb_ventes,
        sum(c.montant) as chiffre_affaires
 from public.commandes c
 left join public.produits p on p.id = c.produit_id
+left join public.modules m on m.id = c.module_id
+left join public.produits f on f.id = m.formation_id
 left join public.plans_abonnement pl on pl.id = c.plan_id
 where c.statut = 'payee' and (select public.est_admin())
 group by 1, 2;
