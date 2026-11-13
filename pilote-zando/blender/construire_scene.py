@@ -128,41 +128,56 @@ def mat(nom, couleur, rugo=0.6, emission=0.0, sss=0.0):
 
 
 def mat_wax(nom="WAX_orange_vert"):
-    """Tissu wax à motifs orange et vert (procédural)."""
+    """Tissu wax : grands losanges orange et vert, motifs bruns et jaunes (procédural)."""
     if nom in MATS:
         return MATS[nom]
     m = bpy.data.materials.new(nom)
     m.use_nodes = True
     nt = m.node_tree
     b = nt.nodes.get("Principled BSDF")
-    b.inputs["Roughness"].default_value = 0.7
+    b.inputs["Roughness"].default_value = 0.75
     coord = nt.nodes.new("ShaderNodeTexCoord")
+    mp = nt.nodes.new("ShaderNodeMapping")
+    mp.inputs["Rotation"].default_value = (0, 0, rad(45))
+    mp.inputs["Scale"].default_value = (3.6, 3.6, 3.6)
+    damier = nt.nodes.new("ShaderNodeTexChecker")
+    damier.inputs["Scale"].default_value = 1.0
+    damier.inputs["Color1"].default_value = (0.78, 0.26, 0.02, 1)
+    damier.inputs["Color2"].default_value = (0.16, 0.34, 0.07, 1)
     vor = nt.nodes.new("ShaderNodeTexVoronoi")
-    vor.inputs["Scale"].default_value = 18.0
-    wave = nt.nodes.new("ShaderNodeTexWave")
-    wave.inputs["Scale"].default_value = 9.0
-    wave.inputs["Distortion"].default_value = 4.0
-    ramp1 = nt.nodes.new("ShaderNodeValToRGB")
-    ramp1.color_ramp.elements[0].position = 0.25
-    ramp1.color_ramp.elements[0].color = (0.95, 0.42, 0.04, 1)
-    ramp1.color_ramp.elements[1].position = 0.3
-    ramp1.color_ramp.elements[1].color = (0.08, 0.5, 0.18, 1)
-    ramp2 = nt.nodes.new("ShaderNodeValToRGB")
-    ramp2.color_ramp.elements[0].position = 0.45
-    ramp2.color_ramp.elements[0].color = (1.0, 0.75, 0.2, 1)
-    ramp2.color_ramp.elements[1].position = 0.55
-    ramp2.color_ramp.elements[1].color = (0.0, 0.0, 0.0, 0)
-    mix = nt.nodes.new("ShaderNodeMix")
-    mix.data_type = "RGBA"
-    nt.links.new(coord.outputs["Object"], vor.inputs["Vector"])
-    nt.links.new(coord.outputs["Object"], wave.inputs["Vector"])
-    nt.links.new(vor.outputs["Distance"], ramp2.inputs["Fac"])
-    nt.links.new(wave.outputs["Fac"], ramp1.inputs["Fac"])
-    nt.links.new(ramp1.outputs["Color"], mix.inputs[6])
-    nt.links.new(ramp2.outputs["Color"], mix.inputs[7])
-    nt.links.new(ramp2.outputs["Alpha"], mix.inputs["Factor"])
-    nt.links.new(mix.outputs[2], b.inputs["Base Color"])
-    m.diffuse_color = (0.95, 0.45, 0.05, 1)
+    vor.inputs["Scale"].default_value = 16.0
+    rp = nt.nodes.new("ShaderNodeValToRGB")
+    rp.color_ramp.elements[0].position = 0.28
+    rp.color_ramp.elements[0].color = (0.38, 0.16, 0.05, 1)
+    rp.color_ramp.elements[1].position = 0.32
+    rp.color_ramp.elements[1].color = (0, 0, 0, 0)
+    ond = nt.nodes.new("ShaderNodeTexWave")
+    ond.inputs["Scale"].default_value = 14.0
+    ond.inputs["Distortion"].default_value = 2.0
+    rj = nt.nodes.new("ShaderNodeValToRGB")
+    rj.color_ramp.elements[0].position = 0.94
+    rj.color_ramp.elements[0].color = (0, 0, 0, 0)
+    rj.color_ramp.elements[1].position = 0.97
+    rj.color_ramp.elements[1].color = (1.0, 0.78, 0.2, 1)
+    m1 = nt.nodes.new("ShaderNodeMix")
+    m1.data_type = "RGBA"
+    m2 = nt.nodes.new("ShaderNodeMix")
+    m2.data_type = "RGBA"
+    L = nt.links.new
+    L(coord.outputs["Object"], mp.inputs["Vector"])
+    L(mp.outputs["Vector"], damier.inputs["Vector"])
+    L(coord.outputs["Object"], vor.inputs["Vector"])
+    L(coord.outputs["Object"], ond.inputs["Vector"])
+    L(vor.outputs["Distance"], rp.inputs["Fac"])
+    L(ond.outputs["Fac"], rj.inputs["Fac"])
+    L(damier.outputs["Color"], m1.inputs[6])
+    L(rj.outputs["Color"], m1.inputs[7])
+    L(rj.outputs["Alpha"], m1.inputs["Factor"])
+    L(m1.outputs[2], m2.inputs[6])
+    L(rp.outputs["Color"], m2.inputs[7])
+    L(rp.outputs["Alpha"], m2.inputs["Factor"])
+    L(m2.outputs[2], b.inputs["Base Color"])
+    m.diffuse_color = (0.93, 0.45, 0.04, 1)
     MATS[nom] = m
     return m
 
@@ -361,12 +376,19 @@ def construire_perso(code, cfg, coll="Personnages"):
     manche = cfg.get("manche", "courte")
     for cote, nomc in ((1, "G"), (-1, "D")):
         e = vide(f"{code}_epaule_{nomc}", (cote * 0.2 * s * cfg.get("carrure", 1), 0, tronc - 0.04), p.torse, coll)
-        mb = haut if manche in ("courte", "longue") else peau
-        membre(f"{code}_bras_{nomc}", 0.28 * s, 0.05 * s, peau, e, coll)
+        mb = haut if manche in ("courte", "longue", "trois_quarts") else peau
+        membre(f"{code}_bras_{nomc}", 0.28 * s, 0.05 * s, haut if manche == "trois_quarts" else peau, e, coll)
         prim("cyl", f"{code}_manche_{nomc}", (0, 0, -0.07 * s), (0.066 * s, 0.066 * s, 0.09 * s), mb, e, coll=coll)
         c = vide(f"{code}_coude_{nomc}", (0, 0, -0.28 * s), e, coll)
         avb = haut if manche == "longue" else peau
         membre(f"{code}_avantbras_{nomc}", 0.25 * s, 0.043 * s, avb, c, coll)
+        if manche == "trois_quarts":  # manche retroussée jusqu'au milieu de l'avant-bras
+            prim("cyl", f"{code}_revers_{nomc}", (0, 0, -0.06 * s), (0.056 * s, 0.056 * s, 0.065 * s), haut, c, coll=coll)
+        if cfg.get("montre") and nomc == "G":
+            prim("cyl", f"{code}_montre", (0, 0, -0.215 * s), (0.05 * s, 0.05 * s, 0.018), mat("MONTRE", (0.12, 0.1, 0.08), 0.4),
+                 c, coll=coll)
+            prim("cyl", f"{code}_cadran", (0, -0.045 * s, -0.215 * s), (0.022, 0.022, 0.006), mat("CADRAN", (0.85, 0.78, 0.5), 0.2),
+                 c, coll=coll, rot=(rad(90), 0, 0))
         mn = vide(f"{code}_main_{nomc}", (0, 0, -0.27 * s), c, coll)
         prim("sphere", f"{code}_paume_{nomc}", (0, 0, -0.02), (0.05 * s, 0.035 * s, 0.065 * s), peau, mn, coll=coll)
         prim("sphere", f"{code}_pouce_{nomc}", (-cote * 0.0, -0.035, 0.0), (0.018, 0.018, 0.035), peau, mn, coll=coll,
@@ -408,12 +430,36 @@ def construire_perso(code, cfg, coll="Personnages"):
              coll=coll, rot=(rad(-15), 0, rad(-6)))
     elif hc == "ras":
         prim("sphere", code + "_cheveux", (0, 0.03, R * 1.2), (R * 0.95, R * 0.98, R * 0.94), cheveux, p.tete, coll=coll)
+    elif hc == "volume":  # cheveux noirs fournis, raie sur le côté
+        prim("sphere", code + "_cheveux", (0, 0.02, R * 1.2), (R * 0.97, R * 1.0, R * 0.96), cheveux, p.tete, coll=coll)
+        prim("sphere", code + "_volume", (-R * 0.08, -R * 0.12, R * 1.78), (R * 0.88, R * 0.8, R * 0.42), cheveux, p.tete,
+             coll=coll, rot=(rad(-12), rad(-6), 0))
+        prim("sphere", code + "_meche", (R * 0.3, -R * 0.55, R * 1.7), (R * 0.55, R * 0.4, R * 0.25), cheveux, p.tete,
+             coll=coll, rot=(rad(-25), rad(10), rad(-15)))
+        for cote in (1, -1):
+            prim("sphere", f"{code}_tempe_{cote}", (cote * R * 0.8, -R * 0.05, R * 1.3), (R * 0.22, R * 0.5, R * 0.42),
+                 cheveux, p.tete, coll=coll)
+    elif hc == "queue":  # queue de cheval haute et lisse
+        prim("sphere", code + "_cheveux", (0, 0.02, R * 1.2), (R * 0.98, R * 1.02, R * 0.95), cheveux, p.tete, coll=coll)
+        prim("cyl", code + "_elastique", (0, R * 0.78, R * 1.78), (0.035, 0.035, 0.02), mat("ELASTIQUE", (0.05, 0.04, 0.04), 0.5),
+             p.tete, coll=coll, rot=(rad(-55), 0, 0))
+        for i, (y, z, e) in enumerate([(0.92, 1.85, (0.062, 0.07, 0.07)), (1.12, 1.62, (0.068, 0.062, 0.1)),
+                                       (1.22, 1.25, (0.066, 0.058, 0.13)), (1.2, 0.85, (0.058, 0.05, 0.13)),
+                                       (1.12, 0.5, (0.042, 0.04, 0.1))]):
+            prim("sphere", f"{code}_queue_{i}", (0, R * y, R * z), e, cheveux, p.tete, coll=coll, rot=(rad(-10 * i), 0, 0))
     elif hc == "tresses":
         prim("sphere", code + "_cheveux", (0, 0.02, R * 1.2), (R * 0.98, R * 1.02, R * 0.92), cheveux, p.tete, coll=coll)
         prim("sphere", code + "_chignon", (0, R * 0.95, R * 1.55), (0.06, 0.06, 0.06), cheveux, p.tete, coll=coll)
         for i in range(6):
             prim("sphere", f"{code}_tresse_{i}", (0, R * 1.05 + i * 0.008, R * 1.45 - i * 0.06),
                  (0.042 - i * 0.003, 0.042 - i * 0.003, 0.04), cheveux, p.tete, coll=coll)
+    if cfg.get("barbe"):  # barbe courte grise tout autour du menton + moustache
+        barbe = mat(code + "_barbe", cfg["barbe"], 0.85)
+        prim("sphere", code + "_barbe", (0, -R * 0.5, R * 0.4), (R * 0.66, R * 0.5, R * 0.28), barbe, p.tete, coll=coll)
+        prim("sphere", code + "_moustache", (0, -R * 0.94, R * 0.76), (0.06, 0.018, 0.016), barbe, p.tete, coll=coll)
+        for cote in (1, -1):
+            prim("sphere", f"{code}_favori_{cote}", (cote * R * 0.78, -R * 0.2, R * 0.75), (R * 0.12, R * 0.3, R * 0.35), barbe,
+                 p.tete, coll=coll)
     if cfg.get("barbiche"):
         prim("cone", code + "_barbiche", (0, -R * 0.8, R * 0.38), (0.035, 0.03, 0.05),
              mat(code + "_barbe", cfg["cheveux"], 0.7), p.tete, coll=coll, rot=(rad(180), 0, 0))
@@ -429,6 +475,14 @@ def construire_perso(code, cfg, coll="Personnages"):
                  p.lunettes, coll=coll, rot=(rad(90), 0, 0))
         prim("cyl", code + "_pont", (0, -0.012, 0.005), (0.004, 0.004, 0.02), mon, p.lunettes, coll=coll,
              rot=(0, rad(90), 0))
+    if cfg.get("ceinture"):
+        prim("cyl", code + "_ceinture", (0, 0, 0.07), (0.168 * s * cfg.get("carrure", 1), 0.118 * s, 0.025), mat("CEINTURE", (0.28, 0.15, 0.07), 0.4),
+             p.bassin, coll=coll)
+        prim("cube", code + "_boucle", (0, -0.118 * s, 0.07), (0.025, 0.006, 0.02), mat("METAL_dore", (0.8, 0.65, 0.3), 0.3),
+             p.bassin, coll=coll, biseau=0.004)
+    if cfg.get("col_v"):
+        prim("cube", code + "_decollete", (0, -0.113 * s, tronc - 0.03), (0.03, 0.004, 0.03), peau, p.torse, coll=coll,
+             rot=(0, rad(45), 0))
     if cfg.get("col"):
         prim("tore", code + "_col", (0, 0, tronc - 0.02), (0.11, 0.09, 0.15), haut, p.torse, coll=coll,
              major_radius=1, minor_radius=0.18)
@@ -655,15 +709,17 @@ construire_decor()
 
 CHEN = construire_perso("CHEN", dict(
     peau=(0.86, 0.66, 0.5), haut=(0.55, 0.76, 0.95), bas=(0.82, 0.71, 0.53), chaussures=(0.35, 0.2, 0.1),
-    cheveux=(0.02, 0.02, 0.025), coupe="court", lunettes=True, col=True, boutons=True, taille=1.0, tete_l=0.88))
+    cheveux=(0.02, 0.02, 0.025), coupe="volume", lunettes=True, col=True, boutons=True, ceinture=True, taille=1.0,
+    tete_l=0.88))
 FISTON = construire_perso("FISTON", dict(
-    peau=(0.3, 0.17, 0.1), mat_haut=mat_wax(), haut=(0.95, 0.45, 0.05), bas=(0.33, 0.2, 0.1), chaussures=(0.3, 0.17, 0.08),
-    cheveux=(0.55, 0.55, 0.55), sourcils=(0.4, 0.4, 0.4), coupe="ras", barbiche=True, sandales=True, taille=1.03,
+    peau=(0.3, 0.17, 0.1), mat_haut=mat_wax(), haut=(0.95, 0.45, 0.05), bas=(0.3, 0.17, 0.08), chaussures=(0.16, 0.09, 0.04),
+    cheveux=(0.5, 0.5, 0.48), sourcils=(0.45, 0.45, 0.43), coupe="ras", barbe=(0.55, 0.55, 0.53), montre=True, sandales=True,
+    taille=1.03,
     carrure=1.12, ventre=True, tete=1.03, tete_l=0.97))
 GRACE = construire_perso("GRACE", dict(
     peau=(0.4, 0.23, 0.14), haut=(0.99, 0.8, 0.1), bas=(0.08, 0.13, 0.32), chaussures=(0.96, 0.96, 0.96),
-    semelle_blanche=True, mat_cheveux=mat_tresses(), cheveux=(0.03, 0.02, 0.015), coupe="tresses", taille=0.95,
-    carrure=0.9, col=True, tete_l=0.86))
+    semelle_blanche=True, cheveux=(0.035, 0.022, 0.016), coupe="queue", manche="trois_quarts", col_v=True, taille=0.95,
+    carrure=0.88, col=True, tete_l=0.86))
 
 # Accessoires
 gris_fonce = mat("VALISE_gris", (0.12, 0.12, 0.14), 0.4)
@@ -674,10 +730,10 @@ prim("cube", "VALISE_tirette", (0, 0, 1.0), (0.08, 0.02, 0.015), mat("NOIR_mat",
 for dx in (0.15, -0.15):
     prim("cyl", f"VALISE_roue_{dx}", (dx, 0.08, 0.04), (0.035, 0.035, 0.02), mat("NOIR_mat", (0.02, 0.02, 0.02), 0.6), VALISE,
          coll="Accessoires", rot=(0, rad(90), 0))
-SAC_DOS = prim("cube", "CHEN_sacados", (0, 0.17, 0.3), (0.14, 0.07, 0.17), mat("SAC_gris", (0.5, 0.52, 0.55), 0.8), CHEN.torse,
+SAC_DOS = prim("cube", "CHEN_sacados", (0, 0.17, 0.3), (0.14, 0.07, 0.17), mat("SAC_gris", (0.4, 0.41, 0.42), 0.8), CHEN.torse,
                coll="Personnages", biseau=0.05)
 for dx in (0.1, -0.1):
-    prim("cube", f"CHEN_bretelle_{dx}", (dx, -0.005, 0.32), (0.022, 0.125, 0.012), mat("SAC_gris", (0.5, 0.52, 0.55), 0.8),
+    prim("cube", f"CHEN_bretelle_{dx}", (dx, -0.005, 0.32), (0.022, 0.125, 0.012), mat("SANGLE", (0.12, 0.12, 0.13), 0.7),
          CHEN.torse, coll="Personnages", rot=(rad(90), 0, 0))
 TEL_CHEN = prim("cube", "CHEN_telephone", (0, -0.02, -0.07), (0.035, 0.008, 0.07), mat("TELEPHONE", (0.03, 0.03, 0.04), 0.2),
                 CHEN.main["D"], coll="Personnages", biseau=0.005)
@@ -1306,6 +1362,8 @@ if opt("--references"):
     fond = prim("plan", "FOND_neutre", (0, 30, 0), (60, 60, 1), mat("FOND_gris", (0.82, 0.8, 0.78), 0.9), coll="Studio")
     fond.rotation_euler = (rad(90), 0, 0)
     sol = prim("plan", "SOL_neutre", (0, 0, 0.002), (60, 60, 1), mat("FOND_gris", (0.82, 0.8, 0.78), 0.9), coll="Studio")
+    for mk in scene.timeline_markers:  # sinon les marqueurs imposent la caméra du plan
+        mk.camera = None
     for c in ("Decor", "Vehicules", "Figurants", "Accessoires"):
         collection(c).hide_render = True
     for nom_c, p, assis in (("chen", CHEN, False), ("papa_fiston", FISTON, True), ("grace", GRACE, False)):
@@ -1329,17 +1387,17 @@ if opt("--references"):
             collection("Accessoires").hide_render = p is not CHEN
             for o in collection("Accessoires").objects:
                 o.hide_render = not o.name.startswith("VALISE")
-        frame = F(5, 0.2) if p is CHEN else (F(17, 0.3) if p is FISTON else F(10, 1.2))
+        frame = F(5, 0.2) if p is CHEN else (F(17, 0.3) if p is FISTON else F(16, 1.2))
         scene.frame_set(frame)
         bpy.context.view_layer.update()
         base = p.racine.matrix_world.translation.copy()
         rzc = p.racine.matrix_world.to_euler().z
-        h = 0.75 if assis else 0.95
-        for vue, ang, dist in (("face", 0, 3.6), ("trois_quarts", 40, 3.6), ("profil", 90, 3.6)):
+        h = 0.8 if assis else 1.0
+        for vue, ang, dist in (("face", 0, 4.4), ("trois_quarts", 40, 4.4), ("profil", 90, 4.4)):
             a = rzc + rad(ang)
-            pos = (base.x + dist * math.sin(a), base.y - dist * math.cos(a), h + 0.25)
+            pos = (base.x + dist * math.sin(a), base.y - dist * math.cos(a), h + 0.1)
             camd = bpy.data.cameras.new("CAM_REF")
-            camd.lens = 50
+            camd.lens = 35
             cam = bpy.data.objects.new("CAM_REF", camd)
             collection("Studio").objects.link(cam)
             cam.location = pos
