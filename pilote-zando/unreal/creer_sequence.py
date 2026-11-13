@@ -26,8 +26,15 @@ CHEMIN_SEQ = "/Game/WhereIsZando"
 NOM_SEQ = "SEQ_WhereIsZando"
 FPS = 24
 
+# Plans à mettre dans la séquence : [] = tous ; [3] = plan test « Excuse me, sir »
+PLANS_CHOISIS = [3]
+
 with open(os.path.join(EXPORT, "plans.csv"), encoding="utf-8") as f:
     PLANS = list(csv.DictReader(f))
+if PLANS_CHOISIS:
+    PLANS = [p for p in PLANS if int(p["plan"].split("_")[1]) in PLANS_CHOISIS]
+    NOM_SEQ = f"{NOM_SEQ}_plan" + "_".join(str(n) for n in PLANS_CHOISIS)
+DEBUT = int(PLANS[0]["image_debut"]) - 1
 FIN = int(PLANS[-1]["image_fin"])
 
 # 1. Séquence
@@ -39,7 +46,7 @@ else:
     seq = outils.create_asset(NOM_SEQ, CHEMIN_SEQ, unreal.LevelSequence, unreal.LevelSequenceFactoryNew())
 seq.set_display_rate(unreal.FrameRate(FPS, 1))
 seq.set_tick_resolution(unreal.FrameRate(FPS, 1))
-seq.set_playback_start(0)
+seq.set_playback_start(DEBUT)
 seq.set_playback_end(FIN)
 unreal.log(f"[Zando] séquence {chemin_complet} : {FIN} images")
 
@@ -85,7 +92,7 @@ if son:
     piste_son = seq.add_track(unreal.MovieSceneAudioTrack)
     sec = piste_son.add_section()
     sec.set_sound(son)
-    sec.set_range(0, FIN)
+    sec.set_range(0, int(open(os.path.join(EXPORT, "plans.csv")).read().strip().splitlines()[-1].split(",")[3]))
     unreal.log("[Zando] piste son ajoutée")
 else:
     unreal.log("[Zando] importez export/dialogue_ambiance.wav dans /Game/WhereIsZando/ puis relancez pour le son")
