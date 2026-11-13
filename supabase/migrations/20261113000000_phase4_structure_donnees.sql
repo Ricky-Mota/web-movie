@@ -14,7 +14,7 @@
 -- ---------------------------------------------------------------------
 -- 1. Listes de valeurs
 -- ---------------------------------------------------------------------
-create type public.type_produit as enum ('formation', 'livret', 'video', 'application', 'service');
+create type public.type_produit as enum ('formation', 'livret', 'video', 'application', 'jeu', 'service');
 create type public.niveau as enum ('debutant', 'moyen', 'avance');
 create type public.type_client as enum ('etudiant', 'organisation', 'projet');
 create type public.source_contact as enum ('youtube', 'whatsapp', 'bouche_a_oreille', 'site', 'autre');
@@ -68,6 +68,7 @@ create table public.produits (
   prix_cdf     numeric(14,0) check (prix_cdf >= 0),
   sur_devis    boolean not null default false,   -- services sur mesure : bouton « Demander un devis »
   image_url    text,
+  fichier_chemin text,   -- fichier à télécharger (livre, jeu, application) dans le bucket « fichiers »
   video_apercu_url text,
   publie       boolean not null default false,
   ordre        int not null default 0,
@@ -676,3 +677,56 @@ select date_trunc('month', created_at) as mois, type_client, source, count(*) as
 from public.contacts
 where (select public.est_admin())
 group by 1, 2, 3;
+
+-- ---------------------------------------------------------------------
+-- 9. Fichiers et vidéos (Supabase Storage)
+--
+-- Trois espaces de stockage :
+--   videos   (privé)  : vidéos des leçons, rangées par module      → module-<id>/lecon-1.mp4
+--   fichiers (privé)  : résumés PDF des modules, livres, jeux, applis
+--                       → module-<id>/resume.pdf  ou  produit-<id>/livre.pdf
+--   images   (public) : vignettes et images du site                → produit-<id>/vignette.jpg
+-- Dans les tables, lecons.video_url, lecons.resume_pdf_url et produits.fichier_chemin
+-- contiennent le CHEMIN du fichier (ex. « module-3/lecon-1.mp4 »). Le site demande
+-- ensuite un lien temporaire signé, accordé seulement aux ayants droit.
+-- ---------------------------------------------------------------------
+insert into storage.buckets (id, name, public, allowed_mime_types)
+values
+  ('videos',   'videos',   false, array['video/mp4', 'video/webm', 'video/quicktime']),
+  ('fichiers', 'fichiers', false, null),
+  ('images',   'images',   true,  array['image/jpeg', 'image/png', 'image/webp', 'image/svg+xml'])
+on conflict (id) do nothing;
+
+-- Numéro tiré du premier dossier du chemin : « module-12/x.mp4 » → 12 (préfixe « module »)
+create or replace function public.id_dossier(p_chemin text, p_prefixe text)
+returns bigint
+language sql
+immutable
+set search_path = ''
+as $$
+  select nullif(substring(split_part(p_chemin, '/', 1) from '^' || p_prefixe || '-([0-9]+)$'), '')::bigint;
+$$;
+
+-- Lecture : l'administrateur voit tout ; un étudiant lit les fichiers d'un module
+-- ou d'un produit seulement s'il y a accès (achat, licence ou abonnement).
+create policy stockage_lecture on storage.objects for select to authenticated
+  using (
+    bucket_id in ('videos', 'fichiers', 'images')
+    and (
+      (select public.est_admin())
+      or bucket_id = 'images'
+      or (split_part(name, '/', 1) like 'module-%'
+          and public.a_acces_module(public.id_dossier(name, 'module')))
+      or (bucket_id = 'fichiers' and split_part(name, '/', 1) like 'produit-%'
+          and public.a_acces_produit(public.id_dossier(name, 'produit')))
+    )
+  );
+
+-- Envoi, remplacement et suppression : réservés à l'administrateur.
+create policy stockage_ajout_admin on storage.objects for insert to authenticated
+  with check (bucket_id in ('videos', 'fichiers', 'images') and (select public.est_admin()));
+create policy stockage_modif_admin on storage.objects for update to authenticated
+  using (bucket_id in ('videos', 'fichiers', 'images') and (select public.est_admin()))
+  with check (bucket_id in ('videos', 'fichiers', 'images') and (select public.est_admin()));
+create policy stockage_suppression_admin on storage.objects for delete to authenticated
+  using (bucket_id in ('videos', 'fichiers', 'images') and (select public.est_admin()));
