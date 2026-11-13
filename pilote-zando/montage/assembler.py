@@ -186,7 +186,9 @@ def main():
     # 3. Les deux versions de la scène
     logo, texte_logo = logo_filtre()
     ass = os.path.join(a.sortie, "sous_titres.ass").replace(":", "\\:")
-    for nom, st in (("scene_sans_sous_titres.mp4", None), ("scene_avec_sous_titres.mp4", ass)):
+    sans_voix = os.path.join(a.sortie, "sous_titres_sans_voix.ass")
+    st_sans = sans_voix.replace(":", "\\:") if "Dialogue:" in open(sans_voix, encoding="utf-8").read() else None
+    for nom, st in (("scene_sans_sous_titres.mp4", st_sans), ("scene_avec_sous_titres.mp4", ass)):
         chemin = os.path.join(a.sortie, nom)
         if logo:
             fc = f"[1]scale=150:-1[lg];[0][lg]overlay=W-w-24:H-h-22" + (f",ass='{st}'" if st else "") + "[v]"
@@ -200,9 +202,9 @@ def main():
 
     # 4. Épisode YouTube : accroche, scène x2, vocabulaire, quiz
     fond = os.path.join(tmp, "fond.png")
-    ff("-ss", "20", "-i", muette, "-frames:v", "1", fond)
+    ff("-ss", f"{min(20, duree(muette) / 3):.2f}", "-i", muette, "-frames:v", "1", fond)
     accroche = os.path.join(tmp, "1_accroche.mp4")
-    ff("-ss", "26.5", "-t", "5", "-i", os.path.join(a.sortie, "scene_sans_sous_titres.mp4"), "-vf",
+    ff("-ss", f"{min(26.5, max(0, duree(muette) - 6)):.2f}", "-t", "5", "-i", os.path.join(a.sortie, "scene_sans_sous_titres.mp4"), "-vf",
        f"drawtext=fontfile={POLICE}:text='Where is Zando?':fontsize=96:fontcolor=0xFFE600:borderw=5:bordercolor=black:"
        f"x=(w-tw)/2:y=h*0.18:enable='gte(t,0.3)',"
        f"drawtext=fontfile={POLICE_R}:text='English for beginners  •  A1-A2':fontsize=38:fontcolor=white:"

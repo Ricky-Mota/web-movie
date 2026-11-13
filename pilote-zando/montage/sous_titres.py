@@ -54,6 +54,10 @@ def surligner(texte):
     return texte
 
 
+def a_une_voix(n, i, qui):
+    return os.path.exists(os.path.join(RACINE, "voix", "audio", f"plan_{n:02d}_{i}_{qui}.mp3"))
+
+
 def ecrire(dossier):
     sc = charger()
     lignes = repliques(sc)
@@ -80,6 +84,15 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         for a, b, qui, txt, _ in lignes:
             f.write(f"Dialogue: 0,{ts_ass(a)},{ts_ass(b)},Nom,,0,0,0,,{NOMS[qui]}\n")
             f.write(f"Dialogue: 0,{ts_ass(a)},{ts_ass(b)},Defaut,,0,0,0,,{surligner(txt)}\n")
+    # Répliques sans voix enregistrée : sous-titrées même dans la version « sans sous-titres »
+    rangs = {}
+    with open(os.path.join(dossier, "sous_titres_sans_voix.ass"), "w", encoding="utf-8") as f:
+        f.write(entete)
+        for a_, b_, qui, txt, n in lignes:
+            rangs[n] = rangs.get(n, 0) + 1
+            if not a_une_voix(n, rangs[n], qui):
+                f.write(f"Dialogue: 0,{ts_ass(a_)},{ts_ass(b_)},Nom,,0,0,0,,{NOMS[qui]}\n")
+                f.write(f"Dialogue: 0,{ts_ass(a_)},{ts_ass(b_)},Defaut,,0,0,0,,{txt}\n")
     # Script de dialogue lisible (pour les voix et la relecture)
     with open(os.path.join(dossier, "dialogues.txt"), "w", encoding="utf-8") as f:
         for a, b, qui, txt, n in lignes:
