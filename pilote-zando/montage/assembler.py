@@ -112,7 +112,7 @@ def piste_audio(duree_s, plans, sortie, dossier_tmp):
         for i, r in enumerate(p["repliques"], 1):
             f = os.path.join(RACINE, "voix", "audio", f"plan_{p['n']:02d}_{i}_{r['qui']}.mp3")
             if os.path.exists(f):
-                voix.append((f, t0 + r["debut"]))
+                voix.append((f, t0 + r["debut"], r["fin"] - r["debut"]))
         t0 += p["duree"]
     if not voix:
         print("[info] pas de voix dans voix/audio : ambiance seule (voir voix/generer_voix.py)")
@@ -121,10 +121,12 @@ def piste_audio(duree_s, plans, sortie, dossier_tmp):
     entrees = ["-i", amb]
     filtres = ["[0]volume=0.6[a0]"]
     noms = ["[a0]"]
-    for k, (f, t) in enumerate(voix, 1):
+    for k, (f, t, place) in enumerate(voix, 1):
         entrees += ["-i", f]
         ms = int(t * 1000)
-        filtres.append(f"[{k}]aformat=channel_layouts=stereo,adelay={ms}|{ms},volume=1.6[v{k}]")
+        # si la voix dépasse sa place dans le plan, on l'accélère légèrement (au plus x1,2)
+        tempo = min(1.2, max(1.0, (duree(f) - 0.1) / max(place, 0.5)))
+        filtres.append(f"[{k}]aformat=channel_layouts=stereo,atempo={tempo:.3f},adelay={ms}|{ms},volume=1.6[v{k}]")
         noms.append(f"[v{k}]")
     filtres.append("".join(noms) + f"amix=inputs={len(noms)}:normalize=0,atrim=0:{duree_s}[out]")
     ff(*entrees, "-filter_complex", ";".join(filtres), "-map", "[out]", "-ar", "48000", sortie)

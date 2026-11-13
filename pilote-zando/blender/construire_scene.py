@@ -838,10 +838,11 @@ pose_repos(RECEVEUR, 1)
 cle(RECEVEUR.torse, F(14, 2.5), rot=(0, 0, 0))
 cle(RECEVEUR.torse, F(14, 3.2), rot=(-25, 0, 0))
 cle(RECEVEUR.epaule["D"], F(14, 3.2), rot=(0, 8, 0))
-for k in range(8):
+_rec = next(r for r in PLANS[13]["repliques"] if r["qui"] == "RECEVEUR")
+for k in range(int((_rec["fin"] - 3.6) / 0.3) + 1):
     cle(RECEVEUR.epaule["D"], F(14, 3.6 + k * 0.3), rot=(-20, 140 if k % 2 == 0 else 110, 0))
 cle(RECEVEUR.epaule["G"], F(14, 3.2), rot=(-20, -60, 0))
-parler(RECEVEUR, F(14, 4.7), F(14, 5.9))
+# (la bouche du receveur est animée plus bas avec les autres répliques)
 
 # ======================================================================================
 # Animation plan par plan
@@ -1161,7 +1162,7 @@ for k, rzk in enumerate((10, -12, 12, -8, 0)):
     tete(FISTON, F(19, 0.3 + k * 0.25), rz=rzk, rx=5)
 
 # Bouches qui parlent : d'après les répliques du scénario
-QUI = {"CHEN": CHEN, "FISTON": FISTON, "GRACE": GRACE, "RECEVEUR": None}
+QUI = {"CHEN": CHEN, "FISTON": FISTON, "GRACE": GRACE, "RECEVEUR": RECEVEUR}
 for p in PLANS:
     for r in p["repliques"]:
         perso = QUI.get(r["qui"])
