@@ -940,16 +940,16 @@ tete(CHEN, F(6, 3.4), rz=-5)
 cle(CHEN.epaule["G"], F(7, 0.2), rot=(0, -8, 0))
 cle(CHEN.epaule["G"], F(7, 0.7), rot=(-38, -18, 0))
 cle(CHEN.coude["G"], F(7, 0.7), rot=(-75, 0, -20))
-for k in range(8):
+for k in range(16):
     cle(CHEN.coude["G"], F(7, 0.8 + k * 0.22), rot=(-75 - (6 if k % 2 else 0), 0, -20))
 tete(CHEN, F(7, 0.3), rx=0)
 tete(CHEN, F(7, 0.7), rx=25)
-tete(CHEN, F(7, 2.4), rx=25)
-tete(CHEN, F(7, 2.9), rx=0, rz=5)
-cle(CHEN.epaule["G"], F(7, 2.6), rot=(-38, -18, 0))
-cle(CHEN.epaule["G"], F(7, 3.2), rot=(0, -8, 0))
-cle(CHEN.coude["G"], F(7, 3.2), rot=(-10, 0, 0))
-sourcils(CHEN, F(7, 2.9), 0.01)
+tete(CHEN, F(7, 4.4), rx=25)
+tete(CHEN, F(7, 4.9), rx=0, rz=5)
+cle(CHEN.epaule["G"], F(7, 4.6), rot=(-38, -18, 0))
+cle(CHEN.epaule["G"], F(7, 5.2), rot=(0, -8, 0))
+cle(CHEN.coude["G"], F(7, 5.2), rot=(-10, 0, 0))
+sourcils(CHEN, F(7, 5.0), 0.01)
 
 # Plan 8 : Fiston secoue la tête et fait un geste désinvolte
 for k, rzk in enumerate((-10, -25, 5, -25, -10)):
@@ -1017,12 +1017,12 @@ cle(GRACE.epaule["G"], F(12, 1.2), rot=(0, -8, 0))
 cle(GRACE.coude["G"], F(12, 1.2), rot=(-10, 0, 0))
 cle(GRACE.epaule["G"], F(12, 1.9), rot=(-20, -95, 0))
 cle(GRACE.coude["G"], F(12, 1.9), rot=(-5, 0, 0))
-cle(GRACE.epaule["G"], F(12, 4.2), rot=(-20, -95, 0))
+cle(GRACE.epaule["G"], F(12, 5.4), rot=(-20, -95, 0))
 cle(GRACE.epaule["G"], F(13, 0.5), rot=(0, -8, 0))
 cle(GRACE.coude["G"], F(13, 0.5), rot=(-10, 0, 0))
 tete(GRACE, F(12, 1.5), rz=0)
 tete(GRACE, F(12, 2.2), rz=35)
-tete(GRACE, F(12, 3.4), rz=0)
+tete(GRACE, F(12, 5.6), rz=0)
 cle(CHEN.racine, F(12, 0.4), rot=(0, 0, rz_chen))
 cle(CHEN.racine, F(12, 1.0), rot=(0, 0, cap_vers(POS_CHEN, POS_GRACE)))
 tete(CHEN, F(12, 1.0), rz=0)
@@ -1053,11 +1053,11 @@ cle(GRACE.epaule["G"], F(14, 1.4), rot=(0, -8, 0))
 cle(GRACE.coude["G"], F(14, 1.4), rot=(-10, 0, 0))
 cle(GRACE.epaule["G"], F(14, 2.2), rot=(-60, -70, 0))
 cle(GRACE.coude["G"], F(14, 2.2), rot=(-5, 0, 0))
-cle(GRACE.epaule["G"], F(14, 4.5), rot=(-60, -70, 0))
-cle(GRACE.epaule["G"], F(14, 5.2), rot=(0, -8, 0))
-cle(GRACE.coude["G"], F(14, 5.2), rot=(-10, 0, 0))
-tete(GRACE, F(14, 4.6), rz=40)
-tete(GRACE, F(14, 5.3), rz=0)
+cle(GRACE.epaule["G"], F(14, 5.8), rot=(-60, -70, 0))
+cle(GRACE.epaule["G"], F(14, 6.4), rot=(0, -8, 0))
+cle(GRACE.coude["G"], F(14, 6.4), rot=(-10, 0, 0))
+tete(GRACE, F(14, 5.9), rz=40)
+tete(GRACE, F(14, 6.6), rz=0)
 tete(CHEN, F(14, 1.4), rz=0)
 tete(CHEN, F(14, 2.2), rz=-45)
 tete(CHEN, F(14, 5.5), rz=-30)
@@ -1068,20 +1068,20 @@ tete(FISTON, F(14, 3.0), rz=50)
 tete(CHEN, F(15, 0.2), rz=-30)
 tete(CHEN, F(15, 0.6), rz=0)
 cle(BILLETS, 1, ech=(0.001, 0.001, 0.001))
-cle(BILLETS, F(15, 2.0), ech=(0.001, 0.001, 0.001))
-cle(BILLETS, F(15, 2.1), ech=(1, 1, 1))
+cle(BILLETS, F(15, 3.4), ech=(0.001, 0.001, 0.001))
+cle(BILLETS, F(15, 3.5), ech=(1, 1, 1))
 cle(BILLETS, F(16, 0.5), ech=(1, 1, 1))
 cle(BILLETS, F(16, 0.6), ech=(0.001, 0.001, 0.001))
-cle(GRACE.epaule["D"], F(15, 1.8), rot=(0, 8, 0))
-cle(GRACE.coude["D"], F(15, 1.8), rot=(-10, 0, 0))
-cle(GRACE.epaule["D"], F(15, 2.5), rot=(-50, 20, 0))
-cle(GRACE.coude["D"], F(15, 2.5), rot=(-70, 0, 0))
-cle(GRACE.epaule["D"], F(15, 4.6), rot=(-50, 20, 0))
+cle(GRACE.epaule["D"], F(15, 3.2), rot=(0, 8, 0))
+cle(GRACE.coude["D"], F(15, 3.2), rot=(-10, 0, 0))
+cle(GRACE.epaule["D"], F(15, 3.9), rot=(-50, 20, 0))
+cle(GRACE.coude["D"], F(15, 3.9), rot=(-70, 0, 0))
+cle(GRACE.epaule["D"], F(15, 7.6), rot=(-50, 20, 0))
 cle(GRACE.epaule["D"], F(16, 0.6), rot=(0, 8, 0))
 cle(GRACE.coude["D"], F(16, 0.6), rot=(-10, 0, 0))
 cle(CHEN.torse, F(15, 0.2), rot=(0, 0, 0))
 cle(CHEN.torse, F(15, 0.6), rot=(8, 0, 0))
-cle(CHEN.torse, F(15, 4.0), rot=(0, 0, 0))
+cle(CHEN.torse, F(15, 3.4), rot=(0, 0, 0))
 
 # Plan 16 : Fiston éclate de rire et se gratte la tête
 tete(FISTON, F(16, 0.2), rx=0, rz=30)
@@ -1104,19 +1104,19 @@ cle(CHEN.racine, F(17, 0.6), rot=(0, 0, rz_chen))
 cle(CHEN.torse, F(17, 0.6), rot=(0, 0, 0))
 cle(CHEN.torse, F(17, 1.0), rot=(20, 0, 0))
 cle(CHEN.torse, F(17, 1.5), rot=(0, 0, 0))
-cle(CHEN.racine, F(17, 1.8), rot=(0, 0, rz_chen))
-cle(CHEN.racine, F(17, 2.3), rot=(0, 0, cap_vers(POS_CHEN, POS_GRACE)))
-cle(CHEN.torse, F(17, 2.3), rot=(0, 0, 0))
-cle(CHEN.torse, F(17, 2.7), rot=(20, 0, 0))
-cle(CHEN.torse, F(17, 3.2), rot=(0, 0, 0))
+cle(CHEN.racine, F(17, 3.4), rot=(0, 0, rz_chen))
+cle(CHEN.racine, F(17, 3.9), rot=(0, 0, cap_vers(POS_CHEN, POS_GRACE)))
+cle(CHEN.torse, F(17, 3.9), rot=(0, 0, 0))
+cle(CHEN.torse, F(17, 4.3), rot=(20, 0, 0))
+cle(CHEN.torse, F(17, 4.9), rot=(0, 0, 0))
 tete(FISTON, F(17, 0.5), rz=0, rx=-5)
-cle(GRACE.epaule["G"], F(17, 3.4), rot=(0, -8, 0))
-cle(GRACE.coude["G"], F(17, 3.4), rot=(-10, 0, 0))
+cle(GRACE.epaule["G"], F(17, 9.0), rot=(0, -8, 0))
+cle(GRACE.coude["G"], F(17, 9.0), rot=(-10, 0, 0))
 for k in range(4):
-    cle(GRACE.epaule["G"], F(17, 4.0 + k * 0.35), rot=(-50, -50, 0))
-    cle(GRACE.coude["G"], F(17, 4.0 + k * 0.35), rot=(-30 - (60 if k % 2 else 0), 0, 0))
-cle(GRACE.epaule["G"], F(17, 5.6), rot=(0, -8, 0))
-cle(GRACE.coude["G"], F(17, 5.6), rot=(-10, 0, 0))
+    cle(GRACE.epaule["G"], F(17, 9.6 + k * 0.35), rot=(-50, -50, 0))
+    cle(GRACE.coude["G"], F(17, 9.6 + k * 0.35), rot=(-30 - (60 if k % 2 else 0), 0, 0))
+cle(GRACE.epaule["G"], F(17, 11.4), rot=(0, -8, 0))
+cle(GRACE.coude["G"], F(17, 11.4), rot=(-10, 0, 0))
 
 # Plan 18 : départ vers le taxi-bus, Chen se retourne et fait au revoir, Fiston répond
 DEST_GRACE = (POS_BUS[0] + 1.2, 3.6)
@@ -1165,11 +1165,60 @@ for k, rzk in enumerate((10, -12, 12, -8, 0)):
 
 # Bouches qui parlent : d'après les répliques du scénario
 QUI = {"CHEN": CHEN, "FISTON": FISTON, "GRACE": GRACE, "RECEVEUR": RECEVEUR}
+def enveloppe_voix(chemin):
+    """Volume de la voix image par image (24 i/s), entre 0 et 1, lu avec ffmpeg."""
+    import subprocess
+    import numpy as np
+    brut = subprocess.run(["ffmpeg", "-v", "error", "-i", chemin, "-ac", "1", "-ar", "24000", "-f", "s16le", "-"],
+                          capture_output=True, check=True).stdout
+    x = np.frombuffer(brut, dtype=np.int16).astype(np.float32) / 32768
+    n = len(x) // 1000  # 1000 échantillons = 1 image à 24 i/s
+    rms = np.sqrt((x[: n * 1000].reshape(n, 1000) ** 2).mean(axis=1))
+    ref = np.percentile(rms[rms > 0.01], 90) if (rms > 0.01).any() else 1
+    return np.clip(rms / ref, 0, 1.2)
+
+
+def parler_voix(p, chemin, f0):
+    """Synchronisation labiale : la bouche s'ouvre selon le volume réel de la voix, petits hochements sur les accents."""
+    env = enveloppe_voix(chemin)
+    b = p.bouche
+    cle(b, f0 - 1, ech=(0.045, 0.02, 0.012))
+    precedent = None
+    for i, v in enumerate(env):
+        ouv = 0.011 + 0.03 * min(v, 1.0)
+        larg = 0.045 - 0.008 * min(v, 1.0)
+        if precedent is None or abs(ouv - precedent) > 0.002 or i == len(env) - 1:
+            cle(b, f0 + i, ech=(larg, 0.02, ouv))
+            precedent = ouv
+    cle(b, f0 + len(env) + 1, ech=(0.045, 0.02, 0.012))
+    # hochements de tête sur les syllabes les plus fortes (au plus un toutes les 0,6 s)
+    dernier = -99
+    for i in range(1, len(env) - 1):
+        if env[i] > 0.85 and env[i] >= env[i - 1] and env[i] >= env[i + 1] and i - dernier > 14:
+            poses = {}
+            for d in (-3, 0, 4):  # la tête garde le geste en cours, on ajoute juste le hochement
+                scene.frame_set(f0 + i + d)
+                poses[d] = [math.degrees(a) for a in p.tete.rotation_euler]
+            cle(p.tete, f0 + i - 3, rot=poses[-3])
+            cle(p.tete, f0 + i, rot=(poses[0][0] + 4, poses[0][1], poses[0][2]))
+            cle(p.tete, f0 + i + 4, rot=poses[4])
+            dernier = i
+
+
+SYNCHRO = []
 for p in PLANS:
-    for r in p["repliques"]:
+    for i, r in enumerate(p["repliques"], 1):
         perso = QUI.get(r["qui"])
-        if perso is not None:
+        if perso is None:
+            continue
+        audio = os.path.join(RACINE, "voix", "audio", f"plan_{p['n']:02d}_{i}_{r['qui']}.mp3")
+        if os.path.exists(audio):
+            scene.frame_set(F(p["n"], r["debut"]))
+            parler_voix(perso, audio, F(p["n"], r["debut"]))
+            SYNCHRO.append(f"plan {p['n']} {r['qui']}")
+        else:
             parler(perso, F(p["n"], r["debut"]), F(p["n"], r["fin"]))
+print("[OK] synchronisation labiale sur la voix :", ", ".join(SYNCHRO))
 
 # ======================================================================================
 # Caméras : une par plan, cible = un « vide » (objet invisible) à regarder
