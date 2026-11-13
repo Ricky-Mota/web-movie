@@ -66,7 +66,8 @@
      "qui": "FISTON",
      "texte": "Good morning, my friend! Welcome!",
      "debut": 0.3,
-     "fin": 3.64
+     "fin": 3.64,
+     "gain_db": 4
     }
    ],
    "prompt_image": "Medium close-up of Papa Fiston on his stool, big warm smile, arms open.",
@@ -130,7 +131,8 @@
      "qui": "FISTON",
      "texte": "No, no. It is very near. Twenty minutes.",
      "debut": 0.3,
-     "fin": 5.29
+     "fin": 5.29,
+     "gain_db": 4
     }
    ],
    "prompt_image": "Medium close-up of Papa Fiston waving his hand dismissively, relaxed.",
@@ -155,7 +157,8 @@
      "qui": "GRACE",
      "texte": "Excuse me. Sorry, Papa. That is not correct.",
      "debut": 0.3,
-     "fin": 6.04
+     "fin": 6.04,
+     "gain_db": 4
     }
    ],
    "prompt_image": "Medium shot of Grace raising one hand politely, kind but firm expression.",
@@ -171,7 +174,8 @@
      "qui": "FISTON",
      "texte": "Not correct? Why?",
      "debut": 0.4,
-     "fin": 2.87
+     "fin": 2.87,
+     "gain_db": 4
     }
    ],
    "prompt_image": "Close-up of Papa Fiston, eyebrows raised, surprised.",
@@ -203,7 +207,8 @@
      "qui": "CHEN",
      "texte": "In Gombe? Not in Limete?",
      "debut": 0.4,
-     "fin": 3.71
+     "fin": 3.71,
+     "gain_db": 4
     }
    ],
    "prompt_image": "Medium close-up of Mr. Chen, surprised, adjusting his glasses.",
@@ -219,13 +224,15 @@
      "qui": "GRACE",
      "texte": "Yes. Gombe. Take a taxi-bus. The driver says \"Zando! Zando!\". You get in. It is easy.",
      "debut": 0.3,
-     "fin": 12.13
+     "fin": 12.13,
+     "gain_db": 4
     },
     {
      "qui": "RECEVEUR",
      "texte": "Zando! Zando!",
      "debut": 12.48,
-     "fin": 14.55
+     "fin": 14.55,
+     "gain_db": 4
     }
    ],
    "prompt_image": "Medium shot, Grace pointing to a yellow and blue minibus taxi stopping nearby, a conductor leaning out of the door.",
@@ -241,13 +248,15 @@
      "qui": "CHEN",
      "texte": "How much is the bus?",
      "debut": 0.3,
-     "fin": 1.84
+     "fin": 1.84,
+     "gain_db": 4
     },
     {
      "qui": "GRACE",
      "texte": "It is cheap. Have small money with you.",
      "debut": 2.19,
-     "fin": 5.43
+     "fin": 5.43,
+     "gain_db": 4
     }
    ],
    "prompt_image": "Two-shot of Mr. Chen and Grace facing each other, Grace showing small banknotes.",
@@ -263,7 +272,8 @@
      "qui": "FISTON",
      "texte": "Ah! Sorry, sorry! Limete is a different market. My mistake!",
      "debut": 0.3,
-     "fin": 7.38
+     "fin": 7.38,
+     "gain_db": 4
     }
    ],
    "prompt_image": "Medium shot of Papa Fiston laughing and scratching his head.",
@@ -279,13 +289,15 @@
      "qui": "CHEN",
      "texte": "No problem. Thank you, sir. And thank you very much, miss.",
      "debut": 0.2,
-     "fin": 7.52
+     "fin": 7.52,
+     "gain_db": 4
     },
     {
      "qui": "GRACE",
      "texte": "You're welcome. Come, the bus stop is here. Follow me.",
      "debut": 7.87,
-     "fin": 13.39
+     "fin": 13.39,
+     "gain_db": 4
     }
    ],
    "prompt_image": "Three-shot of Mr. Chen, Grace and Papa Fiston, everyone smiling.",
@@ -301,7 +313,8 @@
      "qui": "CHEN",
      "texte": "Great! Goodbye, sir!",
      "debut": 0.3,
-     "fin": 3.71
+     "fin": 3.71,
+     "gain_db": 4
     },
     {
      "qui": "FISTON",

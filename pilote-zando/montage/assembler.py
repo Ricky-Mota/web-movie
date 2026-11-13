@@ -116,7 +116,7 @@ def piste_audio(duree_s, plans, sortie, dossier_tmp):
         for i, r in enumerate(p["repliques"], 1):
             f = os.path.join(RACINE, "voix", "audio", f"plan_{p['n']:02d}_{i}_{r['qui']}.mp3")
             if os.path.exists(f):
-                voix.append((f, t0 + r["debut"], r["fin"] - r["debut"]))
+                voix.append((f, t0 + r["debut"], r["fin"] - r["debut"], r.get("gain_db", 0)))
         t0 += p["duree"]
     if not voix:
         print("[info] pas de voix dans voix/audio : ambiance seule (voir voix/generer_voix.py)")
@@ -130,26 +130,27 @@ def piste_audio(duree_s, plans, sortie, dossier_tmp):
     n = int(duree_s * sr)
     ambi = np.pad(ambi, ((0, max(0, n - len(ambi))), (0, 0)))[:n]
     piste_voix = np.zeros((n, 2), np.float32)
-    for f, t, place in voix:
-        # chaque réplique ramenée au même volume perçu (-16 LUFS, la norme des vidéos en ligne),
+    for f, t, place, gain_db in voix:
+        # chaque réplique ramenée au même volume perçu (-14 LUFS, le niveau de YouTube), plus « gain_db » si besoin,
         # légèrement accélérée seulement si elle dépasse sa place dans le plan (au plus x1,2)
         tempo = min(1.2, max(1.0, (duree(f) - 0.1) / max(place, 0.5)))
         brut = subprocess.run(["ffmpeg", "-v", "error", "-i", f, "-af",
-                               f"loudnorm=I=-16:TP=-1.5:LRA=7,atempo={tempo:.3f},aresample={sr}",
+                               f"loudnorm=I=-14:TP=-1:LRA=7,atempo={tempo:.3f},aresample={sr},volume={gain_db}dB",
                                "-ac", "2", "-f", "s16le", "-"], capture_output=True, check=True).stdout
         v = np.frombuffer(brut, np.int16).astype(np.float32).reshape(-1, 2) / 32768
         i = int(t * sr)
         m = min(len(v), n - i)
         if m > 0:
             piste_voix[i:i + m] += v[:m]
-    # « ducking » : l'ambiance baisse de ~7 dB quand quelqu'un parle, puis remonte doucement
+    # « ducking » : l'ambiance baisse de ~10 dB quand quelqu'un parle, puis remonte doucement
     niveau = maximum_filter1d(np.abs(piste_voix).mean(axis=1), size=int(0.25 * sr))
     parle = uniform_filter1d((niveau > 0.02).astype(np.float32), size=int(0.35 * sr))
-    gain_amb = 0.85 * (1 - 0.55 * parle)
-    mix = ambi * gain_amb[:, None] + piste_voix * 1.1
-    crete = np.abs(mix).max()
-    if crete > 0.89:
-        mix *= 0.89 / crete
+    gain_amb = 0.85 * (1 - 0.7 * parle)
+    mix = ambi * gain_amb[:, None] + piste_voix * 1.25
+    # limiteur doux : seules les crêtes au-dessus de 0,8 sont arrondies, le volume des voix est conservé
+    seuil = 0.8
+    trop = np.abs(mix) > seuil
+    mix[trop] = np.sign(mix[trop]) * (seuil + (1 - seuil) * np.tanh((np.abs(mix[trop]) - seuil) / (1 - seuil)))
     wavfile.write(sortie, sr, (mix * 32767).astype(np.int16))
     return len(voix)
 
