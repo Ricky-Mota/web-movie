@@ -42,7 +42,7 @@
   },
   {
    "n": 3,
-   "duree": 4,
+   "duree": 5.5,
    "cadrage": "Plan à deux",
    "contenu": "Excuse me, sir.",
    "repliques": [
@@ -50,7 +50,7 @@
      "qui": "CHEN",
      "texte": "Excuse me, sir. Good morning.",
      "debut": 0.6,
-     "fin": 3.55
+     "fin": 4.54
     }
    ],
    "prompt_image": "Two-shot, Mr. Chen standing politely in front of Papa Fiston who sits on his stool reading a newspaper by the blue kiosk.",
@@ -58,7 +58,7 @@
   },
   {
    "n": 4,
-   "duree": 4.0,
+   "duree": 4.5,
    "cadrage": "Plan rapproché",
    "contenu": "Papa Fiston accueille",
    "repliques": [
@@ -66,7 +66,7 @@
      "qui": "FISTON",
      "texte": "Good morning, my friend! Welcome!",
      "debut": 0.3,
-     "fin": 3.2
+     "fin": 3.64
     }
    ],
    "prompt_image": "Medium close-up of Papa Fiston on his stool, big warm smile, arms open.",
@@ -74,7 +74,7 @@
   },
   {
    "n": 5,
-   "duree": 6.5,
+   "duree": 7.5,
    "cadrage": "Plan rapproché",
    "contenu": "Where is Zando market?",
    "repliques": [
@@ -82,7 +82,7 @@
      "qui": "CHEN",
      "texte": "Thank you. I am looking for Zando. Where is Zando market?",
      "debut": 0.3,
-     "fin": 5.81
+     "fin": 6.81
     }
    ],
    "prompt_image": "Medium close-up of Mr. Chen holding up his phone, hopeful expression.",
@@ -90,7 +90,7 @@
   },
   {
    "n": 6,
-   "duree": 8.0,
+   "duree": 10.5,
    "cadrage": "Plan moyen",
    "contenu": "Papa Fiston montre la mauvaise direction",
    "repliques": [
@@ -98,7 +98,7 @@
      "qui": "FISTON",
      "texte": "Zando? Easy! It is in Limete. Take a bus to Matete. Go straight, then turn right.",
      "debut": 0.3,
-     "fin": 7.17
+     "fin": 9.71
     }
    ],
    "prompt_image": "Medium shot of Papa Fiston pointing confidently to the right with his whole arm, Mr. Chen following the gesture with his eyes.",
@@ -106,7 +106,7 @@
   },
   {
    "n": 7,
-   "duree": 7.0,
+   "duree": 7.5,
    "cadrage": "Plan rapproché",
    "contenu": "Is it far?",
    "repliques": [
@@ -114,7 +114,7 @@
      "qui": "CHEN",
      "texte": "Limete... a bus to Matete... OK. Is it far?",
      "debut": 0.3,
-     "fin": 6.36
+     "fin": 6.66
     }
    ],
    "prompt_image": "Medium close-up of Mr. Chen typing notes on his phone, thoughtful.",
@@ -122,7 +122,7 @@
   },
   {
    "n": 8,
-   "duree": 5.5,
+   "duree": 6.0,
    "cadrage": "Plan rapproché",
    "contenu": "Twenty minutes.",
    "repliques": [
@@ -130,7 +130,7 @@
      "qui": "FISTON",
      "texte": "No, no. It is very near. Twenty minutes.",
      "debut": 0.3,
-     "fin": 4.7
+     "fin": 5.29
     }
    ],
    "prompt_image": "Medium close-up of Papa Fiston waving his hand dismissively, relaxed.",
@@ -147,7 +147,7 @@
   },
   {
    "n": 10,
-   "duree": 5.5,
+   "duree": 7.0,
    "cadrage": "Plan moyen",
    "contenu": "That is not correct.",
    "repliques": [
@@ -155,7 +155,7 @@
      "qui": "GRACE",
      "texte": "Excuse me. Sorry, Papa. That is not correct.",
      "debut": 0.3,
-     "fin": 4.7
+     "fin": 6.04
     }
    ],
    "prompt_image": "Medium shot of Grace raising one hand politely, kind but firm expression.",
@@ -163,7 +163,7 @@
   },
   {
    "n": 11,
-   "duree": 3,
+   "duree": 3.5,
    "cadrage": "Gros plan",
    "contenu": "Papa Fiston surpris",
    "repliques": [
@@ -171,7 +171,7 @@
      "qui": "FISTON",
      "texte": "Not correct? Why?",
      "debut": 0.4,
-     "fin": 2.3
+     "fin": 2.87
     }
    ],
    "prompt_image": "Close-up of Papa Fiston, eyebrows raised, surprised.",
@@ -179,7 +179,7 @@
   },
   {
    "n": 12,
-   "duree": 7.0,
+   "duree": 7.5,
    "cadrage": "Plan rapproché",
    "contenu": "Zando is in Gombe.",
    "repliques": [
@@ -187,7 +187,7 @@
      "qui": "GRACE",
      "texte": "Zando is not in Limete. Zando is in Gombe. It is in the city centre.",
      "debut": 0.3,
-     "fin": 6.12
+     "fin": 6.9
     }
    ],
    "prompt_image": "Medium close-up of Grace turning to Mr. Chen and pointing in the opposite direction.",
@@ -195,7 +195,7 @@
   },
   {
    "n": 13,
-   "duree": 3.5,
+   "duree": 4.5,
    "cadrage": "Plan rapproché",
    "contenu": "In Gombe?",
    "repliques": [
@@ -203,7 +203,7 @@
      "qui": "CHEN",
      "texte": "In Gombe? Not in Limete?",
      "debut": 0.4,
-     "fin": 3.09
+     "fin": 3.71
     }
    ],
    "prompt_image": "Medium close-up of Mr. Chen, surprised, adjusting his glasses.",
@@ -211,7 +211,7 @@
   },
   {
    "n": 14,
-   "duree": 11.0,
+   "duree": 15.5,
    "cadrage": "Plan moyen",
    "contenu": "Grace montre le taxi-bus « Zando! »",
    "repliques": [
@@ -219,13 +219,13 @@
      "qui": "GRACE",
      "texte": "Yes. Gombe. Take a taxi-bus. The driver says \"Zando! Zando!\". You get in. It is easy.",
      "debut": 0.3,
-     "fin": 8.7
+     "fin": 12.13
     },
     {
      "qui": "RECEVEUR",
      "texte": "Zando! Zando!",
-     "debut": 8.9,
-     "fin": 10.3
+     "debut": 12.48,
+     "fin": 14.55
     }
    ],
    "prompt_image": "Medium shot, Grace pointing to a yellow and blue minibus taxi stopping nearby, a conductor leaning out of the door.",
@@ -233,7 +233,7 @@
   },
   {
    "n": 15,
-   "duree": 8.5,
+   "duree": 6.5,
    "cadrage": "Plan à deux",
    "contenu": "Le prix du bus",
    "repliques": [
@@ -241,13 +241,13 @@
      "qui": "CHEN",
      "texte": "How much is the bus?",
      "debut": 0.3,
-     "fin": 3.2
+     "fin": 1.84
     },
     {
      "qui": "GRACE",
      "texte": "It is cheap. Have small money with you.",
-     "debut": 3.4,
-     "fin": 7.8
+     "debut": 2.19,
+     "fin": 5.43
     }
    ],
    "prompt_image": "Two-shot of Mr. Chen and Grace facing each other, Grace showing small banknotes.",
@@ -255,7 +255,7 @@
   },
   {
    "n": 16,
-   "duree": 6.5,
+   "duree": 8.0,
    "cadrage": "Plan moyen",
    "contenu": "My mistake!",
    "repliques": [
@@ -263,7 +263,7 @@
      "qui": "FISTON",
      "texte": "Ah! Sorry, sorry! Limete is a different market. My mistake!",
      "debut": 0.3,
-     "fin": 5.7
+     "fin": 7.38
     }
    ],
    "prompt_image": "Medium shot of Papa Fiston laughing and scratching his head.",
@@ -271,7 +271,7 @@
   },
   {
    "n": 17,
-   "duree": 12.5,
+   "duree": 14.0,
    "cadrage": "Plan à trois",
    "contenu": "Remerciements, Follow me.",
    "repliques": [
@@ -279,13 +279,13 @@
      "qui": "CHEN",
      "texte": "No problem. Thank you, sir. And thank you very much, miss.",
      "debut": 0.2,
-     "fin": 6.1
+     "fin": 7.52
     },
     {
      "qui": "GRACE",
      "texte": "You're welcome. Come, the bus stop is here. Follow me.",
-     "debut": 6.3,
-     "fin": 11.7
+     "debut": 7.87,
+     "fin": 13.39
     }
    ],
    "prompt_image": "Three-shot of Mr. Chen, Grace and Papa Fiston, everyone smiling.",
@@ -293,7 +293,7 @@
   },
   {
    "n": 18,
-   "duree": 6.0,
+   "duree": 8.0,
    "cadrage": "Plan large",
    "contenu": "Départ, au revoir",
    "repliques": [
@@ -301,13 +301,13 @@
      "qui": "CHEN",
      "texte": "Great! Goodbye, sir!",
      "debut": 0.3,
-     "fin": 2.2
+     "fin": 3.71
     },
     {
      "qui": "FISTON",
      "texte": "Goodbye! Welcome to Kinshasa!",
-     "debut": 2.4,
-     "fin": 5.43
+     "debut": 4.06,
+     "fin": 7.23
     }
    ],
    "prompt_image": "Wide shot, Grace and Mr. Chen walking away with the suitcase, Mr. Chen waving back, Papa Fiston waving from his stool.",

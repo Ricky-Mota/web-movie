@@ -230,8 +230,16 @@ def main():
     rep = os.path.join(tmp, "7_reponses.mp4")
     carte(rep, fond, "Mini quiz", [(REPONSES, "b"), ("", "t"), ("See you in episode 2!", "t")], 5, taille=44)
     liste = os.path.join(tmp, "liste.txt")
-    morceaux = [accroche, os.path.join(a.sortie, "scene_sans_sous_titres.mp4"), inter,
-                os.path.join(a.sortie, "scene_avec_sous_titres.mp4"), vocab, quiz, rep]
+    bruts = [accroche, os.path.join(a.sortie, "scene_sans_sous_titres.mp4"), inter,
+             os.path.join(a.sortie, "scene_avec_sous_titres.mp4"), vocab, quiz, rep]
+    morceaux = []
+    for k, m in enumerate(bruts):  # fondus d'ouverture et de fermeture entre les parties
+        d = duree(m)
+        sortie_f = os.path.join(tmp, f"fondu_{k}.mp4")
+        ff("-i", m, "-vf", f"fade=t=in:st=0:d=0.4,fade=t=out:st={d - 0.45:.2f}:d=0.45,fps=24,format=yuv420p",
+           "-af", f"afade=t=in:st=0:d=0.3,afade=t=out:st={d - 0.45:.2f}:d=0.45,aresample=48000",
+           "-ac", "2", "-c:v", "libx264", "-crf", "19", "-c:a", "aac", "-b:a", "192k", sortie_f)
+        morceaux.append(sortie_f)
     with open(liste, "w") as f:
         for m in morceaux:
             f.write(f"file '{m}'\n")
