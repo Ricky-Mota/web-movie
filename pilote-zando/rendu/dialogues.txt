@@ -1,0 +1,19 @@
+[plan 03  00:09]  MR. CHEN : Excuse me, sir. Good morning.
+[plan 04  00:14]  PAPA FISTON : Good morning, my friend! Welcome!
+[plan 05  00:19]  MR. CHEN : Thank you. I am looking for Zando. Where is Zando market?
+[plan 06  00:26]  PAPA FISTON : Zando? Easy! It is in Limete. Take a bus to Matete. Go straight, then turn right.
+[plan 07  00:37]  MR. CHEN : Limete... a bus to Matete... OK. Is it far?
+[plan 08  00:44]  PAPA FISTON : No, no. It is very near. Twenty minutes.
+[plan 10  00:53]  GRACE : Excuse me. Sorry, Papa. That is not correct.
+[plan 11  01:00]  PAPA FISTON : Not correct? Why?
+[plan 12  01:04]  GRACE : Zando is not in Limete. Zando is in Gombe. It is in the city centre.
+[plan 13  01:11]  MR. CHEN : In Gombe? Not in Limete?
+[plan 14  01:16]  GRACE : Yes. Gombe. Take a taxi-bus. The driver says "Zando! Zando!". You get in. It is easy.
+[plan 14  01:28]  CONDUCTOR : Zando! Zando!
+[plan 15  01:31]  MR. CHEN : How much is the bus?
+[plan 15  01:33]  GRACE : It is cheap. Have small money with you.
+[plan 16  01:38]  PAPA FISTON : Ah! Sorry, sorry! Limete is a different market. My mistake!
+[plan 17  01:46]  MR. CHEN : No problem. Thank you, sir. And thank you very much, miss.
+[plan 17  01:53]  GRACE : You're welcome. Come, the bus stop is here. Follow me.
+[plan 18  02:00]  MR. CHEN : Great! Goodbye, sir!
+[plan 18  02:04]  PAPA FISTON : Goodbye! Welcome to Kinshasa!

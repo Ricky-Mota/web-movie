@@ -1,0 +1,49 @@
+{
+ "fps": 24,
+ "images": 3144,
+ "unite": "cm",
+ "objets": {
+  "CHEN": {
+   "x": -650.0,
+   "y": 70.0,
+   "z": 0.0,
+   "rotation_z_deg": -95.7
+  },
+  "FISTON": {
+   "x": 170.0,
+   "y": -75.0,
+   "z": 0.0,
+   "rotation_z_deg": 43.9
+  },
+  "GRACE": {
+   "x": -1200.0,
+   "y": 120.0,
+   "z": 0.0,
+   "rotation_z_deg": 90.0
+  },
+  "KIOSQUE": {
+   "x": 290.0,
+   "y": -170.0,
+   "z": 0.0,
+   "rotation_z_deg": -0.0
+  },
+  "TABOURET": {
+   "x": 170.0,
+   "y": -75.0,
+   "z": 0.0,
+   "rotation_z_deg": -0.0
+  },
+  "TAXIBUS_ZANDO": {
+   "x": 4000.0,
+   "y": -560.0,
+   "z": -1000.0,
+   "rotation_z_deg": 180.0
+  },
+  "SOLEIL": {
+   "x": 0.0,
+   "y": -0.0,
+   "z": 0.0,
+   "rotation_z_deg": 35.0
+  }
+ }
+}

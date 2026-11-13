@@ -1,3 +1,7 @@
 node_modules/
 .netlify/
 .env
+pilote-zando/rendu/images/
+pilote-zando/rendu/_tmp/
+*.blend1
+__pycache__/
