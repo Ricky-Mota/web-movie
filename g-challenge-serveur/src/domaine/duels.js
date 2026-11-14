@@ -74,11 +74,12 @@ export async function creerDuel({ joueurId, circuitCode, taille, miseCentimes, e
     }
     const { devise } = await verifierEquipe(client, { equipeId: idEquipe, joueurId, taille, miseCentimes });
 
+    // Le taux en vigueur au moment du défi est figé dans le duel.
     const { rows: [d] } = await client.query(
       `INSERT INTO duels (circuit_id, taille, mise_centimes, devise, commission_bp, equipe_a_id, cree_par, rejoindre_avant)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, now() + make_interval(mins => $8)) RETURNING *`,
-      [circuit.id, taille, miseCentimes, devise, Math.round(config.commissionPourcent * 100),
-        idEquipe, joueurId, config.delaiRejoindreMinutes]);
+       SELECT $1, $2, $3, $4, p.commission_bp, $5, $6, now() + make_interval(mins => $7) FROM parametres p
+       RETURNING *`,
+      [circuit.id, taille, miseCentimes, devise, idEquipe, joueurId, config.delaiRejoindreMinutes]);
     return d;
   });
   return duel;

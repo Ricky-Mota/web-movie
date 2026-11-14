@@ -15,6 +15,16 @@ routesAdmin.put('/circuits/:code', asynchrone(async (req, res) => {
   res.json(await enregistrerCircuit(valider(schemaCircuit, { ...req.body, code: req.params.code })));
 }));
 
+// Commission de la plateforme, modifiable à tout moment (0 à 50 %).
+// Elle s'applique aux duels créés après le changement.
+routesAdmin.put('/parametres', asynchrone(async (req, res) => {
+  const d = valider(z.object({ commission_pourcent: z.number().min(0).max(50) }), req.body);
+  const { rows: [p] } = await requete(
+    `UPDATE parametres SET commission_bp = $1, maj_le = now(), maj_par = $2 RETURNING *`,
+    [Math.round(d.commission_pourcent * 100), req.joueur.id]);
+  res.json({ commission_pourcent: p.commission_bp / 100, maj_le: p.maj_le });
+}));
+
 routesAdmin.get('/pays', asynchrone(async (_req, res) => {
   res.json((await requete('SELECT * FROM pays ORDER BY code')).rows);
 }));

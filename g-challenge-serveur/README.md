@@ -37,6 +37,8 @@ Technologies : Node.js 20+, Express, PostgreSQL et Socket.IO. Elles sont toutes 
 6. Quand tout le monde a couru, le serveur compare les temps. Le score d'une équipe est la somme des temps de ses joueurs, et le plus petit score gagne.
 7. **Gains** : sur une cagnotte de 20 $, la plateforme garde 5 $ (25 %). Les 15 $ restants sont partagés à parts égales entre les gagnants. Le reste de la division (quelques centimes) va au capitaine.
 
+**La commission (25 % au départ) se change à tout moment**, sans redémarrer le serveur, avec la route admin `PUT /admin/parametres` (entre 0 et 50 %). Le nouveau taux vaut pour les défis lancés ensuite ; un duel déjà lancé garde le taux affiché quand il a été créé, pour que personne ne soit surpris en cours de route.
+
 | Situation | Ce qui se passe |
 | --- | --- |
 | Personne ne rejoint dans le délai (60 min) | Duel annulé, mises remboursées en totalité |
@@ -144,6 +146,7 @@ Après l'inscription ou la connexion, gardez le `jeton` reçu et envoyez-le dans
 | Méthode | Adresse | Rôle |
 | --- | --- | --- |
 | GET | `/pays` | Pays pris en charge (menu d'inscription) |
+| GET | `/parametres` | Taux de commission actuel, à afficher avant un défi |
 | POST | `/joueurs/inscription` | `{ pseudo, telephone, pays, mot_de_passe }` |
 | POST | `/joueurs/connexion` | `{ identifiant (pseudo ou téléphone), mot_de_passe }` |
 | GET | `/joueurs/moi` | Profil, devise, mises autorisées ou non |
@@ -221,6 +224,7 @@ Pour les appels HTTP, le plugin gratuit **VaRest** (sur Fab) est le plus simple 
 | PUT | `/admin/circuits/:code` | Créer ou modifier un circuit (seuils anti-triche) |
 | GET | `/admin/pays` | Règles de tous les pays |
 | PUT | `/admin/pays/:code` | Ajouter un pays, ou ouvrir ou fermer ses mises |
+| PUT | `/admin/parametres` | Changer la commission `{ commission_pourcent: 25 }` (0 à 50) |
 | GET | `/admin/bilan` | Commissions gagnées et paiements, par devise |
 | POST | `/admin/paiements/:id/relancer` | Relancer un versement ou un remboursement échoué |
 
@@ -259,7 +263,7 @@ Pour la Zambie, le Zimbabwe et l'Afrique du Sud, un **agrégateur** qui regroupe
 
 ```
 g-challenge-serveur/
-├── db/migrations/        tables (001) et pays de lancement (002)
+├── db/migrations/        tables (001), pays de lancement (002), réglages dont la commission (003)
 ├── db/circuits.json      les circuits du jeu (npm run circuits)
 ├── src/
 │   ├── index.js          démarrage, minuterie des délais

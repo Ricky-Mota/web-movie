@@ -12,7 +12,6 @@ export const config = {
   databaseSsl: lire('DATABASE_SSL', 'false') === 'true',
   jwtSecret: lire('JWT_SECRET'),
   jwtDuree: lire('JWT_DUREE', '30d'),
-  commissionPourcent: Number(lire('COMMISSION_POURCENT', '25')),
   // "simulation" remplace tous les fournisseurs : aucun argent réel ne bouge.
   fournisseurForce: process.env.FOURNISSEUR_FORCE || null,
   delaiRejoindreMinutes: Number(lire('DELAI_REJOINDRE_MINUTES', '60')),
@@ -29,7 +28,4 @@ export const config = {
 
 if (config.jwtSecret.length < 32) {
   throw new Error('JWT_SECRET doit contenir au moins 32 caractères.');
-}
-if (!(config.commissionPourcent >= 0 && config.commissionPourcent < 100)) {
-  throw new Error('COMMISSION_POURCENT doit être compris entre 0 et 99.');
 }

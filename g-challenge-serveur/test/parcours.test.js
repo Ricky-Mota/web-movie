@@ -3,7 +3,6 @@
 process.env.DATABASE_URL = process.env.TEST_DATABASE_URL || 'postgresql://gc:gc@localhost:5432/gchallenge_test';
 process.env.JWT_SECRET = 'cle-de-test-cle-de-test-cle-de-test-0123456789';
 process.env.FOURNISSEUR_FORCE = 'simulation';
-process.env.COMMISSION_POURCENT = '25';
 
 const { test, before, after } = await import('node:test');
 const assert = (await import('node:assert/strict')).default;
@@ -222,6 +221,19 @@ test('paiement refusé par le joueur : le duel reste en attente de sa mise', asy
   const d = await api('GET', `/duels/${cree.json.id}`, { jeton: pauvre.jeton });
   assert.equal(d.json.equipe_a_payee, false);
   assert.equal(d.json.mes_paiements[0].statut, 'echoue');
+});
+
+test('commission modifiable à tout moment, sans toucher aux duels déjà créés', async () => {
+  assert.deepEqual((await api('GET', '/parametres')).json.commission_pourcent, 25);
+  const avant = await api('POST', '/duels', { jeton: J.bea.jeton, corps: { circuit: CIRCUIT_TEST.code, taille: 1, mise_centimes: 0 } });
+  assert.equal((await api('PUT', '/admin/parametres', { jeton: J.bea.jeton, corps: { commission_pourcent: 10 } })).statut, 403);
+  assert.equal((await api('PUT', '/admin/parametres', { jeton: J.ali.jeton, corps: { commission_pourcent: 80 } })).statut, 400);
+  const maj = await api('PUT', '/admin/parametres', { jeton: J.ali.jeton, corps: { commission_pourcent: 12.5 } });
+  assert.equal(maj.json.commission_pourcent, 12.5);
+  const apres = await api('POST', '/duels', { jeton: J.chris.jeton, corps: { circuit: CIRCUIT_TEST.code, taille: 1, mise_centimes: 0 } });
+  assert.equal(apres.json.commission_pourcent, 12.5);
+  assert.equal((await api('GET', `/duels/${avant.json.id}`, { jeton: J.bea.jeton })).json.commission_pourcent, 25);
+  await api('PUT', '/admin/parametres', { jeton: J.ali.jeton, corps: { commission_pourcent: 25 } });
 });
 
 test('bilan administrateur', async () => {

@@ -21,6 +21,11 @@ export function creerApp({ limiteConnexions = 20 } = {}) {
     await requete('SELECT 1');
     res.json({ ok: true });
   }));
+  // Taux de commission actuel : à afficher au joueur avant qu'il lance un défi.
+  app.get('/parametres', asynchrone(async (_req, res) => {
+    const { rows: [p] } = await requete('SELECT commission_bp, maj_le FROM parametres');
+    res.json({ commission_pourcent: p.commission_bp / 100, maj_le: p.maj_le });
+  }));
   app.get('/pays', asynchrone(async (_req, res) => {
     const { rows } = await requete('SELECT code, nom, devise, mises_autorisees, langue, indicatif FROM pays ORDER BY nom');
     res.json(rows);
