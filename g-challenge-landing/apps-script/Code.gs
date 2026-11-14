@@ -6,7 +6,7 @@
  * A Date · B Telephone · C Pseudo · D Plateforme · E Source
  *
  * L'adresse de l'application Web (…/exec) sert de clé : elle n'est connue que
- * du site Netlify. Ne la publiez nulle part ailleurs.
+ * de l'hébergeur de la landing page (Cloudflare ou Netlify). Ne la publiez nulle part ailleurs.
  */
 function doPost(e) {
   var d;
