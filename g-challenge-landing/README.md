@@ -4,7 +4,20 @@ La page publique de la bêta, tirée de la maquette « G-Challenge RDC – Landi
 
 ## La démo jouable
 
-L'écran de course en haut de la page est jouable : c'est l'étape 5, « Sprint du Boulevard du 30 Juin », 2 km en environ une minute. Le parcours a des virages, des montées et des descentes (la pente freine ou pousse le ketch), et deux raccourcis balisés en terre : plus courts, mais moins rapides et pleins de nids-de-poule. Le joueur tourne, freine et utilise le turbo (clavier, ou boutons tactiles sur téléphone). Il entend le moteur, qui monte en régime et passe les rapports, ainsi que le turbo et les chocs ; un bouton coupe le son. Il doit éviter les obstacles, placés aux mêmes endroits pour tout le monde, et battre le fantôme. À l'arrivée, il voit son temps, son record personnel et un bouton « Rejoindre la bêta ».
+L'écran de course en haut de la page est jouable, avec deux étapes au choix :
+
+| Étape | Longueur | Ce qui la rend difficile |
+| --- | --- | --- |
+| 2 · Le Grand Marché | 1,6 km | Rue étroite et sinueuse, étals qui débordent, pousse-pousse, motos, piétons qui traversent |
+| 5 · Boulevard du 30 Juin | 2 km | 4 voies, voitures, bus, camions et motos qui changent de voie, montées et descentes |
+
+Dans les deux étapes :
+- **Décor** : façades d'immeubles en perspective (tours vitrées sur le boulevard, maisons colorées avec enseignes au marché), lampadaires, palmiers, panneaux publicitaires, abribus, fanions, passants, nuages.
+- **Raccourcis** : deux par étape, balisés par un panneau vert. Ils sont plus courts, mais en terre et pleins de nids-de-poule.
+- **Circulation et piétons** : on peut percuter les véhicules ; ils klaxonnent quand on arrive trop vite derrière eux. Les piétons traversent aux passages piétons ; en cas de contact, ils s'écartent d'un bond.
+- **Équité** : tout est placé et réglé d'avance, de la même façon pour chaque joueur : obstacles, trajets des véhicules, déclenchement des piétons.
+- **Son** : moteur avec régime et rapports, turbo, klaxons, chocs, compte à rebours et arrivée. Un bouton coupe le son.
+- **Commandes** : clavier, ou boutons tactiles sur téléphone, avec un mode plein écran. Un record personnel est gardé pour chaque étape.
 
 Le code du jeu est dans `src/jeu.js`. Après une modification, réinsérez-le dans la page :
 
