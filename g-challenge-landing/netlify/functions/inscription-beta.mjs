@@ -23,7 +23,7 @@ export function verifier(d) {
 }
 
 /** Le cœur de la fonction, indépendant de Netlify (testé seul). */
-export async function traiter(methode, texte) {
+export async function traiter(methode, texte, url = globalThis.process?.env?.APPS_SCRIPT_URL) {
   if (methode !== 'POST') return reponse(405, { message: 'Méthode non autorisée.' });
 
   let d;
@@ -37,7 +37,6 @@ export async function traiter(methode, texte) {
   const v = verifier(d);
   if (v.erreur) return reponse(400, { message: v.erreur });
 
-  const url = process.env.APPS_SCRIPT_URL;
   if (!url) {
     console.error('APPS_SCRIPT_URL manquant');
     return reponse(503, { message: 'Inscriptions momentanément fermées. Réessayez plus tard.' });

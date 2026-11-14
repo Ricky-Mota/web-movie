@@ -27,7 +27,21 @@ Colonnes du Sheet, dans l'ordre attendu par le CRM : `Date · Telephone · Pseud
 
 Cette adresse sert de clé : rangez-la uniquement dans Netlify (étape 2). Ne la publiez pas et ne la partagez pas : quiconque la connaît peut ajouter des lignes au Sheet.
 
-### 2. Le site Netlify
+### 2. L'hébergement : Cloudflare Pages (gratuit, recommandé tant que Netlify est bloqué)
+
+1. Créez un compte gratuit sur [dash.cloudflare.com](https://dash.cloudflare.com).
+2. **Workers & Pages**, puis **Create**, onglet **Pages**, puis **Connect to Git**. Autorisez GitHub et choisissez le dépôt `web-movie`.
+3. Réglages du projet :
+   - Project name : `course-des-ketch` (adresse : `course-des-ketch.pages.dev`)
+   - Production branch : `main` (une fois la pull request fusionnée), ou la branche de travail en attendant
+   - Framework preset : **None** ; Build command : vide ; Build output directory : `public`
+   - **Root directory** (dans « Advanced ») : `g-challenge-landing`
+4. **Save and Deploy**.
+5. Dans le projet : **Settings**, puis **Variables and Secrets**, ajoutez `APPS_SCRIPT_URL` (type **Secret**) = l'URL copiée à l'étape 1. Puis **Deployments**, et **Retry deployment** sur le dernier déploiement.
+
+Cloudflare lit la fonction dans `functions/api/inscription-beta.js` : même logique que la version Netlify.
+
+### 2 bis. Ou le site Netlify (si vous rajoutez des crédits)
 
 Le site **course-des-ketch** existe déjà dans votre compte Netlify (https://course-des-ketch.netlify.app).
 
@@ -54,7 +68,8 @@ Tant que `APPS_SCRIPT_URL` n'est pas réglé, le formulaire répond poliment « 
 | --- | --- |
 | `public/index.html` | La landing page : une seule page, sans dépendance |
 | `netlify/functions/inscription-beta.mjs` | Vérifie l'inscription et l'envoie au Google Sheet |
-| `public/_redirects` | Relie l'adresse `/api/inscription-beta` à la fonction |
+| `public/_redirects` | Netlify : relie l'adresse `/api/inscription-beta` à la fonction |
+| `functions/api/inscription-beta.js` | Cloudflare Pages : la même fonction |
 | `apps-script/Code.gs` | Écrit dans le Google Sheet, sans doublon |
 | `netlify.toml` | Configuration du site Netlify |
 
