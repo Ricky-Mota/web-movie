@@ -4,7 +4,7 @@ La page publique de la bêta, tirée de la maquette « G-Challenge RDC – Landi
 
 ## La démo jouable
 
-L'écran de course en haut de la page est jouable : c'est l'étape 5, « Sprint du Boulevard du 30 Juin », en environ 40 secondes. Le joueur tourne, freine et utilise le turbo (clavier, ou boutons tactiles sur téléphone). Il doit éviter les obstacles, placés aux mêmes endroits pour tout le monde, et battre le fantôme. À l'arrivée, il voit son temps, son record personnel et un bouton « Rejoindre la bêta ».
+L'écran de course en haut de la page est jouable : c'est l'étape 5, « Sprint du Boulevard du 30 Juin », 2 km en environ une minute. Le parcours a des virages, des montées et des descentes (la pente freine ou pousse le ketch), et deux raccourcis balisés en terre : plus courts, mais moins rapides et pleins de nids-de-poule. Le joueur tourne, freine et utilise le turbo (clavier, ou boutons tactiles sur téléphone). Il entend le moteur, qui monte en régime et passe les rapports, ainsi que le turbo et les chocs ; un bouton coupe le son. Il doit éviter les obstacles, placés aux mêmes endroits pour tout le monde, et battre le fantôme. À l'arrivée, il voit son temps, son record personnel et un bouton « Rejoindre la bêta ».
 
 Le code du jeu est dans `src/jeu.js`. Après une modification, réinsérez-le dans la page :
 
