@@ -4,20 +4,48 @@ La page publique de la bêta, tirée de la maquette « G-Challenge RDC – Landi
 
 ## La démo jouable
 
-L'écran de course en haut de la page est jouable, avec deux étapes au choix :
+L'écran de course en haut de la page est jouable, avec les 5 étapes du parcours au choix :
 
 | Étape | Longueur | Ce qui la rend difficile |
 | --- | --- | --- |
-| 2 · Le Grand Marché | 1,6 km | Rue étroite et sinueuse, étals qui débordent, pousse-pousse, motos, piétons qui traversent |
-| 5 · Boulevard du 30 Juin | 2 km | 4 voies, voitures, bus, camions et motos qui changent de voie, montées et descentes |
+| 1 · Rond-point Victoire | 1,5 km | Circulation dense sur 4 voies, ronds-points serrés, monument |
+| 2 · Le Grand Marché | 1,6 km | Rue étroite et sinueuse, étals qui débordent, pousse-pousse, piétons |
+| 3 · Route des Poids Lourds | 2 km | Camions lents, nids-de-poule, bosses à passer doucement, entrepôts et conteneurs |
+| 4 · Corniche du Fleuve | 1,8 km | Virages au bord du fleuve, chaussée glissante, flaques (aquaplaning) |
+| 5 · Boulevard du 30 Juin | 2 km | 4 voies, voitures, bus et camions qui changent de voie, montées et descentes |
 
-Dans les deux étapes :
-- **Décor** : façades d'immeubles en perspective (tours vitrées sur le boulevard, maisons colorées avec enseignes au marché), lampadaires, palmiers, panneaux publicitaires, abribus, fanions, passants, nuages.
-- **Raccourcis** : deux par étape, balisés par un panneau vert. Ils sont plus courts, mais en terre et pleins de nids-de-poule.
-- **Circulation et piétons** : on peut percuter les véhicules ; ils klaxonnent quand on arrive trop vite derrière eux. Les piétons traversent aux passages piétons ; en cas de contact, ils s'écartent d'un bond.
-- **Équité** : tout est placé et réglé d'avance, de la même façon pour chaque joueur : obstacles, trajets des véhicules, déclenchement des piétons.
-- **Son** : moteur avec régime et rapports, turbo, klaxons, chocs, compte à rebours et arrivée. Un bouton coupe le son.
-- **Commandes** : clavier, ou boutons tactiles sur téléphone, avec un mode plein écran. Un record personnel est gardé pour chaque étape.
+### Les points
+
+Il y a deux manières de gagner des points :
+1. **Rouler vite** : chaque mètre rapporte des points, et d'autant plus que le ketch va vite. Battre le fantôme rapporte 1 000 points, plus 100 par seconde d'avance.
+2. **Toucher le moins possible** : chaque choc retire des points sur le moment, et un bonus de conduite propre s'ajoute à l'arrivée.
+
+| Choc | Points retirés |
+| --- | --- |
+| Piéton | −400 |
+| Véhicule (voiture, taxi, bus, camion, moto, pousse-pousse) | −200 |
+| Obstacle (cône, barrière, étal, charrette, bassines) | −100 |
+| Nid-de-poule, flaque, bosse prise trop vite | −50 |
+
+| Bonus de conduite propre | Points |
+| --- | --- |
+| Aucun choc | +800 |
+| 1 ou 2 chocs | +400 |
+| 3 à 5 chocs | +150 |
+
+Le score est affiché en direct sous le chrono, et passe au rouge à chaque choc. À l'arrivée, l'écran détaille les points gagnés et perdus. Le meilleur score et le meilleur temps de chaque étape sont gardés sur l'appareil. Tous ces montants se règlent au début de `src/jeu.js` (constante `POINTS`).
+
+### Le son
+
+- **Moteur** : quatre cylindres simulés, avec le régime, les passages de rapports, le sifflement du turbo et le crissement des pneus dans les virages serrés ou au freinage.
+- **Bruitages** : klaxons de la circulation, chocs, nids-de-poule.
+- **Ambiance** : différente pour chaque étape (foule du marché, ville, vent du fleuve, zone industrielle).
+- **Musique** : une piste différente par étape, générée en direct (rythme, basse, guitare en arpèges), avec son tempo et sa tonalité.
+- Deux boutons : couper tout le son, ou seulement la musique.
+
+### Équité
+
+Tout est placé et réglé d'avance, de la même façon pour chaque joueur : obstacles, trajets des véhicules, déclenchement des piétons. Commandes : clavier, ou boutons tactiles avec mode plein écran sur téléphone.
 
 Le code du jeu est dans `src/jeu.js`. Après une modification, réinsérez-le dans la page :
 

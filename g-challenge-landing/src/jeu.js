@@ -1,10 +1,14 @@
-// Démo jouable de La Course des Ketch : deux étapes au choix.
-//   Étape 2 · Le Grand Marché  : rue étroite et sinueuse, étals, pousse-pousse, piétons, motos.
-//   Étape 5 · Boulevard du 30 Juin : 4 voies, circulation, tours vitrées, montées et descentes.
-// Route en fausse 3D (segments de 5 m) avec virages, reliefs, raccourcis balisés et façades
-// d'immeubles en perspective. Tout est placé et réglé de la même façon pour chaque joueur
-// (aucun tirage au sort pendant la partie) : obstacles, circulation et piétons.
-// Clavier ou boutons tactiles ; bruit du moteur, turbo, klaxons et chocs en Web Audio.
+// Démo jouable de La Course des Ketch : les 5 étapes du parcours, au choix.
+//   1 · Rond-point Victoire      : circulation dense, ronds-points, monument.
+//   2 · Le Grand Marché          : rue sinueuse, étals, pousse-pousse, piétons.
+//   3 · Route des Poids Lourds   : camions, nids-de-poule, bosses, entrepôts.
+//   4 · Corniche du Fleuve       : virages glissants au bord du fleuve Congo.
+//   5 · Boulevard du 30 Juin     : 4 voies, tours vitrées, montées et descentes.
+// Points : on en gagne en roulant vite et en battant le fantôme ; chaque choc
+// (piéton, véhicule, obstacle) en fait perdre. Bonus de conduite propre à l'arrivée.
+// Tout est placé et réglé d'avance, identique pour chaque joueur (aucun tirage au sort).
+// Son Web Audio : moteur (régime, rapports, turbo), crissements, klaxons, ambiance et
+// une musique différente par étape. Clavier ou boutons tactiles.
 // Ce fichier est inséré tel quel dans public/index.html par scripts/assembler.py.
 (function () {
   var canvas = document.getElementById('ecranJeu');
@@ -20,6 +24,13 @@
   var F = 428, HAUTEUR_CAM = 2, SEG = 5, VISIBLES = 64, D_JOUEUR = 6, COURBE = 0.04;
   var DEMI_KETCH = 0.85;   // demi-largeur du ketch, en mètres
 
+  // ---------- Barème des points ----------
+  var POINTS = {
+    piéton: 400, véhicule: 200, obstacle: 100, trou: 50,       // retirés à chaque choc
+    victoire: 1000, parSeconde: 100,                            // fantôme battu, + par seconde d'avance
+    propre: [[0, 800], [2, 400], [5, 150]]                      // bonus selon le nombre de chocs
+  };
+
   // ---------- Outils ----------
   function doux(a, b, p) { return a + (b - a) * ((-Math.cos(p * Math.PI) / 2) + 0.5); }
   function entree(a, b, p) { return a + (b - a) * p * p; }
@@ -30,61 +41,127 @@
     var segs = [];
     function fin() { return segs.length ? segs[segs.length - 1].y : 0; }
     plan.forEach(function (t) {
-      var entre = t[0], tient = t[1], sort = t[2], courbe = t[3], deniv = t[4];
-      var y0 = fin(), y1 = y0 + deniv, total = entre + tient + sort, n;
-      for (n = 0; n < entre; n++) segs.push({ courbe: entree(0, courbe, n / entre), y: doux(y0, y1, n / total) });
-      for (n = 0; n < tient; n++) segs.push({ courbe: courbe, y: doux(y0, y1, (entre + n) / total) });
-      for (n = 0; n < sort; n++) segs.push({ courbe: doux(courbe, 0, n / sort), y: doux(y0, y1, (entre + tient + n) / total) });
+      var entre = t[0], tient = t[1], sort = t[2], courbe = t[3], deniv = t[4], rep = t[5] || 1;
+      for (var r = 0; r < rep; r++) {
+        var y0 = fin(), y1 = y0 + (r % 2 && t[5] ? -deniv : deniv), total = entre + tient + sort, n;
+        for (n = 0; n < entre; n++) segs.push({ courbe: entree(0, courbe, n / entre), y: doux(y0, y1, n / total) });
+        for (n = 0; n < tient; n++) segs.push({ courbe: courbe, y: doux(y0, y1, (entre + n) / total) });
+        for (n = 0; n < sort; n++) segs.push({ courbe: doux(courbe, 0, n / sort), y: doux(y0, y1, (entre + tient + n) / total) });
+      }
     });
     return segs;
   }
 
-  // ---------- Les deux étapes ----------
+  // ---------- Les 5 étapes ----------
+  // plan : [entrée, tenue, sortie, courbe, dénivelé, répétitions] en segments de 5 m.
   var ETAPES = {
+    rondpoint: {
+      id: 'rondpoint', numero: 1, nom: 'Rond-point Victoire', longueur: 1500, demi: 4.4,
+      voies: [-0.75, -0.25, 0.25, 0.75], lignes: [{ x: -0.5, type: 'tirets' }, { x: 0, type: 'double' }, { x: 0.5, type: 'tirets' }],
+      vMax: 34, vTurbo: 46, vFantome: 30, xFantome: 0.25, nbTrafic: 26, vitesseTrafic: 0.75,
+      couleurs: { sol: ['#8E8A80', '#87837A'], trottoir: ['#C3BDB0', '#B8B2A5'], route: ['#3A3F4B', '#363A45'], bord: '#F5F3EA', ligne: '#F5F3EA' },
+      ciel: ['#2B3F7A', '#C26A5A', '#F7B267'], ville: 'tours',
+      plan: [[0, 16, 0, 0, 0], [6, 14, 6, 5, 0], [6, 14, 6, -5, 0], [0, 20, 0, 0, 3], [10, 16, 10, 2, -3], [0, 14, 0, 0, 0],
+        [6, 14, 6, -5, 0], [6, 14, 6, 5, 0], [0, 16, 0, 0, 0], [8, 10, 8, -3, 2], [8, 10, 8, 3, -2], [0, 80, 0, 0, 0]],
+      raccourcis: [{ cote: 1, debut: 620, fin: 760, nom: 'Contre-allée Victoire' }],
+      passages: [250, 700, 1150], monuments: [{ z: 120, cote: 1 }, { z: 790, cote: -1 }],
+      bati: { styles: ['verre', 'commerce', 'beton', 'verreVert', 'commerce'], recul: 3.2, hauteur: [12, 40] },
+      typesFixes: ['cone', 'barriere', 'trou'], typesTrafic: ['voiture', 'ketch', 'ketch', 'bus', 'moto', 'voiture'],
+      musique: { tempo: 124, tonique: 57, gamme: 'majeur' }
+    },
     marche: {
       id: 'marche', numero: 2, nom: 'Le Grand Marché', longueur: 1600, demi: 3.2,
       voies: [-0.45, 0.45], lignes: [{ x: 0, type: 'tirets' }],
-      vMax: 30, vTurbo: 40, vFantome: 26.5, xFantome: 0.45,
+      vMax: 30, vTurbo: 40, vFantome: 26.5, xFantome: 0.45, nbTrafic: 12, vitesseTrafic: 1,
       couleurs: { sol: ['#8A6446', '#82603F'], trottoir: ['#A57C55', '#9C744E'], route: ['#5E5048', '#584B43'], bord: '#C9B79A', ligne: '#E8E0CF' },
+      ciel: ['#3D7CC9', '#9CC8EE', '#F3D9A4'], ville: 'basse',
       plan: [[0, 16, 0, 0, 0], [8, 12, 8, -3, 2], [6, 10, 6, 4, 0], [0, 10, 0, 0, -2], [8, 12, 8, -3, 0],
         [8, 24, 8, 3.5, 0], [4, 0, 4, 0, 1.5], [4, 0, 4, 0, -1.5], [5, 6, 5, -4, 0], [5, 6, 5, 4, 0],
         [0, 16, 0, 0, 4], [8, 24, 8, -3, -4], [8, 16, 8, 2, 0], [0, 80, 0, 0, 0]],
       raccourcis: [{ cote: 1, debut: 540, fin: 700, nom: 'Allée des pagnes' }, { cote: -1, debut: 1060, fin: 1220, nom: 'Passage du dépôt' }],
-      passages: [300, 900, 1350],
-      ville: 'marche'
+      passages: [300, 900, 1350], marche: true,
+      bati: { styles: ['ocre', 'bleu', 'rose', 'vert', 'creme'], recul: 4.6, hauteur: [6, 12], enseignes: true },
+      typesFixes: ['etal', 'charrette', 'trou', 'bassines', 'etal', 'trou'], typesTrafic: ['pousse', 'moto', 'pousse', 'moto', 'ketch'],
+      musique: { tempo: 132, tonique: 60, gamme: 'majeur' }
+    },
+    poidslourds: {
+      id: 'poidslourds', numero: 3, nom: 'Route des Poids Lourds', longueur: 2000, demi: 3.6,
+      voies: [-0.5, 0.5], lignes: [{ x: 0, type: 'tirets' }],
+      vMax: 36, vTurbo: 48, vFantome: 32, xFantome: 0.5, nbTrafic: 14, vitesseTrafic: 0.85,
+      couleurs: { sol: ['#9B7A52', '#93734C'], trottoir: ['#B49A74', '#AA906A'], route: ['#4A4A4E', '#454549'], bord: '#E8E0CF', ligne: '#F5F3EA' },
+      ciel: ['#5B8BC4', '#C9D9E8', '#E8D2A8'], ville: 'industrie',
+      plan: [[0, 16, 0, 0, 0], [4, 2, 4, 0, 2.5, 8], [10, 20, 10, 2, 0], [4, 2, 4, 0, 3, 6], [10, 20, 10, -2.5, 0],
+        [0, 20, 0, 0, 6], [0, 20, 0, 0, -6], [4, 2, 4, 0, 2, 8], [8, 16, 8, 3, 0], [0, 80, 0, 0, 0]],
+      raccourcis: [{ cote: -1, debut: 900, fin: 1080, nom: 'Piste de chantier' }],
+      passages: [600, 1500], industrie: true,
+      bati: { styles: ['entrepot', 'entrepot', 'tole', 'beton'], recul: 9, hauteur: [7, 14], clairseme: 0.55 },
+      typesFixes: ['trou', 'trou', 'bosse', 'cone', 'trou', 'barriere'], typesTrafic: ['camion', 'camion', 'camion', 'moto', 'bus', 'voiture'],
+      musique: { tempo: 112, tonique: 55, gamme: 'mineur' }
+    },
+    corniche: {
+      id: 'corniche', numero: 4, nom: 'Corniche du Fleuve', longueur: 1800, demi: 3.6,
+      voies: [-0.5, 0.5], lignes: [{ x: 0, type: 'tirets' }],
+      vMax: 36, vTurbo: 48, vFantome: 33, xFantome: 0.5, nbTrafic: 10, vitesseTrafic: 1,
+      couleurs: { sol: ['#7FA35B', '#78995A'], trottoir: ['#D8CDB8', '#CEC3AE'], route: ['#3E434F', '#3A3E4A'], bord: '#F5F3EA', ligne: '#F5F3EA' },
+      ciel: ['#2E5FA8', '#E8936B', '#FFD08A'], ville: 'fleuve', eau: 1,
+      plan: [[0, 14, 0, 0, 0], [8, 14, 8, -3, 0], [8, 14, 8, 4, 2], [6, 10, 6, -4, -2], [8, 12, 8, 3.5, 0],
+        [8, 20, 8, -3, 0], [6, 10, 6, 4.5, 0], [6, 10, 6, -4.5, 0], [8, 14, 8, 3, 2], [8, 14, 8, -3, -2], [0, 80, 0, 0, 0]],
+      raccourcis: [{ cote: -1, debut: 700, fin: 860, nom: 'Chemin des pêcheurs' }],
+      passages: [450, 1250], glissant: [[260, 480], [920, 1120], [1380, 1580]],
+      bati: { styles: ['creme', 'verre', 'creme', 'beton'], recul: 5, hauteur: [8, 20], cote: -1, clairseme: 0.7 },
+      typesFixes: ['flaque', 'cone', 'flaque', 'charrette', 'trou'], typesTrafic: ['voiture', 'ketch', 'moto', 'voiture'],
+      musique: { tempo: 104, tonique: 62, gamme: 'majeur' }
     },
     boulevard: {
       id: 'boulevard', numero: 5, nom: 'Boulevard du 30 Juin', longueur: 2000, demi: 4.4,
-      voies: [-0.75, -0.25, 0.25, 0.75],
-      lignes: [{ x: -0.5, type: 'tirets' }, { x: 0, type: 'double' }, { x: 0.5, type: 'tirets' }],
-      vMax: 38, vTurbo: 50, vFantome: 29, xFantome: 0.25,
+      voies: [-0.75, -0.25, 0.25, 0.75], lignes: [{ x: -0.5, type: 'tirets' }, { x: 0, type: 'double' }, { x: 0.5, type: 'tirets' }],
+      vMax: 38, vTurbo: 50, vFantome: 32.5, xFantome: 0.25, nbTrafic: 16, vitesseTrafic: 1,
       couleurs: { sol: ['#8E8A80', '#87837A'], trottoir: ['#C3BDB0', '#B8B2A5'], route: ['#3A3F4B', '#363A45'], bord: '#F5F3EA', ligne: '#F5F3EA' },
+      ciel: ['#1B2A5C', '#7A3E6A', '#F08A3C'], ville: 'tours',
       plan: [[0, 20, 0, 0, 0], [10, 20, 10, 2, 6], [10, 10, 10, 0, -10], [10, 30, 10, -3, 0], [10, 10, 0, 0, 14],
-        [0, 10, 10, 0, -16], [8, 8, 8, 3, 0], [8, 8, 8, -3, 0], [5, 0, 5, 0, 3], [5, 0, 5, 0, -3],
-        [5, 0, 5, 0, 3], [5, 0, 5, 0, -3], [0, 12, 0, 0, 0], [10, 20, 10, 2.5, 0], [10, 20, 10, 0, -12], [0, 80, 0, 0, 0]],
+        [0, 10, 10, 0, -16], [8, 8, 8, 3, 0], [8, 8, 8, -3, 0], [5, 0, 5, 0, 3, 4], [0, 12, 0, 0, 0],
+        [10, 20, 10, 2.5, 0], [10, 20, 10, 0, -12], [0, 80, 0, 0, 0]],
       raccourcis: [{ cote: -1, debut: 480, fin: 660, nom: 'Contre-allée' }, { cote: 1, debut: 1420, fin: 1580, nom: 'Ruelle' }],
       passages: [380, 1100, 1700],
-      ville: 'tours'
+      bati: { styles: ['verre', 'verre', 'beton', 'commerce', 'verreVert', 'beton'], recul: 3.2, hauteur: [10, 64] },
+      typesFixes: ['cone', 'trou', 'cone', 'charrette', 'barriere'], typesTrafic: ['voiture', 'ketch', 'bus', 'camion', 'moto', 'voiture', 'ketch'],
+      musique: { tempo: 128, tonique: 57, gamme: 'mineur' }
     }
   };
+  var ORDRE = ['rondpoint', 'marche', 'poidslourds', 'corniche', 'boulevard'];
 
-  // Prépare une étape : parcours, obstacles, circulation, piétons, décor et immeubles (toujours identiques).
+  function zoneRaccourci(E, zz, cote) {
+    for (var i = 0; i < E.raccourcis.length; i++) {
+      var r = E.raccourcis[i];
+      if (zz >= r.debut && zz <= r.fin && (cote === undefined || r.cote === cote)) return r;
+    }
+    return null;
+  }
+  function zoneGlissante(E, zz) {
+    if (!E.glissant) return false;
+    for (var i = 0; i < E.glissant.length; i++) if (zz >= E.glissant[i][0] && zz <= E.glissant[i][1]) return true;
+    return false;
+  }
+
+  // Prépare une étape : parcours, obstacles, circulation, piétons, décor, immeubles (toujours identiques).
   function preparer(E) {
     if (E.segments) return E;
     E.segments = construire(E.plan);
+    // La route continue tout droit après l'arrivée, assez loin pour que l'horizon reste dessiné.
+    var yFin = E.segments[E.segments.length - 1].y;
+    while (E.segments.length * SEG < E.longueur + VISIBLES * SEG + 60) E.segments.push({ courbe: 0, y: yFin });
     E.nb = E.segments.length;
     var h = generateur(E.numero * 7919 + 2026);
     var voies = E.voies;
 
-    // Obstacles fixes : au plus une voie bloquée sur deux (marché) ou deux sur quatre (boulevard).
     E.obstacles = [];
-    var typesFixes = E.id === 'marche' ? ['etal', 'charrette', 'trou', 'bassines', 'etal', 'trou'] : ['cone', 'trou', 'cone', 'charrette', 'barriere'];
-    for (var zz = 140; zz < E.longueur - 70; zz += (E.id === 'marche' ? 55 : 70) + Math.floor(h() * 25)) {
+    for (var zz = 140; zz < E.longueur - 70; zz += (voies.length > 2 ? 70 : 55) + Math.floor(h() * 25)) {
       var nb = voies.length > 2 && h() < 0.4 ? 2 : 1, prises = {};
       for (var k = 0; k < nb; k++) {
         var v = Math.floor(h() * voies.length);
-        var t = typesFixes[Math.floor(h() * typesFixes.length)];
-        if (t === 'etal') v = h() < 0.5 ? 0 : voies.length - 1;   // les étals débordent sur les voies du bord
+        var t = E.typesFixes[Math.floor(h() * E.typesFixes.length)];
+        if (t === 'etal') v = h() < 0.5 ? 0 : voies.length - 1;
+        if (t === 'bosse') { E.obstacles.push({ z: zz, x: 0, type: 'bosse' }); break; }
         if (prises[v]) continue; prises[v] = 1;
         E.obstacles.push({ z: zz + k * 6, x: voies[v], type: t });
       }
@@ -95,79 +172,80 @@
         { z: r.debut + 120, x: r.cote * (b + 0.15), type: 'charrette' }, { z: r.fin - 25, x: r.cote * (b + 0.5), type: 'trou' });
     });
 
-    // Circulation : chaque véhicule a sa vitesse et ses changements de voie, connus d'avance.
-    E.trafic = [];
-    var types = E.id === 'marche' ? ['pousse', 'moto', 'pousse', 'moto', 'ketch'] : ['voiture', 'ketch', 'bus', 'camion', 'moto', 'voiture', 'ketch'];
+    E.traficListe = [];
     var couleurs = ['#E8E6E1', '#1E5FD6', '#B42318', '#2F3542', '#1E7D45', '#C9CDD6'];
-    var nbTrafic = E.id === 'marche' ? 12 : 16;
-    for (var i = 0; i < nbTrafic; i++) {
-      var type = types[Math.floor(h() * types.length)];
-      var vit = { voiture: 15, ketch: 13, bus: 11, camion: 10, moto: 14, pousse: 2.5 }[type] + h() * (type === 'pousse' ? 1.5 : 7);
+    for (var i = 0; i < E.nbTrafic; i++) {
+      var type = E.typesTrafic[Math.floor(h() * E.typesTrafic.length)];
+      var vit = ({ voiture: 15, ketch: 13, bus: 11, camion: 10, moto: 14, pousse: 2.5 }[type] + h() * (type === 'pousse' ? 1.5 : 7)) * (type === 'pousse' ? 1 : E.vitesseTrafic);
       var a = Math.floor(h() * voies.length), b2 = a;
       if (h() < 0.5 && type !== 'pousse') b2 = Math.max(0, Math.min(voies.length - 1, a + (h() < 0.5 ? -1 : 1)));
-      E.trafic.push({ z0: 90 + i * (E.longueur - 200) / nbTrafic + h() * 40, vit: vit, a: voies[a], b: voies[b2],
+      E.traficListe.push({ z0: 90 + i * (E.longueur - 200) / E.nbTrafic + h() * 40, vit: vit, a: voies[a], b: voies[b2],
         change: 4 + h() * 40, type: type, couleur: couleurs[Math.floor(h() * couleurs.length)], n: i });
     }
 
-    // Piétons : ils traversent aux passages quand le ketch approche (même déclenchement pour tous).
     E.pietons = [];
     E.passages.forEach(function (p, j) {
       E.pietons.push({ z: p + 2, cote: j % 2 ? 1 : -1, vit: 1.6, declenche: 75, habit: 0 });
       E.pietons.push({ z: p + 3, cote: j % 2 ? -1 : 1, vit: 1.3, declenche: 95, habit: 1 });
     });
-    if (E.id === 'marche') [460, 780, 1150, 1480].forEach(function (p, j) {
-      E.pietons.push({ z: p, cote: j % 2 ? 1 : -1, vit: 1.4, declenche: 70, habit: j + 2 });
-    });
+    if (E.marche) [460, 780, 1150, 1480].forEach(function (p, j) { E.pietons.push({ z: p, cote: j % 2 ? 1 : -1, vit: 1.4, declenche: 70, habit: j + 2 }); });
 
-    // Décor posé le long de la route (sprites tournés vers la caméra).
+    // Décor posé le long de la route.
     E.decor = [];
     var trottoir = 1 + 2.4 / E.demi;
-    for (var d = 0; d < E.longueur + 300; d += E.id === 'marche' ? 9 : 30) {
+    for (var d = 0; d < E.longueur + 300; d += E.marche ? 9 : 30) {
       [-1, 1].forEach(function (cote) {
-        if (E.id === 'marche') {
+        var surEau = E.eau === cote;
+        if (E.marche) {
           if (!zoneRaccourci(E, d, cote) && !zoneRaccourci(E, d + 30, cote)) E.decor.push({ z: d + (cote > 0 ? 4 : 0), x: cote * (1 + 1.7 / E.demi), type: 'etalDecor', v: Math.floor(h() * 5) });
           if (h() < 0.35) E.decor.push({ z: d + 2, x: cote * (1 + 3.2 / E.demi), type: 'passant', v: Math.floor(h() * 6) });
+        } else if (E.industrie) {
+          if (h() < 0.4) E.decor.push({ z: d + 10, x: cote * (1 + 4 / E.demi), type: 'conteneur', v: Math.floor(h() * 4) });
+          if (h() < 0.3) E.decor.push({ z: d + 5, x: cote * (1 + 2 / E.demi), type: 'palmier' });
         } else {
           E.decor.push({ z: d + (cote > 0 ? 15 : 0), x: cote * trottoir, type: 'lampadaire', cote: cote });
           if (h() < 0.5) E.decor.push({ z: d + 8, x: cote * (1 + 1.5 / E.demi), type: 'palmier' });
-          if (h() < 0.25) E.decor.push({ z: d + 20, x: cote * (1 + 1.9 / E.demi), type: 'passant', v: Math.floor(h() * 6) });
+          if (!surEau && h() < 0.25) E.decor.push({ z: d + 20, x: cote * (1 + 1.9 / E.demi), type: 'passant', v: Math.floor(h() * 6) });
         }
+        if (surEau && h() < 0.35) E.decor.push({ z: d + 12, x: cote * (2.6 + h() * 4), type: 'pirogue', v: Math.floor(h() * 3) });
       });
     }
-    var pubs = E.id === 'marche' ? ['MARCHÉ CENTRAL', 'PAGNES · WAX', 'G-CHALLENGE'] : ['LA COURSE DES KETCH', 'KIN LA BELLE', 'G-CHALLENGE · BÊTA', 'KINSHASA 2026'];
+    if (E.industrie) for (var pz0 = 60; pz0 < E.longueur + 300; pz0 += 140) E.decor.push({ z: pz0, x: (pz0 % 280 ? 1 : -1) * (1 + 7 / E.demi), type: 'pylone' });
+    var pubs = { rondpoint: ['ROND-POINT VICTOIRE', 'KIN LA BELLE', 'G-CHALLENGE'], marche: ['MARCHÉ CENTRAL', 'PAGNES · WAX', 'G-CHALLENGE'],
+      poidslourds: ['ATTENTION CAMIONS', 'G-CHALLENGE', 'ROULEZ PRUDEMMENT'], corniche: ['LE FLEUVE CONGO', 'G-CHALLENGE · BÊTA', 'CORNICHE'],
+      boulevard: ['LA COURSE DES KETCH', 'KIN LA BELLE', 'G-CHALLENGE · BÊTA', 'KINSHASA 2026'] }[E.id];
     for (var pz = 250, n2 = 0; pz < E.longueur; pz += 330, n2++) {
-      var cotePub = n2 % 2 ? 1 : -1;
+      var cotePub = E.eau === 1 ? -1 : (n2 % 2 ? 1 : -1);
       if (!zoneRaccourci(E, pz, cotePub)) E.decor.push({ z: pz, x: cotePub * (1 + 2.2 / E.demi), type: 'pub', texte: pubs[n2 % pubs.length] });
     }
-    if (E.id === 'boulevard') [200, 900, 1500].forEach(function (az, j) { E.decor.push({ z: az, x: (j % 2 ? -1 : 1) * (1 + 1.3 / E.demi), type: 'abribus' }); });
-    if (E.id === 'marche') for (var fz = 120; fz < E.longueur; fz += 160) E.decor.push({ z: fz, x: 0, type: 'fanions' });
+    if (E.id === 'boulevard' || E.id === 'rondpoint') [200, 900, 1300].forEach(function (az, j) { E.decor.push({ z: az, x: (j % 2 ? -1 : 1) * (1 + 1.3 / E.demi), type: 'abribus' }); });
+    if (E.marche) for (var fz = 120; fz < E.longueur; fz += 160) E.decor.push({ z: fz, x: 0, type: 'fanions' });
+    (E.monuments || []).forEach(function (m) { E.decor.push({ z: m.z, x: m.cote * (1 + 3.5 / E.demi), type: 'monument' }); });
+    if (E.glissant) E.glissant.forEach(function (g) { E.decor.push({ z: g[0] - 30, x: -1.25, type: 'panneauGlissant' }); });
 
-    // Immeubles : blocs de 4 segments (20 m) séparés par une ruelle de 5 m.
-    E.immeubles = [];
+    // Immeubles : blocs de 20 m séparés par une ruelle de 5 m.
+    var I = E.bati;
+    E.blocs = [];
     for (var bz = 0; bz < E.longueur + 300; bz += 25) {
       [-1, 1].forEach(function (cote) {
+        if (E.eau === cote) return;
+        if (I.cote && I.cote !== cote) return;
+        if (I.clairseme && h() > I.clairseme) return;
         var loin = zoneRaccourci(E, bz, cote) || zoneRaccourci(E, bz + 20, cote);
-        var recul = (E.id === 'marche' ? 4.6 : 3.2) + (loin ? 6 : 0);
-        var styles = E.id === 'marche' ? ['ocre', 'bleu', 'rose', 'vert', 'creme'] : ['verre', 'verre', 'beton', 'commerce', 'verreVert', 'beton'];
-        var style = styles[Math.floor(h() * styles.length)];
-        var haut = E.id === 'marche' ? 6 + Math.floor(h() * 3) * 3.2 : (style.indexOf('verre') === 0 ? 24 + h() * 40 : 10 + h() * 14);
-        E.immeubles.push({ z: bz, cote: cote, x: 1 + recul / E.demi, prof: 14 / E.demi, haut: haut, style: style,
-          enseigne: E.id === 'marche' ? ['ALIMENTATION', 'PHARMACIE', 'COIFFURE', 'BOUTIQUE', 'PAGNES', 'QUINCAILLERIE'][Math.floor(h() * 6)] : null });
+        var recul = I.recul + (loin ? 6 : 0);
+        var style = I.styles[Math.floor(h() * I.styles.length)];
+        var haut = I.hauteur[0] + h() * (I.hauteur[1] - I.hauteur[0]);
+        if (E.marche) haut = 6 + Math.floor(h() * 3) * 3.2;
+        E.blocs.push({ z: bz, cote: cote, x: 1 + recul / E.demi, prof: 14 / E.demi, haut: haut, style: style,
+          enseigne: I.enseignes ? ['ALIMENTATION', 'PHARMACIE', 'COIFFURE', 'BOUTIQUE', 'PAGNES', 'QUINCAILLERIE'][Math.floor(h() * 6)] : null });
       });
     }
     return E;
   }
-  function zoneRaccourci(E, zz, cote) {
-    for (var i = 0; i < E.raccourcis.length; i++) {
-      var r = E.raccourcis[i];
-      if (zz >= r.debut && zz <= r.fin && (cote === undefined || r.cote === cote)) return r;
-    }
-    return null;
-  }
 
-  // ---------- Son : moteur, turbo, klaxons, chocs (Web Audio) ----------
-  var son = { actif: true };
-  try { son.actif = localStorage.getItem('ketch-son') !== 'non'; } catch (e) {}
+  // ---------- Son ----------
+  var son = { actif: true, musique: true };
+  try { son.actif = localStorage.getItem('ketch-son') !== 'non'; son.musique = localStorage.getItem('ketch-musique') !== 'non'; } catch (e) {}
   function sonDemarrer() {
     if (son.ctx) { if (son.ctx.state === 'suspended') son.ctx.resume(); return; }
     var AC = window.AudioContext || window.webkitAudioContext;
@@ -175,79 +253,165 @@
     try {
       var c = new AC();
       son.ctx = c;
-      son.general = c.createGain(); son.general.gain.value = son.actif ? 0.32 : 0; son.general.connect(c.destination);
-      son.filtre = c.createBiquadFilter(); son.filtre.type = 'lowpass'; son.filtre.frequency.value = 700; son.filtre.Q.value = 4;
+      son.general = c.createGain(); son.general.gain.value = son.actif ? 0.34 : 0; son.general.connect(c.destination);
+      son.busMusique = c.createGain(); son.busMusique.gain.value = son.musique ? 0.55 : 0; son.busMusique.connect(son.general);
+
+      // Moteur : deux dents de scie légèrement désaccordées + sous-grave, saturées puis filtrées,
+      // avec une modulation au rythme des explosions des cylindres (le « grondement »).
+      son.oscA = c.createOscillator(); son.oscA.type = 'sawtooth';
+      son.oscB = c.createOscillator(); son.oscB.type = 'sawtooth';
+      son.oscC = c.createOscillator(); son.oscC.type = 'sine';
+      var mix = c.createGain(); mix.gain.value = 0.5;
+      var gC = c.createGain(); gC.gain.value = 0.9;
+      son.oscA.connect(mix); son.oscB.connect(mix); son.oscC.connect(gC); gC.connect(mix);
+      var sat = c.createWaveShaper(), courbe = new Float32Array(1024);
+      for (var i = 0; i < 1024; i++) { var xx = i / 512 - 1; courbe[i] = Math.tanh(2.6 * xx); }
+      sat.curve = courbe;
+      son.filtre = c.createBiquadFilter(); son.filtre.type = 'lowpass'; son.filtre.Q.value = 2.5;
+      son.pulsation = c.createGain(); son.pulsation.gain.value = 0.75;
+      son.lfo = c.createOscillator(); son.lfo.type = 'square';
+      var lfoProf = c.createGain(); lfoProf.gain.value = 0.25; son.lfo.connect(lfoProf); lfoProf.connect(son.pulsation.gain);
       son.moteur = c.createGain(); son.moteur.gain.value = 0;
-      son.oscA = c.createOscillator(); son.oscA.type = 'sawtooth'; son.oscA.frequency.value = 50;
-      son.oscB = c.createOscillator(); son.oscB.type = 'square'; son.oscB.frequency.value = 25;
-      var gB = c.createGain(); gB.gain.value = 0.5;
-      son.oscA.connect(son.filtre); son.oscB.connect(gB); gB.connect(son.filtre);
-      son.filtre.connect(son.moteur); son.moteur.connect(son.general);
-      son.oscA.start(); son.oscB.start();
-      var n = c.sampleRate, buf = c.createBuffer(1, n, n), d = buf.getChannelData(0);
-      for (var i = 0; i < n; i++) d[i] = Math.random() * 2 - 1;
+      mix.connect(sat); sat.connect(son.filtre); son.filtre.connect(son.pulsation); son.pulsation.connect(son.moteur); son.moteur.connect(son.general);
+      // Sifflement du turbo.
+      son.sifflet = c.createOscillator(); son.sifflet.type = 'sine'; son.sifflet.frequency.value = 2400;
+      son.gSifflet = c.createGain(); son.gSifflet.gain.value = 0; son.sifflet.connect(son.gSifflet); son.gSifflet.connect(son.general);
+      [son.oscA, son.oscB, son.oscC, son.lfo, son.sifflet].forEach(function (o) { o.start(); });
+
+      var n = c.sampleRate * 2, buf = c.createBuffer(1, n, c.sampleRate), d = buf.getChannelData(0);
+      for (var j = 0; j < n; j++) d[j] = Math.random() * 2 - 1;
       son.bruit = buf;
+      // Crissement des pneus (bruit filtré, joué en continu, volume piloté).
+      son.crissSrc = c.createBufferSource(); son.crissSrc.buffer = buf; son.crissSrc.loop = true;
+      var fC = c.createBiquadFilter(); fC.type = 'bandpass'; fC.frequency.value = 2200; fC.Q.value = 6;
+      son.gCriss = c.createGain(); son.gCriss.gain.value = 0;
+      son.crissSrc.connect(fC); fC.connect(son.gCriss); son.gCriss.connect(son.general); son.crissSrc.start();
+      // Ambiance (foule, ville, vent du fleuve) : bruit filtré en boucle.
+      son.ambSrc = c.createBufferSource(); son.ambSrc.buffer = buf; son.ambSrc.loop = true;
+      son.fAmb = c.createBiquadFilter(); son.fAmb.type = 'bandpass'; son.fAmb.Q.value = 0.8;
+      son.gAmb = c.createGain(); son.gAmb.gain.value = 0;
+      son.ambSrc.connect(son.fAmb); son.fAmb.connect(son.gAmb); son.gAmb.connect(son.general); son.ambSrc.start();
     } catch (e) { son.ctx = null; }
   }
-  function sonBruit(frequence, type, duree, volume, versFrequence) {
+  function sonBruit(frequence, type, duree, volume, versFrequence, sortie) {
     if (!son.ctx) return;
     var c = son.ctx, t = c.currentTime;
     var src = c.createBufferSource(); src.buffer = son.bruit;
     var f = c.createBiquadFilter(); f.type = type; f.frequency.setValueAtTime(frequence, t);
     if (versFrequence) f.frequency.exponentialRampToValueAtTime(versFrequence, t + duree);
     var g = c.createGain(); g.gain.setValueAtTime(volume, t); g.gain.exponentialRampToValueAtTime(0.001, t + duree);
-    src.connect(f); f.connect(g); g.connect(son.general); src.start(t); src.stop(t + duree + 0.05);
+    src.connect(f); f.connect(g); g.connect(sortie || son.general); src.start(t); src.stop(t + duree + 0.05);
   }
-  function sonNote(frequence, debut, duree, volume, forme) {
+  function sonNote(frequence, debut, duree, volume, forme, sortie, quand) {
     if (!son.ctx) return;
-    var c = son.ctx, t = c.currentTime + debut;
+    var c = son.ctx, t = (quand || c.currentTime) + debut;
     var o = c.createOscillator(); o.type = forme || 'square'; o.frequency.value = frequence;
-    var g = c.createGain(); g.gain.setValueAtTime(volume, t); g.gain.exponentialRampToValueAtTime(0.001, t + duree);
-    o.connect(g); g.connect(son.general); o.start(t); o.stop(t + duree + 0.05);
+    var g = c.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(volume, t + 0.008);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + duree);
+    o.connect(g); g.connect(sortie || son.general); o.start(t); o.stop(t + duree + 0.05);
   }
   function klaxon(grave) { var b = grave ? 0.7 : 1; sonNote(392 * b, 0, 0.32, 0.12); sonNote(494 * b, 0, 0.32, 0.1); }
-  var RAPPORTS = [0, 9, 17, 25, 33, 42, 54];
-  function sonMoteur() {
+  var RAPPORTS = [0, 9, 17, 25, 33, 42, 54], rapportAvant = 1, coupure = 0;
+  function sonMoteur(dt) {
     if (!son.ctx) return;
     var t = son.ctx.currentTime, enCourse = etat === 'course' || etat === 'compte';
-    var r = 0;
+    var rapport = 1, r = 0;
     for (var i = 1; i < RAPPORTS.length; i++) {
+      rapport = i;
       if (v <= RAPPORTS[i] || i === RAPPORTS.length - 1) { r = (v - RAPPORTS[i - 1]) / (RAPPORTS[i] - RAPPORTS[i - 1]); break; }
     }
-    var regime = v < 0.5 ? 0.15 : 0.3 + 0.7 * Math.max(0, Math.min(1, r));
-    if (etat === 'compte') regime = 0.2 + (appuye('turbo') ? 0.5 : 0);
-    var freq = 38 + regime * 95 + (turboActif ? 18 : 0);
-    son.oscA.frequency.setTargetAtTime(freq, t, 0.04);
-    son.oscB.frequency.setTargetAtTime(freq / 2, t, 0.04);
-    son.filtre.frequency.setTargetAtTime(450 + regime * 1300 + (turboActif ? 600 : 0), t, 0.05);
-    son.moteur.gain.setTargetAtTime(enCourse ? 0.16 + 0.1 * regime : 0, t, 0.08);
+    if (rapport > rapportAvant && etat === 'course') { coupure = 0.12; sonBruit(900, 'bandpass', 0.12, 0.25); }
+    rapportAvant = rapport;
+    if (coupure > 0) coupure -= dt;
+    var regime = v < 0.5 ? 0.12 : 0.28 + 0.72 * Math.max(0, Math.min(1, r));
+    if (etat === 'compte') regime = 0.15 + (appuye('turbo') ? 0.55 : 0);
+    var tours = 900 + regime * 5600;                    // tours/minute
+    var freq = tours / 60 * 2;                          // 4 cylindres : 2 explosions par tour
+    son.oscA.frequency.setTargetAtTime(freq, t, 0.03);
+    son.oscB.frequency.setTargetAtTime(freq * 1.012, t, 0.03);
+    son.oscC.frequency.setTargetAtTime(freq / 2, t, 0.03);
+    son.lfo.frequency.setTargetAtTime(freq / 2, t, 0.03);
+    son.filtre.frequency.setTargetAtTime(380 + regime * 2100 + (turboActif ? 500 : 0), t, 0.05);
+    var vol = enCourse ? (0.13 + 0.12 * regime) * (coupure > 0 ? 0.35 : 1) * (appuye('frein') ? 0.7 : 1) : 0;
+    son.moteur.gain.setTargetAtTime(vol, t, 0.04);
+    son.sifflet.frequency.setTargetAtTime(1800 + regime * 2600, t, 0.1);
+    son.gSifflet.gain.setTargetAtTime(turboActif && enCourse ? 0.018 : 0, t, 0.15);
+    var dir = (appuye('droite') ? 1 : 0) - (appuye('gauche') ? 1 : 0);
+    var crisse = etat === 'course' && v > 22 && ((dir && Math.abs(segmentA(z).courbe) > 2) || (dir && zoneGlissante(E, z)) || (appuye('frein') && v > 25));
+    son.gCriss.gain.setTargetAtTime(crisse ? 0.05 : 0, t, 0.08);
+    var amb = enCourse || etat === 'fin' ? { marche: [700, 0.07], rondpoint: [500, 0.05], boulevard: [400, 0.04], poidslourds: [180, 0.05], corniche: [300, 0.05] }[E.id] : [300, 0];
+    son.fAmb.frequency.setTargetAtTime(amb[0], t, 0.3); son.gAmb.gain.setTargetAtTime(amb[1], t, 0.5);
   }
-  function sonCouper(oui) {
-    son.actif = !oui;
-    try { localStorage.setItem('ketch-son', son.actif ? 'oui' : 'non'); } catch (e) {}
-    if (son.general) son.general.gain.setTargetAtTime(son.actif ? 0.32 : 0, son.ctx.currentTime, 0.02);
-    majBoutonSon();
+
+  // Musique : une boucle différente par étape (rythme, basse, guitare en arpèges), générée en direct.
+  var GAMMES = { majeur: [0, 2, 4, 5, 7, 9, 11], mineur: [0, 2, 3, 5, 7, 8, 10] };
+  var musique = { joue: false, prochaine: 0, pas: 0, minuterie: null };
+  function hz(midi) { return 440 * Math.pow(2, (midi - 69) / 12); }
+  function musiqueDemarrer() {
+    if (!son.ctx || musique.joue) return;
+    musique.joue = true; musique.pas = 0; musique.prochaine = son.ctx.currentTime + 0.1;
+    musique.minuterie = setInterval(planifier, 25);
+  }
+  function musiqueArreter() { musique.joue = false; if (musique.minuterie) clearInterval(musique.minuterie); musique.minuterie = null; }
+  function planifier() {
+    if (!son.ctx || !musique.joue) return;
+    var M = E.musique, double = 60 / M.tempo / 4, gamme = GAMMES[M.gamme];
+    var accords = [0, 3, 4, 0, 5, 3, 4, 4];       // I – IV – V – I – VI – IV – V – V
+    while (musique.prochaine < son.ctx.currentTime + 0.12) {
+      var p = musique.pas, t = musique.prochaine, mesure = Math.floor(p / 16) % accords.length, dans = p % 16;
+      var degre = accords[mesure], racine = M.tonique - 12 + gamme[degre % 7];
+      var bus = son.busMusique;
+      if (dans % 4 === 0) { sonNote(110, 0, 0.12, 0.5, 'sine', bus, t); sonNote(55, 0, 0.18, 0.4, 'sine', bus, t); }
+      if (dans === 4 || dans === 12) sonBruitA(t, 1800, 'highpass', 0.09, 0.25);
+      if (dans % 2 === 1) sonBruitA(t, 7000, 'highpass', 0.03, 0.08);
+      if ([0, 3, 6, 8, 10, 14].indexOf(dans) >= 0) sonNote(hz(racine + (dans === 10 ? 7 : 0)), 0, double * 1.8, 0.16, 'triangle', bus, t);
+      var arp = [0, 2, 4, 7, 4, 2, 0, 4];
+      var noteArp = M.tonique + 12 + gamme[(degre + arp[dans % 8]) % 7] + (degre + arp[dans % 8] >= 7 ? 12 : 0);
+      sonNote(hz(noteArp), 0, double * 0.9, 0.05, 'square', bus, t);
+      musique.pas++; musique.prochaine += double;
+    }
+  }
+  function sonBruitA(quand, frequence, type, duree, volume) {
+    var c = son.ctx, src = c.createBufferSource(); src.buffer = son.bruit;
+    var f = c.createBiquadFilter(); f.type = type; f.frequency.value = frequence;
+    var g = c.createGain(); g.gain.setValueAtTime(volume, quand); g.gain.exponentialRampToValueAtTime(0.001, quand + duree);
+    src.connect(f); f.connect(g); g.connect(son.busMusique); src.start(quand, Math.random()); src.stop(quand + duree + 0.02);
+  }
+  function majVolumes() {
+    if (!son.ctx) return;
+    son.general.gain.setTargetAtTime(son.actif ? 0.34 : 0, son.ctx.currentTime, 0.02);
+    son.busMusique.gain.setTargetAtTime(son.musique ? 0.55 : 0, son.ctx.currentTime, 0.05);
   }
 
   // ---------- État de la partie ----------
   var E = preparer(ETAPES.boulevard);
   var etat = 'accueil', temps = 0, compte = 0, z = 0, v = 0, x = 0, energie = 1, turboActif = false, choc = 0;
   var touches = {}, obstacles = [], trafic = [], pietons = [], zFantome = 0, raccourci = null, decalDecor = 0;
-  var message = '', messageTemps = 0, derniereSeconde = 4;
+  var message = '', messageTemps = 0, derniereSeconde = 4, glisse = false;
+  var grace = 0, points = 0, gagnes = 0, perdus = 0, chocs = { piéton: 0, véhicule: 0, obstacle: 0, trou: 0 }, bulles = [], flashScore = 0;
 
-  function cleRecord(id) { return 'ketch-record-' + id; }
-  function lireRecord(id) { try { return parseFloat(localStorage.getItem(cleRecord(id))) || null; } catch (e) { return null; } }
+  function lireRecord(id) {
+    try { var r = JSON.parse(localStorage.getItem('ketch-records-' + id) || 'null'); return r && typeof r === 'object' ? r : null; } catch (e) { return null; }
+  }
+  function ecrireRecord(id, r) { try { localStorage.setItem('ketch-records-' + id, JSON.stringify(r)); } catch (e) {} }
 
   function reinitialiser(id) {
     E = preparer(ETAPES[id]);
     etat = 'accueil'; temps = 0; compte = 3.999; z = 0; v = 0; x = E.voies[E.voies.length - 1] * (E.voies.length > 2 ? 0.33 : 1);
-    energie = 1; turboActif = false; choc = 0; zFantome = 0; touches = {}; raccourci = null; decalDecor = 0;
+    energie = 1; turboActif = false; choc = 0; zFantome = 0; touches = {}; raccourci = null; decalDecor = 0; glisse = false;
     message = ''; messageTemps = 0; derniereSeconde = 4;
+    grace = 0; points = 0; gagnes = 0; perdus = 0; chocs = { piéton: 0, véhicule: 0, obstacle: 0, trou: 0 }; bulles = []; flashScore = 0;
     obstacles = E.obstacles.map(function (o) { return { z: o.z, x: o.x, type: o.type, touche: false }; });
-    trafic = E.trafic.map(function (t) { return { def: t, z: t.z0, x: t.a, pousse: 0, klaxon: -9 }; });
+    trafic = E.traficListe.map(function (t) { return { def: t, z: t.z0, x: t.a, pousse: 0, klaxon: -9 }; });
     pietons = E.pietons.map(function (p) { return { def: p, z: p.z, x: p.cote * (1 + 1.2 / E.demi), parti: false, ecarte: false }; });
   }
   function annoncer(texte) { message = texte; messageTemps = 1.6; }
+  function retirer(categorie, texte) {
+    var n = POINTS[categorie];
+    grace = 0.6;
+    chocs[categorie]++; perdus += n; points = Math.max(0, gagnes - perdus); flashScore = 0.8;
+    bulles.push({ texte: '−' + n + ' · ' + texte, t: 1.4 });
+  }
 
   // ---------- Commandes ----------
   var CLAVIER = { ArrowLeft: 'gauche', KeyA: 'gauche', KeyQ: 'gauche', ArrowRight: 'droite', KeyD: 'droite',
@@ -297,26 +461,28 @@
   }
 
   // ---------- Simulation ----------
-  var LARGEUR = { cone: 0.35, trou: 0.7, charrette: 0.85, barriere: 1.0, etal: 1.1, bassines: 0.7,
+  var LARGEUR = { cone: 0.35, trou: 0.7, flaque: 0.9, bosse: 99, charrette: 0.85, barriere: 1.0, etal: 1.1, bassines: 0.7,
     voiture: 0.9, ketch: 0.9, bus: 1.25, camion: 1.25, moto: 0.45, pousse: 0.7, pieton: 0.35 };
-  var PROFONDEUR = { cone: 1.2, trou: 1.4, charrette: 2.2, barriere: 1.2, etal: 2.2, bassines: 1.4,
+  var PROFONDEUR = { cone: 1.2, trou: 1.4, flaque: 2, bosse: 1, charrette: 2.2, barriere: 1.2, etal: 2.2, bassines: 1.4,
     voiture: 4, ketch: 3.8, bus: 6, camion: 6.5, moto: 2, pousse: 2.4, pieton: 1 };
   function touche(oz, ox, type) {
     return Math.abs(oz - z) < PROFONDEUR[type] && Math.abs(ox - x) * E.demi < LARGEUR[type] + DEMI_KETCH;
   }
-  function percuter(fort, texte) {
+  function secousse(fort) {
     v *= fort ? 0.35 : 0.75; choc = fort ? 0.45 : 0.25;
     if (fort) { sonBruit(420, 'lowpass', 0.35, 0.9); sonNote(70, 0, 0.25, 0.4, 'sine'); } else sonBruit(180, 'lowpass', 0.2, 0.7);
-    if (texte) annoncer(texte);
     if (navigator.vibrate) { try { navigator.vibrate(fort ? 60 : 30); } catch (e) {} }
   }
 
   function avancer(dt) {
     if (messageTemps > 0) messageTemps -= dt;
+    if (flashScore > 0) flashScore -= dt;
+    if (grace > 0) grace -= dt;
+    bulles.forEach(function (b) { b.t -= dt; }); bulles = bulles.filter(function (b) { return b.t > 0; });
     if (etat === 'compte') {
       compte -= dt;
       var s = Math.ceil(compte - 1);
-      if (s !== derniereSeconde) { derniereSeconde = s; sonNote(s > 0 ? 440 : 880, 0, s > 0 ? 0.18 : 0.4, 0.25); }
+      if (s !== derniereSeconde) { derniereSeconde = s; sonNote(s > 0 ? 440 : 880, 0, s > 0 ? 0.18 : 0.4, 0.22, 'square'); }
       if (compte <= 0) etat = 'course';
       return;
     }
@@ -327,7 +493,7 @@
 
     var avantTurbo = turboActif;
     turboActif = appuye('turbo') && energie > 0.02 && !appuye('frein');
-    if (turboActif && !avantTurbo) sonBruit(700, 'bandpass', 0.5, 0.5, 2400);
+    if (turboActif && !avantTurbo) sonBruit(700, 'bandpass', 0.5, 0.45, 2400);
     energie = turboActif ? Math.max(0, energie - 0.38 * dt) : Math.min(1, energie + 0.11 * dt);
 
     var plafond = (turboActif ? E.vTurbo : E.vMax) * (raccourci ? 0.8 : 1);
@@ -337,9 +503,14 @@
     var pente = (hauteurA(z + 2) - hauteurA(z - 2)) / 4;
     v = Math.max(0, Math.min(E.vTurbo * 1.08, v - 9.8 * pente * 0.55 * dt));
 
+    // Chaussée glissante : on braque moins bien et les virages poussent plus fort vers l'extérieur.
+    var surGlissant = !raccourci && zoneGlissante(E, z);
+    if (surGlissant && !glisse) annoncer('Chaussée glissante !');
+    glisse = surGlissant;
+    var adherence = surGlissant ? 0.6 : 1;
     var dir = (appuye('droite') ? 1 : 0) - (appuye('gauche') ? 1 : 0);
-    x += dir * (6 / E.demi) * dt * (0.45 + 0.55 * Math.min(1, v / E.vMax));
-    if (!raccourci) x -= segmentA(z).courbe * 0.09 * (v / E.vMax) * dt;
+    x += dir * (6 / E.demi) * dt * (0.45 + 0.55 * Math.min(1, v / E.vMax)) * adherence;
+    if (!raccourci) x -= segmentA(z).courbe * 0.09 * (v / E.vMax) * dt * (surGlissant ? 2.2 : 1);
 
     var zone = zoneRaccourci(E, z);
     if (!raccourci && zone && z < zone.debut + 45 && x * zone.cote >= 0.88 && (zone.cote > 0 ? appuye('droite') : appuye('gauche'))) {
@@ -350,16 +521,22 @@
     if (raccourci) x = raccourci.cote > 0 ? Math.max(bordRac, Math.min(finRac, x)) : Math.max(-finRac, Math.min(-bordRac, x));
     else x = Math.max(-0.9, Math.min(0.9, x));
 
-    z += v * dt * (raccourci ? 1.4 : 1);
+    var dz = v * dt * (raccourci ? 1.4 : 1);
+    z += dz;
+    // Points de vitesse : chaque mètre rapporte plus quand on roule vite.
+    gagnes += dz * (1 + 2 * Math.min(1.4, v / E.vMax));
+    points = Math.max(0, gagnes - perdus);
     decalDecor += segmentA(z).courbe * v * dt * 0.6;
 
     obstacles.forEach(function (o) {
-      if (o.touche || !touche(o.z, o.x, o.type)) return;
+      if (o.touche || grace > 0 || !touche(o.z, o.x, o.type)) return;
       o.touche = true;
-      if (o.type === 'trou') percuter(false, 'Nid-de-poule !'); else percuter(true);
+      if (o.type === 'trou') { secousse(false); retirer('trou', 'nid-de-poule'); }
+      else if (o.type === 'bosse') { if (v >= 22) { secousse(false); retirer('trou', 'bosse prise trop vite'); } }
+      else if (o.type === 'flaque') { secousse(false); x += (segmentA(z).courbe >= 0 ? -1 : 1) * 0.3; retirer('trou', 'aquaplaning'); }
+      else { secousse(true); retirer('obstacle', { cone: 'cône', barriere: 'barrière', charrette: 'charrette', etal: 'étal', bassines: 'bassines' }[o.type] || 'obstacle'); }
     });
 
-    // Circulation : déplacement prévu d'avance, chocs, klaxons.
     trafic.forEach(function (t) {
       var d = t.def;
       t.z = d.z0 + d.vit * temps + t.pousse;
@@ -370,14 +547,13 @@
       if (devant > 0 && devant < 16 && Math.abs(t.x - x) * E.demi < 1.6 && v > d.vit + 6 && temps - t.klaxon > 3) {
         t.klaxon = temps; klaxon(d.type === 'bus' || d.type === 'camion');
       }
-      if (touche(t.z, t.x, d.type)) {
-        t.pousse += 8; var avantChoc = v;
-        percuter(true, d.type === 'pousse' ? 'Attention au pousse-pousse !' : 'Accrochage !');
-        v = Math.max(Math.min(avantChoc * 0.5, d.vit), v);
+      if (grace <= 0 && temps - (t.dernierChoc || -9) > 3 && touche(t.z, t.x, d.type)) {
+        t.dernierChoc = temps; t.pousse += 12; var avantChoc = v;
+        secousse(true); v = Math.max(Math.min(avantChoc * 0.5, d.vit), v);
+        retirer('véhicule', { pousse: 'pousse-pousse', moto: 'moto', bus: 'bus', camion: 'camion', ketch: 'taxi', voiture: 'voiture' }[d.type]);
       }
     });
 
-    // Piétons : ils traversent quand le ketch approche. En cas de contact, ils s'écartent d'un bond.
     pietons.forEach(function (p) {
       var d = p.def;
       if (!p.parti && z > p.z - d.declenche) p.parti = true;
@@ -386,35 +562,59 @@
         p.x += (-d.cote) * (d.vit / E.demi) * dt;
         if ((cible - p.x) * -d.cote <= 0) { p.x = cible; p.ecarte = true; }
       }
-      if (!p.ecarte && !raccourci && Math.abs(p.x) < 1 && touche(p.z, p.x, 'pieton')) {
+      if (!p.ecarte && !raccourci && grace <= 0 && Math.abs(p.x) < 1 && touche(p.z, p.x, 'pieton')) {
         p.ecarte = true; p.x = d.cote * (1 + 1.2 / E.demi);
         v *= 0.3; choc = 0.4; klaxon(false); annoncer('Attention aux piétons !');
+        retirer('piéton', 'piéton');
       }
     });
     if (choc > 0) choc = Math.max(0, choc - dt);
     if (z >= E.longueur) terminer();
   }
 
+  function tempsFantome() {
+    var tA = E.vFantome / 9, dA = 0.5 * 9 * tA * tA;
+    return tA + (E.longueur - dA) / E.vFantome;
+  }
+
   function terminer() {
     etat = 'fin';
-    var tA = E.vFantome / 9, dA = 0.5 * 9 * tA * tA;
-    var tFantome = tA + (E.longueur - dA) / E.vFantome;
-    var ecart = temps - tFantome;
-    var rec = lireRecord(E.id), nouveau = !rec || temps < rec;
-    if (nouveau) { try { localStorage.setItem(cleRecord(E.id), String(temps)); } catch (e) {} rec = temps; }
-    [523, 659, 784, 1047].forEach(function (f, i) { sonNote(f, i * 0.12, 0.3, 0.2); });
-    document.getElementById('finEtape').textContent = 'Étape ' + E.numero + ' · ' + E.nom;
-    document.getElementById('finTemps').textContent = chrono(temps);
-    document.getElementById('finVerdict').textContent = ecart < 0
-      ? 'Vous battez le fantôme de ' + secondes(-ecart) + '.'
-      : 'Le fantôme gagne de ' + secondes(ecart) + '. Essayez les raccourcis et le turbo !';
-    var chocs = obstacles.filter(function (o) { return o.touche && o.type !== 'trou'; }).length;
-    document.getElementById('finDetail').textContent =
-      (chocs ? chocs + (chocs > 1 ? ' obstacles touchés' : ' obstacle touché') : 'Aucun obstacle touché') +
-      (nouveau ? ' · nouveau record personnel' : ' · votre record : ' + chrono(rec));
+    musiqueArreter();
+    var ecart = tempsFantome() - temps;
+    var nbChocs = chocs.piéton + chocs.véhicule + chocs.obstacle + chocs.trou;
+    var route = Math.round(gagnes);
+    var bonusFantome = ecart > 0 ? POINTS.victoire + Math.round(ecart * POINTS.parSeconde) : 0;
+    var bonusPropre = 0;
+    for (var i = 0; i < POINTS.propre.length; i++) if (nbChocs <= POINTS.propre[i][0]) { bonusPropre = POINTS.propre[i][1]; break; }
+    var total = Math.max(0, Math.round(points) + bonusFantome + bonusPropre);
+
+    var rec = lireRecord(E.id) || {}, nouveau = !rec.score || total > rec.score;
+    var nouveauTemps = !rec.temps || temps < rec.temps;
+    ecrireRecord(E.id, { score: Math.max(total, rec.score || 0), temps: Math.min(temps, rec.temps || 1e9) });
+    [523, 659, 784, 1047].forEach(function (f, j) { sonNote(f, j * 0.12, 0.3, 0.2); });
+
+    document.getElementById('finEtape').textContent = 'Étape ' + E.numero + ' · ' + E.nom + ' · ' + chrono(temps);
+    document.getElementById('finTemps').textContent = total.toLocaleString('fr-FR') + ' points';
+    document.getElementById('finVerdict').textContent = ecart > 0
+      ? 'Vous battez le fantôme de ' + secondes(ecart) + '.'
+      : 'Le fantôme gagne de ' + secondes(-ecart) + '.';
+    var lignes = [
+      ['Vitesse sur la route', '+' + route.toLocaleString('fr-FR')],
+      ['Course contre le fantôme', bonusFantome ? '+' + bonusFantome.toLocaleString('fr-FR') : '0'],
+      ['Conduite propre (' + nbChocs + (nbChocs > 1 ? ' chocs' : ' choc') + ')', bonusPropre ? '+' + bonusPropre : '0'],
+      ['Chocs', perdus ? '−' + perdus.toLocaleString('fr-FR') : '0']
+    ];
+    var ul = document.getElementById('finPoints');
+    ul.textContent = '';
+    lignes.forEach(function (l) {
+      var li = document.createElement('li'), a = document.createElement('span'), b = document.createElement('b');
+      a.textContent = l[0]; b.textContent = l[1]; li.appendChild(a); li.appendChild(b); ul.appendChild(li);
+    });
+    document.getElementById('finDetail').textContent = (nouveau ? 'Nouveau meilleur score !' : 'Meilleur score : ' + rec.score.toLocaleString('fr-FR')) +
+      (nouveauTemps ? ' · Nouveau meilleur temps' : '');
     panneauFin.hidden = false;
     majRecords();
-    var b = document.getElementById('boutonRejouer'); if (b) b.focus({ preventScroll: true });
+    var bt = document.getElementById('boutonRejouer'); if (bt) bt.focus({ preventScroll: true });
   }
 
   // ---------- Dessin : outils ----------
@@ -435,7 +635,7 @@
     ctx.fill();
   }
 
-  // ---------- Ciel et ville au loin ----------
+  // ---------- Ciel et lointain ----------
   var TOURS_LOIN = [[10, 70, 34], [52, 40, 26], [84, 96, 40], [132, 60, 22], [160, 30, 30], [204, 84, 36], [250, 54, 24], [282, 108, 30], [322, 70, 44],
     [376, 44, 28], [410, 92, 34], [452, 62, 24], [486, 120, 32], [526, 74, 40], [574, 50, 26], [606, 98, 36], [650, 64, 30], [690, 84, 26], [724, 44, 40], [772, 112, 34], [812, 58, 30]];
   var BAS_LOIN = [[0, 30, 60], [64, 22, 70], [140, 34, 50], [196, 18, 80], [282, 28, 64], [352, 20, 74], [432, 32, 58], [496, 24, 70], [572, 30, 62], [640, 18, 80], [726, 26, 66], [798, 30, 46]];
@@ -445,17 +645,16 @@
     if (!cielGrad || cielEtape !== E.id) {
       cielEtape = E.id;
       cielGrad = ctx.createLinearGradient(0, 0, 0, HORIZON + 2);
-      if (E.id === 'marche') { cielGrad.addColorStop(0, '#3D7CC9'); cielGrad.addColorStop(0.7, '#9CC8EE'); cielGrad.addColorStop(1, '#F3D9A4'); }
-      else { cielGrad.addColorStop(0, '#1B2A5C'); cielGrad.addColorStop(0.55, '#7A3E6A'); cielGrad.addColorStop(1, '#F08A3C'); }
+      cielGrad.addColorStop(0, E.ciel[0]); cielGrad.addColorStop(0.6, E.ciel[1]); cielGrad.addColorStop(1, E.ciel[2]);
     }
     ctx.fillStyle = cielGrad; ctx.fillRect(0, 0, W, HORIZON + 2);
     var dec = decalDecor;
-    ctx.fillStyle = E.id === 'marche' ? 'rgba(255,255,255,.75)' : 'rgba(255,214,170,.35)';
+    ctx.fillStyle = 'rgba(255,255,255,.55)';
     NUAGES.forEach(function (n) {
       var nx = (((n[0] - dec * 0.1 + temps * 4) % (W + 200)) + W + 200) % (W + 200) - 100;
       ctx.beginPath(); ctx.ellipse(nx, n[1], n[2], n[2] * 0.22, 0, 0, 7); ctx.ellipse(nx + n[2] * 0.4, n[1] - 8, n[2] * 0.5, n[2] * 0.2, 0, 0, 7); ctx.fill();
     });
-    if (E.id !== 'marche') { ctx.globalAlpha = 0.85; ctx.fillStyle = '#FFB347'; ctx.beginPath(); ctx.arc(((610 - dec * 0.15) % W + W) % W, 150, 30, 0, 7); ctx.fill(); ctx.globalAlpha = 1; }
+    if (E.ville !== 'basse') { ctx.globalAlpha = 0.85; ctx.fillStyle = '#FFB347'; ctx.beginPath(); ctx.arc(((610 - dec * 0.15) % W + W) % W, 150, 30, 0, 7); ctx.fill(); ctx.globalAlpha = 1; }
     var d1 = ((dec * 0.25) % W + W) % W, d2 = ((dec * 0.5) % W + W) % W;
     for (var k = -1; k <= 1; k++) {
       var o1 = k * W - d1, o2 = k * W - d2;
@@ -468,12 +667,22 @@
           for (var f = 8; f < t[1] - 4; f += 9) ctx.fillRect(t[0] + o1 + 4 + (f * 7) % (t[2] - 8), HORIZON - t[1] + f, 3, 3);
         });
       }
+      if (E.ville === 'industrie') {
+        ctx.fillStyle = '#7C8696';
+        [[60, 40], [250, 55], [520, 35], [700, 48]].forEach(function (c) { ctx.fillRect(c[0] + o1, HORIZON - c[1], 10, c[1]); ctx.fillStyle = 'rgba(220,220,220,.5)'; ctx.beginPath(); ctx.arc(c[0] + o1 + 5, HORIZON - c[1] - 10, 12, 0, 7); ctx.fill(); ctx.fillStyle = '#7C8696'; });
+      }
+      if (E.ville === 'fleuve') {
+        ctx.fillStyle = '#3D6A4A';
+        [[0, 14, 200], [220, 8, 160], [420, 18, 240], [700, 10, 200]].forEach(function (c) { ctx.beginPath(); ctx.ellipse(c[0] + c[2] / 2 + o1, HORIZON, c[2] / 2, c[1], 0, Math.PI, 0); ctx.fill(); });
+      }
       BAS_LOIN.forEach(function (b, i) {
-        ctx.fillStyle = E.id === 'marche' ? (i % 2 ? '#B9A58A' : '#C9B79C') : (i % 2 ? '#22305E' : '#28376A');
-        ctx.fillRect(b[0] + o2, HORIZON - b[1], b[2], b[1] + 2);
+        ctx.fillStyle = E.ville === 'basse' ? (i % 2 ? '#B9A58A' : '#C9B79C') : E.ville === 'industrie' ? (i % 2 ? '#8A8F99' : '#9AA0A9') : E.ville === 'fleuve' ? (i % 2 ? '#4E6E8E' : '#5A7A9A') : (i % 2 ? '#22305E' : '#28376A');
+        if (E.ville === 'fleuve' && b[0] > 420) return;
+        ctx.fillRect(b[0] + o2, HORIZON - b[1] * (E.ville === 'fleuve' ? 0.6 : 1), b[2], b[1] + 2);
       });
     }
     ctx.fillStyle = E.couleurs.sol[0]; ctx.fillRect(0, HORIZON, W, H - HORIZON);
+    if (E.eau) { ctx.fillStyle = '#3E7FB0'; ctx.fillRect(E.eau > 0 ? VX : 0, HORIZON, W / 2, 6); }
   }
 
   // ---------- Route ----------
@@ -506,6 +715,13 @@
       ctx.fillStyle = C.sol[pair ? 0 : 1]; ctx.fillRect(0, p2.y, W, p1.y - p2.y + 1);
 
       for (var cote = -1; cote <= 1; cote += 2) {
+        if (E.eau === cote) {
+          bande(p1, p2, cote * trottoir, cote * 60, pair ? '#3E7FB0' : '#3A79A8');
+          if (i % 7 === 0) bande(p1, p2, cote * (trottoir + 1.5), cote * (trottoir + 2.5), 'rgba(255,255,255,.25)');
+          bande(p1, p2, cote * 1.0, cote * trottoir, C.trottoir[pair ? 0 : 1]);
+          bande(p1, p2, cote * (trottoir - 0.06), cote * trottoir, pair ? '#D9DDE3' : '#9AA0A9');
+          continue;
+        }
         var rac = zoneRaccourci(E, zSeg, cote);
         if (rac) {
           var ouvert = zSeg < rac.debut + 45;
@@ -519,7 +735,9 @@
           bande(p1, p2, cote * 1.0, cote * (1 + 0.25 / E.demi), '#9A958A');
         }
       }
-      bande(p1, p2, -1.0, 1.0, C.route[pair ? 0 : 1]);
+      var mouille = zoneGlissante(E, zSeg);
+      bande(p1, p2, -1.0, 1.0, mouille ? (pair ? '#2E3A4C' : '#2A3546') : C.route[pair ? 0 : 1]);
+      if (mouille && i % 3 === 0) bande(p1, p2, -0.6, 0.4, 'rgba(160,200,255,.12)');
       bande(p1, p2, -0.985, -0.96, C.bord); bande(p1, p2, 0.96, 0.985, C.bord);
       for (var l = 0; l < E.lignes.length; l++) {
         var li = E.lignes[l];
@@ -548,7 +766,9 @@
     bleu: { mur: '#4F8FC0', face: '#6AA7D5', vitre: '#22303F', cadre: '#3A6F98' },
     rose: { mur: '#C9757E', face: '#DC8E96', vitre: '#2E2230', cadre: '#A55A62' },
     vert: { mur: '#5F9A5A', face: '#77B171', vitre: '#22301F', cadre: '#477843' },
-    creme: { mur: '#D8C9A6', face: '#E8DCBE', vitre: '#2E3A4E', cadre: '#B5A47F' }
+    creme: { mur: '#D8C9A6', face: '#E8DCBE', vitre: '#2E3A4E', cadre: '#B5A47F' },
+    entrepot: { mur: '#8E949E', face: '#A3A9B3', vitre: '#5A616C', cadre: '#6E747E' },
+    tole: { mur: '#9A6A4A', face: '#B07E5C', vitre: '#4A3A30', cadre: '#7A5038' }
   };
   function morceauMur(b, eA, eB) {
     var pa = eA.p, pb = eB.p, pal = PALETTE[b.style];
@@ -557,14 +777,19 @@
     ctx.fillStyle = pal.mur;
     ctx.beginPath(); ctx.moveTo(xa, pa.y); ctx.lineTo(xb, pb.y); ctx.lineTo(xb, pb.y - hb); ctx.lineTo(xa, pa.y - ha); ctx.fill();
     if (Math.abs(xa - xb) < 4) return;
-    var etages = Math.floor(b.haut / 3.2);
-    var verre = b.style.indexOf('verre') === 0;
+    var industriel = b.style === 'entrepot' || b.style === 'tole';
+    if (industriel) {
+      ctx.fillStyle = pal.cadre;
+      for (var r = 1; r < 4; r++) { var tt = r / 4; ctx.fillRect(xa + (xb - xa) * tt, pa.y + (pb.y - pa.y) * tt - b.haut * (pa.k + (pb.k - pa.k) * tt), Math.max(1, 0.08 * pa.k), b.haut * (pa.k + (pb.k - pa.k) * tt)); }
+      return;
+    }
+    var etages = Math.floor(b.haut / 3.2), verre = b.style.indexOf('verre') === 0;
     ctx.fillStyle = pal.vitre;
     var t1 = 0.15, t2 = 0.85;
     var ax = xa + (xb - xa) * t1, ay = pa.y + (pb.y - pa.y) * t1, ak = pa.k + (pb.k - pa.k) * t1;
     var bx = xa + (xb - xa) * t2, by = pa.y + (pb.y - pa.y) * t2, bk = pa.k + (pb.k - pa.k) * t2;
     for (var f = 0; f < etages; f++) {
-      if (b.style === 'commerce' && f === 0) continue;
+      if ((b.style === 'commerce' || b.enseigne) && f === 0) continue;
       var h1 = f * 3.2 + (verre ? 0.3 : 1.0), h2 = h1 + (verre ? 2.7 : 1.5);
       ctx.beginPath(); ctx.moveTo(ax, ay - h1 * ak); ctx.lineTo(bx, by - h1 * bk); ctx.lineTo(bx, by - h2 * bk); ctx.lineTo(ax, ay - h2 * ak); ctx.fill();
     }
@@ -579,6 +804,12 @@
     var gauche = Math.min(x1, x2), larg = Math.abs(x2 - x1), haut = b.haut * p.k;
     if (larg < 1) return;
     ctx.fillStyle = pal.face; ctx.fillRect(gauche, p.y - haut, larg, haut);
+    if (b.style === 'entrepot' || b.style === 'tole') {
+      ctx.fillStyle = pal.vitre; ctx.fillRect(gauche + larg * 0.25, p.y - haut * 0.6, larg * 0.5, haut * 0.6);
+      ctx.fillStyle = pal.cadre; for (var r = 0; r < 6; r++) ctx.fillRect(gauche + larg * 0.25, p.y - haut * 0.6 + r * haut * 0.1, larg * 0.5, Math.max(1, haut * 0.015));
+      ctx.fillRect(gauche, p.y - haut, larg, Math.max(1, 0.4 * p.k));
+      return;
+    }
     var etages = Math.floor(b.haut / 3.2), colonnes = Math.max(2, Math.round(b.prof * E.demi / 3));
     if (larg > 10) {
       var verre = b.style.indexOf('verre') === 0, cw = larg / colonnes;
@@ -652,6 +883,44 @@
     ctx.restore();
     passant(sx - 60 * s, sy, s, 3, false); passant(sx + 50 * s, sy, s, 0, false);
   }
+  function monument(sx, sy, s) {
+    ctx.save(); ctx.translate(sx, sy); ctx.scale(s, s);
+    ctx.fillStyle = '#4F8F4A'; ctx.beginPath(); ctx.ellipse(0, -10, 520, 60, 0, 0, 7); ctx.fill();
+    ctx.fillStyle = '#D8D2C4'; ctx.fillRect(-160, -90, 320, 80);
+    ctx.fillStyle = '#ECE7DB'; ctx.beginPath(); ctx.moveTo(-60, -90); ctx.lineTo(60, -90); ctx.lineTo(24, -1000); ctx.lineTo(0, -1060); ctx.lineTo(-24, -1000); ctx.fill();
+    ctx.fillStyle = '#D9A441'; ctx.beginPath(); ctx.arc(0, -1100, 40, 0, 7); ctx.fill();
+    [-1, 1].forEach(function (c) {
+      ctx.fillStyle = '#6E7480'; ctx.fillRect(c * 260 - 4, -520, 8, 460);
+      ctx.fillStyle = '#1E5FD6'; ctx.fillRect(c * 260 + 4, -520, 120, 80);
+      ctx.fillStyle = '#FFC814'; ctx.beginPath(); ctx.moveTo(c * 260 + 4, -440); ctx.lineTo(c * 260 + 124, -520); ctx.lineTo(c * 260 + 124, -500); ctx.lineTo(c * 260 + 24, -440); ctx.fill();
+      ctx.fillStyle = '#D92D20'; ctx.beginPath(); ctx.moveTo(c * 260 + 14, -440); ctx.lineTo(c * 260 + 124, -512); ctx.lineTo(c * 260 + 124, -506); ctx.lineTo(c * 260 + 20, -440); ctx.fill();
+    });
+    ctx.restore();
+  }
+  function conteneur(sx, sy, s, v2) {
+    var cols = ['#B42318', '#1E5FD6', '#1E7D45', '#B54708'];
+    ctx.save(); ctx.translate(sx, sy); ctx.scale(s, s);
+    ctx.fillStyle = cols[v2 % 4]; ctx.fillRect(-300, -260, 600, 260);
+    ctx.fillStyle = 'rgba(0,0,0,.18)'; for (var i = -280; i < 300; i += 40) ctx.fillRect(i, -250, 10, 240);
+    if (v2 % 2) { ctx.fillStyle = cols[(v2 + 1) % 4]; ctx.fillRect(-260, -520, 600, 260); ctx.fillStyle = 'rgba(0,0,0,.18)'; for (var j = -240; j < 340; j += 40) ctx.fillRect(j, -510, 10, 240); }
+    ctx.restore();
+  }
+  function pylone(sx, sy, s) {
+    ctx.save(); ctx.translate(sx, sy); ctx.scale(s, s);
+    ctx.strokeStyle = '#6E7480'; ctx.lineWidth = 8;
+    ctx.beginPath(); ctx.moveTo(-90, 0); ctx.lineTo(-20, -1100); ctx.lineTo(20, -1100); ctx.lineTo(90, 0);
+    for (var y = -100; y > -1100; y -= 140) { var w = 90 - (-y) * 70 / 1100; ctx.moveTo(-w, y); ctx.lineTo(w, y - 140); ctx.moveTo(w, y); ctx.lineTo(-w, y - 140); }
+    ctx.moveTo(-220, -950); ctx.lineTo(220, -950); ctx.moveTo(-160, -800); ctx.lineTo(160, -800);
+    ctx.stroke(); ctx.restore();
+  }
+  function pirogue(sx, sy, s, v2) {
+    ctx.save(); ctx.translate(sx, sy); ctx.scale(s, s);
+    ctx.fillStyle = ['#7A4A2A', '#5A3B22', '#8A5A2B'][v2 % 3];
+    ctx.beginPath(); ctx.moveTo(-260, -40); ctx.quadraticCurveTo(0, 30, 260, -40); ctx.lineTo(220, -10); ctx.quadraticCurveTo(0, 40, -220, -10); ctx.fill();
+    passant(-40, -20, 1, v2 + 1, false);
+    ctx.strokeStyle = '#3A2A1E'; ctx.lineWidth = 6; ctx.beginPath(); ctx.moveTo(-10, -120); ctx.lineTo(80, 20); ctx.stroke();
+    ctx.restore();
+  }
   function etalDecor(sx, sy, s, variante) {
     var toiles = ['#D92D20', '#FFC814', '#1E5FD6', '#1E7D45', '#F08A3C'];
     var biens = [['#D92D20', '#E5322D'], ['#FFC814', '#E8B100'], ['#7A3E6A', '#1E5FD6'], ['#1E7D45', '#5F9A5A'], ['#F08A3C', '#C2410C']];
@@ -680,15 +949,16 @@
   function panneau(sx, sy, s, texte, couleur, fleche) {
     ctx.save(); ctx.translate(sx, sy); ctx.scale(s, s);
     ctx.fillStyle = '#6E7480'; ctx.fillRect(-5, -150, 10, 150);
-    ctx.fillStyle = couleur; rect(-100, -200, 200, 58, 10); ctx.fill();
-    ctx.strokeStyle = '#FFFFFF'; ctx.lineWidth = 4; rect(-100, -200, 200, 58, 10); ctx.stroke();
-    ctx.fillStyle = '#FFFFFF'; ctx.font = '800 24px Inter, sans-serif'; ctx.textAlign = 'center';
-    ctx.fillText(texte, fleche ? -12 : 0, -162);
-    if (fleche) { ctx.beginPath(); ctx.moveTo(64 * fleche, -184); ctx.lineTo(86 * fleche, -171); ctx.lineTo(64 * fleche, -158); ctx.fill(); }
+    ctx.fillStyle = couleur; rect(-110, -200, 220, 58, 10); ctx.fill();
+    ctx.strokeStyle = '#FFFFFF'; ctx.lineWidth = 4; rect(-110, -200, 220, 58, 10); ctx.stroke();
+    ctx.fillStyle = '#FFFFFF'; ctx.font = '800 22px Inter, sans-serif'; ctx.textAlign = 'center';
+    ctx.fillText(texte, fleche ? -12 : 0, -163);
+    if (fleche) { ctx.beginPath(); ctx.moveTo(70 * fleche, -184); ctx.lineTo(92 * fleche, -171); ctx.lineTo(70 * fleche, -158); ctx.fill(); }
     ctx.restore();
   }
   function obstacle(o, sx, sy, s) {
     if (o.type === 'etal') { ctx.save(); if (o.touche) ctx.globalAlpha = 0.35; etalDecor(sx, sy, s, 1); ctx.restore(); return; }
+    if (o.type === 'bosse') return;
     ctx.save(); ctx.translate(sx, sy); ctx.scale(s, s);
     if (o.touche) ctx.globalAlpha = 0.35;
     if (o.type === 'cone') {
@@ -702,6 +972,9 @@
     } else if (o.type === 'trou') {
       ctx.fillStyle = '#3A2A1E'; ctx.beginPath(); ctx.ellipse(0, -6, 70, 16, 0, 0, 7); ctx.fill();
       ctx.fillStyle = 'rgba(127,200,255,.55)'; ctx.beginPath(); ctx.ellipse(-6, -7, 46, 9, 0, 0, 7); ctx.fill();
+    } else if (o.type === 'flaque') {
+      ctx.fillStyle = 'rgba(150,200,255,.55)'; ctx.beginPath(); ctx.ellipse(0, -4, 110, 18, 0, 0, 7); ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,.5)'; ctx.beginPath(); ctx.ellipse(-30, -6, 40, 4, 0, 0, 7); ctx.fill();
     } else if (o.type === 'bassines') {
       [-50, 10, 60].forEach(function (bx, j) {
         ctx.fillStyle = ['#1E5FD6', '#D92D20', '#1E7D45'][j]; ctx.beginPath(); ctx.ellipse(bx, -24, 34, 24, 0, Math.PI, 0); ctx.fill();
@@ -717,7 +990,13 @@
     }
     ctx.restore();
   }
-  // Véhicules de la circulation, vus de l'arrière.
+  function bosse(e) {
+    var p = e.p;
+    for (var i = 0; i < 8; i++) {
+      ctx.fillStyle = i % 2 ? '#FFC814' : '#111111';
+      ctx.fillRect(p.c - p.w * 0.97 + i * p.w * 1.94 / 8, p.y - Math.max(1.5, 0.12 * p.k), p.w * 1.94 / 8 + 0.5, Math.max(1.5, 0.12 * p.k));
+    }
+  }
   function vehicule(t, sx, sy, s) {
     var d = t.def, type = d.type;
     if (type === 'ketch') { ketch(sx, sy, s * 0.92, false, 0, true); return; }
@@ -749,7 +1028,7 @@
         ctx.fillStyle = '#FFFFFF'; ctx.font = '800 22px Inter, sans-serif'; ctx.textAlign = 'center'; ctx.fillText('BUS URBAIN', 0, -140);
       } else {
         ctx.fillStyle = '#B9B2A6'; for (var r = 1; r < 6; r++) ctx.fillRect(-larg / 2 + r * larg / 6, -haut + 10, 3, haut - 50);
-        ctx.fillStyle = '#1E5FD6'; ctx.fillRect(-larg / 2, -haut + 20, larg, 26);
+        ctx.fillStyle = ['#1E5FD6', '#B42318', '#1E7D45'][d.n % 3]; ctx.fillRect(-larg / 2, -haut + 20, larg, 26);
       }
       ctx.fillStyle = '#FF3B30'; rect(-larg / 2 + 8, -70, 34, 18, 5); ctx.fill(); rect(larg / 2 - 42, -70, 34, 18, 5); ctx.fill();
       ctx.fillStyle = '#FFFFFF'; rect(-30, -62, 60, 20, 3); ctx.fill();
@@ -773,7 +1052,6 @@
     ctx.fillText('ARRIVÉE', c, top + h + 32 * s);
     ctx.restore();
   }
-  // Le ketch, d'après la maquette. fantome = silhouette bleue ; autre = un autre taxi de la circulation.
   function ketch(cx, by, s, fantome, penche, autre) {
     ctx.save(); ctx.translate(cx, by); ctx.scale(s, s); if (penche) ctx.rotate(penche);
     var jaune = fantome ? 'rgba(127,216,255,.35)' : (autre ? '#F2B705' : '#FFC814');
@@ -810,7 +1088,7 @@
       objets.push({ zz: zz, e: e, xx: xx, f: dessin });
     }
     var fin = vue.camZ + VISIBLES * SEG;
-    E.immeubles.forEach(function (b) {
+    E.blocs.forEach(function (b) {
       if (b.z > fin || b.z + 20 < vue.camZ) return;
       var i0 = Math.floor(b.z / SEG);
       for (var j = 0; j < 4; j++) {
@@ -823,18 +1101,28 @@
     });
     E.decor.forEach(function (d) {
       if (d.z > fin || d.z < vue.camZ) return;
-      if (d.type === 'palmier') poser(d.z, d.x, function (sx, sy, s) { palmier(sx, sy, s); });
-      else if (d.type === 'lampadaire') poser(d.z, d.x, function (sx, sy, s) { lampadaire(sx, sy, s, d.cote); });
-      else if (d.type === 'passant') poser(d.z, d.x, function (sx, sy, s) { passant(sx, sy, s, d.v, false); });
-      else if (d.type === 'pub') poser(d.z, d.x, function (sx, sy, s) { pub(sx, sy, s, d.texte); });
-      else if (d.type === 'abribus') poser(d.z, d.x, function (sx, sy, s) { abribus(sx, sy, s); });
-      else if (d.type === 'etalDecor') { if (d.z < vue.camZ + 200) poser(d.z, d.x, function (sx, sy, s) { etalDecor(sx, sy, s, d.v); }); }
-      else if (d.type === 'fanions') poser(d.z, 0, function (sx, sy, s, e) { fanions(e); });
+      var f = { palmier: function (sx, sy, s) { palmier(sx, sy, s); },
+        lampadaire: function (sx, sy, s) { lampadaire(sx, sy, s, d.cote); },
+        passant: function (sx, sy, s) { passant(sx, sy, s, d.v, false); },
+        pub: function (sx, sy, s) { pub(sx, sy, s, d.texte); },
+        abribus: function (sx, sy, s) { abribus(sx, sy, s); },
+        monument: function (sx, sy, s) { monument(sx, sy, s); },
+        conteneur: function (sx, sy, s) { conteneur(sx, sy, s, d.v); },
+        pylone: function (sx, sy, s) { pylone(sx, sy, s); },
+        pirogue: function (sx, sy, s) { pirogue(sx, sy, s, d.v); },
+        panneauGlissant: function (sx, sy, s) { panneau(sx, sy, s, 'GLISSANT', '#B54708', 0); },
+        etalDecor: function (sx, sy, s) { etalDecor(sx, sy, s, d.v); },
+        fanions: function (sx, sy, s, e) { fanions(e); } }[d.type];
+      if (d.type === 'etalDecor' && d.z > vue.camZ + 200) return;
+      if (f) poser(d.z, d.x, f);
     });
     E.raccourcis.forEach(function (r) {
       poser(r.debut - 40, r.cote * 1.05, function (sx, sy, s) { panneau(sx, sy, s, 'RACCOURCI', '#1E7D45', r.cote); });
     });
-    obstacles.forEach(function (o) { poser(o.z, o.x, function (sx, sy, s) { obstacle(o, sx, sy, s); }); });
+    obstacles.forEach(function (o) {
+      if (o.type === 'bosse') poser(o.z, 0, function (sx, sy, s, e) { bosse(e); });
+      else poser(o.z, o.x, function (sx, sy, s) { obstacle(o, sx, sy, s); });
+    });
     trafic.forEach(function (t) { if (t.z > vue.camZ + 1) poser(t.z, t.x, function (sx, sy, s) { vehicule(t, sx, sy, s); }); });
     pietons.forEach(function (p) { poser(p.z, p.x, function (sx, sy, s) { passant(sx, sy, s, p.def.habit, p.parti && !p.ecarte); }); });
     if (zFantome > vue.camZ + 1) poser(zFantome, E.xFantome, function (sx, sy, s) { ketch(sx, sy, s * 0.95, true); });
@@ -855,14 +1143,15 @@
     ctx.textAlign = 'left';
     boite(16, 14, 282, 62, 14);
     ctx.fillStyle = '#FFC814'; ctx.font = '700 11px Inter, sans-serif';
-    ctx.fillText('ÉTAPE ' + E.numero + ' / 5 · DÉMO · ' + String(E.longueur / 1000).replace('.', ',') + ' KM', 32, 38);
+    ctx.fillText('ÉTAPE ' + E.numero + ' / 5 · ' + String(E.longueur / 1000).replace('.', ',') + ' KM · ' + Math.round(v * 3.6) + ' KM/H', 32, 38);
     ctx.fillStyle = '#FFFFFF'; ctx.font = '700 16px Inter, sans-serif'; ctx.fillText(E.nom, 32, 60);
 
     boite(356, 14, 132, 44, 12);
     ctx.textAlign = 'center'; ctx.fillStyle = '#FFFFFF'; ctx.font = '800 24px "Bricolage Grotesque", Inter, sans-serif';
     ctx.fillText(chrono(temps), 422, 44);
-    boite(356, 64, 132, 24, 12, 0.7);
-    ctx.fillStyle = '#FFFFFF'; ctx.font = '600 12px Inter, sans-serif'; ctx.fillText(Math.round(v * 3.6) + ' km/h', 422, 81);
+    ctx.fillStyle = flashScore > 0 ? 'rgba(180,35,24,.92)' : 'rgba(14,22,48,.8)'; rect(346, 64, 152, 26, 13); ctx.fill();
+    ctx.fillStyle = flashScore > 0 ? '#FFFFFF' : '#FFC814'; ctx.font = '800 14px Inter, sans-serif';
+    ctx.fillText('Score ' + Math.round(points).toLocaleString('fr-FR'), 422, 82);
 
     boite(546, 14, 282, 72, 14);
     ctx.textAlign = 'left';
@@ -874,7 +1163,7 @@
     ctx.fillStyle = '#7FD8FF'; rect(640, 50, 140 * Math.min(1, zFantome / E.longueur), 8, 4); ctx.fill();
     var ecart = etat === 'course' && v > 1 ? (zFantome - z) / Math.max(v, 10) : 0;
     ctx.fillStyle = '#C9CFE3'; ctx.font = '600 11px Inter, sans-serif';
-    ctx.fillText(etat !== 'course' ? 'Battez le fantôme jusqu’à l’arche'
+    ctx.fillText(etat !== 'course' ? 'Vite et sans choc = plus de points'
       : ecart > 0.05 ? 'Écart : −' + secondes(ecart) + ' · rattrapez-le !'
       : ecart < -0.05 ? 'Écart : +' + secondes(-ecart) + ' · tenez bon !' : 'Au coude à coude !', 562, 78);
 
@@ -886,6 +1175,14 @@
       ctx.fillStyle = '#0E1630'; ctx.fillText(message, VX, 125);
       ctx.globalAlpha = 1;
     }
+    bulles.forEach(function (b, i) {
+      ctx.globalAlpha = Math.min(1, b.t * 2);
+      ctx.font = '800 17px Inter, sans-serif'; ctx.textAlign = 'center';
+      var lw = ctx.measureText(b.texte).width + 26, y = 150 + i * 34 - (1.4 - b.t) * 18;
+      ctx.fillStyle = 'rgba(180,35,24,.95)'; rect(VX - lw / 2, y, lw, 30, 15); ctx.fill();
+      ctx.fillStyle = '#FFFFFF'; ctx.fillText(b.texte, VX, y + 21);
+      ctx.globalAlpha = 1;
+    });
     BOUTONS.forEach(function (b) {
       var actif = appuye(b.nom);
       ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, 7);
@@ -914,8 +1211,8 @@
     var vue = route();
     scene(vue);
     var dir = (appuye('droite') ? 1 : 0) - (appuye('gauche') ? 1 : 0);
-    var cahot = raccourci && v > 5 && !mouvementReduit ? Math.sin(temps * 38) * 2.5 : 0;
-    ketch(VX, 384 + cahot, 0.78, false, etat === 'course' ? dir * 0.03 : 0);
+    var cahot = (raccourci || E.id === 'poidslourds') && v > 5 && !mouvementReduit ? Math.sin(temps * 38) * (raccourci ? 2.5 : 1) : 0;
+    ketch(VX, 384 + cahot, 0.78, false, etat === 'course' ? dir * (glisse ? 0.06 : 0.03) : 0);
     ctx.restore();
     hud();
     if (etat === 'compte') {
@@ -939,7 +1236,7 @@
     avant = t;
     taille();
     avancer(dt);
-    sonMoteur();
+    sonMoteur(dt);
     dessiner();
     requestAnimationFrame(boucle);
   }
@@ -950,40 +1247,57 @@
   window.addEventListener('blur', function () { touches = {}; doigts = {}; });
 
   // ---------- Écrans de début et de fin ----------
-  var etapeChoisie = 'boulevard';
+  var etapeChoisie = 'rondpoint';
   function lancer(id) {
     etapeChoisie = id || etapeChoisie;
     reinitialiser(etapeChoisie);
     etat = 'compte';
     sonDemarrer();
+    musiqueArreter(); musiqueDemarrer();
     panneauDebut.hidden = true; panneauFin.hidden = true;
     canvas.focus({ preventScroll: true });
   }
   function majRecords() {
-    Object.keys(ETAPES).forEach(function (id) {
+    ORDRE.forEach(function (id) {
       var el = document.getElementById('record-' + id), r = lireRecord(id);
-      if (el) el.textContent = r ? 'Votre record : ' + chrono(r) : 'Pas encore de record';
+      if (el) el.textContent = r && r.score ? 'Record : ' + r.score.toLocaleString('fr-FR') + ' pts' : 'Pas encore joué';
     });
   }
   Array.prototype.forEach.call(document.querySelectorAll('[data-etape]'), function (b) {
     b.addEventListener('click', function () { lancer(b.getAttribute('data-etape')); });
   });
   document.getElementById('boutonRejouer').addEventListener('click', function () { lancer(); });
+  var suivante = document.getElementById('boutonSuivante');
+  if (suivante) suivante.addEventListener('click', function () { lancer(ORDRE[(ORDRE.indexOf(etapeChoisie) + 1) % ORDRE.length]); });
   var autre = document.getElementById('boutonAutreEtape');
   if (autre) autre.addEventListener('click', function () {
-    panneauFin.hidden = true; panneauDebut.hidden = false; etat = 'accueil';
+    panneauFin.hidden = true; panneauDebut.hidden = false; etat = 'accueil'; musiqueArreter();
     var p = panneauDebut.querySelector('[data-etape]'); if (p) p.focus({ preventScroll: true });
   });
 
-  var boutonSon = document.getElementById('boutonSon');
-  function majBoutonSon() {
-    if (!boutonSon) return;
-    boutonSon.setAttribute('aria-pressed', son.actif ? 'false' : 'true');
-    boutonSon.setAttribute('aria-label', son.actif ? 'Couper le son' : 'Remettre le son');
-    boutonSon.querySelector('.onde').style.display = son.actif ? '' : 'none';
-    boutonSon.querySelector('.barre').style.display = son.actif ? 'none' : '';
+  var boutonSon = document.getElementById('boutonSon'), boutonMusique = document.getElementById('boutonMusique');
+  function majBoutons() {
+    if (boutonSon) {
+      boutonSon.setAttribute('aria-pressed', son.actif ? 'false' : 'true');
+      boutonSon.setAttribute('aria-label', son.actif ? 'Couper le son' : 'Remettre le son');
+      boutonSon.querySelector('.onde').style.display = son.actif ? '' : 'none';
+      boutonSon.querySelector('.barre').style.display = son.actif ? 'none' : '';
+    }
+    if (boutonMusique) {
+      boutonMusique.setAttribute('aria-pressed', son.musique ? 'false' : 'true');
+      boutonMusique.setAttribute('aria-label', son.musique ? 'Couper la musique' : 'Remettre la musique');
+      boutonMusique.style.opacity = son.musique ? '' : '0.45';
+    }
   }
-  if (boutonSon) { boutonSon.addEventListener('click', function () { sonCouper(son.actif); }); majBoutonSon(); }
+  if (boutonSon) boutonSon.addEventListener('click', function () {
+    son.actif = !son.actif; try { localStorage.setItem('ketch-son', son.actif ? 'oui' : 'non'); } catch (e) {}
+    majVolumes(); majBoutons();
+  });
+  if (boutonMusique) boutonMusique.addEventListener('click', function () {
+    son.musique = !son.musique; try { localStorage.setItem('ketch-musique', son.musique ? 'oui' : 'non'); } catch (e) {}
+    majVolumes(); majBoutons();
+  });
+  majBoutons();
 
   var pleinEcran = document.getElementById('boutonPleinEcran');
   if (pleinEcran) {
@@ -996,7 +1310,7 @@
     });
   }
 
-  reinitialiser('boulevard');
+  reinitialiser('rondpoint');
   majRecords();
   requestAnimationFrame(boucle);
 })();
