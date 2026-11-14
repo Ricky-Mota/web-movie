@@ -1,6 +1,16 @@
 # Landing page – La Course des Ketch
 
-La page publique de la bêta, tirée de la maquette « G-Challenge RDC – Landing page Course des Ketch », avec l'aperçu de l'écran de course. Son formulaire d'inscription alimente le CRM.
+La page publique de la bêta, tirée de la maquette « G-Challenge RDC – Landing page Course des Ketch ». Son formulaire d'inscription alimente le CRM.
+
+## La démo jouable
+
+L'écran de course en haut de la page est jouable : c'est l'étape 5, « Sprint du Boulevard du 30 Juin », en environ 40 secondes. Le joueur tourne, freine et utilise le turbo (clavier, ou boutons tactiles sur téléphone). Il doit éviter les obstacles, placés aux mêmes endroits pour tout le monde, et battre le fantôme. À l'arrivée, il voit son temps, son record personnel et un bouton « Rejoindre la bêta ».
+
+Le code du jeu est dans `src/jeu.js`. Après une modification, réinsérez-le dans la page :
+
+```bash
+python3 scripts/assembler.py
+```
 
 ## Le circuit d'une inscription
 
@@ -67,6 +77,7 @@ Tant que `APPS_SCRIPT_URL` n'est pas réglé, le formulaire répond poliment « 
 | Fichier | Rôle |
 | --- | --- |
 | `public/index.html` | La landing page : une seule page, sans dépendance |
+| `src/jeu.js` | La démo jouable (inséré dans la page par `scripts/assembler.py`) |
 | `public/og.png` | L'image affichée quand le lien est partagé sur WhatsApp ou Facebook. Si le site n'est pas à l'adresse course-des-ketch.pages.dev, changez l'adresse de `og:image` dans `index.html` |
 | `netlify/functions/inscription-beta.mjs` | Vérifie l'inscription et l'envoie au Google Sheet |
 | `public/_redirects` | Netlify : relie l'adresse `/api/inscription-beta` à la fonction |
