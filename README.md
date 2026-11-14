@@ -7,3 +7,7 @@ Studio de doublage vidéo dans le navigateur : on importe une vidéo MP4, le stu
 - `netlify.toml` — configuration Netlify
 
 Mise en ligne pas à pas : voir **[LISEZMOI.md](LISEZMOI.md)**.
+
+## G-Challenge (jeu)
+
+Le dossier `g-challenge-serveur/` contient le serveur du jeu G-Challenge : joueurs, équipes, duels au fantôme, mises Mobile Money et anti-triche. Il est indépendant du studio et n'est pas déployé sur Netlify. Voir **[g-challenge-serveur/README.md](g-challenge-serveur/README.md)**.
