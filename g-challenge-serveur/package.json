@@ -12,7 +12,8 @@
     "dev": "node --watch src/index.js",
     "migrer": "node scripts/migrer.js",
     "admin": "node scripts/promouvoir-admin.js",
-    "test": "node --test --test-concurrency=1 test/*.test.js"
+    "test": "node --test --test-concurrency=1 test/*.test.js",
+    "circuits": "node scripts/declarer-circuits.js"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",

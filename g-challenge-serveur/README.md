@@ -193,6 +193,12 @@ Le `code` d'un circuit est le nom du niveau Unreal. L'administrateur le déclare
 curl -X PUT http://localhost:3000/admin/circuits/L_Kinshasa_30Juin -H "Authorization: Bearer <jeton admin>" -H "Content-Type: application/json" -d '{"nom":"Boulevard du 30 Juin","temps_min_ms":25000,"vitesse_max_kmh":220,"depart":[0,0,0],"arrivee":[200000,0,0]}'
 ```
 
+Plus simple pour vos circuits : remplissez `db/circuits.json` (trois circuits de Kinshasa déjà préparés ; il ne manque que la position de l'arrivée de chacun), puis :
+
+```bash
+npm run circuits
+```
+
 ### Le Feu Vert en direct (Socket.IO)
 
 Dans Unreal, le plugin gratuit **SocketIOClient** (getnamo, sur GitHub et Fab) se connecte en passant le jeton dans la requête de connexion (`?token=<jeton>`, champ **Query** du bloc Connect). Un client web peut aussi utiliser `auth: { token: "<jeton>" }`. Envoyez ensuite `suivre_duel` avec l'identifiant du duel pour recevoir aussi les mises à jour de ce duel.
@@ -254,6 +260,7 @@ Pour la Zambie, le Zimbabwe et l'Afrique du Sud, un **agrégateur** qui regroupe
 ```
 g-challenge-serveur/
 ├── db/migrations/        tables (001) et pays de lancement (002)
+├── db/circuits.json      les circuits du jeu (npm run circuits)
 ├── src/
 │   ├── index.js          démarrage, minuterie des délais
 │   ├── app.js            assemblage de l'API, gestion des erreurs
@@ -263,11 +270,12 @@ g-challenge-serveur/
 │   ├── domaine/
 │   │   ├── argent.js     commission et partage des gains (en centimes)
 │   │   ├── antitriche.js vérification des trajets
+│   │   ├── circuits.js   enregistrement des circuits
 │   │   ├── duels.js      cycle de vie des duels et des paiements
 │   │   └── equipes.js    codes d'invitation, membres
 │   ├── paiements/        simulation, M-Pesa RDC, registre des fournisseurs
 │   └── routes/           une page par groupe d'adresses
-├── scripts/              migrations, nommer un administrateur
+├── scripts/              migrations, administrateur, circuits
 └── test/                 tests unitaires et parcours complet
 ```
 

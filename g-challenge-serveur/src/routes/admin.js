@@ -4,34 +4,15 @@ import { requete } from '../db.js';
 import { valider, introuvable, conflit } from '../erreurs.js';
 import { connecte, admin } from '../auth.js';
 import { executerPaiement, resumePaiement } from '../domaine/duels.js';
+import { schemaCircuit, enregistrerCircuit } from '../domaine/circuits.js';
 import { asynchrone } from './outils.js';
 
 export const routesAdmin = Router();
 routesAdmin.use(connecte, admin);
 
-const vecteur = z.array(z.number()).length(3);
-const schemaCircuit = z.object({
-  code: z.string().trim().min(2).max(60).regex(/^[A-Za-z0-9_]+$/),
-  nom: z.string().trim().min(2).max(80),
-  temps_min_ms: z.number().int().positive(),
-  vitesse_max_kmh: z.number().int().min(10).max(600),
-  depart: vecteur,
-  arrivee: vecteur,
-  tolerance_cm: z.number().int().min(100).max(10000).default(1500),
-  actif: z.boolean().default(true),
-});
-
 // Créer ou mettre à jour un circuit (code = nom du niveau Unreal).
 routesAdmin.put('/circuits/:code', asynchrone(async (req, res) => {
-  const d = valider(schemaCircuit, { ...req.body, code: req.params.code });
-  const { rows: [c] } = await requete(
-    `INSERT INTO circuits (code, nom, temps_min_ms, vitesse_max_kmh, depart, arrivee, tolerance_cm, actif)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-     ON CONFLICT (code) DO UPDATE SET nom = $2, temps_min_ms = $3, vitesse_max_kmh = $4,
-       depart = $5, arrivee = $6, tolerance_cm = $7, actif = $8
-     RETURNING *`,
-    [d.code, d.nom, d.temps_min_ms, d.vitesse_max_kmh, d.depart, d.arrivee, d.tolerance_cm, d.actif]);
-  res.json(c);
+  res.json(await enregistrerCircuit(valider(schemaCircuit, { ...req.body, code: req.params.code })));
 }));
 
 routesAdmin.get('/pays', asynchrone(async (_req, res) => {
