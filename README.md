@@ -11,3 +11,5 @@ Mise en ligne pas à pas : voir **[LISEZMOI.md](LISEZMOI.md)**.
 ## G-Challenge (jeu)
 
 Le dossier `g-challenge-serveur/` contient le serveur du jeu G-Challenge : joueurs, équipes, duels au fantôme, mises Mobile Money et anti-triche. Il est indépendant du studio et n'est pas déployé sur Netlify. Voir **[g-challenge-serveur/README.md](g-challenge-serveur/README.md)**.
+
+Le dossier `g-challenge-landing/` contient la landing page publique de la bêta (site Netlify séparé), dont le formulaire alimente le Google Sheet importé par le CRM. Voir **[g-challenge-landing/README.md](g-challenge-landing/README.md)**.

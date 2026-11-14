@@ -1,0 +1,471 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>La Course des Ketch – G-Challenge RDC</title>
+<meta name="description" content="Prenez le volant d'un ketch jaune et traversez Kinshasa en 5 étapes. Inscrivez-vous à la bêta gratuite de La Course des Ketch.">
+<meta property="og:title" content="La Course des Ketch – bêta gratuite">
+<meta property="og:description" content="Traversez Kinshasa en ketch, contre le fantôme de votre adversaire. Inscription gratuite à la bêta.">
+<meta property="og:type" content="website">
+<meta name="theme-color" content="#0E1630">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@600;700;800&amp;family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0E1630}
+a{color:#FFC814}a:hover{color:#FFE07A}
+html{scroll-behavior:smooth}
+:focus-visible{outline:3px solid #FFC814;outline-offset:3px}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+#formBeta{width:100%;max-width:560px;display:flex;flex-wrap:wrap;gap:12px;justify-content:center;text-align:left}
+#formBeta .champ{flex:1 1 240px;display:flex;flex-direction:column;gap:6px}
+#formBeta label{font-size:14px;font-weight:600;color:#C9CFE3}
+#formBeta input,#formBeta select{min-height:52px;padding:0 18px;border-radius:999px;border:1.5px solid #4A5788;background:#16204A;color:#F5F3EA;font-size:16px;font-family:Inter,sans-serif}
+#formBeta input::placeholder{color:#8C96B8}
+#formBeta input[aria-invalid="true"]{border-color:#FF8A7A}
+#formBeta button{flex:1 1 100%;min-height:52px;padding:0 28px;border:none;border-radius:999px;background:#FFC814;color:#0E1630;font-weight:700;font-size:16px;font-family:Inter,sans-serif;cursor:pointer}
+#formBeta button:hover{background:#FFD84D}
+#formBeta button[disabled]{opacity:.6;cursor:wait}
+#formBeta .piege{position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden}
+#messageBeta{min-height:24px;margin:0;font-size:15px;font-weight:600}
+#messageBeta.ok{color:#7BE0A0}#messageBeta.erreur{color:#FF8A7A}
+@media (max-width:640px){h1{font-size:52px!important}h2{font-size:34px!important}section>div{padding-top:64px!important;padding-bottom:64px!important}}
+</style>
+</head>
+<body>
+<div style="width: 100%; background: #0E1630; color: #F5F3EA; font-family: Inter, system-ui, sans-serif; font-size: 16px; line-height: 1.55">
+
+<header style="width: 100%; border-bottom: 1px solid #24305E">
+<div style="max-width: 1200px; margin: 0 auto; padding: 18px 24px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px">
+<a href="#top" style="display: flex; align-items: center; gap: 10px; text-decoration: none; color: #F5F3EA">
+<svg width="34" height="34" viewBox="0 0 34 34" aria-hidden="true"><rect x="1" y="1" width="32" height="32" rx="9" fill="#FFC814"></rect><path d="M22 12.5a7 7 0 1 0 0 9h-5v-3.5" fill="none" stroke="#0E1630" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+<span style="font-family: 'Bricolage Grotesque', sans-serif; font-weight: 800; font-size: 20px; letter-spacing: 0.5px">G-CHALLENGE <span style="color: #FFC814">RDC</span></span>
+</a>
+<nav aria-label="Navigation principale" style="display: flex; flex-wrap: wrap; align-items: center; gap: 24px; font-size: 15px; font-weight: 500">
+<a href="#etapes" style="color: #D5DAEA; text-decoration: none">Les étapes</a>
+<a href="#ketch" style="color: #D5DAEA; text-decoration: none">Les ketch</a>
+<a href="#comment" style="color: #D5DAEA; text-decoration: none">Comment jouer</a>
+<a href="#modes" style="color: #D5DAEA; text-decoration: none">Modes</a>
+<a href="#beta" style="display: inline-flex; align-items: center; min-height: 44px; padding: 0 20px; border-radius: 999px; background: #FFC814; color: #0E1630; font-weight: 700; text-decoration: none">Rejoindre la bêta</a>
+</nav>
+</div>
+</header>
+
+<section id="top" style="width: 100%">
+<div style="max-width: 1200px; margin: 0 auto; padding: 72px 24px 88px; display: flex; flex-wrap: wrap; align-items: center; gap: 56px">
+<div style="flex: 1 1 400px; min-width: 0; display: flex; flex-direction: column; gap: 24px">
+<span style="align-self: flex-start; padding: 6px 14px; border-radius: 999px; border: 1px solid #FFC814; color: #FFC814; font-size: 13px; font-weight: 600; letter-spacing: 1px">BÊTA GRATUITE · KINSHASA</span>
+<h1 style="margin: 0; font-family: 'Bricolage Grotesque', sans-serif; font-weight: 800; font-size: 64px; line-height: 1.02; letter-spacing: -1px">La Course<br>des <span style="color: #FFC814">Ketch</span></h1>
+<p style="margin: 0; font-size: 19px; color: #C9CFE3; max-width: 520px">Prenez le volant d'un ketch jaune et traversez Kinshasa en 5 étapes. Votre adversaire roule en même temps que vous : son fantôme apparaît sur votre route. Le chauffeur le plus adroit l'emporte.</p>
+<div style="display: flex; flex-wrap: wrap; gap: 14px">
+<a href="#beta" style="display: inline-flex; align-items: center; min-height: 52px; padding: 0 28px; border-radius: 999px; background: #FFC814; color: #0E1630; font-weight: 700; font-size: 17px; text-decoration: none">Rejoindre la bêta gratuite</a>
+<a href="#comment" style="display: inline-flex; align-items: center; min-height: 52px; padding: 0 28px; border-radius: 999px; border: 1.5px solid #4A5788; color: #F5F3EA; font-weight: 600; font-size: 17px; text-decoration: none">Comment ça marche</a>
+</div>
+<p style="margin: 0; font-size: 14px; color: #9EA7C6">Android · iOS · PC — un joueur sur téléphone peut défier un joueur sur ordinateur.</p>
+</div>
+<div style="flex: 1 1 520px; min-width: 0">
+<div style="padding: 14px; border-radius: 34px; background: #05080F; border: 2px solid #2A3566">
+<div style="border-radius: 22px; overflow: hidden">
+<div style="width: 100%; max-width: 844px; aspect-ratio: 844 / 390; background: #1B2A5C; font-family: Inter, system-ui, sans-serif; color: #FFFFFF">
+<svg width="100%" height="100%" viewBox="0 0 844 390" role="img" aria-label="Écran de course : le ketch jaune du joueur roule sur le Boulevard du 30 Juin, le fantôme de l'adversaire est juste devant, avec le chrono, la progression et les commandes tactiles.">
+<defs>
+<linearGradient id="ciel" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1B2A5C"></stop><stop offset="0.55" stop-color="#7A3E6A"></stop><stop offset="1" stop-color="#F08A3C"></stop></linearGradient>
+<linearGradient id="route" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#4A4F5C"></stop><stop offset="1" stop-color="#2E323C"></stop></linearGradient>
+</defs>
+<rect x="0" y="0" width="844" height="178" fill="url(#ciel)"></rect>
+<circle cx="610" cy="168" r="34" fill="#FFB347" opacity="0.85"></circle>
+<g fill="#22305E">
+<rect x="0" y="118" width="70" height="60"></rect><rect x="74" y="92" width="46" height="86"></rect><rect x="124" y="128" width="80" height="50"></rect><rect x="208" y="104" width="52" height="74"></rect><rect x="264" y="140" width="70" height="38"></rect>
+<rect x="510" y="136" width="60" height="42"></rect><rect x="574" y="100" width="44" height="78"></rect><rect x="622" y="124" width="76" height="54"></rect><rect x="702" y="86" width="56" height="92"></rect><rect x="762" y="122" width="82" height="56"></rect>
+</g>
+<g fill="#FFD966" opacity="0.8">
+<rect x="84" y="104" width="6" height="6"></rect><rect x="100" y="120" width="6" height="6"></rect><rect x="218" y="116" width="6" height="6"></rect><rect x="236" y="134" width="6" height="6"></rect><rect x="584" y="112" width="6" height="6"></rect><rect x="600" y="132" width="6" height="6"></rect><rect x="714" y="100" width="6" height="6"></rect><rect x="732" y="122" width="6" height="6"></rect><rect x="20" y="132" width="6" height="6"></rect><rect x="780" y="136" width="6" height="6"></rect>
+</g>
+<rect x="0" y="176" width="844" height="214" fill="#9C6B45"></rect>
+<polygon points="0,390 120,390 400,176 330,176" fill="#B9B2A6"></polygon>
+<polygon points="844,390 724,390 444,176 514,176" fill="#B9B2A6"></polygon>
+<polygon points="120,390 724,390 444,176 400,176" fill="url(#route)"></polygon>
+<polygon points="128,390 140,390 404,176 401,176" fill="#F5F3EA"></polygon>
+<polygon points="716,390 704,390 440,176 443,176" fill="#F5F3EA"></polygon>
+<g fill="#FFC814">
+<polygon points="420,184 424,184 425,194 419,194"></polygon>
+<polygon points="418,206 426,206 428,222 416,222"></polygon>
+<polygon points="415,244 429,244 432,270 412,270"></polygon>
+<polygon points="410,302 434,302 439,346 405,346"></polygon>
+</g>
+<g>
+<rect x="268" y="150" width="5" height="60" fill="#5A3B22"></rect>
+<path d="M270 152 Q250 140 236 150 M270 152 Q258 132 244 128 M270 152 Q286 134 302 134 M270 152 Q292 146 304 158" stroke="#2F7D4A" stroke-width="6" fill="none" stroke-linecap="round"></path>
+<rect x="56" y="150" width="9" height="130" fill="#5A3B22"></rect>
+<path d="M60 154 Q22 132 0 150 M60 154 Q40 112 14 106 M60 154 Q88 116 116 116 M60 154 Q100 142 124 166" stroke="#2F7D4A" stroke-width="11" fill="none" stroke-linecap="round"></path>
+<rect x="572" y="150" width="5" height="60" fill="#5A3B22"></rect>
+<path d="M574 152 Q554 140 540 150 M574 152 Q562 132 548 128 M574 152 Q590 134 606 134 M574 152 Q596 146 608 158" stroke="#2F7D4A" stroke-width="6" fill="none" stroke-linecap="round"></path>
+</g>
+<g>
+<rect x="702" y="150" width="6" height="110" fill="#6E7480"></rect>
+<rect x="640" y="112" width="132" height="44" rx="6" fill="#1E7D45" stroke="#FFFFFF" stroke-width="2"></rect>
+<text x="706" y="130" text-anchor="middle" font-size="11" font-weight="700" fill="#FFFFFF" font-family="Inter, sans-serif">BOULEVARD</text>
+<text x="706" y="147" text-anchor="middle" font-size="13" font-weight="800" fill="#FFFFFF" font-family="Inter, sans-serif">DU 30 JUIN</text>
+</g>
+<g>
+<polygon points="478,236 490,236 494,252 474,252" fill="#FF7A1A"></polygon>
+<rect x="476" y="243" width="16" height="3" fill="#FFFFFF"></rect>
+<rect x="346" y="226" width="34" height="18" rx="2" fill="#8A5A2B"></rect>
+<rect x="342" y="222" width="42" height="6" rx="2" fill="#B07A44"></rect>
+<circle cx="352" cy="246" r="5" fill="#2A2A2A"></circle>
+<circle cx="374" cy="246" r="5" fill="#2A2A2A"></circle>
+</g>
+<g opacity="0.55">
+<ellipse cx="452" cy="250" rx="48" ry="5" fill="#000000" opacity="0.4"></ellipse>
+<rect x="412" y="216" width="84" height="30" rx="9" fill="#7FD8FF" fill-opacity="0.35" stroke="#7FD8FF" stroke-width="2"></rect>
+<path d="M422 217 L430 194 Q432 190 437 190 L471 190 Q476 190 478 194 L486 217 Z" fill="#7FD8FF" fill-opacity="0.35" stroke="#7FD8FF" stroke-width="2"></path>
+<rect x="416" y="246" width="12" height="10" rx="3" fill="#7FD8FF"></rect>
+<rect x="480" y="246" width="12" height="10" rx="3" fill="#7FD8FF"></rect>
+</g>
+<g>
+<rect x="398" y="160" width="108" height="22" rx="11" fill="#0E1630" fill-opacity="0.85" stroke="#7FD8FF" stroke-width="1.5"></rect>
+<text x="452" y="175" text-anchor="middle" font-size="11" font-weight="700" fill="#7FD8FF" font-family="Inter, sans-serif">ÉQUIPE B · fantôme</text>
+<path d="M452 182 L452 188" stroke="#7FD8FF" stroke-width="1.5"></path>
+</g>
+<g>
+<circle cx="292" cy="360" r="10" fill="#CFCFCF" opacity="0.35"></circle>
+<circle cx="276" cy="352" r="14" fill="#CFCFCF" opacity="0.25"></circle>
+<ellipse cx="422" cy="374" rx="122" ry="12" fill="#000000" opacity="0.4"></ellipse>
+<rect x="316" y="330" width="36" height="42" rx="7" fill="#151515"></rect>
+<rect x="492" y="330" width="36" height="42" rx="7" fill="#151515"></rect>
+<rect x="308" y="268" width="228" height="82" rx="22" fill="#FFC814"></rect>
+<path d="M338 272 L360 212 Q364 203 375 203 L469 203 Q480 203 484 212 L506 272 Z" fill="#FFC814"></path>
+<path d="M353 266 L371 220 Q373 214 380 214 L464 214 Q471 214 473 220 L491 266 Z" fill="#1C2433"></path>
+<path d="M380 222 L392 222 L378 258 L366 258 Z" fill="#FFFFFF" opacity="0.12"></path>
+<rect x="396" y="187" width="52" height="17" rx="4" fill="#FFFFFF"></rect>
+<text x="422" y="200" text-anchor="middle" font-size="11" font-weight="800" fill="#0E1630" font-family="Inter, sans-serif">TAXI</text>
+<rect x="316" y="282" width="38" height="20" rx="6" fill="#E5322D"></rect>
+<rect x="490" y="282" width="38" height="20" rx="6" fill="#E5322D"></rect>
+<rect x="354" y="288" width="136" height="5" fill="#1E5FD6"></rect>
+<rect x="390" y="300" width="64" height="22" rx="3" fill="#FFFFFF" stroke="#1C2433" stroke-width="1"></rect>
+<text x="422" y="316" text-anchor="middle" font-size="12" font-weight="700" fill="#111111" font-family="Inter, sans-serif">KIN 243</text>
+<rect x="312" y="328" width="220" height="14" rx="7" fill="#2A2A2A"></rect>
+<rect x="300" y="332" width="10" height="6" rx="2" fill="#555555"></rect>
+</g>
+<g>
+<rect x="16" y="14" width="282" height="62" rx="14" fill="#0E1630" fill-opacity="0.85"></rect>
+<text x="32" y="38" font-size="11" font-weight="700" fill="#FFC814" font-family="Inter, sans-serif" letter-spacing="1">ÉTAPE 5 / 5</text>
+<text x="32" y="60" font-size="16" font-weight="700" fill="#FFFFFF" font-family="Inter, sans-serif">Sprint du Boulevard du 30 Juin</text>
+</g>
+<g>
+<rect x="356" y="14" width="132" height="44" rx="12" fill="#0E1630" fill-opacity="0.85"></rect>
+<text x="422" y="44" text-anchor="middle" font-size="24" font-weight="800" fill="#FFFFFF" font-family="'Bricolage Grotesque', Inter, sans-serif">01:12.4</text>
+</g>
+<g>
+<rect x="546" y="14" width="282" height="72" rx="14" fill="#0E1630" fill-opacity="0.85"></rect>
+<text x="562" y="36" font-size="11" font-weight="700" fill="#FFC814" font-family="Inter, sans-serif">VOUS</text>
+<rect x="640" y="28" width="140" height="8" rx="4" fill="#2A3566"></rect>
+<rect x="640" y="28" width="126" height="8" rx="4" fill="#FFC814"></rect>
+<text x="562" y="58" font-size="11" font-weight="700" fill="#7FD8FF" font-family="Inter, sans-serif">ÉQUIPE B</text>
+<rect x="640" y="50" width="140" height="8" rx="4" fill="#2A3566"></rect>
+<rect x="640" y="50" width="133" height="8" rx="4" fill="#7FD8FF"></rect>
+<text x="562" y="78" font-size="11" font-weight="600" fill="#C9CFE3" font-family="Inter, sans-serif">Écart : −0,8 s · rattrapez-le !</text>
+</g>
+<g>
+<rect x="356" y="64" width="132" height="24" rx="12" fill="#0E1630" fill-opacity="0.7"></rect>
+<text x="422" y="81" text-anchor="middle" font-size="12" font-weight="600" fill="#FFFFFF" font-family="Inter, sans-serif">Score 4 820</text>
+</g>
+<g>
+<circle cx="62" cy="332" r="36" fill="#FFFFFF" fill-opacity="0.15" stroke="#FFFFFF" stroke-opacity="0.6" stroke-width="2"></circle>
+<path d="M70 318 L54 332 L70 346" fill="none" stroke="#FFFFFF" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"></path>
+<circle cx="150" cy="332" r="36" fill="#FFFFFF" fill-opacity="0.15" stroke="#FFFFFF" stroke-opacity="0.6" stroke-width="2"></circle>
+<path d="M142 318 L158 332 L142 346" fill="none" stroke="#FFFFFF" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"></path>
+</g>
+<g>
+<circle cx="700" cy="340" r="30" fill="#FFFFFF" fill-opacity="0.15" stroke="#FFFFFF" stroke-opacity="0.6" stroke-width="2"></circle>
+<text x="700" y="345" text-anchor="middle" font-size="12" font-weight="700" fill="#FFFFFF" font-family="Inter, sans-serif">FREIN</text>
+<circle cx="784" cy="318" r="42" fill="#FFC814"></circle>
+<text x="784" y="323" text-anchor="middle" font-size="14" font-weight="800" fill="#0E1630" font-family="Inter, sans-serif">TURBO</text>
+<rect x="752" y="366" width="64" height="8" rx="4" fill="#0E1630" fill-opacity="0.8"></rect>
+<rect x="752" y="366" width="44" height="8" rx="4" fill="#FFC814"></rect>
+</g>
+</svg>
+</div>
+</div>
+</div>
+<p style="margin: 12px 0 0; font-size: 13px; color: #9EA7C6; text-align: center">Aperçu de l'écran de course · étape 5, Boulevard du 30 Juin</p>
+</div>
+</div>
+</section>
+
+<section id="etapes" style="width: 100%; background: #FFF6D6; color: #1A1A1A">
+<div style="max-width: 1200px; margin: 0 auto; padding: 88px 24px; display: flex; flex-direction: column; gap: 40px">
+<div style="display: flex; flex-direction: column; gap: 12px; max-width: 680px">
+<span style="font-size: 13px; font-weight: 700; letter-spacing: 1.5px; color: #8A5A00">LE PARCOURS</span>
+<h2 style="margin: 0; font-family: 'Bricolage Grotesque', sans-serif; font-weight: 800; font-size: 44px; line-height: 1.08">5 étapes, 5 visages de Kinshasa</h2>
+<p style="margin: 0; font-size: 18px; color: #4A4535">Chaque étape récompense un talent différent. Aucun ketch n'est le meilleur partout : à vous de bien choisir.</p>
+</div>
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px">
+<div style="background: #FFFFFF; border: 1.5px solid #EADBA6; border-radius: 18px; padding: 22px; display: flex; flex-direction: column; gap: 10px">
+<span style="font-family: 'Bricolage Grotesque', sans-serif; font-weight: 800; font-size: 36px; color: #E0A800; line-height: 1">01</span>
+<h3 style="margin: 0; font-size: 18px; font-weight: 700">Le Rond-point Victoire</h3>
+<p style="margin: 0; font-size: 15px; color: #4A4535">Se faufiler dans le trafic dense sans toucher les autres véhicules.</p>
+<span style="margin-top: auto; align-self: flex-start; padding: 4px 10px; border-radius: 999px; background: #0E1630; color: #FFFFFF; font-size: 12px; font-weight: 600">Avantage : Maniabilité</span>
+</div>
+<div style="background: #FFFFFF; border: 1.5px solid #EADBA6; border-radius: 18px; padding: 22px; display: flex; flex-direction: column; gap: 10px">
+<span style="font-family: 'Bricolage Grotesque', sans-serif; font-weight: 800; font-size: 36px; color: #E0A800; line-height: 1">02</span>
+<h3 style="margin: 0; font-size: 18px; font-weight: 700">Le Grand Marché</h3>
+<p style="margin: 0; font-size: 15px; color: #4A4535">Éviter les étals, les pousse-pousse et les piétons pressés.</p>
+<span style="margin-top: auto; align-self: flex-start; padding: 4px 10px; border-radius: 999px; background: #0E1630; color: #FFFFFF; font-size: 12px; font-weight: 600">Avantage : Maniabilité</span>
+</div>
+<div style="background: #FFFFFF; border: 1.5px solid #EADBA6; border-radius: 18px; padding: 22px; display: flex; flex-direction: column; gap: 10px">
+<span style="font-family: 'Bricolage Grotesque', sans-serif; font-weight: 800; font-size: 36px; color: #E0A800; line-height: 1">03</span>
+<h3 style="margin: 0; font-size: 18px; font-weight: 700">La Route des Poids Lourds</h3>
+<p style="margin: 0; font-size: 15px; color: #4A4535">Encaisser les nids-de-poule et les bosses sans perdre de vitesse.</p>
+<span style="margin-top: auto; align-self: flex-start; padding: 4px 10px; border-radius: 999px; background: #0E1630; color: #FFFFFF; font-size: 12px; font-weight: 600">Avantage : Robustesse</span>
+</div>
+<div style="background: #FFFFFF; border: 1.5px solid #EADBA6; border-radius: 18px; padding: 22px; display: flex; flex-direction: column; gap: 10px">
+<span style="font-family: 'Bricolage Grotesque', sans-serif; font-weight: 800; font-size: 36px; color: #E0A800; line-height: 1">04</span>
+<h3 style="margin: 0; font-size: 18px; font-weight: 700">La Corniche du Fleuve</h3>
+<p style="margin: 0; font-size: 15px; color: #4A4535">Négocier les virages glissants au bord du fleuve Congo.</p>
+<span style="margin-top: auto; align-self: flex-start; padding: 4px 10px; border-radius: 999px; background: #0E1630; color: #FFFFFF; font-size: 12px; font-weight: 600">Avantage : Maniabilité</span>
+</div>
+<div style="background: #FFFFFF; border: 1.5px solid #EADBA6; border-radius: 18px; padding: 22px; display: flex; flex-direction: column; gap: 10px">
+<span style="font-family: 'Bricolage Grotesque', sans-serif; font-weight: 800; font-size: 36px; color: #E0A800; line-height: 1">05</span>
+<h3 style="margin: 0; font-size: 18px; font-weight: 700">Le Sprint du 30 Juin</h3>
+<p style="margin: 0; font-size: 15px; color: #4A4535">Ligne droite finale sur le grand boulevard : pied au plancher.</p>
+<span style="margin-top: auto; align-self: flex-start; padding: 4px 10px; border-radius: 999px; background: #0E1630; color: #FFFFFF; font-size: 12px; font-weight: 600">Avantage : Vitesse</span>
+</div>
+</div>
+</div>
+</section>
+
+<section id="ketch" style="width: 100%">
+<div style="max-width: 1200px; margin: 0 auto; padding: 88px 24px; display: flex; flex-direction: column; gap: 40px">
+<div style="display: flex; flex-direction: column; gap: 12px; max-width: 680px">
+<span style="font-size: 13px; font-weight: 700; letter-spacing: 1.5px; color: #FFC814">LES CHAUFFEURS</span>
+<h2 style="margin: 0; font-family: 'Bricolage Grotesque', sans-serif; font-weight: 800; font-size: 44px; line-height: 1.08">Trois ketch, trois styles de conduite</h2>
+<p style="margin: 0; font-size: 18px; color: #C9CFE3">Même total de points pour tous : la différence se fait au volant.</p>
+</div>
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px">
+
+<div style="background: #16204A; border: 1px solid #2A3566; border-radius: 20px; padding: 26px; display: flex; flex-direction: column; gap: 18px">
+<svg width="100%" height="90" viewBox="0 0 220 90" role="img" aria-label="Ketch jaune de Turbo, vue de profil"><ellipse cx="110" cy="80" rx="92" ry="6" fill="#0A1030"></ellipse><path d="M24 62 L28 44 Q30 38 38 37 L70 35 L92 18 Q96 15 102 15 L150 15 Q158 15 162 21 L176 38 L192 42 Q198 44 198 50 L198 62 Z" fill="#FFC814"></path><path d="M80 36 L97 22 L124 22 L124 36 Z" fill="#1C2433"></path><path d="M130 22 L150 22 Q154 22 157 26 L166 36 L130 36 Z" fill="#1C2433"></path><rect x="112" y="8" width="26" height="8" rx="2" fill="#FFFFFF"></rect><circle cx="60" cy="64" r="15" fill="#151515"></circle><circle cx="60" cy="64" r="6" fill="#8A8F9C"></circle><circle cx="164" cy="64" r="15" fill="#151515"></circle><circle cx="164" cy="64" r="6" fill="#8A8F9C"></circle><rect x="190" y="46" width="8" height="6" rx="2" fill="#E5322D"></rect><path d="M2 40 H18 M6 50 H18" stroke="#4DA3FF" stroke-width="3" stroke-linecap="round"></path></svg>
+<div style="display: flex; flex-direction: column; gap: 4px">
+<h3 style="margin: 0; font-family: 'Bricolage Grotesque', sans-serif; font-size: 26px; font-weight: 800">Turbo</h3>
+<p style="margin: 0; font-size: 15px; color: #C9CFE3">Le roi des lignes droites. Redoutable sur le Boulevard du 30 Juin.</p>
+</div>
+<div style="display: flex; flex-direction: column; gap: 10px; font-size: 14px">
+<div style="display: flex; align-items: center; gap: 12px"><span style="width: 96px">Vitesse</span><div style="flex: 1; height: 8px; border-radius: 4px; background: #2A3566"><div style="width: 80%; height: 8px; border-radius: 4px; background: #FFC814"></div></div><span style="width: 18px; text-align: right; font-weight: 700">8</span></div>
+<div style="display: flex; align-items: center; gap: 12px"><span style="width: 96px">Robustesse</span><div style="flex: 1; height: 8px; border-radius: 4px; background: #2A3566"><div style="width: 40%; height: 8px; border-radius: 4px; background: #FFC814"></div></div><span style="width: 18px; text-align: right; font-weight: 700">4</span></div>
+<div style="display: flex; align-items: center; gap: 12px"><span style="width: 96px">Maniabilité</span><div style="flex: 1; height: 8px; border-radius: 4px; background: #2A3566"><div style="width: 60%; height: 8px; border-radius: 4px; background: #FFC814"></div></div><span style="width: 18px; text-align: right; font-weight: 700">6</span></div>
+</div>
+</div>
+
+<div style="background: #16204A; border: 1px solid #2A3566; border-radius: 20px; padding: 26px; display: flex; flex-direction: column; gap: 18px">
+<svg width="100%" height="90" viewBox="0 0 220 90" role="img" aria-label="Ketch jaune de Blindé, vue de profil"><ellipse cx="110" cy="80" rx="92" ry="6" fill="#0A1030"></ellipse><path d="M24 62 L28 44 Q30 38 38 37 L70 35 L92 18 Q96 15 102 15 L150 15 Q158 15 162 21 L176 38 L192 42 Q198 44 198 50 L198 62 Z" fill="#FFC814"></path><path d="M80 36 L97 22 L124 22 L124 36 Z" fill="#1C2433"></path><path d="M130 22 L150 22 Q154 22 157 26 L166 36 L130 36 Z" fill="#1C2433"></path><rect x="112" y="8" width="26" height="8" rx="2" fill="#FFFFFF"></rect><rect x="18" y="54" width="186" height="10" rx="4" fill="#3A3F4B"></rect><circle cx="60" cy="64" r="16" fill="#151515"></circle><circle cx="60" cy="64" r="6" fill="#8A8F9C"></circle><circle cx="164" cy="64" r="16" fill="#151515"></circle><circle cx="164" cy="64" r="6" fill="#8A8F9C"></circle><rect x="190" y="46" width="8" height="6" rx="2" fill="#E5322D"></rect></svg>
+<div style="display: flex; flex-direction: column; gap: 4px">
+<h3 style="margin: 0; font-family: 'Bricolage Grotesque', sans-serif; font-size: 26px; font-weight: 800">Blindé</h3>
+<p style="margin: 0; font-size: 15px; color: #C9CFE3">Rien ne l'arrête. Imbattable sur la Route des Poids Lourds.</p>
+</div>
+<div style="display: flex; flex-direction: column; gap: 10px; font-size: 14px">
+<div style="display: flex; align-items: center; gap: 12px"><span style="width: 96px">Vitesse</span><div style="flex: 1; height: 8px; border-radius: 4px; background: #2A3566"><div style="width: 40%; height: 8px; border-radius: 4px; background: #FFC814"></div></div><span style="width: 18px; text-align: right; font-weight: 700">4</span></div>
+<div style="display: flex; align-items: center; gap: 12px"><span style="width: 96px">Robustesse</span><div style="flex: 1; height: 8px; border-radius: 4px; background: #2A3566"><div style="width: 80%; height: 8px; border-radius: 4px; background: #FFC814"></div></div><span style="width: 18px; text-align: right; font-weight: 700">8</span></div>
+<div style="display: flex; align-items: center; gap: 12px"><span style="width: 96px">Maniabilité</span><div style="flex: 1; height: 8px; border-radius: 4px; background: #2A3566"><div style="width: 60%; height: 8px; border-radius: 4px; background: #FFC814"></div></div><span style="width: 18px; text-align: right; font-weight: 700">6</span></div>
+</div>
+</div>
+
+<div style="background: #16204A; border: 1px solid #2A3566; border-radius: 20px; padding: 26px; display: flex; flex-direction: column; gap: 18px">
+<svg width="100%" height="90" viewBox="0 0 220 90" role="img" aria-label="Ketch jaune de Zigzag, vue de profil"><ellipse cx="110" cy="80" rx="92" ry="6" fill="#0A1030"></ellipse><path d="M24 62 L28 44 Q30 38 38 37 L70 35 L92 18 Q96 15 102 15 L150 15 Q158 15 162 21 L176 38 L192 42 Q198 44 198 50 L198 62 Z" fill="#FFC814"></path><path d="M80 36 L97 22 L124 22 L124 36 Z" fill="#1C2433"></path><path d="M130 22 L150 22 Q154 22 157 26 L166 36 L130 36 Z" fill="#1C2433"></path><rect x="112" y="8" width="26" height="8" rx="2" fill="#FFFFFF"></rect><path d="M40 46 H180" stroke="#4DA3FF" stroke-width="4"></path><circle cx="60" cy="64" r="15" fill="#151515"></circle><circle cx="60" cy="64" r="6" fill="#8A8F9C"></circle><circle cx="164" cy="64" r="15" fill="#151515"></circle><circle cx="164" cy="64" r="6" fill="#8A8F9C"></circle><rect x="190" y="46" width="8" height="6" rx="2" fill="#E5322D"></rect></svg>
+<div style="display: flex; flex-direction: column; gap: 4px">
+<h3 style="margin: 0; font-family: 'Bricolage Grotesque', sans-serif; font-size: 26px; font-weight: 800">Zigzag</h3>
+<p style="margin: 0; font-size: 15px; color: #C9CFE3">Passe là où personne ne passe. Le maître du Grand Marché.</p>
+</div>
+<div style="display: flex; flex-direction: column; gap: 10px; font-size: 14px">
+<div style="display: flex; align-items: center; gap: 12px"><span style="width: 96px">Vitesse</span><div style="flex: 1; height: 8px; border-radius: 4px; background: #2A3566"><div style="width: 60%; height: 8px; border-radius: 4px; background: #FFC814"></div></div><span style="width: 18px; text-align: right; font-weight: 700">6</span></div>
+<div style="display: flex; align-items: center; gap: 12px"><span style="width: 96px">Robustesse</span><div style="flex: 1; height: 8px; border-radius: 4px; background: #2A3566"><div style="width: 40%; height: 8px; border-radius: 4px; background: #FFC814"></div></div><span style="width: 18px; text-align: right; font-weight: 700">4</span></div>
+<div style="display: flex; align-items: center; gap: 12px"><span style="width: 96px">Maniabilité</span><div style="flex: 1; height: 8px; border-radius: 4px; background: #2A3566"><div style="width: 80%; height: 8px; border-radius: 4px; background: #FFC814"></div></div><span style="width: 18px; text-align: right; font-weight: 700">8</span></div>
+</div>
+</div>
+
+</div>
+<div style="display: flex; flex-direction: column; gap: 14px">
+<h3 style="margin: 0; font-size: 18px; font-weight: 700">Un accessoire au choix avant chaque course</h3>
+<div style="display: flex; flex-wrap: wrap; gap: 12px">
+<span style="padding: 10px 16px; border-radius: 12px; background: #16204A; border: 1px solid #2A3566; font-size: 15px"><strong style="color: #FFC814">Pneus sport</strong> · +10 % de maniabilité sur la Corniche</span>
+<span style="padding: 10px 16px; border-radius: 12px; background: #16204A; border: 1px solid #2A3566; font-size: 15px"><strong style="color: #FFC814">Pare-chocs renforcé</strong> · +10 % de robustesse sur la Route des Poids Lourds</span>
+<span style="padding: 10px 16px; border-radius: 12px; background: #16204A; border: 1px solid #2A3566; font-size: 15px"><strong style="color: #FFC814">Moteur réglé</strong> · +10 % de vitesse sur le Boulevard</span>
+</div>
+<p style="margin: 0; font-size: 14px; color: #9EA7C6">Bonus fixes et affichés avant la course. Aucun tirage au sort.</p>
+</div>
+</div>
+</section>
+
+<section id="comment" style="width: 100%; background: #16204A">
+<div style="max-width: 1200px; margin: 0 auto; padding: 88px 24px; display: flex; flex-direction: column; gap: 40px">
+<div style="display: flex; flex-direction: column; gap: 12px; max-width: 680px">
+<span style="font-size: 13px; font-weight: 700; letter-spacing: 1.5px; color: #FFC814">COMMENT JOUER</span>
+<h2 style="margin: 0; font-family: 'Bricolage Grotesque', sans-serif; font-weight: 800; font-size: 44px; line-height: 1.08">De la salle d'attente à la ligne d'arrivée</h2>
+</div>
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 20px">
+<div style="display: flex; flex-direction: column; gap: 10px; padding: 24px; border-radius: 18px; background: #0E1630">
+<span style="display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px; border-radius: 50%; background: #FFC814; color: #0E1630; font-weight: 800; font-size: 18px">1</span>
+<h3 style="margin: 0; font-size: 19px; font-weight: 700">Choisissez votre format</h3>
+<p style="margin: 0; font-size: 15px; color: #C9CFE3">En solo (1 contre 1) ou en équipe de deux, avec un code d'invitation pour votre coéquipier.</p>
+</div>
+<div style="display: flex; flex-direction: column; gap: 10px; padding: 24px; border-radius: 18px; background: #0E1630">
+<span style="display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px; border-radius: 50%; background: #FFC814; color: #0E1630; font-weight: 800; font-size: 18px">2</span>
+<h3 style="margin: 0; font-size: 19px; font-weight: 700">Attendez le Feu Vert</h3>
+<p style="margin: 0; font-size: 15px; color: #C9CFE3">Le voyant passe au vert dès qu'un adversaire de même niveau est trouvé.</p>
+</div>
+<div style="display: flex; flex-direction: column; gap: 10px; padding: 24px; border-radius: 18px; background: #0E1630">
+<span style="display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px; border-radius: 50%; background: #FFC814; color: #0E1630; font-weight: 800; font-size: 18px">3</span>
+<h3 style="margin: 0; font-size: 19px; font-weight: 700">Prenez le volant</h3>
+<p style="margin: 0; font-size: 15px; color: #C9CFE3">Départ au même instant pour tous. Le fantôme de l'adversaire roule à vos côtés pendant les 5 étapes.</p>
+</div>
+<div style="display: flex; flex-direction: column; gap: 10px; padding: 24px; border-radius: 18px; background: #0E1630">
+<span style="display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px; border-radius: 50%; background: #FFC814; color: #0E1630; font-weight: 800; font-size: 18px">4</span>
+<h3 style="margin: 0; font-size: 19px; font-weight: 700">Résultats et revanche</h3>
+<p style="margin: 0; font-size: 15px; color: #C9CFE3">Temps, précision et bonus additionnés. Un bouton suffit pour relancer une course.</p>
+</div>
+</div>
+</div>
+</section>
+
+<section style="width: 100%">
+<div style="max-width: 1200px; margin: 0 auto; padding: 88px 24px; display: flex; flex-wrap: wrap; gap: 48px; align-items: flex-start">
+<div style="flex: 1 1 360px; min-width: 0; display: flex; flex-direction: column; gap: 12px">
+<span style="font-size: 13px; font-weight: 700; letter-spacing: 1.5px; color: #FFC814">FAIR-PLAY</span>
+<h2 style="margin: 0; font-family: 'Bricolage Grotesque', sans-serif; font-weight: 800; font-size: 44px; line-height: 1.08">Le plus adroit gagne. Pas le plus chanceux.</h2>
+</div>
+<div style="flex: 1 1 480px; min-width: 0; display: flex; flex-direction: column; gap: 22px">
+<div style="display: flex; gap: 16px"><svg width="28" height="28" viewBox="0 0 24 24" aria-hidden="true" style="flex: none"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="#FFC814" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"></path></svg><div><h3 style="margin: 0 0 4px; font-size: 18px; font-weight: 700">Le même parcours pour tous</h3><p style="margin: 0; color: #C9CFE3">Obstacles placés au même endroit pour chaque joueur, sans aucun élément aléatoire.</p></div></div>
+<div style="display: flex; gap: 16px"><svg width="28" height="28" viewBox="0 0 24 24" aria-hidden="true" style="flex: none"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="#FFC814" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"></path></svg><div><h3 style="margin: 0 0 4px; font-size: 18px; font-weight: 700">Des scores vérifiés par le serveur</h3><p style="margin: 0; color: #C9CFE3">Un temps impossible est détecté et la course est annulée.</p></div></div>
+<div style="display: flex; gap: 16px"><svg width="28" height="28" viewBox="0 0 24 24" aria-hidden="true" style="flex: none"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="#FFC814" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"></path></svg><div><h3 style="margin: 0 0 4px; font-size: 18px; font-weight: 700">Des règles claires en cas de coupure</h3><p style="margin: 0; color: #C9CFE3">30 secondes pour revenir après une déconnexion. Course annulée si un joueur part avant le départ.</p></div></div>
+</div>
+</div>
+</section>
+
+<section id="modes" style="width: 100%; background: #FFF6D6; color: #1A1A1A">
+<div style="max-width: 1200px; margin: 0 auto; padding: 88px 24px; display: flex; flex-direction: column; gap: 40px">
+<div style="display: flex; flex-direction: column; gap: 12px; max-width: 680px">
+<span style="font-size: 13px; font-weight: 700; letter-spacing: 1.5px; color: #8A5A00">LES MODES</span>
+<h2 style="margin: 0; font-family: 'Bricolage Grotesque', sans-serif; font-weight: 800; font-size: 44px; line-height: 1.08">Entraînez-vous d'abord. Défiez ensuite.</h2>
+</div>
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px">
+<div style="background: #FFFFFF; border: 2px solid #0E1630; border-radius: 22px; padding: 30px; display: flex; flex-direction: column; gap: 14px">
+<span style="align-self: flex-start; padding: 4px 12px; border-radius: 999px; background: #1E7D45; color: #FFFFFF; font-size: 12px; font-weight: 700">DISPONIBLE EN BÊTA</span>
+<h3 style="margin: 0; font-family: 'Bricolage Grotesque', sans-serif; font-size: 30px; font-weight: 800">Mode Libre</h3>
+<p style="margin: 0; font-size: 16px; color: #4A4535">Gratuit et illimité. Pour découvrir les 5 étapes, maîtriser votre ketch et grimper au classement.</p>
+<p style="margin: 0; font-size: 15px; font-weight: 600">1 contre 1 · 2 contre 2</p>
+</div>
+<div style="background: #0E1630; color: #F5F3EA; border-radius: 22px; padding: 30px; display: flex; flex-direction: column; gap: 14px">
+<span style="align-self: flex-start; padding: 4px 12px; border-radius: 999px; background: #FFC814; color: #0E1630; font-size: 12px; font-weight: 700">BIENTÔT</span>
+<h3 style="margin: 0; font-family: 'Bricolage Grotesque', sans-serif; font-size: 30px; font-weight: 800">Mode Défi</h3>
+<p style="margin: 0; font-size: 16px; color: #C9CFE3">Courses avec mise, paiement et gains via M-Pesa. Réservé aux joueurs de 18 ans et plus, un compte par numéro.</p>
+<p style="margin: 0; font-size: 15px; font-weight: 600">Ouverture après la bêta</p>
+</div>
+</div>
+</div>
+</section>
+
+<section id="beta" style="width: 100%">
+<div style="max-width: 760px; margin: 0 auto; padding: 96px 24px; display: flex; flex-direction: column; align-items: center; gap: 20px; text-align: center">
+<h2 style="margin: 0; font-family: 'Bricolage Grotesque', sans-serif; font-weight: 800; font-size: 48px; line-height: 1.05">Prêt à prendre le volant ?</h2>
+<p style="margin: 0; font-size: 18px; color: #C9CFE3">Inscrivez-vous à la bêta gratuite. Nous vous envoyons un SMS dès l'ouverture.</p>
+<form id="formBeta" novalidate>
+<div class="champ">
+<label for="pseudo">Pseudo de pilote (facultatif)</label>
+<input id="pseudo" name="pseudo" type="text" maxlength="20" autocomplete="nickname" placeholder="ex. KetchMaster">
+</div>
+<div class="champ">
+<label for="plateforme">Vous jouerez sur</label>
+<select id="plateforme" name="plateforme"><option>Android</option><option>iOS</option><option>PC</option></select>
+</div>
+<div class="champ" style="flex-basis:100%">
+<label for="tel">Numéro de téléphone (pour le SMS d'ouverture)</label>
+<input id="tel" name="telephone" type="tel" inputmode="tel" autocomplete="tel" required placeholder="+243 81 234 5678" aria-describedby="messageBeta">
+</div>
+<div class="piege" aria-hidden="true"><label for="site_web">Ne pas remplir</label><input id="site_web" name="site_web" type="text" tabindex="-1" autocomplete="off"></div>
+<button type="submit">M'inscrire à la bêta</button>
+</form>
+<p id="messageBeta" role="status" aria-live="polite"></p>
+
+<p style="margin: 0; font-size: 13px; color: #9EA7C6; max-width: 520px">Android, iOS et PC. Aucun paiement demandé pendant la bêta. Votre numéro sert uniquement à vous prévenir de l'ouverture et à créer votre compte de pilote ; il n'est ni vendu ni partagé.</p>
+
+</div>
+</section>
+
+<footer style="width: 100%; border-top: 1px solid #24305E">
+<div style="max-width: 1200px; margin: 0 auto; padding: 28px 24px; display: flex; flex-wrap: wrap; justify-content: space-between; gap: 16px; font-size: 14px; color: #9EA7C6">
+<span>© 2026 G-Challenge RDC · Kinshasa</span>
+<div style="display: flex; flex-wrap: wrap; gap: 20px">
+<a href="#top" style="color: #C9CFE3; text-decoration: none">Règlement du jeu</a>
+<a href="#top" style="color: #C9CFE3; text-decoration: none">Confidentialité</a>
+<a href="#top" style="color: #C9CFE3; text-decoration: none">Contact</a>
+</div>
+</div>
+</footer>
+
+</div>
+<script>
+(function () {
+  var form = document.getElementById('formBeta');
+  var msg = document.getElementById('messageBeta');
+  var tel = document.getElementById('tel');
+  var ouvertLe = Date.now();
+  var params = new URLSearchParams(location.search);
+  var source = params.get('utm_source') || params.get('source') || 'landing';
+
+  function dire(texte, classe) { msg.textContent = texte; msg.className = classe || ''; }
+
+  // 081 234 5678 -> +243812345678 ; 243812345678 -> +243812345678 ; +27... reste tel quel.
+  function normaliser(brut) {
+    var t = String(brut || '').replace(/[\s.\-()]/g, '');
+    if (t.indexOf('00') === 0) t = '+' + t.slice(2);
+    if (t.charAt(0) === '0') t = '+243' + t.slice(1);
+    else if (t.indexOf('243') === 0) t = '+' + t;
+    else if (t.charAt(0) !== '+') t = '+243' + t;
+    return /^\+\d{8,15}$/.test(t) ? t : null;
+  }
+
+  tel.addEventListener('input', function () { tel.removeAttribute('aria-invalid'); });
+
+  form.addEventListener('submit', function (e) {
+    e.preventDefault();
+    var numero = normaliser(tel.value);
+    if (!numero) {
+      tel.setAttribute('aria-invalid', 'true');
+      dire('Numéro invalide. Exemple : +243 81 234 5678.', 'erreur');
+      tel.focus();
+      return;
+    }
+    var bouton = form.querySelector('button');
+    bouton.disabled = true;
+    dire('Inscription en cours…');
+    fetch('/api/inscription-beta', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        telephone: numero,
+        pseudo: document.getElementById('pseudo').value.trim(),
+        plateforme: document.getElementById('plateforme').value,
+        source: source,
+        site_web: document.getElementById('site_web').value,
+        delai_ms: Date.now() - ouvertLe
+      })
+    }).then(function (r) {
+      return r.json().catch(function () { return {}; }).then(function (j) { return { ok: r.ok, j: j }; });
+    }).then(function (res) {
+      if (res.ok && res.j.statut === 'deja_inscrit') {
+        dire('Ce numéro est déjà inscrit. À très vite au volant !', 'ok');
+      } else if (res.ok) {
+        form.reset();
+        dire('C\'est noté ! Vous recevrez un SMS dès l\'ouverture de la bêta.', 'ok');
+      } else {
+        dire(res.j.message || 'L\'inscription a échoué. Réessayez dans un instant.', 'erreur');
+      }
+    }).catch(function () {
+      dire('Pas de connexion. Vérifiez votre réseau et réessayez.', 'erreur');
+    }).then(function () { bouton.disabled = false; });
+  });
+})();
+</script>
+</body>
+</html>
