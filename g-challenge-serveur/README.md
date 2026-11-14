@@ -195,7 +195,7 @@ curl -X PUT http://localhost:3000/admin/circuits/L_Kinshasa_30Juin -H "Authoriza
 
 ### Le Feu Vert en direct (Socket.IO)
 
-Dans Unreal, le plugin gratuit **SocketIOClient** (getnamo, sur GitHub et Fab) se connecte avec `auth: { token: "<jeton>" }`. Envoyez ensuite `suivre_duel` avec l'identifiant du duel pour recevoir aussi les mises à jour de ce duel.
+Dans Unreal, le plugin gratuit **SocketIOClient** (getnamo, sur GitHub et Fab) se connecte en passant le jeton dans la requête de connexion (`?token=<jeton>`, champ **Query** du bloc Connect). Un client web peut aussi utiliser `auth: { token: "<jeton>" }`. Envoyez ensuite `suivre_duel` avec l'identifiant du duel pour recevoir aussi les mises à jour de ce duel.
 
 | Événement reçu | Quand |
 | --- | --- |

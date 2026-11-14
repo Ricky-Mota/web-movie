@@ -133,6 +133,11 @@ test('duel 2v2 à 10 $ : paiements, Feu Vert, courses, gains de 7,50 $ par gagna
   sockets.push(socket);
   const feuVert = new Promise((r) => socket.on('duel:feu_vert', r));
   await new Promise((r) => socket.on('connect', r));
+  // Chris se connecte comme le fait Unreal : jeton dans l'adresse.
+  const socketChris = clientSocket(base, { query: { token: J.chris.jeton }, transports: ['websocket'] });
+  sockets.push(socketChris);
+  const feuVertChris = new Promise((r) => socketChris.on('duel:feu_vert', r));
+  await new Promise((r) => socketChris.on('connect', r));
 
   const ouverts = await api('GET', '/duels/ouverts?taille=2', { jeton: J.chris.jeton });
   assert.ok(ouverts.json.some((d) => d.id === duelId));
@@ -149,6 +154,7 @@ test('duel 2v2 à 10 $ : paiements, Feu Vert, courses, gains de 7,50 $ par gagna
 
   const evenement = await feuVert;
   assert.equal(evenement.statut, 'en_cours');
+  assert.equal((await feuVertChris).id, duelId);
 
   // Envoyer une course sans avoir pris le départ est refusé.
   const sansDepart = await api('POST', '/courses', { jeton: J.ali.jeton, corps: {

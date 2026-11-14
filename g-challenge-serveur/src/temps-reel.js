@@ -1,5 +1,6 @@
 // Le "Feu Vert" et les mises à jour en direct, via Socket.IO.
-// Le jeu se connecte avec { auth: { token: '<jeton>' } }, puis rejoint les salons de ses duels.
+// Le jeu se connecte avec { auth: { token: '<jeton>' } }, ou avec ?token=<jeton> dans l'adresse
+// (plus simple depuis Unreal), puis rejoint les salons de ses duels.
 import { Server } from 'socket.io';
 import { lireJeton } from './auth.js';
 
@@ -9,7 +10,7 @@ export function demarrerTempsReel(serveurHttp) {
   io = new Server(serveurHttp, { cors: { origin: '*' } });
   io.use((socket, next) => {
     try {
-      socket.data.joueur = lireJeton(socket.handshake.auth?.token);
+      socket.data.joueur = lireJeton(socket.handshake.auth?.token || socket.handshake.query?.token);
       next();
     } catch {
       next(new Error('jeton_invalide'));
