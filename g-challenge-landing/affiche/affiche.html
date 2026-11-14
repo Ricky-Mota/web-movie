@@ -1,0 +1,151 @@
+<!doctype html><html lang="fr"><head><meta charset="utf-8"><title>Affiche – La Course des Ketch</title>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@700;800&family=Inter:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+@page{size:A4;margin:0}
+*{box-sizing:border-box}
+body{margin:0;font-family:Inter,Arial,sans-serif;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.page{width:210mm;height:297mm;background:#0E1630;color:#F5F3EA;display:flex;flex-direction:column;padding:14mm 14mm 10mm;gap:7mm;overflow:hidden}
+.haut{display:flex;justify-content:space-between;align-items:center}
+.marque{display:flex;align-items:center;gap:3mm;font-weight:800;letter-spacing:.04em;font-size:13pt}
+.marque b{color:#FFC814}
+.pastille{border:1.2mm solid #FFC814;color:#FFC814;border-radius:99mm;padding:2mm 5mm;font-weight:700;font-size:11pt;letter-spacing:.08em}
+h1{font-family:'Bricolage Grotesque',Arial,sans-serif;font-weight:800;font-size:58pt;line-height:.95;margin:0}
+h1 b{color:#FFC814}
+.accroche{font-size:15pt;line-height:1.35;margin:0;color:#DDE2F2;max-width:165mm}
+.ecran{border:3.5mm solid #05080F;border-radius:9mm;overflow:hidden;aspect-ratio:844/390;width:100%}.ecran svg{display:block}
+.bas{display:flex;gap:9mm;align-items:center;margin-top:auto;background:#FFC814;color:#0E1630;border-radius:8mm;padding:8mm}
+.qr{width:62mm;height:62mm;background:#FFFFFF;padding:4mm;border-radius:4mm;flex:none}
+.appel h2{font-family:'Bricolage Grotesque',Arial,sans-serif;font-weight:800;font-size:28pt;line-height:1.02;margin:0 0 4mm}
+.appel ul{margin:0;padding:0;list-style:none;font-size:13pt;font-weight:600;display:flex;flex-direction:column;gap:2mm}
+.appel li::before{content:"";display:inline-block;width:3mm;height:3mm;border-radius:50%;background:#0E1630;margin-right:3mm;vertical-align:middle}
+.adresse{margin:4mm 0 0;font-size:11.5pt;font-weight:700}
+.pied{display:flex;justify-content:space-between;font-size:9.5pt;color:#9EA7C6}
+</style></head><body><div class="page">
+<div class="haut"><div class="marque"><svg width="11mm" height="11mm" viewBox="0 0 34 34" aria-hidden="true"><rect x="1" y="1" width="32" height="32" rx="9" fill="#FFC814"/><path d="M22 12.5a7 7 0 1 0 0 9h-5v-3.5" fill="none" stroke="#0E1630" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg><span>G-CHALLENGE <b>RDC</b></span></div><span class="pastille">BÊTA GRATUITE · KINSHASA</span></div>
+<h1>La Course<br>des <b>Ketch</b></h1>
+<p class="accroche">Prenez le volant d'un ketch jaune et traversez Kinshasa en 5 étapes. Votre adversaire roule en même temps que vous : son fantôme apparaît sur votre route.</p>
+<div class="ecran"><svg width="100%" height="100%" viewBox="0 0 844 390" role="img" aria-label="Écran de course : le ketch jaune du joueur roule sur le Boulevard du 30 Juin, le fantôme de l'adversaire est juste devant, avec le chrono, la progression et les commandes tactiles.">
+<defs>
+<linearGradient id="ciel" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1B2A5C"></stop><stop offset="0.55" stop-color="#7A3E6A"></stop><stop offset="1" stop-color="#F08A3C"></stop></linearGradient>
+<linearGradient id="route" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#4A4F5C"></stop><stop offset="1" stop-color="#2E323C"></stop></linearGradient>
+</defs>
+<rect x="0" y="0" width="844" height="178" fill="url(#ciel)"></rect>
+<circle cx="610" cy="168" r="34" fill="#FFB347" opacity="0.85"></circle>
+<g fill="#22305E">
+<rect x="0" y="118" width="70" height="60"></rect><rect x="74" y="92" width="46" height="86"></rect><rect x="124" y="128" width="80" height="50"></rect><rect x="208" y="104" width="52" height="74"></rect><rect x="264" y="140" width="70" height="38"></rect>
+<rect x="510" y="136" width="60" height="42"></rect><rect x="574" y="100" width="44" height="78"></rect><rect x="622" y="124" width="76" height="54"></rect><rect x="702" y="86" width="56" height="92"></rect><rect x="762" y="122" width="82" height="56"></rect>
+</g>
+<g fill="#FFD966" opacity="0.8">
+<rect x="84" y="104" width="6" height="6"></rect><rect x="100" y="120" width="6" height="6"></rect><rect x="218" y="116" width="6" height="6"></rect><rect x="236" y="134" width="6" height="6"></rect><rect x="584" y="112" width="6" height="6"></rect><rect x="600" y="132" width="6" height="6"></rect><rect x="714" y="100" width="6" height="6"></rect><rect x="732" y="122" width="6" height="6"></rect><rect x="20" y="132" width="6" height="6"></rect><rect x="780" y="136" width="6" height="6"></rect>
+</g>
+<rect x="0" y="176" width="844" height="214" fill="#9C6B45"></rect>
+<polygon points="0,390 120,390 400,176 330,176" fill="#B9B2A6"></polygon>
+<polygon points="844,390 724,390 444,176 514,176" fill="#B9B2A6"></polygon>
+<polygon points="120,390 724,390 444,176 400,176" fill="url(#route)"></polygon>
+<polygon points="128,390 140,390 404,176 401,176" fill="#F5F3EA"></polygon>
+<polygon points="716,390 704,390 440,176 443,176" fill="#F5F3EA"></polygon>
+<g fill="#FFC814">
+<polygon points="420,184 424,184 425,194 419,194"></polygon>
+<polygon points="418,206 426,206 428,222 416,222"></polygon>
+<polygon points="415,244 429,244 432,270 412,270"></polygon>
+<polygon points="410,302 434,302 439,346 405,346"></polygon>
+</g>
+<g>
+<rect x="268" y="150" width="5" height="60" fill="#5A3B22"></rect>
+<path d="M270 152 Q250 140 236 150 M270 152 Q258 132 244 128 M270 152 Q286 134 302 134 M270 152 Q292 146 304 158" stroke="#2F7D4A" stroke-width="6" fill="none" stroke-linecap="round"></path>
+<rect x="56" y="150" width="9" height="130" fill="#5A3B22"></rect>
+<path d="M60 154 Q22 132 0 150 M60 154 Q40 112 14 106 M60 154 Q88 116 116 116 M60 154 Q100 142 124 166" stroke="#2F7D4A" stroke-width="11" fill="none" stroke-linecap="round"></path>
+<rect x="572" y="150" width="5" height="60" fill="#5A3B22"></rect>
+<path d="M574 152 Q554 140 540 150 M574 152 Q562 132 548 128 M574 152 Q590 134 606 134 M574 152 Q596 146 608 158" stroke="#2F7D4A" stroke-width="6" fill="none" stroke-linecap="round"></path>
+</g>
+<g>
+<rect x="702" y="150" width="6" height="110" fill="#6E7480"></rect>
+<rect x="640" y="112" width="132" height="44" rx="6" fill="#1E7D45" stroke="#FFFFFF" stroke-width="2"></rect>
+<text x="706" y="130" text-anchor="middle" font-size="11" font-weight="700" fill="#FFFFFF" font-family="Inter, sans-serif">BOULEVARD</text>
+<text x="706" y="147" text-anchor="middle" font-size="13" font-weight="800" fill="#FFFFFF" font-family="Inter, sans-serif">DU 30 JUIN</text>
+</g>
+<g>
+<polygon points="478,236 490,236 494,252 474,252" fill="#FF7A1A"></polygon>
+<rect x="476" y="243" width="16" height="3" fill="#FFFFFF"></rect>
+<rect x="346" y="226" width="34" height="18" rx="2" fill="#8A5A2B"></rect>
+<rect x="342" y="222" width="42" height="6" rx="2" fill="#B07A44"></rect>
+<circle cx="352" cy="246" r="5" fill="#2A2A2A"></circle>
+<circle cx="374" cy="246" r="5" fill="#2A2A2A"></circle>
+</g>
+<g opacity="0.55">
+<ellipse cx="452" cy="250" rx="48" ry="5" fill="#000000" opacity="0.4"></ellipse>
+<rect x="412" y="216" width="84" height="30" rx="9" fill="#7FD8FF" fill-opacity="0.35" stroke="#7FD8FF" stroke-width="2"></rect>
+<path d="M422 217 L430 194 Q432 190 437 190 L471 190 Q476 190 478 194 L486 217 Z" fill="#7FD8FF" fill-opacity="0.35" stroke="#7FD8FF" stroke-width="2"></path>
+<rect x="416" y="246" width="12" height="10" rx="3" fill="#7FD8FF"></rect>
+<rect x="480" y="246" width="12" height="10" rx="3" fill="#7FD8FF"></rect>
+</g>
+<g>
+<rect x="398" y="160" width="108" height="22" rx="11" fill="#0E1630" fill-opacity="0.85" stroke="#7FD8FF" stroke-width="1.5"></rect>
+<text x="452" y="175" text-anchor="middle" font-size="11" font-weight="700" fill="#7FD8FF" font-family="Inter, sans-serif">ÉQUIPE B · fantôme</text>
+<path d="M452 182 L452 188" stroke="#7FD8FF" stroke-width="1.5"></path>
+</g>
+<g>
+<circle cx="292" cy="360" r="10" fill="#CFCFCF" opacity="0.35"></circle>
+<circle cx="276" cy="352" r="14" fill="#CFCFCF" opacity="0.25"></circle>
+<ellipse cx="422" cy="374" rx="122" ry="12" fill="#000000" opacity="0.4"></ellipse>
+<rect x="316" y="330" width="36" height="42" rx="7" fill="#151515"></rect>
+<rect x="492" y="330" width="36" height="42" rx="7" fill="#151515"></rect>
+<rect x="308" y="268" width="228" height="82" rx="22" fill="#FFC814"></rect>
+<path d="M338 272 L360 212 Q364 203 375 203 L469 203 Q480 203 484 212 L506 272 Z" fill="#FFC814"></path>
+<path d="M353 266 L371 220 Q373 214 380 214 L464 214 Q471 214 473 220 L491 266 Z" fill="#1C2433"></path>
+<path d="M380 222 L392 222 L378 258 L366 258 Z" fill="#FFFFFF" opacity="0.12"></path>
+<rect x="396" y="187" width="52" height="17" rx="4" fill="#FFFFFF"></rect>
+<text x="422" y="200" text-anchor="middle" font-size="11" font-weight="800" fill="#0E1630" font-family="Inter, sans-serif">TAXI</text>
+<rect x="316" y="282" width="38" height="20" rx="6" fill="#E5322D"></rect>
+<rect x="490" y="282" width="38" height="20" rx="6" fill="#E5322D"></rect>
+<rect x="354" y="288" width="136" height="5" fill="#1E5FD6"></rect>
+<rect x="390" y="300" width="64" height="22" rx="3" fill="#FFFFFF" stroke="#1C2433" stroke-width="1"></rect>
+<text x="422" y="316" text-anchor="middle" font-size="12" font-weight="700" fill="#111111" font-family="Inter, sans-serif">KIN 243</text>
+<rect x="312" y="328" width="220" height="14" rx="7" fill="#2A2A2A"></rect>
+<rect x="300" y="332" width="10" height="6" rx="2" fill="#555555"></rect>
+</g>
+<g>
+<rect x="16" y="14" width="282" height="62" rx="14" fill="#0E1630" fill-opacity="0.85"></rect>
+<text x="32" y="38" font-size="11" font-weight="700" fill="#FFC814" font-family="Inter, sans-serif" letter-spacing="1">ÉTAPE 5 / 5</text>
+<text x="32" y="60" font-size="16" font-weight="700" fill="#FFFFFF" font-family="Inter, sans-serif">Sprint du Boulevard du 30 Juin</text>
+</g>
+<g>
+<rect x="356" y="14" width="132" height="44" rx="12" fill="#0E1630" fill-opacity="0.85"></rect>
+<text x="422" y="44" text-anchor="middle" font-size="24" font-weight="800" fill="#FFFFFF" font-family="'Bricolage Grotesque', Inter, sans-serif">01:12.4</text>
+</g>
+<g>
+<rect x="546" y="14" width="282" height="72" rx="14" fill="#0E1630" fill-opacity="0.85"></rect>
+<text x="562" y="36" font-size="11" font-weight="700" fill="#FFC814" font-family="Inter, sans-serif">VOUS</text>
+<rect x="640" y="28" width="140" height="8" rx="4" fill="#2A3566"></rect>
+<rect x="640" y="28" width="126" height="8" rx="4" fill="#FFC814"></rect>
+<text x="562" y="58" font-size="11" font-weight="700" fill="#7FD8FF" font-family="Inter, sans-serif">ÉQUIPE B</text>
+<rect x="640" y="50" width="140" height="8" rx="4" fill="#2A3566"></rect>
+<rect x="640" y="50" width="133" height="8" rx="4" fill="#7FD8FF"></rect>
+<text x="562" y="78" font-size="11" font-weight="600" fill="#C9CFE3" font-family="Inter, sans-serif">Écart : −0,8 s · rattrapez-le !</text>
+</g>
+<g>
+<rect x="356" y="64" width="132" height="24" rx="12" fill="#0E1630" fill-opacity="0.7"></rect>
+<text x="422" y="81" text-anchor="middle" font-size="12" font-weight="600" fill="#FFFFFF" font-family="Inter, sans-serif">Score 4 820</text>
+</g>
+<g>
+<circle cx="62" cy="332" r="36" fill="#FFFFFF" fill-opacity="0.15" stroke="#FFFFFF" stroke-opacity="0.6" stroke-width="2"></circle>
+<path d="M70 318 L54 332 L70 346" fill="none" stroke="#FFFFFF" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"></path>
+<circle cx="150" cy="332" r="36" fill="#FFFFFF" fill-opacity="0.15" stroke="#FFFFFF" stroke-opacity="0.6" stroke-width="2"></circle>
+<path d="M142 318 L158 332 L142 346" fill="none" stroke="#FFFFFF" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"></path>
+</g>
+<g>
+<circle cx="700" cy="340" r="30" fill="#FFFFFF" fill-opacity="0.15" stroke="#FFFFFF" stroke-opacity="0.6" stroke-width="2"></circle>
+<text x="700" y="345" text-anchor="middle" font-size="12" font-weight="700" fill="#FFFFFF" font-family="Inter, sans-serif">FREIN</text>
+<circle cx="784" cy="318" r="42" fill="#FFC814"></circle>
+<text x="784" y="323" text-anchor="middle" font-size="14" font-weight="800" fill="#0E1630" font-family="Inter, sans-serif">TURBO</text>
+<rect x="752" y="366" width="64" height="8" rx="4" fill="#0E1630" fill-opacity="0.8"></rect>
+<rect x="752" y="366" width="44" height="8" rx="4" fill="#FFC814"></rect>
+</g>
+</svg></div>
+<div class="bas"><div class="qr"><svg role="img" aria-label="QR code vers la landing page" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 33 33" shape-rendering="crispEdges"><path fill="#FFFFFF" d="M0 0h33v33H0z"/><path stroke="#0E1630" d="M0 0.5h7m3 0h5m1 0h2m1 0h3m1 0h1m2 0h7M0 1.5h1m5 0h1m2 0h1m2 0h5m1 0h1m1 0h1m5 0h1m5 0h1M0 2.5h1m1 0h3m1 0h1m1 0h2m3 0h1m1 0h2m1 0h1m1 0h5m1 0h1m1 0h3m1 0h1M0 3.5h1m1 0h3m1 0h1m1 0h1m3 0h1m1 0h4m4 0h1m1 0h1m1 0h1m1 0h3m1 0h1M0 4.5h1m1 0h3m1 0h1m1 0h3m1 0h1m2 0h1m2 0h4m1 0h1m2 0h1m1 0h3m1 0h1M0 5.5h1m5 0h1m1 0h2m2 0h2m1 0h2m3 0h3m1 0h1m1 0h1m5 0h1M0 6.5h7m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h7M8 7.5h1m2 0h1m2 0h2m2 0h2m1 0h4M0 8.5h1m1 0h5m2 0h5m1 0h1m1 0h1m8 0h5M1 9.5h3m5 0h3m4 0h1m1 0h4m1 0h1m2 0h2m1 0h4M0 10.5h1m4 0h2m4 0h2m2 0h2m3 0h3m1 0h3m1 0h1m1 0h2M2 11.5h1m1 0h2m1 0h6m1 0h1m1 0h1m2 0h1m1 0h5m2 0h4M1 12.5h3m1 0h2m1 0h1m1 0h1m1 0h1m2 0h1m2 0h2m5 0h1m1 0h3m1 0h1M0 13.5h1m1 0h1m1 0h2m1 0h1m1 0h4m1 0h3m1 0h3m1 0h2m1 0h1m3 0h4M0 14.5h1m2 0h2m1 0h1m1 0h1m2 0h3m3 0h2m1 0h3m2 0h3m3 0h1M0 15.5h1m1 0h2m5 0h2m2 0h1m2 0h1m4 0h2m2 0h2m3 0h1M0 16.5h1m2 0h1m2 0h3m2 0h3m3 0h1m1 0h1m2 0h1m2 0h1m1 0h2m3 0h1M3 17.5h3m2 0h1m1 0h3m1 0h1m1 0h5m2 0h1m2 0h2m1 0h2m1 0h1M1 18.5h1m2 0h1m1 0h1m2 0h1m5 0h3m2 0h3m2 0h4m1 0h2M0 19.5h1m1 0h1m2 0h1m2 0h1m1 0h2m1 0h3m1 0h2m1 0h3m2 0h6M1 20.5h1m1 0h2m1 0h2m1 0h3m2 0h3m2 0h1m2 0h1m2 0h1m2 0h2m1 0h1M0 21.5h3m2 0h1m3 0h2m1 0h1m1 0h2m1 0h5m1 0h1m1 0h2m2 0h1m2 0h1M0 22.5h1m1 0h1m1 0h13m1 0h1m2 0h2m6 0h1m1 0h1M0 23.5h1m2 0h1m1 0h1m2 0h1m2 0h5m2 0h4m1 0h1m1 0h2m3 0h1m1 0h1M0 24.5h1m2 0h2m1 0h5m1 0h1m2 0h1m1 0h2m3 0h8m1 0h1M8 25.5h3m3 0h1m1 0h1m1 0h2m1 0h1m1 0h2m3 0h1m1 0h1m1 0h1M0 26.5h7m2 0h1m1 0h1m2 0h2m2 0h1m1 0h2m1 0h2m1 0h1m1 0h1m1 0h2M0 27.5h1m5 0h1m1 0h3m1 0h2m1 0h1m3 0h1m1 0h4m3 0h3m1 0h1M0 28.5h1m1 0h3m1 0h1m1 0h2m2 0h4m2 0h1m3 0h1m1 0h6m1 0h2M0 29.5h1m1 0h3m1 0h1m1 0h1m1 0h1m2 0h5m1 0h3m1 0h1m1 0h1m2 0h2m1 0h2M0 30.5h1m1 0h3m1 0h1m1 0h1m2 0h1m2 0h1m2 0h1m3 0h3m2 0h2m1 0h1M0 31.5h1m5 0h1m2 0h1m6 0h1m1 0h5m5 0h3M0 32.5h7m1 0h2m3 0h2m1 0h2m2 0h1m1 0h6m1 0h1m1 0h1"/></svg>
+</div>
+<div class="appel"><h2>Scannez et jouez : 5 étapes de Kinshasa</h2>
+<ul><li>Roulez vite, évitez les chocs : marquez des points</li><li>Inscrivez-vous à la bêta, c'est gratuit</li><li>Android, iPhone et PC</li></ul>
+<p class="adresse">course-des-ketch.pages.dev</p></div></div>
+<div class="pied"><span>Aucun paiement demandé pendant la bêta.</span><span>© 2026 G-Challenge RDC</span></div>
+</div></body></html>

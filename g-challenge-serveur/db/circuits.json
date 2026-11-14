@@ -1,0 +1,32 @@
+{
+  "_lisezmoi": "Circuits du jeu. 'arrivee' = position de BP_LigneArrivee dans le niveau (Details > Location, en cm). Tant qu'elle vaut null, le circuit n'est pas déclaré. temps_min_ms : à recaler à 85 % du meilleur temps de vos testeurs. Puis : npm run circuits",
+  "circuits": [
+    {
+      "code": "L_Kinshasa_30Juin",
+      "nom": "Boulevard du 30 Juin",
+      "temps_min_ms": 45000,
+      "vitesse_max_kmh": 170,
+      "depart": [0, 0, 0],
+      "arrivee": null,
+      "tolerance_cm": 1500
+    },
+    {
+      "code": "L_Kinshasa_Matonge",
+      "nom": "Matonge",
+      "temps_min_ms": 50000,
+      "vitesse_max_kmh": 170,
+      "depart": [0, 0, 0],
+      "arrivee": null,
+      "tolerance_cm": 1500
+    },
+    {
+      "code": "L_Kinshasa_Fleuve",
+      "nom": "Le bord du fleuve",
+      "temps_min_ms": 70000,
+      "vitesse_max_kmh": 170,
+      "depart": [0, 0, 0],
+      "arrivee": null,
+      "tolerance_cm": 1500
+    }
+  ]
+}
