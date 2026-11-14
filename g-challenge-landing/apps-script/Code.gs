@@ -4,6 +4,9 @@
  *
  * Ajoute une ligne par inscription, dans les colonnes que lit le CRM :
  * A Date · B Telephone · C Pseudo · D Plateforme · E Source
+ *
+ * L'adresse de l'application Web (…/exec) sert de clé : elle n'est connue que
+ * du site Netlify. Ne la publiez nulle part ailleurs.
  */
 function doPost(e) {
   var d;
@@ -12,9 +15,6 @@ function doPost(e) {
   } catch (err) {
     return repondre({ statut: 'erreur', message: 'json_invalide' });
   }
-
-  var jeton = PropertiesService.getScriptProperties().getProperty('JETON');
-  if (!jeton || d.jeton !== jeton) return repondre({ statut: 'erreur', message: 'jeton_invalide' });
 
   var telephone = String(d.telephone || '');
   if (!/^\+\d{8,15}$/.test(telephone)) return repondre({ statut: 'erreur', message: 'telephone_invalide' });

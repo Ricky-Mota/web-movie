@@ -5,7 +5,7 @@ La page publique de la bêta, tirée de la maquette « G-Challenge RDC – Landi
 ## Le circuit d'une inscription
 
 1. Un visiteur remplit le formulaire de la landing page : téléphone, pseudo et plateforme.
-2. La fonction Netlify `/api/inscription-beta` vérifie l'inscription :
+2. La fonction Netlify (adresse publique `/api/inscription-beta`) vérifie l'inscription :
    - le numéro doit être valide ;
    - les robots sont écartés par un champ piège et un délai minimum de saisie.
 3. Le script Apps Script ajoute une ligne dans le Google Sheet **« G-Challenge – Inscriptions bêta »**. Il ignore un numéro déjà inscrit.
@@ -19,23 +19,28 @@ Colonnes du Sheet, dans l'ordre attendu par le CRM : `Date · Telephone · Pseud
 
 1. Ouvrez le Google Sheet « G-Challenge – Inscriptions bêta », puis **Extensions** et **Apps Script**.
 2. Remplacez tout le code par le contenu de `apps-script/Code.gs`, puis enregistrez.
-3. Ouvrez **Paramètres du projet** (roue dentée), section **Propriétés du script**, et ajoutez la propriété `JETON`. Sa valeur est un long mot secret inventé, par exemple 40 lettres et chiffres au hasard.
-4. **Déployer**, puis **Nouveau déploiement** :
+3. **Déployer**, puis **Nouveau déploiement** :
    - type **Application Web** ;
    - « Exécuter en tant que » : **Moi** ;
    - « Qui a accès » : **Tout le monde**.
-5. Autorisez l'accès au Sheet quand Google le demande, puis copiez l'**URL de l'application Web** (elle se termine par `/exec`).
+4. Autorisez l'accès au Sheet quand Google le demande (« Paramètres avancés », puis « Accéder au projet » si Google affiche un avertissement), puis copiez l'**URL de l'application Web** (elle se termine par `/exec`).
 
-Le script n'accepte que les demandes qui portent le bon jeton. Ce jeton n'est connu que de Netlify : personne ne peut écrire dans le Sheet sans passer par la landing page.
+Cette adresse sert de clé : rangez-la uniquement dans Netlify (étape 2). Ne la publiez pas et ne la partagez pas : quiconque la connaît peut ajouter des lignes au Sheet.
 
 ### 2. Le site Netlify
 
-1. Sur Netlify : **Add new site**, puis **Import an existing project**, puis le dépôt GitHub `web-movie`.
-2. **Base directory** : `g-challenge-landing`. Pas de commande de build.
-3. Dans **Site configuration**, puis **Environment variables**, ajoutez :
-   - `APPS_SCRIPT_URL` = l'URL copiée à l'étape 1 ;
-   - `APPS_SCRIPT_JETON` = le même mot secret que la propriété `JETON`.
-4. Redéployez le site. Vous pouvez choisir un nom comme `course-des-ketch.netlify.app`, ou brancher votre propre domaine.
+Le site **course-des-ketch** existe déjà dans votre compte Netlify (https://course-des-ketch.netlify.app).
+
+1. Publiez-le depuis le dossier `g-challenge-landing` :
+
+   ```bash
+   npx netlify-cli deploy --prod --dir public --functions netlify/functions --site course-des-ketch
+   ```
+
+2. Dans **Site configuration**, puis **Environment variables**, ajoutez `APPS_SCRIPT_URL` = l'URL copiée à l'étape 1.
+3. Redéployez (même commande) pour que la fonction lise ce réglage. Vous pourrez aussi brancher votre propre domaine plus tard.
+
+Tant que `APPS_SCRIPT_URL` n'est pas réglé, le formulaire répond poliment « Inscriptions momentanément fermées ».
 
 ### 3. Vérifier
 
@@ -49,6 +54,7 @@ Le script n'accepte que les demandes qui portent le bon jeton. Ce jeton n'est co
 | --- | --- |
 | `public/index.html` | La landing page : une seule page, sans dépendance |
 | `netlify/functions/inscription-beta.mjs` | Vérifie l'inscription et l'envoie au Google Sheet |
+| `public/_redirects` | Relie l'adresse `/api/inscription-beta` à la fonction |
 | `apps-script/Code.gs` | Écrit dans le Google Sheet, sans doublon |
 | `netlify.toml` | Configuration du site Netlify |
 

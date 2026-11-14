@@ -3,17 +3,14 @@
 // via le petit script Apps Script du dossier apps-script/.
 // Le CRM importe ensuite ces lignes avec son bouton « Importer les inscriptions bêta ».
 //
-// Variables d'environnement (Netlify > Site configuration > Environment variables) :
-//   APPS_SCRIPT_URL    adresse de l'application Web Apps Script (se termine par /exec)
-//   APPS_SCRIPT_JETON  le même mot secret que dans les propriétés du script
+// Variable d'environnement (Netlify > Site configuration > Environment variables) :
+//   APPS_SCRIPT_URL    adresse de l'application Web Apps Script (se termine par /exec).
+//                      Elle sert de clé : gardez-la uniquement dans Netlify.
 
 const PLATEFORMES = ['Android', 'iOS', 'PC'];
 
 function reponse(statut, corps) {
-  return new Response(JSON.stringify(corps), {
-    status: statut,
-    headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' },
-  });
+  return { statusCode: statut, body: JSON.stringify(corps) };
 }
 
 export function verifier(d) {
@@ -25,11 +22,13 @@ export function verifier(d) {
   return { telephone, pseudo, plateforme, source };
 }
 
-export default async (req) => {
-  if (req.method !== 'POST') return reponse(405, { message: 'Méthode non autorisée.' });
+/** Le cœur de la fonction, indépendant de Netlify (testé seul). */
+export async function traiter(methode, texte) {
+  if (methode !== 'POST') return reponse(405, { message: 'Méthode non autorisée.' });
 
   let d;
-  try { d = await req.json(); } catch { return reponse(400, { message: 'Demande illisible.' }); }
+  try { d = JSON.parse(texte || ''); } catch { return reponse(400, { message: 'Demande illisible.' }); }
+  if (!d || typeof d !== 'object') return reponse(400, { message: 'Demande illisible.' });
 
   // Robots : le champ caché est rempli, ou le formulaire est envoyé en moins de 2 secondes.
   // On répond « succès » sans rien enregistrer, pour ne pas les renseigner.
@@ -39,9 +38,8 @@ export default async (req) => {
   if (v.erreur) return reponse(400, { message: v.erreur });
 
   const url = process.env.APPS_SCRIPT_URL;
-  const jeton = process.env.APPS_SCRIPT_JETON;
-  if (!url || !jeton) {
-    console.error('APPS_SCRIPT_URL ou APPS_SCRIPT_JETON manquant');
+  if (!url) {
+    console.error('APPS_SCRIPT_URL manquant');
     return reponse(503, { message: 'Inscriptions momentanément fermées. Réessayez plus tard.' });
   }
 
@@ -49,7 +47,7 @@ export default async (req) => {
     const r = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ jeton, date: new Date().toISOString().slice(0, 10), ...v }),
+      body: JSON.stringify({ date: new Date().toISOString().slice(0, 10), ...v }),
       redirect: 'follow',
       signal: AbortSignal.timeout(15000),
     });
@@ -60,6 +58,12 @@ export default async (req) => {
     console.error('Apps Script injoignable', e);
   }
   return reponse(502, { message: 'L\'inscription a échoué. Réessayez dans un instant.' });
-};
+}
 
-export const config = { path: '/api/inscription-beta' };
+// Point d'entrée Netlify. L'adresse publique /api/inscription-beta est
+// redirigée ici par le fichier public/_redirects.
+export const handler = async (event) => {
+  const texte = event.isBase64Encoded ? Buffer.from(event.body || '', 'base64').toString('utf8') : event.body;
+  const r = await traiter(event.httpMethod, texte);
+  return { ...r, headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' } };
+};
