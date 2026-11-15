@@ -86,7 +86,7 @@ html{scroll-behavior:smooth}
 .jeu-etape-nouv .jeu-desc{color:#7BE0A0;font-weight:700}
 .jeu-etapes .jeu-etape{grid-template-columns:1fr auto;grid-template-areas:"nom etoiles" "desc rec";padding:7px 12px}
 .jeu-etapes .jeu-num{display:none}
-.jeu-sous{display:none}
+.jeu-sous{display:none}.jeu-entete{display:none}
 .jeu-menu .jeu-titre{font-size:clamp(18px,2.4vw,24px)}
 .jeu-num{grid-area:num;font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:#FFC814;width:52px}
 .jeu-nom{grid-area:nom;font-family:'Bricolage Grotesque',sans-serif;font-weight:800;font-size:15px;line-height:1.15}
@@ -129,6 +129,19 @@ html{scroll-behavior:smooth}
 .jeu [hidden]{display:none!important}
 .jeu-panneau:not([hidden])~.jeu-son,.jeu-panneau:not([hidden])~.jeu-plein,.jeu-panneau:not([hidden])~.jeu-musique{display:none}
 #messageBeta.ok{color:#7BE0A0}#messageBeta.erreur{color:#FF8A7A}
+.hero{max-width:1400px;margin:0 auto;padding:20px 24px 40px;display:flex;flex-direction:column;gap:16px}
+.hero-texte{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:12px 24px}
+.hero-badge{display:inline-block;padding:4px 12px;border-radius:999px;border:1px solid #FFC814;color:#FFC814;font-size:12px;font-weight:600;letter-spacing:1px}
+.hero-titre{margin:8px 0 4px!important;font-family:'Bricolage Grotesque',sans-serif;font-weight:800;font-size:clamp(30px,3.6vw,46px)!important;line-height:1.05;letter-spacing:-.5px}
+.hero-phrase{margin:0;font-size:16px;color:#C9CFE3}
+.hero-boutons{display:flex;flex-wrap:wrap;gap:10px}
+.hero-principal,.hero-second{display:inline-flex;align-items:center;min-height:46px;padding:0 22px;border-radius:999px;font-weight:700;font-size:15px;text-decoration:none;transition:filter .15s,background .15s}
+.hero-principal{background:#FFC814;color:#0E1630}.hero-principal:hover{filter:brightness(1.08)}
+.hero-second{border:1.5px solid #4A5788;color:#F5F3EA}.hero-second:hover{background:rgba(255,255,255,.06)}
+.hero-jeu{width:min(100%,calc((100vh - 230px) * 2.1));min-width:min(100%,640px);margin:0 auto}
+.hero-legende{margin:10px 0 0;font-size:13px;color:#9EA7C6;text-align:center}
+.jeu-choix-etape .jeu-aide{display:none}
+@media (max-width:640px){header>div{padding:10px 12px!important;flex-wrap:nowrap!important}nav[aria-label="Navigation principale"] a:not([href="#beta"]){display:none}nav[aria-label="Navigation principale"] a[href="#beta"]{min-height:38px!important;padding:0 14px!important;font-size:14px;white-space:nowrap}header a[href="#top"] span{font-size:16px!important;white-space:nowrap}header a[href="#top"] svg{width:28px;height:28px}.hero-boutons .hero-principal{display:none}.hero-legende{font-size:12px}.hero{padding:12px 12px 32px!important;gap:12px}.hero-texte{display:contents}.hero-texte>div:first-child{order:1}.hero-jeu{order:2;min-width:0}.hero-boutons{order:3}.hero-phrase{font-size:14px}.hero-principal,.hero-second{min-height:42px;font-size:14px;padding:0 16px}.hero-titre{font-size:30px!important}}
 @media (max-width:640px){h1{font-size:52px!important}h2{font-size:34px!important}section>div{padding-top:64px!important;padding-bottom:64px!important}}
 </style>
 </head>
@@ -152,18 +165,19 @@ html{scroll-behavior:smooth}
 </header>
 
 <section id="top" style="width: 100%">
-<div style="max-width: 1400px; margin: 0 auto; padding: 56px 24px 72px; display: flex; flex-wrap: wrap; align-items: center; gap: 40px">
-<div style="flex: 1 1 400px; min-width: 0; display: flex; flex-direction: column; gap: 24px">
-<span style="align-self: flex-start; padding: 6px 14px; border-radius: 999px; border: 1px solid #FFC814; color: #FFC814; font-size: 13px; font-weight: 600; letter-spacing: 1px">BÊTA GRATUITE · KINSHASA</span>
-<h1 style="margin: 0; font-family: 'Bricolage Grotesque', sans-serif; font-weight: 800; font-size: 64px; line-height: 1.02; letter-spacing: -1px">La Course<br>des <span style="color: #FFC814">Ketch</span></h1>
-<p style="margin: 0; font-size: 19px; color: #C9CFE3; max-width: 520px">Prenez le volant d'un ketch jaune et traversez Kinshasa en 5 étapes. Votre adversaire roule en même temps que vous : son fantôme apparaît sur votre route. Le chauffeur le plus adroit l'emporte.</p>
-<div style="display: flex; flex-wrap: wrap; gap: 14px">
-<a href="#beta" style="display: inline-flex; align-items: center; min-height: 52px; padding: 0 28px; border-radius: 999px; background: #FFC814; color: #0E1630; font-weight: 700; font-size: 17px; text-decoration: none">Rejoindre la bêta gratuite</a>
-<a href="#comment" style="display: inline-flex; align-items: center; min-height: 52px; padding: 0 28px; border-radius: 999px; border: 1.5px solid #4A5788; color: #F5F3EA; font-weight: 600; font-size: 17px; text-decoration: none">Comment ça marche</a>
+<div class="hero">
+<div class="hero-texte">
+<div>
+<span class="hero-badge">BÊTA GRATUITE · KINSHASA</span>
+<h1 class="hero-titre">La Course des <span style="color: #FFC814">Ketch</span></h1>
+<p class="hero-phrase">8 étapes dans Kinshasa, 3 rivaux et la police à vos trousses. Jouez tout de suite, ici.</p>
 </div>
-<p style="margin: 0; font-size: 14px; color: #9EA7C6">Android · iOS · PC — un joueur sur téléphone peut défier un joueur sur ordinateur.</p>
+<div class="hero-boutons">
+<a href="#beta" class="hero-principal">Rejoindre la bêta gratuite</a>
+<a href="#comment" class="hero-second">Comment ça marche</a>
 </div>
-<div style="flex: 1 1 100%; min-width: 0">
+</div>
+<div class="hero-jeu">
 <div style="padding: 10px; border-radius: 30px; background: #05080F; border: 2px solid #2A3566">
 <div style="border-radius: 22px; overflow: hidden">
 <div class="jeu" id="jeu">
@@ -230,7 +244,7 @@ html{scroll-behavior:smooth}
 </div>
 </div>
 </div>
-<p style="margin: 12px 0 0; font-size: 13px; color: #9EA7C6; text-align: center">Démo jouable · 5 étapes, 8 voitures · bouton plein écran en haut à droite pour jouer encore plus grand</p>
+<p class="hero-legende">Démo jouable · Android · iOS · PC · plein écran : bouton en haut à droite</p>
 </div>
 </div>
 </section>
