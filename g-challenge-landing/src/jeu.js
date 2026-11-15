@@ -1,4 +1,4 @@
-// Démo jouable de La Course des Ketch : les 5 étapes du parcours, au choix.
+// Démo jouable de La Course des Ketch : les 8 étapes du parcours, au choix.
 //   1 · Rond-point Victoire      : circulation dense, ronds-points, monument.
 //   2 · Le Grand Marché          : rue sinueuse, étals, pousse-pousse, piétons.
 //   3 · Route des Poids Lourds   : camions, nids-de-poule, bosses, entrepôts.
@@ -31,22 +31,22 @@
     ketch: { nom: 'Ketch', type: 'Taxi de Kinshasa', vitesse: 1, accel: 1, direction: 1, robuste: 0.35,
       fantome: 1, debloque: 0, couleurDefaut: 'jaune', son: { hauteur: 1, filtre: 0 } },
     turbo: { nom: 'Turbo GT', type: 'Supercar · vitesse', vitesse: 1.15, accel: 1.2, direction: 0.9, robuste: 0.3,
-      fantome: 1.15, debloque: 4000, couleurDefaut: 'rouge',
+      fantome: 1.15, debloque: 8500, couleurDefaut: 'rouge',
       couleur: ['#FF4A3D', '#B3170E'], neon: '#00E5FF', son: { hauteur: 1.45, filtre: 900 } },
     zigzag: { nom: 'Zigzag R', type: 'Sportive · maniabilité', vitesse: 1.05, accel: 1.08, direction: 1.4, robuste: 0.35,
-      fantome: 1.08, debloque: 1500, couleurDefaut: 'bleu',
+      fantome: 1.08, debloque: 3500, couleurDefaut: 'bleu',
       couleur: ['#4C8DFF', '#163E99'], neon: '#C04CFF', son: { hauteur: 1.25, filtre: 600 } },
     blinde: { nom: 'Blindé X', type: 'SUV sport · robustesse', vitesse: 0.97, accel: 0.95, direction: 0.95, robuste: 0.6,
-      fantome: 1.02, debloque: 2500, couleurDefaut: 'noir',
+      fantome: 1.02, debloque: 5500, couleurDefaut: 'noir',
       couleur: ['#56606F', '#232831'], neon: '#FF8A00', son: { hauteur: 0.8, filtre: -150 } },
     mbote: { nom: 'Mbote E', type: 'Berline électrique · accélération', vitesse: 1.05, accel: 1.35, direction: 1.05, robuste: 0.4,
-      fantome: 1.1, debloque: 2000, couleurDefaut: 'blanc', neon: '#3DDC84', electrique: true, son: { hauteur: 1, filtre: 0 } },
+      fantome: 1.1, debloque: 4500, couleurDefaut: 'blanc', neon: '#3DDC84', electrique: true, son: { hauteur: 1, filtre: 0 } },
     kingt: { nom: 'Kin GT', type: 'Grand tourisme · stabilité', vitesse: 1.12, accel: 1.05, direction: 1, robuste: 0.4,
-      fantome: 1.1, debloque: 3000, couleurDefaut: 'vert', neon: '#FFD23F', son: { hauteur: 1.2, filtre: 400 } },
+      fantome: 1.1, debloque: 6500, couleurDefaut: 'vert', neon: '#FFD23F', son: { hauteur: 1.2, filtre: 400 } },
     fleuve: { nom: 'Fleuve V8', type: 'Muscle car · dérapages', vitesse: 1.1, accel: 1.15, direction: 0.85, robuste: 0.45,
-      fantome: 1.08, debloque: 3500, couleurDefaut: 'orange', neon: '#FF3B30', son: { hauteur: 0.7, filtre: -100 }, v8: true },
+      fantome: 1.08, debloque: 7500, couleurDefaut: 'orange', neon: '#FF3B30', son: { hauteur: 0.7, filtre: -100 }, v8: true },
     leopard: { nom: 'Léopard', type: 'Hypercar · la meilleure', vitesse: 1.22, accel: 1.3, direction: 1.2, robuste: 0.4,
-      fantome: 1.22, debloque: 8000, couleurDefaut: 'jaune', neon: '#FFB000', son: { hauteur: 1.6, filtre: 1200 } }
+      fantome: 1.22, debloque: 12000, couleurDefaut: 'jaune', neon: '#FFB000', son: { hauteur: 1.6, filtre: 1200 } }
   };
   var ORDRE_VOITURES = ['ketch', 'zigzag', 'mbote', 'blinde', 'kingt', 'fleuve', 'turbo', 'leopard'];
   // Peintures au choix : [teinte claire, teinte foncée].
@@ -62,14 +62,14 @@
   // Meilleur score toutes étapes confondues : il débloque les voitures.
   function meilleurScore() {
     var max = 0;
-    ['rondpoint', 'marche', 'poidslourds', 'corniche', 'boulevard'].forEach(function (id) {
+    ['rondpoint', 'marche', 'poidslourds', 'corniche', 'boulevard', 'gombe', 'matonge', 'limete'].forEach(function (id) {
       try { var r = JSON.parse(localStorage.getItem('ketch-records-' + id) || 'null'); if (r && r.score > max) max = r.score; } catch (e) {}
     });
     return max;
   }
   function etapesGagnees() {
     var n = 0;
-    ['rondpoint', 'marche', 'poidslourds', 'corniche', 'boulevard'].forEach(function (id) {
+    ['rondpoint', 'marche', 'poidslourds', 'corniche', 'boulevard', 'gombe', 'matonge', 'limete'].forEach(function (id) {
       try { var r = JSON.parse(localStorage.getItem('ketch-records-' + id) || 'null'); if (r && r.gagne) n++; } catch (e) {}
     });
     return n;
@@ -81,16 +81,33 @@
     return false;
   }
   var lienGarage = lireLienGarage();
-  function debloquee(m) { return garageComplet() || lienGarage || meilleurScore() >= m.debloque || (m.id === 'leopard' && etapesGagnees() >= 5); }
+  // ---------- Porte-monnaie : les pièces G se gardent d'une course à l'autre ----------
+  // Elles achètent des voitures (sans attendre le score) et des peintures.
+  var PRIX_VOITURES = { zigzag: 60, mbote: 90, blinde: 120, kingt: 160, fleuve: 200, turbo: 260, leopard: 400 };
+  var PRIX_COULEUR = 25, COULEURS_GRATUITES = ['jaune', 'noir', 'blanc'];
+  function lirePorteMonnaie() { try { return Math.max(0, parseInt(localStorage.getItem('ketch-pieces') || '0', 10) || 0); } catch (e) { return 0; } }
+  function ecrirePorteMonnaie(n) { try { localStorage.setItem('ketch-pieces', String(Math.max(0, Math.round(n)))); } catch (e) {} }
+  function lireAchats() { try { var a = JSON.parse(localStorage.getItem('ketch-achats') || '[]'); return Array.isArray(a) ? a : []; } catch (e) { return []; } }
+  function achete(cle) { return lireAchats().indexOf(cle) >= 0; }
+  function acheter(cle, prix) {
+    var porte = lirePorteMonnaie();
+    if (achete(cle) || porte < prix) return false;
+    var a = lireAchats(); a.push(cle);
+    try { localStorage.setItem('ketch-achats', JSON.stringify(a)); } catch (e) { return false; }
+    ecrirePorteMonnaie(porte - prix);
+    return true;
+  }
+  function couleurOuverte(c, m) { return COULEURS_GRATUITES.indexOf(c) >= 0 || c === m.couleurDefaut || achete('couleur:' + c) || garageComplet() || lienGarage; }
+  function debloquee(m) { return achete('voiture:' + m.id) || garageComplet() || lienGarage || meilleurScore() >= m.debloque || (m.id === 'leopard' && etapesGagnees() >= 5); }
   function conditionDeblocage(m) {
-    return m.debloque.toLocaleString('fr-FR') + ' pts' + (m.id === 'leopard' ? ' ou 5 étapes gagnées' : '');
+    return m.debloque.toLocaleString('fr-FR') + ' pts' + (m.id === 'leopard' ? ' ou 5 étapes gagnées' : '') + (PRIX_VOITURES[m.id] ? ', ou ' + PRIX_VOITURES[m.id] + ' G' : '');
   }
   var voiture = VOITURES.ketch;
   try { var vSauve = localStorage.getItem('ketch-voiture'); if (VOITURES[vSauve] && debloquee(VOITURES[vSauve])) voiture = VOITURES[vSauve]; } catch (e) {}
 
   // ---------- Barème des points ----------
   var POINTS = {
-    piéton: 400, véhicule: 200, obstacle: 100, trou: 50,       // retirés à chaque choc
+    piéton: 400, véhicule: 200, obstacle: 100, trou: 50, police: 300, // retirés à chaque choc ou arrestation
     victoire: 1000, parSeconde: 100,                            // fantôme battu, + par seconde d'avance
     propre: [[0, 800], [2, 400], [5, 150]]                      // bonus selon le nombre de chocs
   };
@@ -116,7 +133,7 @@
     return segs;
   }
 
-  // ---------- Les 5 étapes ----------
+  // ---------- Les 8 étapes (chacune apporte une nouveauté) ----------
   // plan : [entrée, tenue, sortie, courbe, dénivelé, répétitions] en segments de 5 m.
   var ETAPES = {
     rondpoint: {
@@ -192,7 +209,50 @@
       musique: { tempo: 128, tonique: 57, gamme: 'mineur' }
     }
   };
-  var ORDRE = ['rondpoint', 'marche', 'poidslourds', 'corniche', 'boulevard'];
+  ETAPES.gombe = {
+    id: 'gombe', numero: 6, nom: 'Poursuite à la Gombe', longueur: 1800, demi: 4.4, nouveaute: 'Police aux trousses',
+    voies: [-0.75, -0.25, 0.25, 0.75], lignes: [{ x: -0.5, type: 'tirets' }, { x: 0, type: 'double' }, { x: 0.5, type: 'tirets' }],
+    vMax: 37, vTurbo: 49, vFantome: 31.5, xFantome: 0.25, nbTrafic: 18, vitesseTrafic: 0.9,
+    couleurs: { sol: ['#8E8A80', '#87837A'], trottoir: ['#C9C3B6', '#BEB8AB'], route: ['#363B46', '#323641'], bord: '#F5F3EA', ligne: '#F5F3EA' },
+    ciel: ['#24407E', '#6FA3D8', '#CFE3F2'], ville: 'tours',
+    plan: [[0, 14, 0, 0, 0], [8, 12, 8, 4, 0], [0, 16, 0, 0, 4], [8, 10, 8, -5, -4], [6, 10, 6, 5, 0], [0, 20, 0, 0, 0],
+      [8, 14, 8, -3, 3], [8, 14, 8, 3, -3], [6, 8, 6, -5, 0], [6, 8, 6, 5, 0], [0, 80, 0, 0, 0]],
+    raccourcis: [{ cote: 1, debut: 820, fin: 980, nom: 'Ruelle de la Gombe' }],
+    passages: [420, 1320], monuments: [{ z: 1000, cote: -1 }],
+    bati: { styles: ['verre', 'verreVert', 'beton', 'verre', 'commerce'], recul: 3.2, hauteur: [16, 60] },
+    typesFixes: [], typesTrafic: ['voiture', 'ketch', 'police', 'voiture', 'bus', 'ketch'],
+    police: { nb: 2, retard: 55 },
+    musique: { tempo: 142, tonique: 52, gamme: 'mineur' }
+  };
+  ETAPES.matonge = {
+    id: 'matonge', numero: 7, nom: 'Matonge by night', longueur: 1700, demi: 3.6, nouveaute: 'De nuit, motos-taxis partout',
+    voies: [-0.5, 0.5], lignes: [{ x: 0, type: 'tirets' }],
+    vMax: 34, vTurbo: 46, vFantome: 29.5, xFantome: 0.5, nbTrafic: 24, vitesseTrafic: 1,
+    couleurs: { sol: ['#6E665C', '#685F56'], trottoir: ['#9A8F80', '#918677'], route: ['#34363F', '#30323A'], bord: '#E8E0CF', ligne: '#F5F3EA' },
+    ciel: ['#05081A', '#151A44', '#4A2A5E'], ville: 'tours', nuit: true,
+    plan: [[0, 14, 0, 0, 0], [6, 10, 6, -4, 0], [6, 10, 6, 4, 2], [0, 14, 0, 0, -2], [8, 12, 8, 3, 0], [5, 6, 5, -4.5, 0],
+      [5, 6, 5, 4.5, 0], [0, 16, 0, 0, 3], [8, 14, 8, -3, -3], [0, 80, 0, 0, 0]],
+    raccourcis: [{ cote: -1, debut: 760, fin: 920, nom: 'Rue Kanda-Kanda' }],
+    passages: [350, 900, 1400],
+    bati: { styles: ['commerce', 'rose', 'bleu', 'ocre', 'creme'], recul: 3.6, hauteur: [8, 22], enseignes: true },
+    typesFixes: [], typesTrafic: ['moto', 'moto', 'moto', 'ketch', 'moto', 'voiture'],
+    musique: { tempo: 118, tonique: 58, gamme: 'mineur' }
+  };
+  ETAPES.limete = {
+    id: 'limete', numero: 8, nom: 'Orage sur Limete', longueur: 1900, demi: 3.8, nouveaute: 'Pluie, éclairs et bus fula-fula',
+    voies: [-0.5, 0.5], lignes: [{ x: 0, type: 'tirets' }],
+    vMax: 35, vTurbo: 46, vFantome: 30, xFantome: 0.5, nbTrafic: 16, vitesseTrafic: 0.9,
+    couleurs: { sol: ['#5E6A55', '#58644F'], trottoir: ['#8C8C88', '#84847F'], route: ['#2B3038', '#282C34'], bord: '#C9CDD6', ligne: '#DADDE3' },
+    ciel: ['#20252F', '#3C4350', '#5E6674'], ville: 'basse', pluie: true,
+    plan: [[0, 16, 0, 0, 0], [8, 14, 8, 3, 0], [0, 12, 0, 0, 3], [8, 14, 8, -3.5, -3], [6, 10, 6, 4, 0], [0, 18, 0, 0, 0],
+      [8, 12, 8, -3, 2], [8, 12, 8, 3, -2], [0, 14, 0, 0, 0], [6, 10, 6, -4, 0], [0, 80, 0, 0, 0]],
+    raccourcis: [{ cote: 1, debut: 980, fin: 1140, nom: 'Chemin de la 12e rue' }],
+    passages: [380, 1260], glissant: [[300, 520], [760, 940], [1380, 1560]],
+    bati: { styles: ['beton', 'commerce', 'creme', 'tole', 'beton'], recul: 4.2, hauteur: [6, 18], clairseme: 0.85 },
+    typesFixes: [], typesTrafic: ['fula', 'fula', 'ketch', 'fula', 'voiture', 'moto'],
+    musique: { tempo: 100, tonique: 53, gamme: 'mineur' }
+  };
+  var ORDRE = ['rondpoint', 'marche', 'poidslourds', 'corniche', 'boulevard', 'gombe', 'matonge', 'limete'];
 
   function zoneRaccourci(E, zz, cote) {
     for (var i = 0; i < E.raccourcis.length; i++) {
@@ -243,11 +303,12 @@
         { z: r.debut + 120, x: r.cote * (b + 0.15), type: 'charrette' }, { z: r.fin - 25, x: r.cote * (b + 0.5), type: 'trou' });
     });
 
+    E.obstacles = []; // plus d'obstacles fixes sur la route : le danger vient du trafic, des piétons et de la police
     E.traficListe = [];
     var couleurs = ['#E8E6E1', '#1E5FD6', '#B42318', '#2F3542', '#1E7D45', '#C9CDD6'];
     for (var i = 0; i < E.nbTrafic; i++) {
       var type = E.typesTrafic[Math.floor(h() * E.typesTrafic.length)];
-      var vit = ({ voiture: 15, ketch: 13, bus: 11, camion: 10, moto: 14, pousse: 2.5 }[type] + h() * (type === 'pousse' ? 1.5 : 7)) * (type === 'pousse' ? 1 : E.vitesseTrafic);
+      var vit = ({ voiture: 15, ketch: 13, bus: 11, camion: 10, moto: 14, pousse: 2.5, police: 16, fula: 10 }[type] + h() * (type === 'pousse' ? 1.5 : 7)) * (type === 'pousse' ? 1 : E.vitesseTrafic);
       var a = Math.floor(h() * voies.length), b2 = a;
       if (h() < 0.5 && type !== 'pousse') b2 = Math.max(0, Math.min(voies.length - 1, a + (h() < 0.5 ? -1 : 1)));
       E.traficListe.push({ z0: 90 + i * (E.longueur - 200) / E.nbTrafic + h() * 40, vit: vit, a: voies[a], b: voies[b2],
@@ -284,7 +345,9 @@
     if (E.industrie) for (var pz0 = 60; pz0 < E.longueur + 300; pz0 += 140) E.decor.push({ z: pz0, x: (pz0 % 280 ? 1 : -1) * (1 + 7 / E.demi), type: 'pylone' });
     var pubs = { rondpoint: ['ROND-POINT VICTOIRE', 'KIN LA BELLE', 'G-CHALLENGE'], marche: ['MARCHÉ CENTRAL', 'PAGNES · WAX', 'G-CHALLENGE'],
       poidslourds: ['ATTENTION CAMIONS', 'G-CHALLENGE', 'ROULEZ PRUDEMMENT'], corniche: ['LE FLEUVE CONGO', 'G-CHALLENGE · BÊTA', 'CORNICHE'],
-      boulevard: ['LA COURSE DES KETCH', 'KIN LA BELLE', 'G-CHALLENGE · BÊTA', 'KINSHASA 2026'] }[E.id];
+      boulevard: ['LA COURSE DES KETCH', 'KIN LA BELLE', 'G-CHALLENGE · BÊTA', 'KINSHASA 2026'],
+      gombe: ['GOMBE CENTRE', 'G-CHALLENGE', 'CONTRÔLES RENFORCÉS'], matonge: ['MATONGE BY NIGHT', 'RUMBA LIVE', 'G-CHALLENGE · BÊTA'],
+      limete: ['LIMETE 12E RUE', 'KIN EXPRESS', 'G-CHALLENGE'] }[E.id] || ['G-CHALLENGE'];
     for (var pz = 250, n2 = 0; pz < E.longueur; pz += 330, n2++) {
       var cotePub = E.eau === 1 ? -1 : (n2 % 2 ? 1 : -1);
       if (!zoneRaccourci(E, pz, cotePub)) E.decor.push({ z: pz, x: cotePub * (1 + 2.2 / E.demi), type: 'pub', texte: pubs[n2 % pubs.length] });
@@ -421,7 +484,7 @@
     var dir = (appuye('droite') ? 1 : 0) - (appuye('gauche') ? 1 : 0);
     var crisse = etat === 'course' && v > 22 && ((dir && Math.abs(segmentA(z).courbe) > 2) || (dir && zoneGlissante(E, z)) || (appuye('frein') && v > 25));
     son.gCriss.gain.setTargetAtTime(crisse ? 0.05 : 0, t, 0.08);
-    var amb = enCourse || etat === 'fin' ? { marche: [700, 0.07], rondpoint: [500, 0.05], boulevard: [400, 0.04], poidslourds: [180, 0.05], corniche: [300, 0.05] }[E.id] : [300, 0];
+    var amb = enCourse || etat === 'fin' ? { marche: [700, 0.07], rondpoint: [500, 0.05], boulevard: [400, 0.04], poidslourds: [180, 0.05], corniche: [300, 0.05], gombe: [450, 0.05], matonge: [600, 0.06], limete: [2600, 0.11] }[E.id] || [400, 0.05] : [300, 0];
     son.fAmb.frequency.setTargetAtTime(amb[0], t, 0.3); son.gAmb.gain.setTargetAtTime(amb[1], t, 0.5);
   }
 
@@ -470,7 +533,7 @@
   var etat = 'accueil', temps = 0, compte = 0, z = 0, v = 0, x = 0, energie = 1, turboActif = false, choc = 0;
   var touches = {}, obstacles = [], trafic = [], pietons = [], zFantome = 0, raccourci = null, decalDecor = 0;
   var message = '', messageTemps = 0, derniereSeconde = 4, glisse = false;
-  var bonus = [], particules = [], bonusPts = 0, frolés = 0, pieces = 0, arriere = false, tempsArret = 0, bipArriere = 0, grace = 0, points = 0, gagnes = 0, perdus = 0, chocs = { piéton: 0, véhicule: 0, obstacle: 0, trou: 0 }, bulles = [], flashScore = 0;
+  var defiEnCours = false, voitureAvantDefi = null, police = [], sirene = 0, eclair = 0, prochainEclair = 8, lumieres = [], bonus = [], particules = [], bonusPts = 0, frolés = 0, pieces = 0, arriere = false, tempsArret = 0, bipArriere = 0, grace = 0, points = 0, gagnes = 0, perdus = 0, chocs = { piéton: 0, véhicule: 0, obstacle: 0, trou: 0, police: 0 }, bulles = [], flashScore = 0;
 
   function lireRecord(id) {
     try { var r = JSON.parse(localStorage.getItem('ketch-records-' + id) || 'null'); return r && typeof r === 'object' ? r : null; } catch (e) { return null; }
@@ -483,8 +546,10 @@
     energie = 1; turboActif = false; choc = 0; zFantome = 0; touches = {}; raccourci = null; decalDecor = 0; glisse = false;
     message = ''; messageTemps = 0; derniereSeconde = 4;
     bonus = E.bonus.map(function (b) { return { z: b.z, x: b.x, type: b.type, pris: false }; });
-    particules = []; bonusPts = 0; frolés = 0; pieces = 0;
-    arriere = false; tempsArret = 0; bipArriere = 0; grace = 0; points = 0; gagnes = 0; perdus = 0; chocs = { piéton: 0, véhicule: 0, obstacle: 0, trou: 0 }; bulles = []; flashScore = 0;
+    particules = []; bonusPts = 0; frolés = 0; pieces = 0; sirene = 0; eclair = 0; prochainEclair = 6;
+    police = [];
+    if (E.police) for (var ip = 0; ip < E.police.nb; ip++) police.push({ z: -E.police.retard - ip * 45, x: E.voies[ip % E.voies.length], v: 0, arrets: 0 });
+    arriere = false; tempsArret = 0; bipArriere = 0; grace = 0; points = 0; gagnes = 0; perdus = 0; chocs = { piéton: 0, véhicule: 0, obstacle: 0, trou: 0, police: 0 }; bulles = []; flashScore = 0;
     obstacles = E.obstacles.map(function (o) { return { z: o.z, x: o.x, type: o.type, touche: false }; });
     trafic = E.traficListe.map(function (t) { return { def: t, z: t.z0, x: t.a, pousse: 0, klaxon: -9, devant: true }; });
     pietons = E.pietons.map(function (p) { return { def: p, z: p.z, x: p.cote * (1 + 1.2 / E.demi), parti: false, ecarte: false }; });
@@ -579,9 +644,9 @@
 
   // ---------- Simulation ----------
   var LARGEUR = { cone: 0.35, trou: 0.7, flaque: 0.9, bosse: 99, charrette: 0.85, barriere: 1.0, etal: 1.1, bassines: 0.7,
-    voiture: 0.9, ketch: 0.9, bus: 1.25, camion: 1.25, moto: 0.45, pousse: 0.7, pieton: 0.35 };
+    voiture: 0.9, ketch: 0.9, bus: 1.25, camion: 1.25, moto: 0.45, pousse: 0.7, pieton: 0.35, police: 0.9, fula: 1.25 };
   var PROFONDEUR = { cone: 1.2, trou: 1.4, flaque: 2, bosse: 1, charrette: 2.2, barriere: 1.2, etal: 2.2, bassines: 1.4,
-    voiture: 4, ketch: 3.8, bus: 6, camion: 6.5, moto: 2, pousse: 2.4, pieton: 1 };
+    voiture: 4, ketch: 3.8, bus: 6, camion: 6.5, moto: 2, pousse: 2.4, pieton: 1, police: 4, fula: 6.5 };
   function touche(oz, ox, type) {
     return Math.abs(oz - z) < PROFONDEUR[type] && Math.abs(ox - x) * E.demi < LARGEUR[type] + DEMI_KETCH;
   }
@@ -639,7 +704,7 @@
     var surGlissant = !raccourci && zoneGlissante(E, z);
     if (surGlissant && !glisse) annoncer('Chaussée glissante !');
     glisse = surGlissant;
-    var adherence = surGlissant ? 0.6 : 1;
+    var adherence = surGlissant ? 0.6 : E.pluie ? 0.82 : 1;
     var dir = (appuye('droite') ? 1 : 0) - (appuye('gauche') ? 1 : 0);
     x += dir * (6 / E.demi) * dt * (0.45 + 0.55 * Math.min(1, Math.abs(v) / E.vMax)) * adherence * voiture.direction;
     if (!raccourci) x -= segmentA(z).courbe * 0.09 * (v / E.vMax) * dt * (surGlissant ? 2.2 : 1);
@@ -684,12 +749,12 @@
       }
       var devant = t.z - z;
       if (devant > 0 && devant < 16 && Math.abs(t.x - x) * E.demi < 1.6 && v > d.vit + 6 && temps - t.klaxon > 3) {
-        t.klaxon = temps; klaxon(d.type === 'bus' || d.type === 'camion');
+        t.klaxon = temps; klaxon(d.type === 'bus' || d.type === 'camion' || d.type === 'fula');
       }
       if (grace <= 0 && temps - (t.dernierChoc || -9) > 3 && touche(t.z, t.x, d.type)) {
         t.dernierChoc = temps; t.pousse += 12; var avantChoc = v;
         secousse(true); v = Math.max(Math.min(avantChoc * 0.5, d.vit), v);
-        retirer('véhicule', { pousse: 'pousse-pousse', moto: 'moto', bus: 'bus', camion: 'camion', ketch: 'taxi', voiture: 'voiture' }[d.type]);
+        retirer('véhicule', { pousse: 'pousse-pousse', moto: 'moto', bus: 'bus', camion: 'camion', ketch: 'taxi', voiture: 'voiture', police: 'voiture de police', fula: 'fula-fula' }[d.type]);
       }
     });
 
@@ -707,6 +772,34 @@
         retirer('piéton', 'piéton');
       }
     });
+    // Police (étape 6) : les voitures de police vous prennent en chasse. Si elles vous rattrapent, -300 et gros ralentissement.
+    police.forEach(function (pc, ip) {
+      var ecartP = z - pc.z, vRef = E.vMax * 0.96;
+      var cibleP = ecartP > 110 ? Math.max(v + 10, vRef) : ecartP > 40 ? vRef * 1.04 : vRef;
+      if (temps < 1.5 + ip) cibleP = 0;
+      pc.v += Math.max(-12 * dt, Math.min(9 * dt, cibleP - pc.v));
+      pc.z += pc.v * dt;
+      pc.x += ((x > 0 ? 0.25 : -0.25) - pc.x) * dt;
+      if (ecartP < 3.5 && grace <= 0) {
+        pc.arrets++; pc.z = z - 75; pc.v = vRef * 0.6;
+        secousse(true); choc = 0.5; annoncer('Arrêté par la police !');
+        retirer('police', 'contrôle de police');
+      }
+    });
+    if (police.length) {
+      var plusPres = Math.min.apply(null, police.map(function (pc) { return z - pc.z; }));
+      sirene -= dt;
+      if (plusPres < 140 && sirene <= 0) {
+        sirene = 0.42; var vol = 0.03 + 0.11 * Math.max(0, 1 - plusPres / 140);
+        sonNote(Math.floor(temps / 0.42) % 2 ? 960 : 720, 0, 0.4, vol, 'triangle');
+      }
+    }
+    // Orage (étape 8) : éclairs et tonnerre, gerbes d'eau derrière les roues.
+    if (E.pluie) {
+      prochainEclair -= dt; if (eclair > 0) eclair = Math.max(0, eclair - dt * 2.2);
+      if (prochainEclair <= 0) { prochainEclair = 7 + Math.random() * 7; eclair = 1; sonBruit(90, 'lowpass', 1.6, 0.5, 40); }
+      if (!mouvementReduit && v > 15 && Math.random() < 0.5) { emettre(1, VX - 80, 372, 'fumee'); emettre(1, VX + 80, 372, 'fumee'); }
+    }
     // Bonus : pièces (+50) et bidons de turbo (+30, turbo rechargé de moitié).
     bonus.forEach(function (b) {
       if (b.pris || Math.abs(b.z - z) > 2 || Math.abs(b.x - x) * E.demi > 1.3) return;
@@ -726,7 +819,7 @@
   }
 
   // Le fantôme s'adapte à la voiture : avec une sportive, il roule plus vite.
-  function vFantome() { return E.vFantome * voiture.fantome; }
+  function vFantome() { return E.vFantome * voiture.fantome * 1.13; } // +13 % depuis le retrait des obstacles fixes
   function tempsFantome() {
     var vf = vFantome(), tA = vf / 9, dA = 0.5 * 9 * tA * tA;
     return tA + (E.longueur - dA) / vf;
@@ -736,7 +829,7 @@
     etat = 'fin';
     musiqueArreter();
     var ecart = tempsFantome() - temps;
-    var nbChocs = chocs.piéton + chocs.véhicule + chocs.obstacle + chocs.trou;
+    var nbChocs = chocs.piéton + chocs.véhicule + chocs.obstacle + chocs.trou + chocs.police;
     var route = Math.round(gagnes);
     var bonusFantome = ecart > 0 ? POINTS.victoire + Math.round(ecart * POINTS.parSeconde) : 0;
     var bonusPropre = 0;
@@ -745,10 +838,13 @@
     var etoiles = 1 + (ecart > 0 ? 1 : 0) + (ecart > 0 && nbChocs <= 2 ? 1 : 0);
     if (ecart > 0 && !mouvementReduit) emettre(160, VX, -10, 'confetti');
 
+    var gainG = pieces + 5 * etoiles + (defiEnCours ? 15 : 0);
+    var rangDefi = defiEnCours ? enregistrerEssaiDefi(total, temps) : 0;
+    ecrirePorteMonnaie(lirePorteMonnaie() + gainG);
     var avantOuvertes = ORDRE_VOITURES.filter(function (id) { return debloquee(VOITURES[id]); });
-    var rec = lireRecord(E.id) || {}, nouveau = !rec.score || total > rec.score;
-    var nouveauTemps = !rec.temps || temps < rec.temps;
-    ecrireRecord(E.id, { score: Math.max(total, rec.score || 0), temps: Math.min(temps, rec.temps || 1e9), gagne: !!rec.gagne || ecart > 0, etoiles: Math.max(etoiles, rec.etoiles || 0) });
+    var rec = lireRecord(E.id) || {}, nouveau = !defiEnCours && (!rec.score || total > rec.score);
+    var nouveauTemps = !defiEnCours && (!rec.temps || temps < rec.temps);
+    if (!defiEnCours) ecrireRecord(E.id, { score: Math.max(total, rec.score || 0), temps: Math.min(temps, rec.temps || 1e9), gagne: !!rec.gagne || ecart > 0, etoiles: Math.max(etoiles, rec.etoiles || 0) });
     [523, 659, 784, 1047].forEach(function (f, j) { sonNote(f, j * 0.12, 0.3, 0.2); });
 
     document.getElementById('finEtape').textContent = 'Étape ' + E.numero + ' · ' + E.nom + ' · ' + voiture.nom + ' · ' + chrono(temps);
@@ -773,9 +869,11 @@
     });
     var debloquees = ORDRE_VOITURES.filter(function (id) { return avantOuvertes.indexOf(id) < 0 && debloquee(VOITURES[id]); })
       .map(function (id) { return VOITURES[id]; });
-    document.getElementById('finDetail').textContent = (nouveau ? 'Nouveau meilleur score !' : 'Meilleur score : ' + rec.score.toLocaleString('fr-FR')) +
+    document.getElementById('finDetail').textContent = '+' + gainG + ' G (porte-monnaie : ' + lirePorteMonnaie() + ' G) · ' + (defiEnCours ? 'Score du défi (hors records d\'étape)' : nouveau ? 'Nouveau meilleur score !' : 'Meilleur score : ' + (rec.score || 0).toLocaleString('fr-FR')) +
       (nouveauTemps ? ' · Nouveau meilleur temps' : '') +
-      (debloquees.length ? ' · Voiture débloquée : ' + debloquees.map(function (m) { return m.nom; }).join(', ') + ' !' : '');
+      (debloquees.length ? ' · Voiture débloquée : ' + debloquees.map(function (m) { return m.nom; }).join(', ') + ' !' : '') +
+      (defiEnCours ? ' · Défi du jour : ' + (rangDefi === 1 ? '1re place !' : rangDefi + 'e place') + ' · série ' + lireSerie().serie + ' j' : '');
+    var bfc = document.getElementById('boutonFinClassement'); if (bfc) bfc.hidden = !defiEnCours;
     majVoitures();
     panneauFin.hidden = false;
     majRecords();
@@ -819,7 +917,11 @@
       var nx = (((n[0] - dec * 0.1 + temps * 4) % (W + 200)) + W + 200) % (W + 200) - 100;
       ctx.beginPath(); ctx.ellipse(nx, n[1], n[2], n[2] * 0.22, 0, 0, 7); ctx.ellipse(nx + n[2] * 0.4, n[1] - 8, n[2] * 0.5, n[2] * 0.2, 0, 0, 7); ctx.fill();
     });
-    if (E.ville !== 'basse') { ctx.globalAlpha = 0.85; ctx.fillStyle = '#FFB347'; ctx.beginPath(); ctx.arc(((610 - dec * 0.15) % W + W) % W, 150, 30, 0, 7); ctx.fill(); ctx.globalAlpha = 1; }
+    if (E.nuit) {
+      ctx.fillStyle = 'rgba(255,255,255,.8)';
+      for (var et = 0; et < 40; et++) ctx.fillRect((et * 97 + 13) % W, (et * 53) % (HORIZON - 70), 2, 2);
+      ctx.fillStyle = '#F4F1DE'; ctx.beginPath(); ctx.arc(((640 - dec * 0.15) % W + W) % W, 50, 20, 0, 7); ctx.fill();
+    } else if (E.ville !== 'basse') { ctx.globalAlpha = 0.85; ctx.fillStyle = '#FFB347'; ctx.beginPath(); ctx.arc(((610 - dec * 0.15) % W + W) % W, 150, 30, 0, 7); ctx.fill(); ctx.globalAlpha = 1; }
     var d1 = ((dec * 0.25) % W + W) % W, d2 = ((dec * 0.5) % W + W) % W;
     for (var k = -1; k <= 1; k++) {
       var o1 = k * W - d1, o2 = k * W - d2;
@@ -1012,6 +1114,7 @@
     ctx.stroke(); ctx.restore();
   }
   function lampadaire(sx, sy, s, cote) {
+    lumiere(sx - cote * 110 * s, sy - 600 * s, 260 * s, '255,214,140');
     ctx.save(); ctx.translate(sx, sy); ctx.scale(s, s);
     ctx.fillStyle = '#4A505C'; ctx.fillRect(-4, -620, 8, 620);
     ctx.fillRect(Math.min(0, -cote * 90), -620, 90, 7);
@@ -1030,6 +1133,7 @@
     ctx.restore();
   }
   function pub(sx, sy, s, texte) {
+    lumiere(sx, sy - 455 * s, 230 * s, '255,200,20');
     ctx.save(); ctx.translate(sx, sy); ctx.scale(s, s);
     ctx.fillStyle = '#4A505C'; ctx.fillRect(-60, -360, 10, 360); ctx.fillRect(50, -360, 10, 360);
     ctx.fillStyle = '#0E1630'; rect(-190, -560, 380, 210, 10); ctx.fill();
@@ -1162,8 +1266,14 @@
       ctx.fillRect(p.c - p.w * 0.97 + i * p.w * 1.94 / 8, p.y - Math.max(1.5, 0.12 * p.k), p.w * 1.94 / 8 + 0.5, Math.max(1.5, 0.12 * p.k));
     }
   }
+  // De nuit, chaque source de lumière est notée ici puis redessinée par-dessus l'obscurité.
+  function lumiere(lx, ly, rayon, couleur) { if (E.nuit) lumieres.push({ x: lx, y: ly, r: rayon, c: couleur }); }
   function vehicule(t, sx, sy, s) {
     var d = t.def, type = d.type;
+    var demiL = type === 'moto' ? 0 : (type === 'bus' || type === 'camion' || type === 'fula') ? 100 : 80;
+    if (type === 'moto') lumiere(sx, sy - 68 * s, 60 * s, '255,60,48');
+    else if (type !== 'pousse') { lumiere(sx - demiL * s, sy - 61 * s, 70 * s, '255,60,48'); lumiere(sx + demiL * s, sy - 61 * s, 70 * s, '255,60,48'); }
+    if (type === 'police') lumiere(sx, sy - 215 * s, 140 * s, Math.floor(temps * 6) % 2 ? '60,120,255' : '255,50,50');
     if (type === 'ketch') { ketch(sx, sy, s * 0.92, false, 0, true); return; }
     if (type === 'pousse') {
       ctx.save(); ctx.translate(sx, sy); ctx.scale(s, s);
@@ -1174,6 +1284,35 @@
     }
     ctx.save(); ctx.translate(sx, sy); ctx.scale(s, s);
     ctx.globalAlpha = 0.35; ctx.fillStyle = '#000'; ctx.beginPath(); ctx.ellipse(0, 2, type === 'moto' ? 50 : 125, 12, 0, 0, 7); ctx.fill(); ctx.globalAlpha = 1;
+    if (type === 'fula') {
+      // Fula-fula : vieux camion transformé en bus, chargé jusqu'au toit.
+      ctx.fillStyle = '#151515'; rect(-115, -40, 44, 40, 6); ctx.fill(); rect(71, -40, 44, 40, 6); ctx.fill();
+      ctx.fillStyle = '#1E5FD6'; rect(-125, -170, 250, 146, 10); ctx.fill();
+      ctx.fillStyle = '#FFC814'; rect(-125, -300, 250, 136, 10); ctx.fill();
+      ctx.fillStyle = '#1C2433'; rect(-105, -280, 210, 92, 6); ctx.fill();
+      ctx.fillStyle = HABITS[d.n % HABITS.length]; for (var tp = 0; tp < 5; tp++) { ctx.beginPath(); ctx.arc(-80 + tp * 40, -214, 15, 0, 7); ctx.fill(); }
+      ctx.fillStyle = '#4A2E1F'; for (tp = 0; tp < 5; tp++) { ctx.beginPath(); ctx.arc(-80 + tp * 40, -240, 12, 0, 7); ctx.fill(); }
+      ctx.fillStyle = '#8A5A2B'; rect(-100, -340, 80, 42, 6); ctx.fill(); ctx.fillStyle = '#B42318'; rect(-10, -334, 60, 36, 6); ctx.fill(); ctx.fillStyle = '#1E7D45'; rect(56, -330, 44, 32, 6); ctx.fill();
+      ctx.fillStyle = '#FFFFFF'; ctx.font = '800 22px Inter, sans-serif'; ctx.textAlign = 'center'; ctx.fillText('KIN EXPRESS', 0, -128);
+      ctx.fillStyle = '#FF3B30'; rect(-117, -70, 34, 18, 5); ctx.fill(); rect(83, -70, 34, 18, 5); ctx.fill();
+      ctx.fillStyle = '#FFFFFF'; rect(-30, -62, 60, 20, 3); ctx.fill();
+      ctx.fillStyle = '#2A2A2A'; rect(-121, -36, 242, 12, 6); ctx.fill();
+      ctx.restore(); return;
+    }
+    if (type === 'police') {
+      ctx.fillStyle = '#151515'; rect(-90, -40, 40, 40, 6); ctx.fill(); rect(50, -40, 40, 40, 6); ctx.fill();
+      ctx.fillStyle = '#F2F4F7'; rect(-100, -150, 200, 126, 26); ctx.fill();
+      ctx.fillStyle = '#F2F4F7'; ctx.beginPath(); ctx.moveTo(-70, -146); ctx.lineTo(-52, -200); ctx.lineTo(52, -200); ctx.lineTo(70, -146); ctx.fill();
+      ctx.fillStyle = '#1C2433'; ctx.beginPath(); ctx.moveTo(-58, -150); ctx.lineTo(-44, -190); ctx.lineTo(44, -190); ctx.lineTo(58, -150); ctx.fill();
+      ctx.fillStyle = '#1E3A8A'; ctx.fillRect(-100, -112, 200, 18);
+      ctx.fillStyle = '#FFFFFF'; ctx.font = '800 15px Inter, sans-serif'; ctx.textAlign = 'center'; ctx.fillText('POLICE', 0, -98);
+      var bleu = Math.floor(temps * 6) % 2;
+      ctx.fillStyle = bleu ? '#3B82F6' : '#1E3A8A'; rect(-44, -214, 42, 14, 4); ctx.fill();
+      ctx.fillStyle = bleu ? '#7F1D1D' : '#EF4444'; rect(2, -214, 42, 14, 4); ctx.fill();
+      ctx.fillStyle = '#FF3B30'; rect(-92, -70, 34, 18, 5); ctx.fill(); rect(58, -70, 34, 18, 5); ctx.fill();
+      ctx.fillStyle = '#2A2A2A'; rect(-96, -36, 192, 12, 6); ctx.fill();
+      ctx.restore(); return;
+    }
     if (type === 'moto') {
       ctx.fillStyle = '#1A1A1A'; rect(-12, -60, 24, 60, 8); ctx.fill();
       ctx.fillStyle = '#B42318'; rect(-30, -96, 60, 40, 10); ctx.fill();
@@ -1400,6 +1539,58 @@
     }
     ctx.restore();
   }
+  // Nuit : on assombrit toute la scène, puis on rallume phares, feux, lampadaires et enseignes.
+  function ambianceNuit() {
+    ctx.save();
+    ctx.globalCompositeOperation = 'multiply';
+    ctx.fillStyle = '#2E3766'; ctx.fillRect(0, 0, W, H);
+    ctx.globalCompositeOperation = 'lighter';
+    var g = ctx.createRadialGradient(VX, 330, 20, VX, 250, 300);
+    g.addColorStop(0, 'rgba(255,236,190,.28)'); g.addColorStop(1, 'rgba(255,236,190,0)');
+    ctx.fillStyle = g; ctx.beginPath(); ctx.moveTo(VX - 110, 360); ctx.lineTo(VX - 330, HORIZON + 30); ctx.lineTo(VX + 330, HORIZON + 30); ctx.lineTo(VX + 110, 360); ctx.fill();
+    lumieres.concat([{ x: VX - 95, y: 330, r: 60, c: '255,60,48' }, { x: VX + 95, y: 330, r: 60, c: '255,60,48' }]).forEach(function (l) {
+      if (l.r < 2) return;
+      var gl = ctx.createRadialGradient(l.x, l.y, 0, l.x, l.y, l.r);
+      gl.addColorStop(0, 'rgba(' + l.c + ',.55)'); gl.addColorStop(1, 'rgba(' + l.c + ',0)');
+      ctx.fillStyle = gl; ctx.fillRect(l.x - l.r, l.y - l.r, l.r * 2, l.r * 2);
+    });
+    ctx.restore();
+  }
+  var GOUTTES = [];
+  for (var ig = 0; ig < 110; ig++) GOUTTES.push([Math.random() * 900, Math.random() * 420, 0.6 + Math.random() * 0.8]);
+  function ambiancePluie() {
+    ctx.fillStyle = 'rgba(70,80,100,.18)'; ctx.fillRect(0, 0, W, H);
+    if (!mouvementReduit) {
+      ctx.strokeStyle = 'rgba(210,225,245,.45)'; ctx.lineWidth = 1.4; ctx.beginPath();
+      GOUTTES.forEach(function (g) {
+        var gy = (g[1] + temps * 700 * g[2]) % 420 - 20, gx = (g[0] - temps * 90 * g[2] + decalDecor * 0.3) % 900;
+        if (gx < 0) gx += 900;
+        ctx.moveTo(gx, gy); ctx.lineTo(gx - 5, gy + 18 * g[2]);
+      });
+      ctx.stroke();
+    }
+    if (eclair > 0) { ctx.fillStyle = 'rgba(235,240,255,' + (eclair * (mouvementReduit ? 0.25 : 0.6)) + ')'; ctx.fillRect(0, 0, W, H); }
+  }
+  // Police : radar en bas de l'écran et gyrophares sur les bords quand elle se rapproche.
+  function radarPolice() {
+    if (!police.length || etat !== 'course') return;
+    var pres = Math.min.apply(null, police.map(function (pc) { return z - pc.z; }));
+    if (pres < 60 && !mouvementReduit) {
+      var a = 0.35 * (1 - pres / 60), bleu = Math.floor(temps * 6) % 2;
+      var g = ctx.createLinearGradient(0, 0, 90, 0);
+      g.addColorStop(0, bleu ? 'rgba(60,120,255,' + a + ')' : 'rgba(255,50,50,' + a + ')'); g.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = g; ctx.fillRect(0, 0, 90, H);
+      var g2 = ctx.createLinearGradient(W, 0, W - 90, 0);
+      g2.addColorStop(0, bleu ? 'rgba(255,50,50,' + a + ')' : 'rgba(60,120,255,' + a + ')'); g2.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = g2; ctx.fillRect(W - 90, 0, 90, H);
+    }
+    var texte = pres > 200 ? 'Police semée !' : 'Police à ' + Math.max(0, Math.round(pres)) + ' m';
+    ctx.font = '800 14px Inter, sans-serif'; ctx.textAlign = 'center';
+    var lw = ctx.measureText(texte).width + 44;
+    ctx.fillStyle = pres < 40 ? 'rgba(180,35,24,.92)' : 'rgba(14,22,48,.85)'; rect(16, 84, lw, 28, 14); ctx.fill();
+    ctx.fillStyle = Math.floor(temps * 6) % 2 ? '#3B82F6' : '#EF4444'; ctx.beginPath(); ctx.arc(32, 98, 6, 0, 7); ctx.fill();
+    ctx.fillStyle = '#FFFFFF'; ctx.fillText(texte, 16 + lw / 2 + 8, 103);
+  }
   function lignesVitesse() {
     var seuil = E.vMax * voiture.vitesse * 0.8;
     if (mouvementReduit || etat !== 'course' || (v < seuil && !turboActif)) return;
@@ -1422,6 +1613,7 @@
   }
   function scene(vue) {
     var objets = [];
+    lumieres = [];
     function poser(zz, xx, dessin) {
       var e = vue.ecrans[Math.floor(zz / SEG)];
       if (!e) return;
@@ -1486,8 +1678,8 @@
     ctx.textAlign = 'left';
     boite(16, 14, 282, 62, 14);
     ctx.fillStyle = '#FFC814'; ctx.font = '700 11px Inter, sans-serif';
-    ctx.fillText('ÉTAPE ' + E.numero + ' / 5 · ' + String(E.longueur / 1000).replace('.', ',') + ' KM · ' + (v < -0.2 ? 'R · ' : '') + Math.round(Math.abs(v) * 3.6) + ' KM/H', 32, 38);
-    ctx.fillStyle = '#FFFFFF'; ctx.font = '700 16px Inter, sans-serif'; ctx.fillText(E.nom, 32, 60);
+    ctx.fillText('ÉTAPE ' + E.numero + ' / ' + ORDRE.length + ' · ' + String(E.longueur / 1000).replace('.', ',') + ' KM · ' + (v < -0.2 ? 'R · ' : '') + Math.round(Math.abs(v) * 3.6) + ' KM/H', 32, 38);
+    ctx.fillStyle = '#FFFFFF'; ctx.font = '700 16px Inter, sans-serif'; ctx.fillText((defiEnCours ? 'Défi · ' : '') + E.nom, 32, 60);
 
     boite(356, 14, 132, 44, 12);
     ctx.textAlign = 'center'; ctx.fillStyle = '#FFFFFF'; ctx.font = '800 24px "Bricolage Grotesque", Inter, sans-serif';
@@ -1564,8 +1756,11 @@
     if (voiture === VOITURES.ketch) ketch(VX, 384 + cahot, 0.78, false, penche);
     else sportive(voiture, VX, 384 + cahot, 0.78, penche);
     particulesDessiner();
+    if (E.nuit) ambianceNuit();
+    if (E.pluie) ambiancePluie();
     ctx.restore();
     hud();
+    radarPolice();
     if (etat === 'compte') {
       var n = Math.ceil(compte - 1);
       ctx.fillStyle = 'rgba(14,22,48,.3)'; ctx.fillRect(0, 0, W, H);
@@ -1633,6 +1828,8 @@
   }
   var infoVoiture = document.getElementById('infoVoiture');
   var vueGarage = voiture; // voiture affichée dans la vitrine (peut être verrouillée)
+  var couleurVisee = null; // peinture verrouillée que le joueur regarde
+  var NOMS_COULEURS = { jaune: 'Jaune', noir: 'Noir', blanc: 'Blanc', vert: 'Vert', rouge: 'Rouge', bleu: 'Bleu', orange: 'Orange', violet: 'Violet' };
   var STATS = [['Vitesse', 'vitesse'], ['Accélération', 'accel'], ['Maniabilité', 'direction'], ['Robustesse', 'robuste']];
   function barreStat(cle, val) {
     var vals = ORDRE_VOITURES.map(function (k) { return VOITURES[k][cle]; });
@@ -1644,7 +1841,20 @@
     var nom = document.getElementById('nomVoiture'), type = document.getElementById('typeVoiture');
     if (nom) nom.textContent = m.nom;
     if (type) type.textContent = m.type;
-    if (infoVoiture) infoVoiture.textContent = ouverte ? '' : '\uD83D\uDD12 Se débloque avec ' + conditionDeblocage(m) + ' sur une étape · votre meilleur score : ' + meilleurScore().toLocaleString('fr-FR') + (m.id === 'leopard' ? ' · étapes gagnées : ' + etapesGagnees() + ' / 5' : '');
+    if (infoVoiture) infoVoiture.textContent = ouverte ? (couleurVisee && !couleurOuverte(couleurVisee, voiture) ? 'Peinture ' + NOMS_COULEURS[couleurVisee] + ' : ' + PRIX_COULEUR + ' G, valable pour toutes vos voitures.' : '')
+      : '\uD83D\uDD12 ' + m.debloque.toLocaleString('fr-FR') + ' pts sur une étape' + (m.id === 'leopard' ? ' ou 5 étapes gagnées' : '') + ' (votre record : ' + meilleurScore().toLocaleString('fr-FR') + '), ou achetez-la avec vos pièces G.';
+    var porte = lirePorteMonnaie(), pm = document.getElementById('porteMonnaie');
+    if (pm) pm.textContent = porte.toLocaleString('fr-FR') + ' G';
+    var ba = document.getElementById('boutonAcheter');
+    if (ba) {
+      var prix = !ouverte ? PRIX_VOITURES[m.id] : couleurVisee && !couleurOuverte(couleurVisee, voiture) ? PRIX_COULEUR : 0;
+      ba.hidden = !prix;
+      if (prix) {
+        var quoi = !ouverte ? m.nom : 'la peinture ' + NOMS_COULEURS[couleurVisee];
+        ba.setAttribute('aria-disabled', porte >= prix ? 'false' : 'true');
+        ba.textContent = porte >= prix ? 'Acheter ' + quoi + ' · ' + prix + ' G' : quoi.charAt(0).toUpperCase() + quoi.slice(1) + ' : ' + prix + ' G · il vous manque ' + (prix - porte) + ' G';
+      }
+    }
     var st = document.getElementById('statsVoiture');
     if (st) st.innerHTML = STATS.map(function (k) {
       var pc = barreStat(k[1], m[k[1]]);
@@ -1677,7 +1887,7 @@
     }
   }
   function montrer(m) {
-    vueGarage = m;
+    vueGarage = m; couleurVisee = null;
     if (debloquee(m)) { voiture = m; try { localStorage.setItem('ketch-voiture', m.id); } catch (e) {} }
     majVoitures();
   }
@@ -1697,9 +1907,28 @@
       b.title = ouverte ? m.nom + ' · ' + m.type : m.nom + ' · verrouillée : ' + conditionDeblocage(m);
     });
     Array.prototype.forEach.call(document.querySelectorAll('[data-couleur]'), function (b) {
-      b.setAttribute('aria-pressed', b.getAttribute('data-couleur') === voiture.teinte ? 'true' : 'false');
+      var c = b.getAttribute('data-couleur');
+      b.setAttribute('aria-pressed', c === voiture.teinte ? 'true' : 'false');
+      b.setAttribute('aria-disabled', couleurOuverte(c, voiture) ? 'false' : 'true');
+      b.title = NOMS_COULEURS[c] + (couleurOuverte(c, voiture) ? '' : ' · ' + PRIX_COULEUR + ' G');
     });
   }
+  var boutonAcheter = document.getElementById('boutonAcheter');
+  if (boutonAcheter) boutonAcheter.addEventListener('click', function () {
+    var m = vueGarage;
+    if (!debloquee(m)) {
+      if (!acheter('voiture:' + m.id, PRIX_VOITURES[m.id] || 1e9)) return;
+      sonNote(880, 0, 0.12, 0.15, 'square'); sonNote(1320, 0.1, 0.25, 0.15, 'square');
+      if (infoVoiture) infoVoiture.textContent = m.nom + ' est à vous !';
+      montrer(m); return;
+    }
+    if (couleurVisee && acheter('couleur:' + couleurVisee, PRIX_COULEUR)) {
+      sonNote(880, 0, 0.12, 0.15, 'square');
+      voiture.teinte = couleurVisee; voiture.couleur = COULEURS[couleurVisee];
+      try { localStorage.setItem('ketch-couleur-' + voiture.id, couleurVisee); } catch (e) {}
+      couleurVisee = null; majVoitures();
+    }
+  });
   Array.prototype.forEach.call(document.querySelectorAll('[data-voiture]'), function (b) {
     b.addEventListener('click', function () {
       montrer(VOITURES[b.getAttribute('data-voiture')]);
@@ -1709,6 +1938,8 @@
     b.addEventListener('click', function () {
       var c = b.getAttribute('data-couleur');
       if (!debloquee(vueGarage)) return;
+      if (!couleurOuverte(c, voiture)) { couleurVisee = c; majVoitures(); return; }
+      couleurVisee = null;
       voiture.teinte = c; voiture.couleur = COULEURS[c];
       try { localStorage.setItem('ketch-couleur-' + voiture.id, c); } catch (e) {}
       majVoitures();
@@ -1726,16 +1957,101 @@
     if (le && carte) le.textContent = carte.querySelector('.jeu-num').textContent + ' · ' + carte.querySelector('.jeu-nom').textContent;
   }
   var boutonLancer = document.getElementById('boutonLancer');
-  if (boutonLancer) boutonLancer.addEventListener('click', function () { vueGarage = voiture; lancer(etapeChoisie); });
+  if (boutonLancer) boutonLancer.addEventListener('click', function () { quitterDefi(); vueGarage = voiture; lancer(etapeChoisie); });
   document.getElementById('boutonRejouer').addEventListener('click', function () { lancer(); });
   var suivante = document.getElementById('boutonSuivante');
-  if (suivante) suivante.addEventListener('click', function () { lancer(ORDRE[(ORDRE.indexOf(etapeChoisie) + 1) % ORDRE.length]); });
+  if (suivante) suivante.addEventListener('click', function () { quitterDefi(); lancer(ORDRE[(ORDRE.indexOf(etapeChoisie) + 1) % ORDRE.length]); });
   var autre = document.getElementById('boutonAutreEtape');
   if (autre) autre.addEventListener('click', function () {
+    quitterDefi();
     panneauFin.hidden = true; panneauDebut.hidden = false; etat = 'accueil'; musiqueArreter();
-    vueGarage = voiture; majVoitures(); majRecords(); choisirEtape(etapeChoisie);
+    vueGarage = voiture; majVoitures(); majRecords(); majDefi(); choisirEtape(etapeChoisie);
     if (boutonLancer) boutonLancer.focus({ preventScroll: true });
   });
+
+  // ---------- Défi du jour ----------
+  // Chaque jour (heure de Kinshasa), une étape et une voiture imposées, les mêmes pour tout le monde.
+  // La voiture est prêtée pour le défi, même si elle n'est pas encore débloquée.
+  function jourKin(decalage) {
+    var d = new Date(Date.now() + (decalage || 0) * 86400000);
+    try { return new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Kinshasa', year: 'numeric', month: '2-digit', day: '2-digit' }).format(d); }
+    catch (e) { return new Date(d.getTime() + 3600000).toISOString().slice(0, 10); }
+  }
+  function defiDuJour() {
+    var jour = jourKin(), h = 2166136261;
+    for (var i = 0; i < jour.length; i++) { h ^= jour.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; }
+    return { jour: jour, etape: ORDRE[h % ORDRE.length], voiture: ORDRE_VOITURES[Math.floor(h / 13) % ORDRE_VOITURES.length], graine: h };
+  }
+  function lireEssais() {
+    try { var d = JSON.parse(localStorage.getItem('ketch-defi') || 'null'); return d && d.jour === jourKin() && Array.isArray(d.essais) ? d.essais : []; } catch (e) { return []; }
+  }
+  function lireSerie() {
+    try { var sr = JSON.parse(localStorage.getItem('ketch-defi-serie') || 'null'); if (sr && (sr.dernier === jourKin() || sr.dernier === jourKin(-1))) return sr; } catch (e) {}
+    return { dernier: null, serie: 0 };
+  }
+  // Fantômes Bronze, Argent et Or : scores de référence calculés pour l'étape du jour (joués par l'ordinateur).
+  function fantomesDuJour(d) {
+    var L = ETAPES[d.etape].longueur * VOITURES[d.voiture].fantome, v = (d.graine % 400) - 200;
+    return [{ nom: 'Fantôme Or', score: Math.round(L * 4.2 + v) }, { nom: 'Fantôme Argent', score: Math.round(L * 3.4 + v / 2) }, { nom: 'Fantôme Bronze', score: Math.round(L * 2.6) }];
+  }
+  function classementDuJour() {
+    var d = defiDuJour();
+    var lignes = fantomesDuJour(d).map(function (f) { return { nom: f.nom, score: f.score, bot: true }; });
+    lireEssais().forEach(function (e, i) { lignes.push({ nom: 'Vous · essai ' + (i + 1) + ' · ' + chrono(e.temps), score: e.score, moi: true, id: i }); });
+    return lignes.sort(function (a, b) { return b.score - a.score; });
+  }
+  function enregistrerEssaiDefi(score, t) {
+    var essais = lireEssais();
+    essais.push({ score: score, temps: t, heure: Date.now() });
+    try { localStorage.setItem('ketch-defi', JSON.stringify({ jour: jourKin(), essais: essais })); } catch (e) {}
+    var sr = lireSerie();
+    if (sr.dernier !== jourKin()) { sr = { dernier: jourKin(), serie: sr.dernier === jourKin(-1) ? sr.serie + 1 : 1 }; try { localStorage.setItem('ketch-defi-serie', JSON.stringify(sr)); } catch (e) {} }
+    var meilleur = Math.max.apply(null, essais.map(function (e) { return e.score; }));
+    return 1 + fantomesDuJour(defiDuJour()).filter(function (f) { return f.score > meilleur; }).length;
+  }
+  function majDefi() {
+    var d = defiDuJour(), E2 = ETAPES[d.etape], m = VOITURES[d.voiture], essais = lireEssais(), sr = lireSerie();
+    var t = document.getElementById('defiTitre'), ds = document.getElementById('defiDesc'), se = document.getElementById('defiSerie');
+    if (t) t.textContent = 'Étape ' + E2.numero + ' · ' + E2.nom + ' · avec la ' + m.nom;
+    if (ds) ds.textContent = (debloquee(m) ? 'Voiture imposée' : 'Voiture prêtée pour le défi') + ' · +15 G · ' +
+      (essais.length ? 'votre meilleur : ' + Math.max.apply(null, essais.map(function (e) { return e.score; })).toLocaleString('fr-FR') + ' pts' : 'pas encore tenté aujourd\'hui');
+    if (se) se.textContent = sr.serie ? '\uD83D\uDD25 série de ' + sr.serie + ' jour' + (sr.serie > 1 ? 's' : '') : 'Nouveau défi chaque jour';
+  }
+  function lancerDefi() {
+    var d = defiDuJour();
+    if (!defiEnCours) voitureAvantDefi = voiture;
+    defiEnCours = true; voiture = VOITURES[d.voiture];
+    panneauClassement.hidden = true;
+    lancer(d.etape);
+  }
+  function quitterDefi() {
+    if (!defiEnCours) return;
+    defiEnCours = false; if (voitureAvantDefi) voiture = voitureAvantDefi; voitureAvantDefi = null;
+    var bfc = document.getElementById('boutonFinClassement'); if (bfc) bfc.hidden = true;
+  }
+  var panneauClassement = document.getElementById('panneauClassement');
+  function montrerClassement() {
+    var d = defiDuJour(), liste = document.getElementById('listeClassement'), sous = document.getElementById('classementSous');
+    if (sous) sous.textContent = new Date(d.jour + 'T12:00:00Z').toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' }) + ' · ' + ETAPES[d.etape].nom + ' · ' + VOITURES[d.voiture].nom;
+    if (liste) {
+      liste.textContent = '';
+      classementDuJour().slice(0, 8).forEach(function (l) {
+        var li = document.createElement('li'), a = document.createElement('span'), b = document.createElement('b');
+        li.className = l.moi ? 'moi' : 'bot'; a.textContent = l.nom; b.textContent = l.score.toLocaleString('fr-FR') + ' pts';
+        li.appendChild(a); li.appendChild(b); liste.appendChild(li);
+      });
+    }
+    panneauDebut.hidden = true; panneauFin.hidden = true; panneauClassement.hidden = false;
+  }
+  [['boutonDefi', lancerDefi], ['boutonDefiClassement', lancerDefi], ['boutonClassement', montrerClassement], ['boutonFinClassement', montrerClassement]].forEach(function (c) {
+    var b = document.getElementById(c[0]); if (b) b.addEventListener('click', c[1]);
+  });
+  var fermerCl = document.getElementById('boutonFermerClassement');
+  if (fermerCl) fermerCl.addEventListener('click', function () {
+    quitterDefi(); panneauClassement.hidden = true; panneauDebut.hidden = false; etat = 'accueil'; musiqueArreter();
+    vueGarage = voiture; majVoitures(); majRecords(); majDefi(); choisirEtape(etapeChoisie);
+  });
+  majDefi();
 
   var boutonSon = document.getElementById('boutonSon'), boutonMusique = document.getElementById('boutonMusique');
   function majBoutons() {

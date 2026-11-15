@@ -4,15 +4,18 @@ La page publique de la bêta, tirée de la maquette « G-Challenge RDC – Landi
 
 ## La démo jouable
 
-L'écran de course en haut de la page est jouable, avec les 5 étapes du parcours au choix :
+L'écran de course en haut de la page est jouable, avec les 8 étapes du parcours au choix. Il n'y a plus d'obstacles fixes sur la route (cônes, trous, barrières…) : le danger vient du trafic, des piétons et, selon l'étape, de la police, de la nuit ou de la pluie.
 
 | Étape | Longueur | Ce qui la rend difficile |
 | --- | --- | --- |
 | 1 · Rond-point Victoire | 1,5 km | Circulation dense sur 4 voies, ronds-points serrés, monument |
-| 2 · Le Grand Marché | 1,6 km | Rue étroite et sinueuse, étals qui débordent, pousse-pousse, piétons |
-| 3 · Route des Poids Lourds | 2 km | Camions lents, nids-de-poule, bosses à passer doucement, entrepôts et conteneurs |
-| 4 · Corniche du Fleuve | 1,8 km | Virages au bord du fleuve, chaussée glissante, flaques (aquaplaning) |
+| 2 · Le Grand Marché | 1,6 km | Rue étroite et sinueuse, pousse-pousse, piétons |
+| 3 · Route des Poids Lourds | 2 km | Camions lents, montées et descentes, entrepôts et conteneurs |
+| 4 · Corniche du Fleuve | 1,8 km | Virages au bord du fleuve, chaussée glissante |
 | 5 · Boulevard du 30 Juin | 2 km | 4 voies, voitures, bus et camions qui changent de voie, montées et descentes |
+| 6 · Poursuite à la Gombe | 1,8 km | **Nouveau : la police vous prend en chasse.** Radar « Police à … m », gyrophares sur les bords, sirène. Si elle vous rattrape : −300 et gros ralentissement |
+| 7 · Matonge by night | 1,7 km | **Nouveau : de nuit.** Phares, lampadaires et enseignes éclairés, nuée de motos-taxis |
+| 8 · Orage sur Limete | 1,9 km | **Nouveau : pluie et éclairs.** Moins d'adhérence partout, bus fula-fula chargés jusqu'au toit |
 
 ### Les voitures
 
@@ -32,7 +35,9 @@ Le joueur choisit sa voiture avant l'étape. Les trois sportives sont des dessin
 Chaque voiture a son propre son de moteur : plus aigu pour les sportives, plus grave pour le SUV.
 
 - **Couleurs** : chaque voiture se peint en jaune, noir, blanc, vert, rouge, bleu, orange ou violet. Le choix est mémorisé pour chaque voiture.
-- **Voitures à débloquer** : le Ketch est disponible dès le départ. Les autres s'ouvrent avec le meilleur score obtenu sur une étape : Zigzag R à 1 500 points, Mbote E à 2 000, Blindé X à 2 500, Kin GT à 3 000, Fleuve V8 à 3 500, Turbo GT à 4 000. Le Léopard demande 8 000 points, ou les 5 étapes gagnées contre le fantôme. L'écran d'arrivée annonce chaque voiture débloquée.
+- **Voitures à débloquer** : le Ketch est disponible dès le départ. Les autres s'ouvrent avec le meilleur score obtenu sur une étape : Zigzag R à 3 500 points, Mbote E à 4 500, Blindé X à 5 500, Kin GT à 6 500, Fleuve V8 à 7 500, Turbo GT à 8 500. Le Léopard demande 12 000 points, ou 5 étapes gagnées contre le fantôme. Seuils relevés après le retrait des obstacles fixes (les scores ont monté), et fantôme 13 % plus rapide.
+- **Porte-monnaie et boutique** : les pièces G se gardent d'une course à l'autre (pièces ramassées + 5 G par étoile + 15 G pour le défi du jour). Elles achètent les voitures (Zigzag R 60 G, Mbote E 90, Blindé X 120, Kin GT 160, Fleuve V8 200, Turbo GT 260, Léopard 400) et les peintures (25 G chacune, valables pour toutes les voitures ; jaune, noir, blanc et la couleur d'origine sont gratuites). Tout est gardé dans le navigateur (`ketch-pieces`, `ketch-achats`).
+- **Défi du jour** : chaque jour (heure de Kinshasa), une étape et une voiture imposées, les mêmes pour tout le monde ; la voiture est prêtée si elle n'est pas débloquée. Le score du défi ne compte pas pour les records d'étape. Le classement du jour est local pour l'instant : vos essais face aux fantômes Bronze, Argent et Or (ordinateur), plus une série de jours consécutifs. Le classement partagé entre joueurs viendra avec le serveur des courses en ligne. L'écran d'arrivée annonce chaque voiture débloquée.
 - **Fantôme adapté** : il roule plus vite quand le joueur prend une voiture plus puissante (+15 % face à la Turbo GT, +8 % face à la Zigzag R, +2 % face au Blindé X). Le défi reste le même avec toutes les voitures.
 
 - **Garage complet (propriétaire)** : ouvrir la page avec `#garage-complet` à la fin de l'adresse débloque les 8 voitures sur cet appareil (mémorisé dans le navigateur). À réserver aux tests et aux démonstrations : ne mettez pas ce lien sur les affiches.
@@ -44,7 +49,7 @@ Chaque voiture a son propre son de moteur : plus aigu pour les sportives, plus g
 
 ### Ce qui rend la course vivante
 
-- **Pièces G** (+50) en traînées de 3, et **bidons de turbo** (+30, turbo rechargé de moitié), avec un son à chaque ramassage.
+- **Pièces G** (+50 points, et 1 G au porte-monnaie) en traînées de 3, et **bidons de turbo** (+30, turbo rechargé de moitié), avec un son à chaque ramassage.
 - **Frôlé !** (+100) : dépasser un véhicule à moins de 90 cm sans le toucher.
 - **Effets** : feu tricolore au départ, étincelles aux chocs, fumée des pneus, poussière sur les raccourcis, flammes du turbo, lignes de vitesse. Désactivés si l'appareil demande moins d'animations.
 - **Étoiles** par étape : 1 pour finir, 2 pour battre le fantôme, 3 pour le battre avec 2 chocs ou moins. Confettis à la victoire.
