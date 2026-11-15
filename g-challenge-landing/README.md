@@ -14,6 +14,21 @@ L'écran de course en haut de la page est jouable, avec les 5 étapes du parcour
 | 4 · Corniche du Fleuve | 1,8 km | Virages au bord du fleuve, chaussée glissante, flaques (aquaplaning) |
 | 5 · Boulevard du 30 Juin | 2 km | 4 voies, voitures, bus et camions qui changent de voie, montées et descentes |
 
+### Les voitures
+
+Le joueur choisit sa voiture avant l'étape. Les trois sportives sont des dessins originaux (aucune marque ni voiture réelle), avec peinture brillante, feux LED, diffuseur et néons sous la caisse.
+
+| Voiture | Style | Vitesse max. | Accélération | Maniabilité | Après un choc |
+| --- | --- | --- | --- | --- | --- |
+| Ketch | Taxi de Kinshasa | référence | référence | référence | garde 35 % de sa vitesse |
+| Turbo GT | Supercar | +15 % | +20 % | −10 % | garde 30 % |
+| Zigzag R | Sportive | +5 % | +8 % | +40 % | garde 35 % |
+| Blindé X | SUV sport | −3 % | −5 % | −5 % | garde 60 % |
+
+Chaque voiture a son propre son de moteur : plus aigu pour les sportives, plus grave pour le SUV. Les fantômes sont réglés pour le ketch : ils sont plus faciles à battre avec une sportive.
+
+L'écran de jeu occupe toute la largeur de la page, et l'image est calculée à sa taille réelle : elle reste nette en grand comme en plein écran.
+
 ### Les points
 
 Il y a deux manières de gagner des points :

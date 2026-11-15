@@ -24,6 +24,22 @@
   var F = 428, HAUTEUR_CAM = 2, SEG = 5, VISIBLES = 64, D_JOUEUR = 6, COURBE = 0.04;
   var DEMI_KETCH = 0.85;   // demi-largeur du ketch, en mètres
 
+  // ---------- Les voitures ----------
+  // Le ketch, et trois voitures de sport modernes (dessins originaux, aucune marque réelle).
+  // vitesse/accel/direction : multiplicateurs ; robuste : part de vitesse gardée après un choc.
+  var VOITURES = {
+    ketch: { nom: 'Ketch', type: 'Taxi de Kinshasa', vitesse: 1, accel: 1, direction: 1, robuste: 0.35,
+      son: { hauteur: 1, filtre: 0 } },
+    turbo: { nom: 'Turbo GT', type: 'Supercar · vitesse', vitesse: 1.15, accel: 1.2, direction: 0.9, robuste: 0.3,
+      couleur: ['#FF4A3D', '#B3170E'], neon: '#00E5FF', son: { hauteur: 1.45, filtre: 900 } },
+    zigzag: { nom: 'Zigzag R', type: 'Sportive · maniabilité', vitesse: 1.05, accel: 1.08, direction: 1.4, robuste: 0.35,
+      couleur: ['#4C8DFF', '#163E99'], neon: '#C04CFF', son: { hauteur: 1.25, filtre: 600 } },
+    blinde: { nom: 'Blindé X', type: 'SUV sport · robustesse', vitesse: 0.97, accel: 0.95, direction: 0.95, robuste: 0.6,
+      couleur: ['#56606F', '#232831'], neon: '#FF8A00', son: { hauteur: 0.8, filtre: -150 } }
+  };
+  var voiture = VOITURES.ketch;
+  try { var vSauve = localStorage.getItem('ketch-voiture'); if (VOITURES[vSauve]) voiture = VOITURES[vSauve]; } catch (e) {}
+
   // ---------- Barème des points ----------
   var POINTS = {
     piéton: 400, véhicule: 200, obstacle: 100, trou: 50,       // retirés à chaque choc
@@ -326,12 +342,12 @@
     var regime = v < 0.5 ? 0.12 : 0.28 + 0.72 * Math.max(0, Math.min(1, r));
     if (etat === 'compte') regime = 0.15 + (appuye('turbo') ? 0.55 : 0);
     var tours = 900 + regime * 5600;                    // tours/minute
-    var freq = tours / 60 * 2;                          // 4 cylindres : 2 explosions par tour
+    var freq = tours / 60 * 2 * voiture.son.hauteur;    // 4 cylindres : 2 explosions par tour (plus aigu pour les sportives)
     son.oscA.frequency.setTargetAtTime(freq, t, 0.03);
     son.oscB.frequency.setTargetAtTime(freq * 1.012, t, 0.03);
     son.oscC.frequency.setTargetAtTime(freq / 2, t, 0.03);
     son.lfo.frequency.setTargetAtTime(freq / 2, t, 0.03);
-    son.filtre.frequency.setTargetAtTime(380 + regime * 2100 + (turboActif ? 500 : 0), t, 0.05);
+    son.filtre.frequency.setTargetAtTime(Math.max(200, 380 + regime * 2100 + (turboActif ? 500 : 0) + voiture.son.filtre), t, 0.05);
     var vol = enCourse ? (0.13 + 0.12 * regime) * (coupure > 0 ? 0.35 : 1) * (appuye('frein') ? 0.7 : 1) : 0;
     son.moteur.gain.setTargetAtTime(vol, t, 0.04);
     son.sifflet.frequency.setTargetAtTime(1800 + regime * 2600, t, 0.1);
@@ -469,7 +485,7 @@
     return Math.abs(oz - z) < PROFONDEUR[type] && Math.abs(ox - x) * E.demi < LARGEUR[type] + DEMI_KETCH;
   }
   function secousse(fort) {
-    v *= fort ? 0.35 : 0.75; choc = fort ? 0.45 : 0.25;
+    v *= fort ? voiture.robuste : 0.75 + (voiture.robuste - 0.35) * 0.5; choc = fort ? 0.45 : 0.25;
     if (fort) { sonBruit(420, 'lowpass', 0.35, 0.9); sonNote(70, 0, 0.25, 0.4, 'sine'); } else sonBruit(180, 'lowpass', 0.2, 0.7);
     if (navigator.vibrate) { try { navigator.vibrate(fort ? 60 : 30); } catch (e) {} }
   }
@@ -496,12 +512,12 @@
     if (turboActif && !avantTurbo) sonBruit(700, 'bandpass', 0.5, 0.45, 2400);
     energie = turboActif ? Math.max(0, energie - 0.38 * dt) : Math.min(1, energie + 0.11 * dt);
 
-    var plafond = (turboActif ? E.vTurbo : E.vMax) * (raccourci ? 0.8 : 1);
+    var plafond = (turboActif ? E.vTurbo : E.vMax) * voiture.vitesse * (raccourci ? 0.8 : 1);
     var cible = appuye('frein') ? 0 : plafond;
-    if (v < cible) v = Math.min(cible, v + 9 * (turboActif ? 1.7 : 1) * dt);
+    if (v < cible) v = Math.min(cible, v + 9 * voiture.accel * (turboActif ? 1.7 : 1) * dt);
     else v = Math.max(cible, v - (appuye('frein') ? 24 : 6) * dt);
     var pente = (hauteurA(z + 2) - hauteurA(z - 2)) / 4;
-    v = Math.max(0, Math.min(E.vTurbo * 1.08, v - 9.8 * pente * 0.55 * dt));
+    v = Math.max(0, Math.min(E.vTurbo * voiture.vitesse * 1.08, v - 9.8 * pente * 0.55 * dt));
 
     // Chaussée glissante : on braque moins bien et les virages poussent plus fort vers l'extérieur.
     var surGlissant = !raccourci && zoneGlissante(E, z);
@@ -509,7 +525,7 @@
     glisse = surGlissant;
     var adherence = surGlissant ? 0.6 : 1;
     var dir = (appuye('droite') ? 1 : 0) - (appuye('gauche') ? 1 : 0);
-    x += dir * (6 / E.demi) * dt * (0.45 + 0.55 * Math.min(1, v / E.vMax)) * adherence;
+    x += dir * (6 / E.demi) * dt * (0.45 + 0.55 * Math.min(1, v / E.vMax)) * adherence * voiture.direction;
     if (!raccourci) x -= segmentA(z).courbe * 0.09 * (v / E.vMax) * dt * (surGlissant ? 2.2 : 1);
 
     var zone = zoneRaccourci(E, z);
@@ -524,7 +540,7 @@
     var dz = v * dt * (raccourci ? 1.4 : 1);
     z += dz;
     // Points de vitesse : chaque mètre rapporte plus quand on roule vite.
-    gagnes += dz * (1 + 2 * Math.min(1.4, v / E.vMax));
+    gagnes += dz * (1 + 2 * Math.min(1.4, v / (E.vMax * voiture.vitesse)));
     points = Math.max(0, gagnes - perdus);
     decalDecor += segmentA(z).courbe * v * dt * 0.6;
 
@@ -593,7 +609,7 @@
     ecrireRecord(E.id, { score: Math.max(total, rec.score || 0), temps: Math.min(temps, rec.temps || 1e9) });
     [523, 659, 784, 1047].forEach(function (f, j) { sonNote(f, j * 0.12, 0.3, 0.2); });
 
-    document.getElementById('finEtape').textContent = 'Étape ' + E.numero + ' · ' + E.nom + ' · ' + chrono(temps);
+    document.getElementById('finEtape').textContent = 'Étape ' + E.numero + ' · ' + E.nom + ' · ' + voiture.nom + ' · ' + chrono(temps);
     document.getElementById('finTemps').textContent = total.toLocaleString('fr-FR') + ' points';
     document.getElementById('finVerdict').textContent = ecart > 0
       ? 'Vous battez le fantôme de ' + secondes(ecart) + '.'
@@ -1080,6 +1096,78 @@
     ctx.restore();
   }
 
+  // Voitures de sport vues de l'arrière : peinture brillante, feux LED, diffuseur, néons sous la caisse.
+  function peinture(c, haut, bas) {
+    var g = ctx.createLinearGradient(0, haut, 0, bas);
+    g.addColorStop(0, c[0]); g.addColorStop(0.55, c[1]); g.addColorStop(1, c[1]);
+    return g;
+  }
+  function sportive(m, cx, by, s, penche) {
+    ctx.save(); ctx.translate(cx, by); ctx.scale(s, s); if (penche) ctx.rotate(penche);
+    // Néon sous la caisse.
+    var neon = ctx.createRadialGradient(0, -4, 10, 0, -4, 170);
+    neon.addColorStop(0, m.neon); neon.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.globalAlpha = 0.55; ctx.fillStyle = neon; ctx.beginPath(); ctx.ellipse(0, -4, 170, 26, 0, 0, 7); ctx.fill();
+    ctx.globalAlpha = 0.45; ctx.fillStyle = '#000'; ctx.beginPath(); ctx.ellipse(0, 2, 128, 10, 0, 0, 7); ctx.fill(); ctx.globalAlpha = 1;
+    var id = m === VOITURES.turbo ? 'turbo' : m === VOITURES.zigzag ? 'zigzag' : 'blinde';
+    var feux = turboActif || appuye('frein') ? '#FF4D5A' : '#E0182A';
+    if (id === 'turbo') {
+      ctx.fillStyle = '#121212'; rect(-124, -44, 48, 44, 8); ctx.fill(); rect(76, -44, 48, 44, 8); ctx.fill();
+      ctx.fillStyle = peinture(m.couleur, -100, -28);
+      ctx.beginPath(); ctx.moveTo(-130, -30); ctx.lineTo(-130, -70); ctx.quadraticCurveTo(-128, -96, -102, -100); ctx.lineTo(102, -100);
+      ctx.quadraticCurveTo(128, -96, 130, -70); ctx.lineTo(130, -30); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = m.couleur[1];
+      ctx.beginPath(); ctx.moveTo(-72, -100); ctx.lineTo(-50, -136); ctx.quadraticCurveTo(-45, -142, -36, -142); ctx.lineTo(36, -142);
+      ctx.quadraticCurveTo(45, -142, 50, -136); ctx.lineTo(72, -100); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = '#0D1118'; ctx.beginPath(); ctx.moveTo(-58, -102); ctx.lineTo(-42, -130); ctx.lineTo(42, -130); ctx.lineTo(58, -102); ctx.fill();
+      ctx.fillStyle = '#111'; ctx.fillRect(-62, -128, 7, 26); ctx.fillRect(55, -128, 7, 26);
+      rect(-118, -140, 236, 12, 4); ctx.fill(); ctx.fillRect(-120, -146, 8, 22); ctx.fillRect(112, -146, 8, 22);
+      ctx.shadowColor = feux; ctx.shadowBlur = 14; ctx.fillStyle = feux; rect(-122, -82, 244, 7, 3); ctx.fill(); ctx.shadowBlur = 0;
+      ctx.fillStyle = '#0B0B0B'; rect(-104, -44, 208, 16, 4); ctx.fill();
+      ctx.fillStyle = '#2A2A2A'; for (var f = -80; f <= 80; f += 32) ctx.fillRect(f, -44, 4, 16);
+      ctx.fillStyle = '#9AA0A9'; [-54, -34, 34, 54].forEach(function (ex) { ctx.beginPath(); ctx.arc(ex, -34, 7, 0, 7); ctx.fill(); });
+      ctx.fillStyle = '#1A1A1A'; [-54, -34, 34, 54].forEach(function (ex) { ctx.beginPath(); ctx.arc(ex, -34, 4, 0, 7); ctx.fill(); });
+      ctx.fillStyle = 'rgba(255,255,255,.22)'; ctx.fillRect(-100, -96, 200, 4);
+      ctx.fillStyle = '#FFFFFF'; rect(-28, -70, 56, 16, 3); ctx.fill();
+      ctx.fillStyle = '#111'; ctx.font = '800 11px Inter, sans-serif'; ctx.textAlign = 'center'; ctx.fillText('KIN GT', 0, -58);
+    } else if (id === 'zigzag') {
+      ctx.fillStyle = '#121212'; rect(-114, -42, 42, 42, 8); ctx.fill(); rect(72, -42, 42, 42, 8); ctx.fill();
+      ctx.fillStyle = peinture(m.couleur, -104, -28); rect(-120, -104, 240, 76, 20); ctx.fill();
+      ctx.fillStyle = m.couleur[1];
+      ctx.beginPath(); ctx.moveTo(-86, -102); ctx.lineTo(-66, -158); ctx.quadraticCurveTo(-62, -166, -52, -166); ctx.lineTo(52, -166);
+      ctx.quadraticCurveTo(62, -166, 66, -158); ctx.lineTo(86, -102); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = '#0D1118'; ctx.beginPath(); ctx.moveTo(-72, -106); ctx.lineTo(-56, -152); ctx.lineTo(56, -152); ctx.lineTo(72, -106); ctx.fill();
+      ctx.fillStyle = '#111'; rect(-78, -172, 156, 9, 4); ctx.fill();
+      ctx.fillStyle = '#FFFFFF'; ctx.fillRect(-18, -168, 36, 3);
+      ctx.shadowColor = feux; ctx.shadowBlur = 12; ctx.fillStyle = feux;
+      ctx.beginPath(); ctx.moveTo(-116, -90); ctx.lineTo(-62, -90); ctx.lineTo(-70, -78); ctx.lineTo(-116, -78); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(116, -90); ctx.lineTo(62, -90); ctx.lineTo(70, -78); ctx.lineTo(116, -78); ctx.fill(); ctx.shadowBlur = 0;
+      ctx.fillStyle = '#FFFFFF'; ctx.fillRect(-64, -60, 128, 3);
+      ctx.fillStyle = '#0B0B0B'; rect(-96, -42, 192, 14, 4); ctx.fill();
+      ctx.fillStyle = '#9AA0A9'; [-12, 12].forEach(function (ex) { ctx.beginPath(); ctx.arc(ex, -34, 8, 0, 7); ctx.fill(); });
+      ctx.fillStyle = '#FFFFFF'; rect(-28, -76, 56, 15, 3); ctx.fill();
+      ctx.fillStyle = '#111'; ctx.font = '800 11px Inter, sans-serif'; ctx.textAlign = 'center'; ctx.fillText('KIN R', 0, -64);
+    } else {
+      ctx.fillStyle = '#121212'; rect(-126, -52, 52, 52, 10); ctx.fill(); rect(74, -52, 52, 52, 10); ctx.fill();
+      ctx.fillStyle = peinture(m.couleur, -176, -36); rect(-130, -168, 260, 132, 18); ctx.fill();
+      ctx.fillStyle = '#0D1118'; rect(-96, -158, 192, 54, 10); ctx.fill();
+      ctx.fillStyle = '#9AA0A9'; ctx.fillRect(-104, -176, 6, 10); ctx.fillRect(98, -176, 6, 10); ctx.fillRect(-104, -178, 208, 4);
+      ctx.shadowColor = feux; ctx.shadowBlur = 12; ctx.fillStyle = feux;
+      rect(-126, -136, 14, 52, 4); ctx.fill(); rect(112, -136, 14, 52, 4); ctx.fill(); ctx.fillRect(-100, -96, 200, 4); ctx.shadowBlur = 0;
+      ctx.fillStyle = m.neon; ctx.fillRect(-130, -110, 260, 5);
+      ctx.fillStyle = '#151515'; rect(-130, -58, 260, 22, 6); ctx.fill();
+      ctx.fillStyle = '#B9BEC6'; rect(-60, -40, 120, 10, 4); ctx.fill();
+      ctx.fillStyle = '#9AA0A9'; [-100, 100].forEach(function (ex) { ctx.beginPath(); ctx.arc(ex, -46, 8, 0, 7); ctx.fill(); });
+      ctx.fillStyle = '#FFFFFF'; rect(-30, -88, 60, 17, 3); ctx.fill();
+      ctx.fillStyle = '#111'; ctx.font = '800 11px Inter, sans-serif'; ctx.textAlign = 'center'; ctx.fillText('KIN 4X4', 0, -75);
+    }
+    if (turboActif) {
+      ctx.fillStyle = 'rgba(80,170,255,.9)';
+      [-44, 44].forEach(function (ex) { ctx.beginPath(); ctx.moveTo(ex - 8, -30); ctx.lineTo(ex, 10 + Math.random() * 18); ctx.lineTo(ex + 8, -30); ctx.fill(); });
+    }
+    ctx.restore();
+  }
+
   function scene(vue) {
     var objets = [];
     function poser(zz, xx, dessin) {
@@ -1212,7 +1300,9 @@
     scene(vue);
     var dir = (appuye('droite') ? 1 : 0) - (appuye('gauche') ? 1 : 0);
     var cahot = (raccourci || E.id === 'poidslourds') && v > 5 && !mouvementReduit ? Math.sin(temps * 38) * (raccourci ? 2.5 : 1) : 0;
-    ketch(VX, 384 + cahot, 0.78, false, etat === 'course' ? dir * (glisse ? 0.06 : 0.03) : 0);
+    var penche = etat === 'course' ? dir * (glisse ? 0.06 : 0.03) : 0;
+    if (voiture === VOITURES.ketch) ketch(VX, 384 + cahot, 0.78, false, penche);
+    else sportive(voiture, VX, 384 + cahot, 0.78, penche);
     ctx.restore();
     hud();
     if (etat === 'compte') {
@@ -1226,9 +1316,12 @@
 
   // ---------- Boucle ----------
   var avant = 0, dpr = 0;
+  // L'image est calculée à la taille réelle de l'écran de jeu : nette même en grand ou en plein écran.
   function taille() {
-    var d = Math.min(2, window.devicePixelRatio || 1);
-    if (d !== dpr) { dpr = d; canvas.width = W * dpr; canvas.height = H * dpr; cielGrad = null; }
+    var largeur = canvas.clientWidth || W;
+    var d = Math.max(1, Math.min(3, (largeur / W) * (window.devicePixelRatio || 1)));
+    d = Math.round(d * 4) / 4;
+    if (d !== dpr) { dpr = d; canvas.width = Math.round(W * dpr); canvas.height = Math.round(H * dpr); cielGrad = null; }
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   }
   function boucle(t) {
@@ -1263,6 +1356,19 @@
       if (el) el.textContent = r && r.score ? 'Record : ' + r.score.toLocaleString('fr-FR') + ' pts' : 'Pas encore joué';
     });
   }
+  function majVoitures() {
+    Array.prototype.forEach.call(document.querySelectorAll('[data-voiture]'), function (b) {
+      b.setAttribute('aria-pressed', VOITURES[b.getAttribute('data-voiture')] === voiture ? 'true' : 'false');
+    });
+  }
+  Array.prototype.forEach.call(document.querySelectorAll('[data-voiture]'), function (b) {
+    b.addEventListener('click', function () {
+      voiture = VOITURES[b.getAttribute('data-voiture')];
+      try { localStorage.setItem('ketch-voiture', b.getAttribute('data-voiture')); } catch (e) {}
+      majVoitures();
+    });
+  });
+  majVoitures();
   Array.prototype.forEach.call(document.querySelectorAll('[data-etape]'), function (b) {
     b.addEventListener('click', function () { lancer(b.getAttribute('data-etape')); });
   });
