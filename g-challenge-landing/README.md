@@ -28,7 +28,7 @@ Le joueur choisit sa voiture avant l'étape. Les trois sportives sont des dessin
 Chaque voiture a son propre son de moteur : plus aigu pour les sportives, plus grave pour le SUV.
 
 - **Couleurs** : chaque voiture se peint en jaune, noir, blanc, vert, rouge, bleu, orange ou violet. Le choix est mémorisé pour chaque voiture.
-- **Voitures à débloquer** : le Ketch est disponible dès le départ. Les sportives s'ouvrent avec le meilleur score obtenu sur une étape : Zigzag R à 2 500 points, Blindé X à 3 500, Turbo GT à 5 000. L'écran d'arrivée annonce chaque voiture débloquée.
+- **Voitures à débloquer** : le Ketch est disponible dès le départ. Les sportives s'ouvrent avec le meilleur score obtenu sur une étape : Zigzag R à 1 500 points, Blindé X à 2 500, Turbo GT à 4 000. L'écran d'arrivée annonce chaque voiture débloquée.
 - **Fantôme adapté** : il roule plus vite quand le joueur prend une voiture plus puissante (+15 % face à la Turbo GT, +8 % face à la Zigzag R, +2 % face au Blindé X). Le défi reste le même avec toutes les voitures.
 
 ### Les commandes
