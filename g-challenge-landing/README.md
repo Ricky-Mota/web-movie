@@ -60,6 +60,8 @@ Chaque voiture a son propre son de moteur : plus aigu pour les sportives, plus g
 - **Effets** : feu tricolore au départ, étincelles aux chocs, fumée des pneus, poussière sur les raccourcis, flammes du turbo, lignes de vitesse. Désactivés si l'appareil demande moins d'animations.
 - **Étoiles** par étape : 1 pour finir, 2 pour battre le fantôme, 3 pour le battre avec 2 chocs ou moins. Confettis à la victoire.
 
+- **Voitures 3D** : des modèles GLB (créés par exemple avec Hyper3D Rodin) déposés dans `modeles/` deviennent des images de voiture grâce à `scripts/sprites/sprites-voitures.cjs` ; la démo les affiche à la place du dessin. Mode d'emploi et descriptions à coller dans Hyper3D : `modeles/README.md`.
+
 ### Les commandes
 
 | Action | Clavier | Téléphone |

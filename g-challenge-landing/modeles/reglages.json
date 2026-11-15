@@ -1,0 +1,4 @@
+{
+  "_aide": "Si une voiture apparaît de face ou de côté dans le jeu, indiquez ici sa rotation en degrés (90, 180 ou 270), puis relancez le script.",
+  "ketch": { "rotation": 0 }
+}

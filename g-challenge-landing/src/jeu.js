@@ -1487,7 +1487,42 @@
     ctx.fillText('ARRIVÉE', c, top + h + 32 * s);
     ctx.restore();
   }
+  // Voitures modélisées en 3D (par exemple avec Hyper3D) : si des images existent dans public/voitures,
+  // elles remplacent le dessin. Sinon, la voiture dessinée reste affichée.
+  var SPRITES = {};
+  (function chargerSprites() {
+    if (!window.fetch) return;
+    fetch('voitures/liste.json', { cache: 'no-cache' }).then(function (r) { return r.ok ? r.json() : null; }).then(function (l) {
+      if (!l || !Array.isArray(l.voitures)) return;
+      l.voitures.forEach(function (id) {
+        if (!VOITURES[id]) return;
+        var vues = [], prets = 0, n = l.vues || 5;
+        for (var k = 0; k < n; k++) {
+          var img = new Image();
+          img.onload = function () { if (++prets === n) SPRITES[id] = vues; };
+          img.src = 'voitures/' + id + '-' + k + '.png';
+          vues.push(img);
+        }
+      });
+    }).catch(function () {});
+  })();
+  function spriteVoiture(id, cx, by, s, penche, turbo) {
+    var vues = SPRITES[id];
+    if (!vues) return false;
+    var k = Math.max(0, Math.min(vues.length - 1, Math.round((vues.length - 1) / 2 + (penche || 0) / 0.03)));
+    var img = vues[k], w = 290 * s, h = w * img.height / img.width;
+    ctx.save();
+    ctx.globalAlpha = 0.35; ctx.fillStyle = '#000'; ctx.beginPath(); ctx.ellipse(cx, by, w * 0.52, 14 * s, 0, 0, 7); ctx.fill(); ctx.globalAlpha = 1;
+    ctx.drawImage(img, cx - w / 2, by - h + 4 * s, w, h);
+    if (turbo) {
+      ctx.fillStyle = 'rgba(127,216,255,.85)';
+      [-0.18, 0.18].forEach(function (f) { ctx.beginPath(); ctx.moveTo(cx + f * w - 8 * s, by - 34 * s); ctx.lineTo(cx + f * w, by + (10 + Math.random() * 18) * s); ctx.lineTo(cx + f * w + 8 * s, by - 34 * s); ctx.fill(); });
+    }
+    ctx.restore();
+    return true;
+  }
   function ketch(cx, by, s, fantome, penche, autre) {
+    if (!fantome && !autre && spriteVoiture('ketch', cx, by, s, penche, turboActif)) return;
     ctx.save(); ctx.translate(cx, by); ctx.scale(s, s); if (penche) ctx.rotate(penche);
     var jaune = fantome ? 'rgba(127,216,255,.35)' : (autre ? '#F2B705' : (VOITURES.ketch.teinte === 'jaune' ? '#FFC814' : VOITURES.ketch.couleur[0]));
     if (!fantome) { ctx.globalAlpha = 0.4; ctx.fillStyle = '#000'; ctx.beginPath(); ctx.ellipse(0, 2, 122, 12, 0, 0, 7); ctx.fill(); ctx.globalAlpha = 1; }
@@ -1523,6 +1558,7 @@
     return g;
   }
   function sportive(m, cx, by, s, penche) {
+    if (spriteVoiture(m.id, cx, by, s, penche, rivalDessin ? rivalDessin.turboDuree > 0 : turboActif)) return;
     ctx.save(); ctx.translate(cx, by); ctx.scale(s, s); if (penche) ctx.rotate(penche);
     // Néon sous la caisse.
     var neon = ctx.createRadialGradient(0, -4, 10, 0, -4, 170);
