@@ -35,6 +35,20 @@ Chaque voiture a son propre son de moteur : plus aigu pour les sportives, plus g
 - **Voitures à débloquer** : le Ketch est disponible dès le départ. Les autres s'ouvrent avec le meilleur score obtenu sur une étape : Zigzag R à 1 500 points, Mbote E à 2 000, Blindé X à 2 500, Kin GT à 3 000, Fleuve V8 à 3 500, Turbo GT à 4 000. Le Léopard demande 8 000 points, ou les 5 étapes gagnées contre le fantôme. L'écran d'arrivée annonce chaque voiture débloquée.
 - **Fantôme adapté** : il roule plus vite quand le joueur prend une voiture plus puissante (+15 % face à la Turbo GT, +8 % face à la Zigzag R, +2 % face au Blindé X). Le défi reste le même avec toutes les voitures.
 
+- **Garage complet (propriétaire)** : ouvrir la page avec `#garage-complet` à la fin de l'adresse débloque les 8 voitures sur cet appareil (mémorisé dans le navigateur). À réserver aux tests et aux démonstrations : ne mettez pas ce lien sur les affiches.
+
+### Le menu
+
+- **Garage** : aperçu animé de la voiture, flèches ‹ ›, barres Vitesse / Accélération / Maniabilité / Robustesse, couleurs, et une pastille par voiture (cadenas si verrouillée). Une voiture verrouillée reste visible, en gris, avec sa condition de déblocage.
+- **Étapes** : une carte par étape avec ses étoiles et le record ; un clic la sélectionne, le grand bouton **Lancer la course** part (double-clic sur une carte : départ direct).
+
+### Ce qui rend la course vivante
+
+- **Pièces G** (+50) en traînées de 3, et **bidons de turbo** (+30, turbo rechargé de moitié), avec un son à chaque ramassage.
+- **Frôlé !** (+100) : dépasser un véhicule à moins de 90 cm sans le toucher.
+- **Effets** : feu tricolore au départ, étincelles aux chocs, fumée des pneus, poussière sur les raccourcis, flammes du turbo, lignes de vitesse. Désactivés si l'appareil demande moins d'animations.
+- **Étoiles** par étape : 1 pour finir, 2 pour battre le fantôme, 3 pour le battre avec 2 chocs ou moins. Confettis à la victoire.
+
 ### Les commandes
 
 | Action | Clavier | Téléphone |

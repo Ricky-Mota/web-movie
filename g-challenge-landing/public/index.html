@@ -48,32 +48,63 @@ html{scroll-behavior:smooth}
 .jeu-points li{display:flex;justify-content:space-between;gap:12px;padding:2px 0;border-bottom:1px solid rgba(255,255,255,.12)}
 .jeu-points li b{font-variant-numeric:tabular-nums}
 .jeu-points li:last-child b{color:#FF8A7A}
-.jeu-voitures{display:flex;gap:8px;flex-wrap:wrap;justify-content:center}
-.jeu-voiture{display:flex;flex-direction:column;align-items:center;gap:0;min-height:40px;padding:4px 14px;border-radius:12px;border:1.5px solid #4A5788;background:rgba(14,22,48,.92);color:#F5F3EA;font:500 11px Inter,sans-serif;cursor:pointer}
-.jeu-voiture b{font-size:14px;font-family:'Bricolage Grotesque',sans-serif}
-.jeu-voiture span{color:#C9CFE3}
-.jeu-voiture[aria-pressed="true"]{border-color:#FFC814;background:#FFC814;color:#0E1630}
-.jeu-voiture[aria-pressed="true"] span{color:#0E1630}
-.jeu-couleurs{display:flex;align-items:center;gap:6px;flex-wrap:wrap;justify-content:center}
-.jeu-couleurs-titre{font-size:12px;color:#C9CFE3;margin-right:4px}
-.jeu-couleur{width:26px;height:26px;border-radius:50%;border:2px solid rgba(255,255,255,.35);cursor:pointer;padding:0}
+.jeu-menu{justify-content:flex-start;gap:10px;padding:14px 18px;background:radial-gradient(120% 90% at 50% 0%,rgba(30,45,100,.88),rgba(8,12,28,.94))}
+.jeu-entete{display:flex;flex-direction:column;align-items:center;gap:0}
+.jeu-sous{font-size:13px;color:#C9CFE3}
+.jeu-grille{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.15fr);gap:14px;width:100%;max-width:1180px;margin:auto 0}
+.jeu-garage,.jeu-choix-etape{display:flex;flex-direction:column;gap:8px;padding:14px;border-radius:20px;background:rgba(10,16,38,.82);border:1px solid rgba(255,255,255,.1);box-shadow:0 12px 32px rgba(0,0,0,.35);text-align:left;min-width:0}
+.jeu-carte-tete{display:flex;justify-content:space-between;align-items:center}
+.jeu-etiquette{font:800 12px Inter,sans-serif;letter-spacing:.12em;text-transform:uppercase;color:#FFC814}
+.jeu-compteur{font-size:12px;color:#C9CFE3;font-variant-numeric:tabular-nums}
+.jeu-vitrine{display:flex;align-items:center;gap:6px}
+#apercuVoiture{flex:1;min-width:0;width:100%;height:auto;aspect-ratio:360/170;border-radius:14px;background:radial-gradient(70% 60% at 50% 85%,rgba(255,200,20,.18),transparent),linear-gradient(#141D44,#0A1028)}
+.jeu-fleche{flex:0 0 40px;height:40px;border-radius:50%;border:1.5px solid rgba(255,255,255,.25);background:rgba(255,255,255,.06);color:#F5F3EA;display:grid;place-items:center;cursor:pointer;transition:background .15s,transform .1s,border-color .15s}
+.jeu-fleche:hover{background:rgba(255,200,20,.18);border-color:#FFC814}
+.jeu-voiture-nom{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+.jeu-voiture-nom b{font:800 22px 'Bricolage Grotesque',sans-serif;color:#FFFFFF}
+.jeu-voiture-nom span{font-size:13px;color:#C9CFE3}
+.jeu-info{margin:0;min-height:0;font-size:12px;color:#FFE07A}
+.jeu-info:empty{display:none}
+.jeu-stats{display:grid;grid-template-columns:auto 1fr;gap:4px 10px;align-items:center;font-size:12px;color:#C9CFE3}
+.jeu-barre{height:7px;border-radius:99px;background:rgba(255,255,255,.1);overflow:hidden}
+.jeu-barre i{display:block;height:100%;border-radius:inherit;background:linear-gradient(90deg,#FFC814,#FF9A3D);transition:width .35s ease}
+.jeu-couleurs{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.jeu-couleur{width:26px;height:26px;border-radius:50%;border:2px solid rgba(255,255,255,.35);cursor:pointer;padding:0;transition:transform .12s}
+.jeu-couleur:hover{transform:scale(1.12)}
 .jeu-couleur[aria-pressed="true"]{outline:3px solid #FFC814;outline-offset:2px;border-color:#0E1630}
-.jeu-voiture[aria-disabled="true"]{opacity:.55;border-style:dashed}
-.jeu-info{margin:0;min-height:16px;font-size:12px;color:#FFE07A;text-align:center}
-.jeu-etapes{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;width:100%}
-.jeu-etape{display:flex;flex-direction:column;align-items:flex-start;gap:2px;min-width:0;padding:10px 12px;border-radius:16px;border:2px solid #FFC814;background:rgba(14,22,48,.92);color:#F5F3EA;font:500 13px Inter,sans-serif;text-align:left;cursor:pointer}
-.jeu-etape:hover{background:#16204A}
-.jeu-num{font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#FFC814}
-.jeu-nom{font-family:'Bricolage Grotesque',sans-serif;font-weight:800;font-size:14px;line-height:1.15}
-.jeu-desc{color:#C9CFE3;font-size:11px;line-height:1.3}
-.jeu-rec{font-size:11px;color:#7FD8FF;min-height:14px}
+.jeu-puces{display:flex;gap:5px;flex-wrap:wrap}
+.jeu-puce{display:inline-flex;align-items:center;gap:4px;min-height:30px;padding:0 10px;border-radius:999px;border:1.5px solid #3A4778;background:rgba(14,22,48,.9);color:#F5F3EA;font:600 12px Inter,sans-serif;cursor:pointer;transition:background .15s,border-color .15s}
+.jeu-puce:hover{border-color:#FFC814}
+.jeu-puce .jeu-cadenas{display:none;color:#9EA7C6}
+.jeu-puce[aria-disabled="true"]{color:#9EA7C6;border-style:dashed}
+.jeu-puce[aria-disabled="true"] .jeu-cadenas{display:inline}
+.jeu-puce[aria-pressed="true"]{background:#FFC814;border-color:#FFC814;color:#0E1630}
+.jeu-etapes{display:flex;flex-direction:column;gap:6px;width:100%}
+.jeu-etape{display:grid;grid-template-columns:auto 1fr auto;grid-template-areas:"num nom etoiles" "num desc rec";align-items:center;column-gap:12px;row-gap:0;min-width:0;padding:8px 12px;border-radius:14px;border:1.5px solid rgba(255,255,255,.12);background:rgba(255,255,255,.04);color:#F5F3EA;font:500 13px Inter,sans-serif;text-align:left;cursor:pointer;transition:background .15s,border-color .15s,transform .1s}
+.jeu-etape:hover{background:rgba(255,200,20,.1);border-color:rgba(255,200,20,.6)}
+.jeu-etape[aria-pressed="true"]{border-color:#FFC814;background:rgba(255,200,20,.16);box-shadow:inset 4px 0 0 #FFC814}
+.jeu-num{grid-area:num;font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:#FFC814;width:52px}
+.jeu-nom{grid-area:nom;font-family:'Bricolage Grotesque',sans-serif;font-weight:800;font-size:15px;line-height:1.15}
+.jeu-desc{grid-area:desc;color:#C9CFE3;font-size:11px;line-height:1.3}
+.jeu-etoiles{grid-area:etoiles;justify-self:end;color:#FFC814;font-size:15px;letter-spacing:1px}
+.jeu-rec{grid-area:rec;justify-self:end;font-size:11px;color:#7FD8FF;font-variant-numeric:tabular-nums}
+.jeu-lancer{display:grid;grid-template-columns:auto 1fr;grid-template-areas:"ic t" "ic s";align-items:center;column-gap:12px;text-align:left;min-height:58px;padding:8px 22px;border:none;border-radius:16px;background:linear-gradient(180deg,#FFD84A,#FFB800);color:#0E1630;cursor:pointer;box-shadow:0 6px 0 #B77F00,0 10px 24px rgba(255,184,0,.35);transition:transform .1s,box-shadow .1s,filter .15s}
+.jeu-lancer svg{grid-area:ic}
+.jeu-lancer span{grid-area:t;font:800 19px 'Bricolage Grotesque',sans-serif}
+.jeu-lancer small{grid-area:s;font:600 12px Inter,sans-serif;opacity:.75}
+.jeu-lancer:hover{filter:brightness(1.06)}
+.jeu-lancer:active,.jeu-fleche:active,.jeu-etape:active,.jeu-bouton:active,.jeu-lien:active{transform:translateY(2px)}
+.jeu-lancer:active{box-shadow:0 3px 0 #B77F00,0 6px 16px rgba(255,184,0,.3)}
+.jeu-fin-etoiles{font-size:34px;line-height:1;color:#FFC814;letter-spacing:4px;text-shadow:0 0 18px rgba(255,200,20,.6)}
+.jeu button:focus-visible,.jeu a:focus-visible{outline:3px solid #7FD8FF;outline-offset:2px}
+@media (max-height:520px),(max-width:900px){.jeu-menu{padding:8px 12px;gap:6px}.jeu-entete,.jeu-stats,.jeu-puces,.jeu-choix-etape .jeu-aide,.jeu-desc{display:none}.jeu-grille{gap:8px;margin:0}.jeu-garage,.jeu-choix-etape{padding:10px;gap:6px}#apercuVoiture{max-height:min(120px,28vh)}.jeu-etapes{gap:4px}.jeu-etape{padding:5px 10px;grid-template-areas:"num nom etoiles" "num nom rec"}.jeu-lancer{min-height:46px;padding:6px 16px}.jeu-lancer span{font-size:16px}}
 .jeu-actions{margin-top:4px;display:flex;gap:8px;flex-wrap:wrap;justify-content:center}
 .jeu-bouton,.jeu-lien{min-height:36px;padding:0 14px;border-radius:999px;font:700 13px Inter,sans-serif;display:inline-flex;align-items:center;cursor:pointer;text-decoration:none}
-.jeu-bouton{border:none;background:#FFC814;color:#0E1630}
-.jeu-lien{border:1.5px solid #FFC814;color:#FFC814}
+.jeu-bouton{border:none;background:#FFC814;color:#0E1630;transition:filter .15s,transform .1s}.jeu-bouton:hover{filter:brightness(1.08)}.jeu-lien{transition:background .15s,transform .1s}.jeu-lien:hover{background:rgba(255,200,20,.12)}
+.jeu-lien{border:1.5px solid #FFC814;color:#FFC814;background:transparent}
 .jeu-son{position:absolute;top:calc(23% + 48px);right:8px;width:36px;height:36px;border-radius:10px;border:none;background:rgba(14,22,48,.7);color:#FFFFFF;display:grid;place-items:center;cursor:pointer;opacity:.8}
 .jeu-plein{position:absolute;top:calc(23% + 6px);right:8px;width:36px;height:36px;border-radius:10px;border:none;background:rgba(14,22,48,.7);color:#FFFFFF;display:grid;place-items:center;cursor:pointer;opacity:.8}
-@media (max-width:640px){.jeu-aide{display:none}.jeu-panneau{gap:6px;padding:10px}.jeu-etapes{display:flex;overflow-x:auto;gap:6px;padding-bottom:4px}.jeu-etape{min-width:118px;flex:0 0 auto;padding:6px 8px;border-radius:12px}.jeu-points,#finEtape{display:none}.jeu-voiture span{display:none}.jeu-voiture{padding:2px 10px;min-height:32px}.jeu-voitures{gap:4px;flex-wrap:nowrap;overflow-x:auto}.jeu-couleur{width:22px;height:22px}.jeu-couleurs-titre,.jeu-info{display:none}.jeu-texte{font-size:12px}.jeu-actions .jeu-lien[href]{display:none}.jeu-num{font-size:10px}.jeu-nom{font-size:14px;line-height:1.15}.jeu-desc{display:none}.jeu-rec{font-size:11px}.jeu-titre{font-size:17px}.jeu-temps{font-size:26px}.jeu-bouton,.jeu-lien{min-height:40px;padding:0 14px;font-size:14px}.jeu-panneau:not([hidden])~.jeu-son,.jeu-panneau:not([hidden])~.jeu-plein,.jeu-panneau:not([hidden])~.jeu-musique{display:none}.jeu-plein,.jeu-son,.jeu-musique{left:6px;right:auto;width:30px;height:30px}.jeu-musique{top:calc(23% + 72px)}.jeu-plein{top:calc(23% + 4px)}.jeu-son{top:calc(23% + 38px)}}
+@media (max-width:640px){.jeu-aide{display:none}.jeu-grille{grid-template-columns:1fr;gap:4px}.jeu-garage{flex-direction:row;align-items:center;padding:2px 6px;gap:6px}.jeu-garage .jeu-carte-tete,.jeu-choix-etape .jeu-carte-tete,.jeu-couleurs,#apercuVoiture,.jeu-info{display:none}.jeu-vitrine{display:contents}#voiturePrecedente{order:1}.jeu-voiture-nom{order:2;flex:1;justify-content:center;gap:4px}.jeu-voiture-nom span{font-size:11px}#voitureSuivante{order:3}.jeu-choix-etape{padding:4px 6px;gap:4px}.jeu-etape .jeu-rec{display:none}.jeu-etape{min-width:104px!important;grid-template-areas:"num etoiles" "nom nom"!important;padding:3px 8px!important}.jeu-etoiles{font-size:11px}.jeu-nom{font-size:12px!important}.jeu-lancer{min-height:36px!important;padding:2px 12px!important;grid-template-areas:"ic t"}.jeu-lancer small{display:none}.jeu-lancer span{font-size:14px!important}.jeu-panneau{gap:6px;padding:10px}.jeu-menu{padding:3px 8px;gap:3px}.jeu-entete,.jeu-stats,.jeu-puces{display:none}.jeu-garage,.jeu-choix-etape{padding:8px;gap:6px;border-radius:14px}.jeu-fleche{flex-basis:30px;height:30px}.jeu-voiture-nom b{font-size:16px}.jeu-etapes{flex-direction:row;overflow-x:auto;gap:6px;padding-bottom:2px;flex:none;align-items:center;height:auto}.jeu-etape{min-width:132px;flex:0 0 auto;grid-template-columns:1fr auto;grid-template-areas:"num etoiles" "nom nom" "rec rec";padding:6px 8px}.jeu-desc{display:none}.jeu-rec{justify-self:start}.jeu-lancer{min-height:48px;padding:6px 16px}.jeu-lancer span{font-size:16px}.jeu-points,#finEtape{display:none}.jeu-couleur{width:22px;height:22px}.jeu-texte{font-size:12px}.jeu-actions .jeu-lien[href]{display:none}.jeu-titre{font-size:17px}.jeu-temps{font-size:26px}.jeu-fin-etoiles{font-size:24px}.jeu-bouton,.jeu-lien{min-height:40px;padding:0 14px;font-size:14px}.jeu-plein,.jeu-son,.jeu-musique{left:6px;right:auto;width:30px;height:30px}.jeu-musique{top:calc(23% + 72px)}.jeu-plein{top:calc(23% + 4px)}.jeu-son{top:calc(23% + 38px)}}
 .jeu [hidden]{display:none!important}
 .jeu-panneau:not([hidden])~.jeu-son,.jeu-panneau:not([hidden])~.jeu-plein,.jeu-panneau:not([hidden])~.jeu-musique{display:none}
 #messageBeta.ok{color:#7BE0A0}#messageBeta.erreur{color:#FF8A7A}
@@ -116,31 +147,39 @@ html{scroll-behavior:smooth}
 <div style="border-radius: 22px; overflow: hidden">
 <div class="jeu" id="jeu">
 <canvas id="ecranJeu" width="844" height="390" tabindex="-1" role="img" aria-label="Démo jouable de La Course des Ketch : conduisez le ketch jaune sur le Boulevard du 30 Juin, évitez les obstacles et battez le fantôme."></canvas>
-<div class="jeu-panneau" id="panneauDebut">
-<p class="jeu-titre">Votre voiture, puis votre étape</p>
-<div class="jeu-voitures" role="group" aria-label="Voiture">
-<button type="button" class="jeu-voiture" data-voiture="ketch" aria-pressed="false"><b>Ketch</b><span>Taxi de Kinshasa</span></button>
-<button type="button" class="jeu-voiture" data-voiture="zigzag" aria-pressed="false"><b>Zigzag R</b><span>Sportive · maniabilité</span></button>
-<button type="button" class="jeu-voiture" data-voiture="mbote" aria-pressed="false"><b>Mbote E</b><span>Berline électrique · accélération</span></button>
-<button type="button" class="jeu-voiture" data-voiture="blinde" aria-pressed="false"><b>Blindé X</b><span>SUV sport · robustesse</span></button>
-<button type="button" class="jeu-voiture" data-voiture="kingt" aria-pressed="false"><b>Kin GT</b><span>Grand tourisme · stabilité</span></button>
-<button type="button" class="jeu-voiture" data-voiture="fleuve" aria-pressed="false"><b>Fleuve V8</b><span>Muscle car · dérapages</span></button>
-<button type="button" class="jeu-voiture" data-voiture="turbo" aria-pressed="false"><b>Turbo GT</b><span>Supercar · vitesse</span></button>
-<button type="button" class="jeu-voiture" data-voiture="leopard" aria-pressed="false"><b>Léopard</b><span>Hypercar · la meilleure</span></button>
+<div class="jeu-panneau jeu-menu" id="panneauDebut">
+<div class="jeu-entete"><p class="jeu-titre">La Course des Ketch</p><p class="jeu-sous">Choisissez votre voiture et votre étape</p></div>
+<div class="jeu-grille">
+<div class="jeu-garage" role="group" aria-label="Garage">
+<div class="jeu-carte-tete"><span class="jeu-etiquette">Garage</span><span class="jeu-compteur" id="compteurGarage"></span></div>
+<div class="jeu-vitrine">
+<button type="button" class="jeu-fleche" id="voiturePrecedente" aria-label="Voiture précédente"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></button>
+<canvas id="apercuVoiture" width="360" height="170" role="img" aria-label="Aperçu de la voiture choisie"></canvas>
+<button type="button" class="jeu-fleche" id="voitureSuivante" aria-label="Voiture suivante"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg></button>
 </div>
-<div class="jeu-couleurs" role="group" aria-label="Couleur de la voiture"><span class="jeu-couleurs-titre">Couleur</span><button type="button" class="jeu-couleur" data-couleur="jaune" aria-label="Jaune" aria-pressed="false" style="background:#FFD23F"></button><button type="button" class="jeu-couleur" data-couleur="noir" aria-label="Noir" aria-pressed="false" style="background:#232831"></button><button type="button" class="jeu-couleur" data-couleur="blanc" aria-label="Blanc" aria-pressed="false" style="background:#FFFFFF"></button><button type="button" class="jeu-couleur" data-couleur="vert" aria-label="Vert" aria-pressed="false" style="background:#3DDC84"></button><button type="button" class="jeu-couleur" data-couleur="rouge" aria-label="Rouge" aria-pressed="false" style="background:#FF4A3D"></button><button type="button" class="jeu-couleur" data-couleur="bleu" aria-label="Bleu" aria-pressed="false" style="background:#4C8DFF"></button><button type="button" class="jeu-couleur" data-couleur="orange" aria-label="Orange" aria-pressed="false" style="background:#FF9A3D"></button><button type="button" class="jeu-couleur" data-couleur="violet" aria-label="Violet" aria-pressed="false" style="background:#B07CFF"></button></div>
+<p class="jeu-voiture-nom"><b id="nomVoiture"></b> <span id="typeVoiture"></span></p>
 <p class="jeu-info" id="infoVoiture" role="status"></p>
-<div class="jeu-etapes">
-<button type="button" class="jeu-etape" data-etape="rondpoint"><span class="jeu-num">Étape 1</span><span class="jeu-nom">Rond-point Victoire</span><span class="jeu-desc">1,5 km · trafic dense</span><span class="jeu-rec" id="record-rondpoint"></span></button>
-<button type="button" class="jeu-etape" data-etape="marche"><span class="jeu-num">Étape 2</span><span class="jeu-nom">Le Grand Marché</span><span class="jeu-desc">1,6 km · étals, piétons</span><span class="jeu-rec" id="record-marche"></span></button>
-<button type="button" class="jeu-etape" data-etape="poidslourds"><span class="jeu-num">Étape 3</span><span class="jeu-nom">Route des Poids Lourds</span><span class="jeu-desc">2 km · camions, bosses</span><span class="jeu-rec" id="record-poidslourds"></span></button>
-<button type="button" class="jeu-etape" data-etape="corniche"><span class="jeu-num">Étape 4</span><span class="jeu-nom">Corniche du Fleuve</span><span class="jeu-desc">1,8 km · virages glissants</span><span class="jeu-rec" id="record-corniche"></span></button>
-<button type="button" class="jeu-etape" data-etape="boulevard"><span class="jeu-num">Étape 5</span><span class="jeu-nom">Boulevard du 30 Juin</span><span class="jeu-desc">2 km · 4 voies, montées</span><span class="jeu-rec" id="record-boulevard"></span></button>
+<div class="jeu-stats" id="statsVoiture"></div>
+<div class="jeu-couleurs" role="group" aria-label="Couleur de la voiture"><button type="button" class="jeu-couleur" data-couleur="jaune" aria-label="Jaune" aria-pressed="false" style="background:#FFD23F"></button><button type="button" class="jeu-couleur" data-couleur="noir" aria-label="Noir" aria-pressed="false" style="background:#232831"></button><button type="button" class="jeu-couleur" data-couleur="blanc" aria-label="Blanc" aria-pressed="false" style="background:#FFFFFF"></button><button type="button" class="jeu-couleur" data-couleur="vert" aria-label="Vert" aria-pressed="false" style="background:#3DDC84"></button><button type="button" class="jeu-couleur" data-couleur="rouge" aria-label="Rouge" aria-pressed="false" style="background:#FF4A3D"></button><button type="button" class="jeu-couleur" data-couleur="bleu" aria-label="Bleu" aria-pressed="false" style="background:#4C8DFF"></button><button type="button" class="jeu-couleur" data-couleur="orange" aria-label="Orange" aria-pressed="false" style="background:#FF9A3D"></button><button type="button" class="jeu-couleur" data-couleur="violet" aria-label="Violet" aria-pressed="false" style="background:#B07CFF"></button></div>
+<div class="jeu-puces" role="group" aria-label="Toutes les voitures"><button type="button" class="jeu-puce" data-voiture="ketch" aria-pressed="false" title="Ketch"><span class="jeu-puce-nom">Ketch</span><svg class="jeu-cadenas" width="11" height="11" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M6 10V8a6 6 0 1 1 12 0v2h1a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V11a1 1 0 0 1 1-1zm2 0h8V8a4 4 0 1 0-8 0z"/></svg></button><button type="button" class="jeu-puce" data-voiture="zigzag" aria-pressed="false" title="Zigzag R"><span class="jeu-puce-nom">Zigzag R</span><svg class="jeu-cadenas" width="11" height="11" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M6 10V8a6 6 0 1 1 12 0v2h1a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V11a1 1 0 0 1 1-1zm2 0h8V8a4 4 0 1 0-8 0z"/></svg></button><button type="button" class="jeu-puce" data-voiture="mbote" aria-pressed="false" title="Mbote E"><span class="jeu-puce-nom">Mbote E</span><svg class="jeu-cadenas" width="11" height="11" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M6 10V8a6 6 0 1 1 12 0v2h1a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V11a1 1 0 0 1 1-1zm2 0h8V8a4 4 0 1 0-8 0z"/></svg></button><button type="button" class="jeu-puce" data-voiture="blinde" aria-pressed="false" title="Blindé X"><span class="jeu-puce-nom">Blindé X</span><svg class="jeu-cadenas" width="11" height="11" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M6 10V8a6 6 0 1 1 12 0v2h1a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V11a1 1 0 0 1 1-1zm2 0h8V8a4 4 0 1 0-8 0z"/></svg></button><button type="button" class="jeu-puce" data-voiture="kingt" aria-pressed="false" title="Kin GT"><span class="jeu-puce-nom">Kin GT</span><svg class="jeu-cadenas" width="11" height="11" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M6 10V8a6 6 0 1 1 12 0v2h1a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V11a1 1 0 0 1 1-1zm2 0h8V8a4 4 0 1 0-8 0z"/></svg></button><button type="button" class="jeu-puce" data-voiture="fleuve" aria-pressed="false" title="Fleuve V8"><span class="jeu-puce-nom">Fleuve V8</span><svg class="jeu-cadenas" width="11" height="11" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M6 10V8a6 6 0 1 1 12 0v2h1a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V11a1 1 0 0 1 1-1zm2 0h8V8a4 4 0 1 0-8 0z"/></svg></button><button type="button" class="jeu-puce" data-voiture="turbo" aria-pressed="false" title="Turbo GT"><span class="jeu-puce-nom">Turbo GT</span><svg class="jeu-cadenas" width="11" height="11" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M6 10V8a6 6 0 1 1 12 0v2h1a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V11a1 1 0 0 1 1-1zm2 0h8V8a4 4 0 1 0-8 0z"/></svg></button><button type="button" class="jeu-puce" data-voiture="leopard" aria-pressed="false" title="Léopard"><span class="jeu-puce-nom">Léopard</span><svg class="jeu-cadenas" width="11" height="11" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M6 10V8a6 6 0 1 1 12 0v2h1a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V11a1 1 0 0 1 1-1zm2 0h8V8a4 4 0 1 0-8 0z"/></svg></button></div>
 </div>
-<p class="jeu-aide">Commandes : ← → tourner à gauche et à droite · ↑ ou Espace turbo · ↓ freiner, et en restant appuyé à l'arrêt : marche arrière. Sur téléphone, les mêmes boutons à l'écran. Points : roulez vite, battez le fantôme, évitez les chocs. Les sportives se débloquent avec votre meilleur score.</p>
+<div class="jeu-choix-etape" role="group" aria-label="Étapes">
+<div class="jeu-carte-tete"><span class="jeu-etiquette">Étapes</span><span class="jeu-compteur" id="compteurEtoiles"></span></div>
+<div class="jeu-etapes">
+<button type="button" class="jeu-etape" data-etape="rondpoint" aria-pressed="true"><span class="jeu-num">Étape 1</span><span class="jeu-nom">Rond-point Victoire</span><span class="jeu-desc">1,5 km · trafic dense</span><span class="jeu-etoiles" id="etoiles-rondpoint" aria-hidden="true">☆☆☆</span><span class="jeu-rec" id="record-rondpoint"></span></button>
+<button type="button" class="jeu-etape" data-etape="marche" aria-pressed="false"><span class="jeu-num">Étape 2</span><span class="jeu-nom">Le Grand Marché</span><span class="jeu-desc">1,6 km · étals, piétons</span><span class="jeu-etoiles" id="etoiles-marche" aria-hidden="true">☆☆☆</span><span class="jeu-rec" id="record-marche"></span></button>
+<button type="button" class="jeu-etape" data-etape="poidslourds" aria-pressed="false"><span class="jeu-num">Étape 3</span><span class="jeu-nom">Route des Poids Lourds</span><span class="jeu-desc">2 km · camions, bosses</span><span class="jeu-etoiles" id="etoiles-poidslourds" aria-hidden="true">☆☆☆</span><span class="jeu-rec" id="record-poidslourds"></span></button>
+<button type="button" class="jeu-etape" data-etape="corniche" aria-pressed="false"><span class="jeu-num">Étape 4</span><span class="jeu-nom">Corniche du Fleuve</span><span class="jeu-desc">1,8 km · virages glissants</span><span class="jeu-etoiles" id="etoiles-corniche" aria-hidden="true">☆☆☆</span><span class="jeu-rec" id="record-corniche"></span></button>
+<button type="button" class="jeu-etape" data-etape="boulevard" aria-pressed="false"><span class="jeu-num">Étape 5</span><span class="jeu-nom">Boulevard du 30 Juin</span><span class="jeu-desc">2 km · 4 voies, montées</span><span class="jeu-etoiles" id="etoiles-boulevard" aria-hidden="true">☆☆☆</span><span class="jeu-rec" id="record-boulevard"></span></button>
+</div>
+<button type="button" class="jeu-lancer" id="boutonLancer"><svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M7 4.5v15l12-7.5z"/></svg><span>Lancer la course</span><small id="lancerEtape">Rond-point Victoire</small></button>
+<p class="jeu-aide">← → tourner · ↑ ou Espace turbo · ↓ freiner (maintenu à l'arrêt : marche arrière). Ramassez les pièces <b style="color:#FFD23F">G</b> et les bidons <b style="color:#7FD8FF">turbo</b>, frôlez les voitures pour des bonus.</p>
+</div>
+</div>
 </div>
 <div class="jeu-panneau" id="panneauFin" hidden>
 <p class="jeu-aide" id="finEtape"></p>
+<p class="jeu-fin-etoiles" id="finEtoiles" role="img"></p>
 <p class="jeu-temps" id="finTemps"></p>
 <p class="jeu-texte" id="finVerdict"></p>
 <ul class="jeu-points" id="finPoints"></ul>
@@ -508,7 +547,14 @@ html{scroll-behavior:smooth}
     });
     return n;
   }
-  function debloquee(m) { return meilleurScore() >= m.debloque || (m.id === 'leopard' && etapesGagnees() >= 5); }
+  // Lien propriétaire : …#garage-complet débloque toutes les voitures sur cet appareil.
+  function garageComplet() { try { return localStorage.getItem('ketch-garage-complet') === 'oui'; } catch (e) { return false; } }
+  function lireLienGarage() {
+    if (location.hash === '#garage-complet') { try { localStorage.setItem('ketch-garage-complet', 'oui'); } catch (e) {} return true; }
+    return false;
+  }
+  var lienGarage = lireLienGarage();
+  function debloquee(m) { return garageComplet() || lienGarage || meilleurScore() >= m.debloque || (m.id === 'leopard' && etapesGagnees() >= 5); }
   function conditionDeblocage(m) {
     return m.debloque.toLocaleString('fr-FR') + ' pts' + (m.id === 'leopard' ? ' ou 5 étapes gagnées' : '');
   }
@@ -656,6 +702,13 @@ html{scroll-behavior:smooth}
         if (prises[v]) continue; prises[v] = 1;
         E.obstacles.push({ z: zz + k * 6, x: voies[v], type: t });
       }
+    }
+    // Bonus à ramasser : traînées de 3 pièces, et bidons qui rechargent le turbo.
+    E.bonus = [];
+    for (var bz2 = 200, nb2 = 0; bz2 < E.longueur - 60; bz2 += 90 + Math.floor(h() * 40), nb2++) {
+      var voieB = voies[Math.floor(h() * voies.length)];
+      if (nb2 % 4 === 3) E.bonus.push({ z: bz2, x: voieB, type: 'bidon' });
+      else for (var k2 = 0; k2 < 3; k2++) E.bonus.push({ z: bz2 + k2 * 7, x: voieB, type: 'piece' });
     }
     E.raccourcis.forEach(function (r) {
       var b = 1 + 2 / E.demi;
@@ -890,7 +943,7 @@ html{scroll-behavior:smooth}
   var etat = 'accueil', temps = 0, compte = 0, z = 0, v = 0, x = 0, energie = 1, turboActif = false, choc = 0;
   var touches = {}, obstacles = [], trafic = [], pietons = [], zFantome = 0, raccourci = null, decalDecor = 0;
   var message = '', messageTemps = 0, derniereSeconde = 4, glisse = false;
-  var arriere = false, tempsArret = 0, bipArriere = 0, grace = 0, points = 0, gagnes = 0, perdus = 0, chocs = { piéton: 0, véhicule: 0, obstacle: 0, trou: 0 }, bulles = [], flashScore = 0;
+  var bonus = [], particules = [], bonusPts = 0, frolés = 0, pieces = 0, arriere = false, tempsArret = 0, bipArriere = 0, grace = 0, points = 0, gagnes = 0, perdus = 0, chocs = { piéton: 0, véhicule: 0, obstacle: 0, trou: 0 }, bulles = [], flashScore = 0;
 
   function lireRecord(id) {
     try { var r = JSON.parse(localStorage.getItem('ketch-records-' + id) || 'null'); return r && typeof r === 'object' ? r : null; } catch (e) { return null; }
@@ -902,16 +955,51 @@ html{scroll-behavior:smooth}
     etat = 'accueil'; temps = 0; compte = 3.999; z = 0; v = 0; x = E.voies[E.voies.length - 1] * (E.voies.length > 2 ? 0.33 : 1);
     energie = 1; turboActif = false; choc = 0; zFantome = 0; touches = {}; raccourci = null; decalDecor = 0; glisse = false;
     message = ''; messageTemps = 0; derniereSeconde = 4;
+    bonus = E.bonus.map(function (b) { return { z: b.z, x: b.x, type: b.type, pris: false }; });
+    particules = []; bonusPts = 0; frolés = 0; pieces = 0;
     arriere = false; tempsArret = 0; bipArriere = 0; grace = 0; points = 0; gagnes = 0; perdus = 0; chocs = { piéton: 0, véhicule: 0, obstacle: 0, trou: 0 }; bulles = []; flashScore = 0;
     obstacles = E.obstacles.map(function (o) { return { z: o.z, x: o.x, type: o.type, touche: false }; });
-    trafic = E.traficListe.map(function (t) { return { def: t, z: t.z0, x: t.a, pousse: 0, klaxon: -9 }; });
+    trafic = E.traficListe.map(function (t) { return { def: t, z: t.z0, x: t.a, pousse: 0, klaxon: -9, devant: true }; });
     pietons = E.pietons.map(function (p) { return { def: p, z: p.z, x: p.cote * (1 + 1.2 / E.demi), parti: false, ecarte: false }; });
   }
   function annoncer(texte) { message = texte; messageTemps = 1.6; }
+  function gagner(n, texte) {
+    bonusPts += n; points = Math.max(0, gagnes + bonusPts - perdus);
+    bulles.push({ texte: '+' + n + ' · ' + texte, t: 1.2, bon: true });
+  }
+  // Particules en coordonnées d'écran : étincelles, fumée, poussière, confettis.
+  function emettre(nb, x0, y0, type) {
+    var couleurs = { etincelle: ['#FFD23F', '#FF9A3D', '#FFFFFF'], fumee: ['rgba(220,220,220,.5)'], poussiere: ['rgba(176,122,74,.55)'],
+      confetti: ['#FFC814', '#1E5FD6', '#D92D20', '#1E7D45', '#FFFFFF', '#B07CFF'], turbo: ['#7FD8FF', '#4C8DFF'] }[type];
+    for (var i = 0; i < nb && particules.length < 400; i++) {
+      var a = Math.random() * Math.PI * 2, vit = type === 'etincelle' ? 120 + Math.random() * 260 : type === 'confetti' ? 40 + Math.random() * 120 : 20 + Math.random() * 60;
+      particules.push({ x: x0 + (Math.random() - 0.5) * (type === 'confetti' ? W : 30), y: y0, vx: Math.cos(a) * vit, vy: type === 'confetti' ? 60 + Math.random() * 120 : -Math.abs(Math.sin(a)) * vit,
+        vie: type === 'confetti' ? 2.5 + Math.random() : type === 'etincelle' ? 0.5 : 0.8, age: 0, type: type, c: couleurs[i % couleurs.length], tourne: Math.random() * 6 });
+    }
+  }
+  function particulesAvancer(dt) {
+    particules.forEach(function (p) {
+      p.age += dt; p.x += p.vx * dt; p.y += p.vy * dt;
+      if (p.type === 'etincelle') p.vy += 500 * dt;
+      if (p.type === 'fumee' || p.type === 'poussiere') { p.vy -= 10 * dt; p.vx *= 0.98; }
+      if (p.type === 'confetti') { p.vx *= 0.99; p.tourne += dt * 8; }
+    });
+    particules = particules.filter(function (p) { return p.age < p.vie; });
+  }
+  function particulesDessiner() {
+    particules.forEach(function (p) {
+      var a = 1 - p.age / p.vie;
+      ctx.globalAlpha = Math.max(0, a);
+      if (p.type === 'etincelle' || p.type === 'turbo') { ctx.strokeStyle = p.c; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(p.x - p.vx * 0.03, p.y - p.vy * 0.03); ctx.stroke(); }
+      else if (p.type === 'confetti') { ctx.fillStyle = p.c; ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.tourne); ctx.fillRect(-4, -2, 8, 4); ctx.restore(); }
+      else { ctx.fillStyle = p.c; ctx.beginPath(); ctx.arc(p.x, p.y, 8 + p.age * 30, 0, 7); ctx.fill(); }
+    });
+    ctx.globalAlpha = 1;
+  }
   function retirer(categorie, texte) {
     var n = POINTS[categorie];
     grace = 0.6;
-    chocs[categorie]++; perdus += n; points = Math.max(0, gagnes - perdus); flashScore = 0.8;
+    chocs[categorie]++; perdus += n; points = Math.max(0, gagnes + bonusPts - perdus); flashScore = 0.8;
     bulles.push({ texte: '−' + n + ' · ' + texte, t: 1.4 });
   }
 
@@ -972,13 +1060,15 @@ html{scroll-behavior:smooth}
   }
   function secousse(fort) {
     v *= fort ? voiture.robuste : 0.75 + (voiture.robuste - 0.35) * 0.5; choc = fort ? 0.45 : 0.25;
-    if (fort) { sonBruit(420, 'lowpass', 0.35, 0.9); sonNote(70, 0, 0.25, 0.4, 'sine'); } else sonBruit(180, 'lowpass', 0.2, 0.7);
+    if (fort) { sonBruit(420, 'lowpass', 0.35, 0.9); sonNote(70, 0, 0.25, 0.4, 'sine'); if (!mouvementReduit) emettre(22, VX, 300, 'etincelle'); }
+    else sonBruit(180, 'lowpass', 0.2, 0.7);
     if (navigator.vibrate) { try { navigator.vibrate(fort ? 60 : 30); } catch (e) {} }
   }
 
   function avancer(dt) {
     if (messageTemps > 0) messageTemps -= dt;
     if (flashScore > 0) flashScore -= dt;
+    particulesAvancer(dt);
     if (grace > 0) grace -= dt;
     bulles.forEach(function (b) { b.t -= dt; }); bulles = bulles.filter(function (b) { return b.t > 0; });
     if (etat === 'compte') {
@@ -1041,7 +1131,7 @@ html{scroll-behavior:smooth}
     z += dz;
     // Points de vitesse : chaque mètre rapporte plus quand on roule vite.
     if (dz > 0) gagnes += dz * (1 + 2 * Math.min(1.4, v / (E.vMax * voiture.vitesse)));
-    points = Math.max(0, gagnes - perdus);
+    points = Math.max(0, gagnes + bonusPts - perdus);
     decalDecor += segmentA(z).courbe * v * dt * 0.6;
 
     obstacles.forEach(function (o) {
@@ -1059,6 +1149,12 @@ html{scroll-behavior:smooth}
       var p = Math.max(0, Math.min(1, (temps - d.change) / 1.6));
       t.x = d.a + (d.b - d.a) * doux(0, 1, p);
       if (raccourci) return;
+      var etaitDevant = t.devant;
+      t.devant = t.z > z;
+      if (etaitDevant && !t.devant && temps - (t.dernierChoc || -9) > 2 && v > d.vit + 3) {
+        var ecartLat = Math.abs(t.x - x) * E.demi - LARGEUR[d.type] - DEMI_KETCH;
+        if (ecartLat >= 0 && ecartLat < 0.9) { frolés++; gagner(100, 'frôlé !'); sonNote(1180, 0, 0.12, 0.1, 'sine'); }
+      }
       var devant = t.z - z;
       if (devant > 0 && devant < 16 && Math.abs(t.x - x) * E.demi < 1.6 && v > d.vit + 6 && temps - t.klaxon > 3) {
         t.klaxon = temps; klaxon(d.type === 'bus' || d.type === 'camion');
@@ -1084,6 +1180,20 @@ html{scroll-behavior:smooth}
         retirer('piéton', 'piéton');
       }
     });
+    // Bonus : pièces (+50) et bidons de turbo (+30, turbo rechargé de moitié).
+    bonus.forEach(function (b) {
+      if (b.pris || Math.abs(b.z - z) > 2 || Math.abs(b.x - x) * E.demi > 1.3) return;
+      b.pris = true;
+      if (b.type === 'piece') { pieces++; gagner(50, 'pièce'); sonNote(1320, 0, 0.08, 0.12, 'square'); sonNote(1760, 0.07, 0.15, 0.12, 'square'); }
+      else { energie = Math.min(1, energie + 0.5); gagner(30, 'turbo rechargé'); sonNote(660, 0, 0.1, 0.12, 'triangle'); sonNote(990, 0.08, 0.2, 0.12, 'triangle'); }
+    });
+    // Effets : fumée des pneus, poussière sur la terre, petites flammes du turbo.
+    if (!mouvementReduit && etat === 'course') {
+      var dirFx = (appuye('droite') ? 1 : 0) - (appuye('gauche') ? 1 : 0);
+      if (v > 22 && ((dirFx && Math.abs(segmentA(z).courbe) > 2) || glisse || (appuye('frein') && v > 25)) && Math.random() < 0.6) { emettre(1, VX - 85, 372, 'fumee'); emettre(1, VX + 85, 372, 'fumee'); }
+      if (raccourci && v > 8 && Math.random() < 0.7) emettre(1, VX + (Math.random() - 0.5) * 160, 375, 'poussiere');
+      if (turboActif && Math.random() < 0.8) emettre(1, VX + (Math.random() < 0.5 ? -44 : 44), 360, 'turbo');
+    }
     if (choc > 0) choc = Math.max(0, choc - dt);
     if (z >= E.longueur) terminer();
   }
@@ -1105,20 +1215,25 @@ html{scroll-behavior:smooth}
     var bonusPropre = 0;
     for (var i = 0; i < POINTS.propre.length; i++) if (nbChocs <= POINTS.propre[i][0]) { bonusPropre = POINTS.propre[i][1]; break; }
     var total = Math.max(0, Math.round(points) + bonusFantome + bonusPropre);
+    var etoiles = 1 + (ecart > 0 ? 1 : 0) + (ecart > 0 && nbChocs <= 2 ? 1 : 0);
+    if (ecart > 0 && !mouvementReduit) emettre(160, VX, -10, 'confetti');
 
     var avantOuvertes = ORDRE_VOITURES.filter(function (id) { return debloquee(VOITURES[id]); });
     var rec = lireRecord(E.id) || {}, nouveau = !rec.score || total > rec.score;
     var nouveauTemps = !rec.temps || temps < rec.temps;
-    ecrireRecord(E.id, { score: Math.max(total, rec.score || 0), temps: Math.min(temps, rec.temps || 1e9), gagne: !!rec.gagne || ecart > 0 });
+    ecrireRecord(E.id, { score: Math.max(total, rec.score || 0), temps: Math.min(temps, rec.temps || 1e9), gagne: !!rec.gagne || ecart > 0, etoiles: Math.max(etoiles, rec.etoiles || 0) });
     [523, 659, 784, 1047].forEach(function (f, j) { sonNote(f, j * 0.12, 0.3, 0.2); });
 
     document.getElementById('finEtape').textContent = 'Étape ' + E.numero + ' · ' + E.nom + ' · ' + voiture.nom + ' · ' + chrono(temps);
     document.getElementById('finTemps').textContent = total.toLocaleString('fr-FR') + ' points';
+    var finEt = document.getElementById('finEtoiles');
+    if (finEt) { finEt.textContent = '\u2605'.repeat(etoiles) + '\u2606'.repeat(3 - etoiles); finEt.setAttribute('aria-label', etoiles + ' étoile' + (etoiles > 1 ? 's' : '') + ' sur 3'); }
     document.getElementById('finVerdict').textContent = ecart > 0
       ? 'Vous battez le fantôme de ' + secondes(ecart) + '.'
       : 'Le fantôme gagne de ' + secondes(-ecart) + '.';
     var lignes = [
       ['Vitesse sur la route', '+' + route.toLocaleString('fr-FR')],
+      ['Pièces, bidons et frôlés (' + pieces + ' pièces, ' + frolés + ' frôlés)', bonusPts ? '+' + bonusPts.toLocaleString('fr-FR') : '0'],
       ['Course contre le fantôme', bonusFantome ? '+' + bonusFantome.toLocaleString('fr-FR') : '0'],
       ['Conduite propre (' + nbChocs + (nbChocs > 1 ? ' chocs' : ' choc') + ')', bonusPropre ? '+' + bonusPropre : '0'],
       ['Chocs', perdus ? '−' + perdus.toLocaleString('fr-FR') : '0']
@@ -1741,6 +1856,43 @@ html{scroll-behavior:smooth}
     ctx.restore();
   }
 
+  function dessinBonus(b, sx, sy, s) {
+    ctx.save(); ctx.translate(sx, sy - 90 * s - Math.sin(temps * 4 + b.z) * 8 * s); ctx.scale(s * 1.6, s * 1.6);
+    if (b.type === 'piece') {
+      var l = Math.abs(Math.cos(temps * 3 + b.z));
+      ctx.shadowColor = '#FFD23F'; ctx.shadowBlur = 18;
+      ctx.fillStyle = '#E8A800'; ctx.beginPath(); ctx.ellipse(0, 0, 34 * l + 4, 34, 0, 0, 7); ctx.fill();
+      ctx.fillStyle = '#FFD23F'; ctx.beginPath(); ctx.ellipse(0, 0, 28 * l + 3, 28, 0, 0, 7); ctx.fill();
+      ctx.shadowBlur = 0;
+      if (l > 0.4) { ctx.fillStyle = '#8A5A00'; ctx.font = '900 30px Inter, sans-serif'; ctx.textAlign = 'center'; ctx.save(); ctx.scale(l, 1); ctx.fillText('G', 0, 11); ctx.restore(); }
+    } else {
+      ctx.shadowColor = '#7FD8FF'; ctx.shadowBlur = 18;
+      ctx.fillStyle = '#1E5FD6'; rect(-30, -40, 60, 80, 10); ctx.fill(); ctx.shadowBlur = 0;
+      ctx.fillStyle = '#163E99'; rect(-12, -52, 24, 14, 4); ctx.fill();
+      ctx.fillStyle = '#FFD23F'; ctx.beginPath(); ctx.moveTo(6, -26); ctx.lineTo(-12, 4); ctx.lineTo(0, 4); ctx.lineTo(-6, 28); ctx.lineTo(14, -6); ctx.lineTo(2, -6); ctx.closePath(); ctx.fill();
+    }
+    ctx.restore();
+  }
+  function lignesVitesse() {
+    var seuil = E.vMax * voiture.vitesse * 0.8;
+    if (mouvementReduit || etat !== 'course' || (v < seuil && !turboActif)) return;
+    var force = Math.min(1, (v - seuil * 0.9) / (seuil * 0.4)) * (turboActif ? 1 : 0.6);
+    ctx.strokeStyle = 'rgba(255,255,255,' + (0.25 * force) + ')'; ctx.lineWidth = 2;
+    for (var i = 0; i < 18; i++) {
+      var a = Math.random() * Math.PI * 2, r0 = 160 + Math.random() * 120, r1 = r0 + 60 + Math.random() * 120;
+      ctx.beginPath(); ctx.moveTo(VX + Math.cos(a) * r0, 200 + Math.sin(a) * r0 * 0.6); ctx.lineTo(VX + Math.cos(a) * r1, 200 + Math.sin(a) * r1 * 0.6); ctx.stroke();
+    }
+  }
+  function feuDepart() {
+    var n = Math.ceil(compte - 1), x0 = VX - 90, y0 = 150;
+    ctx.fillStyle = 'rgba(14,22,48,.92)'; rect(x0, y0, 180, 64, 14); ctx.fill();
+    for (var i = 0; i < 3; i++) {
+      var allume = n <= 0 ? '#3DDC84' : i < 4 - n ? '#FF3B30' : '#3A2226';
+      ctx.shadowColor = allume; ctx.shadowBlur = allume === '#3A2226' ? 0 : 18;
+      ctx.fillStyle = allume; ctx.beginPath(); ctx.arc(x0 + 40 + i * 50, y0 + 32, 18, 0, 7); ctx.fill();
+    }
+    ctx.shadowBlur = 0;
+  }
   function scene(vue) {
     var objets = [];
     function poser(zz, xx, dessin) {
@@ -1779,6 +1931,9 @@ html{scroll-behavior:smooth}
     });
     E.raccourcis.forEach(function (r) {
       poser(r.debut - 40, r.cote * 1.05, function (sx, sy, s) { panneau(sx, sy, s, 'RACCOURCI', '#1E7D45', r.cote); });
+    });
+    bonus.forEach(function (b) {
+      if (!b.pris) poser(b.z, b.x, function (sx, sy, s) { dessinBonus(b, sx, sy, s); });
     });
     obstacles.forEach(function (o) {
       if (o.type === 'bosse') poser(o.z, 0, function (sx, sy, s, e) { bosse(e); });
@@ -1840,7 +1995,7 @@ html{scroll-behavior:smooth}
       ctx.globalAlpha = Math.min(1, b.t * 2);
       ctx.font = '800 17px Inter, sans-serif'; ctx.textAlign = 'center';
       var lw = ctx.measureText(b.texte).width + 26, y = 150 + i * 34 - (1.4 - b.t) * 18;
-      ctx.fillStyle = 'rgba(180,35,24,.95)'; rect(VX - lw / 2, y, lw, 30, 15); ctx.fill();
+      ctx.fillStyle = b.bon ? 'rgba(30,125,69,.95)' : 'rgba(180,35,24,.95)'; rect(VX - lw / 2, y, lw, 30, 15); ctx.fill();
       ctx.fillStyle = '#FFFFFF'; ctx.fillText(b.texte, VX, y + 21);
       ctx.globalAlpha = 1;
     });
@@ -1878,16 +2033,19 @@ html{scroll-behavior:smooth}
     var dir = (appuye('droite') ? 1 : 0) - (appuye('gauche') ? 1 : 0);
     var cahot = (raccourci || E.id === 'poidslourds') && v > 5 && !mouvementReduit ? Math.sin(temps * 38) * (raccourci ? 2.5 : 1) : 0;
     var penche = etat === 'course' ? dir * (glisse ? 0.06 : 0.03) : 0;
+    lignesVitesse();
     if (voiture === VOITURES.ketch) ketch(VX, 384 + cahot, 0.78, false, penche);
     else sportive(voiture, VX, 384 + cahot, 0.78, penche);
+    particulesDessiner();
     ctx.restore();
     hud();
     if (etat === 'compte') {
       var n = Math.ceil(compte - 1);
-      ctx.fillStyle = 'rgba(14,22,48,.35)'; ctx.fillRect(0, 0, W, H);
-      ctx.fillStyle = n > 0 ? '#FFFFFF' : '#FFC814'; ctx.textAlign = 'center';
-      ctx.font = '800 110px "Bricolage Grotesque", Inter, sans-serif';
-      ctx.fillText(n > 0 ? String(n) : 'Partez !', VX, 236);
+      ctx.fillStyle = 'rgba(14,22,48,.3)'; ctx.fillRect(0, 0, W, H);
+      feuDepart();
+      ctx.fillStyle = n > 0 ? '#FFFFFF' : '#3DDC84'; ctx.textAlign = 'center';
+      ctx.font = '800 72px "Bricolage Grotesque", Inter, sans-serif';
+      ctx.fillText(n > 0 ? String(n) : 'Partez !', VX, 290);
     }
   }
 
@@ -1908,6 +2066,7 @@ html{scroll-behavior:smooth}
     avancer(dt);
     sonMoteur(dt);
     dessiner();
+    dessinerApercu();
     requestAnimationFrame(boucle);
   }
   document.addEventListener('visibilitychange', function () {
@@ -1933,20 +2092,82 @@ html{scroll-behavior:smooth}
     canvas.focus({ preventScroll: true });
   }
   function majRecords() {
+    var total = 0;
     ORDRE.forEach(function (id) {
       var el = document.getElementById('record-' + id), r = lireRecord(id);
-      if (el) el.textContent = r && r.score ? 'Record : ' + r.score.toLocaleString('fr-FR') + ' pts' : 'Pas encore joué';
+      if (el) el.textContent = r && r.score ? r.score.toLocaleString('fr-FR') + ' pts' : 'Nouveau';
+      var et = document.getElementById('etoiles-' + id), n = r ? (r.etoiles || (r.gagne ? 2 : r.score ? 1 : 0)) : 0;
+      if (et) et.textContent = '\u2605'.repeat(n) + '\u2606'.repeat(3 - n);
+      var carte = document.querySelector('[data-etape="' + id + '"]');
+      if (carte) carte.setAttribute('aria-label', carte.querySelector('.jeu-nom').textContent + ', ' + n + ' étoile' + (n > 1 ? 's' : '') + ' sur 3' + (r && r.score ? ', record ' + r.score + ' points' : ''));
+      total += n;
     });
+    var ce = document.getElementById('compteurEtoiles'); if (ce) ce.textContent = '\u2605 ' + total + ' / ' + ORDRE.length * 3;
   }
   var infoVoiture = document.getElementById('infoVoiture');
+  var vueGarage = voiture; // voiture affichée dans la vitrine (peut être verrouillée)
+  var STATS = [['Vitesse', 'vitesse'], ['Accélération', 'accel'], ['Maniabilité', 'direction'], ['Robustesse', 'robuste']];
+  function barreStat(cle, val) {
+    var vals = ORDRE_VOITURES.map(function (k) { return VOITURES[k][cle]; });
+    var mn = Math.min.apply(null, vals), mx = Math.max.apply(null, vals);
+    return Math.round(30 + 70 * (val - mn) / Math.max(1e-6, mx - mn));
+  }
+  function majVitrine() {
+    var m = vueGarage, ouverte = debloquee(m);
+    var nom = document.getElementById('nomVoiture'), type = document.getElementById('typeVoiture');
+    if (nom) nom.textContent = m.nom;
+    if (type) type.textContent = m.type;
+    if (infoVoiture) infoVoiture.textContent = ouverte ? '' : '\uD83D\uDD12 Se débloque avec ' + conditionDeblocage(m) + ' sur une étape · votre meilleur score : ' + meilleurScore().toLocaleString('fr-FR') + (m.id === 'leopard' ? ' · étapes gagnées : ' + etapesGagnees() + ' / 5' : '');
+    var st = document.getElementById('statsVoiture');
+    if (st) st.innerHTML = STATS.map(function (k) {
+      var pc = barreStat(k[1], m[k[1]]);
+      return '<span>' + k[0] + '</span><span class="jeu-barre" role="meter" aria-label="' + k[0] + '" aria-valuemin="0" aria-valuemax="100" aria-valuenow="' + pc + '"><i style="width:' + pc + '%"></i></span>';
+    }).join('');
+    var nb = ORDRE_VOITURES.filter(function (k) { return debloquee(VOITURES[k]); }).length;
+    var cg = document.getElementById('compteurGarage'); if (cg) cg.textContent = nb + ' / ' + ORDRE_VOITURES.length + ' débloquées';
+    var lancerBtn = document.getElementById('boutonLancer');
+    if (lancerBtn) lancerBtn.querySelector('span').textContent = ouverte ? 'Lancer la course' : 'Lancer avec ' + voiture.nom;
+  }
+  // Aperçu animé de la voiture dans la vitrine : on redessine avec les mêmes fonctions que le jeu.
+  var apercu = document.getElementById('apercuVoiture'), apCtx = apercu && apercu.getContext('2d');
+  function dessinerApercu() {
+    if (!apCtx || panneauDebut.hidden) return;
+    var principal = ctx, m = vueGarage, ouverte = debloquee(m);
+    apCtx.clearRect(0, 0, apercu.width, apercu.height);
+    apCtx.fillStyle = 'rgba(0,0,0,.45)'; apCtx.beginPath(); apCtx.ellipse(180, 152, 120, 12, 0, 0, 7); apCtx.fill();
+    ctx = apCtx;
+    try {
+      ctx.save();
+      if (!ouverte) ctx.filter = 'grayscale(1) brightness(.45)';
+      var bob = mouvementReduit ? 0 : Math.sin(performance.now() / 500) * 1.5;
+      if (m === VOITURES.ketch) ketch(180, 150 + bob, 0.62, false, 0); else sportive(m, 180, 150 + bob, 0.62, 0);
+      ctx.restore();
+    } finally { ctx = principal; }
+    if (!ouverte) {
+      apCtx.fillStyle = 'rgba(10,16,38,.8)'; apCtx.beginPath(); apCtx.arc(180, 78, 26, 0, 7); apCtx.fill();
+      apCtx.fillStyle = '#FFC814'; apCtx.fillRect(169, 76, 22, 16); apCtx.strokeStyle = '#FFC814'; apCtx.lineWidth = 3.5;
+      apCtx.beginPath(); apCtx.arc(180, 75, 7, Math.PI, 0); apCtx.stroke();
+    }
+  }
+  function montrer(m) {
+    vueGarage = m;
+    if (debloquee(m)) { voiture = m; try { localStorage.setItem('ketch-voiture', m.id); } catch (e) {} }
+    majVoitures();
+  }
+  function decaler(pas) {
+    var i = ORDRE_VOITURES.indexOf(vueGarage.id);
+    montrer(VOITURES[ORDRE_VOITURES[(i + pas + ORDRE_VOITURES.length) % ORDRE_VOITURES.length]]);
+  }
+  var precedente = document.getElementById('voiturePrecedente'), suivanteV = document.getElementById('voitureSuivante');
+  if (precedente) precedente.addEventListener('click', function () { decaler(-1); });
+  if (suivanteV) suivanteV.addEventListener('click', function () { decaler(1); });
   function majVoitures() {
-    var meilleur = meilleurScore();
+    majVitrine();
     Array.prototype.forEach.call(document.querySelectorAll('[data-voiture]'), function (b) {
       var m = VOITURES[b.getAttribute('data-voiture')], ouverte = debloquee(m);
-      b.setAttribute('aria-pressed', m === voiture ? 'true' : 'false');
+      b.setAttribute('aria-pressed', m === vueGarage ? 'true' : 'false');
       b.setAttribute('aria-disabled', ouverte ? 'false' : 'true');
-      var etiquette = b.querySelector('span');
-      if (etiquette) etiquette.textContent = ouverte ? m.type : 'Verrouillée · ' + conditionDeblocage(m);
+      b.title = ouverte ? m.nom + ' · ' + m.type : m.nom + ' · verrouillée : ' + conditionDeblocage(m);
     });
     Array.prototype.forEach.call(document.querySelectorAll('[data-couleur]'), function (b) {
       b.setAttribute('aria-pressed', b.getAttribute('data-couleur') === voiture.teinte ? 'true' : 'false');
@@ -1954,20 +2175,13 @@ html{scroll-behavior:smooth}
   }
   Array.prototype.forEach.call(document.querySelectorAll('[data-voiture]'), function (b) {
     b.addEventListener('click', function () {
-      var m = VOITURES[b.getAttribute('data-voiture')];
-      if (!debloquee(m)) {
-        if (infoVoiture) infoVoiture.textContent = m.nom + ' se débloque avec ' + conditionDeblocage(m) + ' sur une étape. Votre meilleur score : ' + meilleurScore().toLocaleString('fr-FR') + (m.id === 'leopard' ? ', étapes gagnées : ' + etapesGagnees() + ' / 5' : '') + '.';
-        return;
-      }
-      voiture = m;
-      if (infoVoiture) infoVoiture.textContent = m.nom + ' · ' + m.type;
-      try { localStorage.setItem('ketch-voiture', m.id); } catch (e) {}
-      majVoitures();
+      montrer(VOITURES[b.getAttribute('data-voiture')]);
     });
   });
   Array.prototype.forEach.call(document.querySelectorAll('[data-couleur]'), function (b) {
     b.addEventListener('click', function () {
       var c = b.getAttribute('data-couleur');
+      if (!debloquee(vueGarage)) return;
       voiture.teinte = c; voiture.couleur = COULEURS[c];
       try { localStorage.setItem('ketch-couleur-' + voiture.id, c); } catch (e) {}
       majVoitures();
@@ -1975,15 +2189,25 @@ html{scroll-behavior:smooth}
   });
   majVoitures();
   Array.prototype.forEach.call(document.querySelectorAll('[data-etape]'), function (b) {
-    b.addEventListener('click', function () { lancer(b.getAttribute('data-etape')); });
+    b.addEventListener('click', function () { choisirEtape(b.getAttribute('data-etape')); });
+    b.addEventListener('dblclick', function () { lancer(b.getAttribute('data-etape')); });
   });
+  function choisirEtape(id) {
+    etapeChoisie = id;
+    Array.prototype.forEach.call(document.querySelectorAll('[data-etape]'), function (c) { c.setAttribute('aria-pressed', c.getAttribute('data-etape') === id ? 'true' : 'false'); });
+    var le = document.getElementById('lancerEtape'), carte = document.querySelector('[data-etape="' + id + '"]');
+    if (le && carte) le.textContent = carte.querySelector('.jeu-num').textContent + ' · ' + carte.querySelector('.jeu-nom').textContent;
+  }
+  var boutonLancer = document.getElementById('boutonLancer');
+  if (boutonLancer) boutonLancer.addEventListener('click', function () { vueGarage = voiture; lancer(etapeChoisie); });
   document.getElementById('boutonRejouer').addEventListener('click', function () { lancer(); });
   var suivante = document.getElementById('boutonSuivante');
   if (suivante) suivante.addEventListener('click', function () { lancer(ORDRE[(ORDRE.indexOf(etapeChoisie) + 1) % ORDRE.length]); });
   var autre = document.getElementById('boutonAutreEtape');
   if (autre) autre.addEventListener('click', function () {
     panneauFin.hidden = true; panneauDebut.hidden = false; etat = 'accueil'; musiqueArreter();
-    var p = panneauDebut.querySelector('[data-etape]'); if (p) p.focus({ preventScroll: true });
+    vueGarage = voiture; majVoitures(); majRecords(); choisirEtape(etapeChoisie);
+    if (boutonLancer) boutonLancer.focus({ preventScroll: true });
   });
 
   var boutonSon = document.getElementById('boutonSon'), boutonMusique = document.getElementById('boutonMusique');

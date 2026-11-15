@@ -74,7 +74,14 @@
     });
     return n;
   }
-  function debloquee(m) { return meilleurScore() >= m.debloque || (m.id === 'leopard' && etapesGagnees() >= 5); }
+  // Lien propriétaire : …#garage-complet débloque toutes les voitures sur cet appareil.
+  function garageComplet() { try { return localStorage.getItem('ketch-garage-complet') === 'oui'; } catch (e) { return false; } }
+  function lireLienGarage() {
+    if (location.hash === '#garage-complet') { try { localStorage.setItem('ketch-garage-complet', 'oui'); } catch (e) {} return true; }
+    return false;
+  }
+  var lienGarage = lireLienGarage();
+  function debloquee(m) { return garageComplet() || lienGarage || meilleurScore() >= m.debloque || (m.id === 'leopard' && etapesGagnees() >= 5); }
   function conditionDeblocage(m) {
     return m.debloque.toLocaleString('fr-FR') + ' pts' + (m.id === 'leopard' ? ' ou 5 étapes gagnées' : '');
   }
@@ -222,6 +229,13 @@
         if (prises[v]) continue; prises[v] = 1;
         E.obstacles.push({ z: zz + k * 6, x: voies[v], type: t });
       }
+    }
+    // Bonus à ramasser : traînées de 3 pièces, et bidons qui rechargent le turbo.
+    E.bonus = [];
+    for (var bz2 = 200, nb2 = 0; bz2 < E.longueur - 60; bz2 += 90 + Math.floor(h() * 40), nb2++) {
+      var voieB = voies[Math.floor(h() * voies.length)];
+      if (nb2 % 4 === 3) E.bonus.push({ z: bz2, x: voieB, type: 'bidon' });
+      else for (var k2 = 0; k2 < 3; k2++) E.bonus.push({ z: bz2 + k2 * 7, x: voieB, type: 'piece' });
     }
     E.raccourcis.forEach(function (r) {
       var b = 1 + 2 / E.demi;
@@ -456,7 +470,7 @@
   var etat = 'accueil', temps = 0, compte = 0, z = 0, v = 0, x = 0, energie = 1, turboActif = false, choc = 0;
   var touches = {}, obstacles = [], trafic = [], pietons = [], zFantome = 0, raccourci = null, decalDecor = 0;
   var message = '', messageTemps = 0, derniereSeconde = 4, glisse = false;
-  var arriere = false, tempsArret = 0, bipArriere = 0, grace = 0, points = 0, gagnes = 0, perdus = 0, chocs = { piéton: 0, véhicule: 0, obstacle: 0, trou: 0 }, bulles = [], flashScore = 0;
+  var bonus = [], particules = [], bonusPts = 0, frolés = 0, pieces = 0, arriere = false, tempsArret = 0, bipArriere = 0, grace = 0, points = 0, gagnes = 0, perdus = 0, chocs = { piéton: 0, véhicule: 0, obstacle: 0, trou: 0 }, bulles = [], flashScore = 0;
 
   function lireRecord(id) {
     try { var r = JSON.parse(localStorage.getItem('ketch-records-' + id) || 'null'); return r && typeof r === 'object' ? r : null; } catch (e) { return null; }
@@ -468,16 +482,51 @@
     etat = 'accueil'; temps = 0; compte = 3.999; z = 0; v = 0; x = E.voies[E.voies.length - 1] * (E.voies.length > 2 ? 0.33 : 1);
     energie = 1; turboActif = false; choc = 0; zFantome = 0; touches = {}; raccourci = null; decalDecor = 0; glisse = false;
     message = ''; messageTemps = 0; derniereSeconde = 4;
+    bonus = E.bonus.map(function (b) { return { z: b.z, x: b.x, type: b.type, pris: false }; });
+    particules = []; bonusPts = 0; frolés = 0; pieces = 0;
     arriere = false; tempsArret = 0; bipArriere = 0; grace = 0; points = 0; gagnes = 0; perdus = 0; chocs = { piéton: 0, véhicule: 0, obstacle: 0, trou: 0 }; bulles = []; flashScore = 0;
     obstacles = E.obstacles.map(function (o) { return { z: o.z, x: o.x, type: o.type, touche: false }; });
-    trafic = E.traficListe.map(function (t) { return { def: t, z: t.z0, x: t.a, pousse: 0, klaxon: -9 }; });
+    trafic = E.traficListe.map(function (t) { return { def: t, z: t.z0, x: t.a, pousse: 0, klaxon: -9, devant: true }; });
     pietons = E.pietons.map(function (p) { return { def: p, z: p.z, x: p.cote * (1 + 1.2 / E.demi), parti: false, ecarte: false }; });
   }
   function annoncer(texte) { message = texte; messageTemps = 1.6; }
+  function gagner(n, texte) {
+    bonusPts += n; points = Math.max(0, gagnes + bonusPts - perdus);
+    bulles.push({ texte: '+' + n + ' · ' + texte, t: 1.2, bon: true });
+  }
+  // Particules en coordonnées d'écran : étincelles, fumée, poussière, confettis.
+  function emettre(nb, x0, y0, type) {
+    var couleurs = { etincelle: ['#FFD23F', '#FF9A3D', '#FFFFFF'], fumee: ['rgba(220,220,220,.5)'], poussiere: ['rgba(176,122,74,.55)'],
+      confetti: ['#FFC814', '#1E5FD6', '#D92D20', '#1E7D45', '#FFFFFF', '#B07CFF'], turbo: ['#7FD8FF', '#4C8DFF'] }[type];
+    for (var i = 0; i < nb && particules.length < 400; i++) {
+      var a = Math.random() * Math.PI * 2, vit = type === 'etincelle' ? 120 + Math.random() * 260 : type === 'confetti' ? 40 + Math.random() * 120 : 20 + Math.random() * 60;
+      particules.push({ x: x0 + (Math.random() - 0.5) * (type === 'confetti' ? W : 30), y: y0, vx: Math.cos(a) * vit, vy: type === 'confetti' ? 60 + Math.random() * 120 : -Math.abs(Math.sin(a)) * vit,
+        vie: type === 'confetti' ? 2.5 + Math.random() : type === 'etincelle' ? 0.5 : 0.8, age: 0, type: type, c: couleurs[i % couleurs.length], tourne: Math.random() * 6 });
+    }
+  }
+  function particulesAvancer(dt) {
+    particules.forEach(function (p) {
+      p.age += dt; p.x += p.vx * dt; p.y += p.vy * dt;
+      if (p.type === 'etincelle') p.vy += 500 * dt;
+      if (p.type === 'fumee' || p.type === 'poussiere') { p.vy -= 10 * dt; p.vx *= 0.98; }
+      if (p.type === 'confetti') { p.vx *= 0.99; p.tourne += dt * 8; }
+    });
+    particules = particules.filter(function (p) { return p.age < p.vie; });
+  }
+  function particulesDessiner() {
+    particules.forEach(function (p) {
+      var a = 1 - p.age / p.vie;
+      ctx.globalAlpha = Math.max(0, a);
+      if (p.type === 'etincelle' || p.type === 'turbo') { ctx.strokeStyle = p.c; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(p.x - p.vx * 0.03, p.y - p.vy * 0.03); ctx.stroke(); }
+      else if (p.type === 'confetti') { ctx.fillStyle = p.c; ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.tourne); ctx.fillRect(-4, -2, 8, 4); ctx.restore(); }
+      else { ctx.fillStyle = p.c; ctx.beginPath(); ctx.arc(p.x, p.y, 8 + p.age * 30, 0, 7); ctx.fill(); }
+    });
+    ctx.globalAlpha = 1;
+  }
   function retirer(categorie, texte) {
     var n = POINTS[categorie];
     grace = 0.6;
-    chocs[categorie]++; perdus += n; points = Math.max(0, gagnes - perdus); flashScore = 0.8;
+    chocs[categorie]++; perdus += n; points = Math.max(0, gagnes + bonusPts - perdus); flashScore = 0.8;
     bulles.push({ texte: '−' + n + ' · ' + texte, t: 1.4 });
   }
 
@@ -538,13 +587,15 @@
   }
   function secousse(fort) {
     v *= fort ? voiture.robuste : 0.75 + (voiture.robuste - 0.35) * 0.5; choc = fort ? 0.45 : 0.25;
-    if (fort) { sonBruit(420, 'lowpass', 0.35, 0.9); sonNote(70, 0, 0.25, 0.4, 'sine'); } else sonBruit(180, 'lowpass', 0.2, 0.7);
+    if (fort) { sonBruit(420, 'lowpass', 0.35, 0.9); sonNote(70, 0, 0.25, 0.4, 'sine'); if (!mouvementReduit) emettre(22, VX, 300, 'etincelle'); }
+    else sonBruit(180, 'lowpass', 0.2, 0.7);
     if (navigator.vibrate) { try { navigator.vibrate(fort ? 60 : 30); } catch (e) {} }
   }
 
   function avancer(dt) {
     if (messageTemps > 0) messageTemps -= dt;
     if (flashScore > 0) flashScore -= dt;
+    particulesAvancer(dt);
     if (grace > 0) grace -= dt;
     bulles.forEach(function (b) { b.t -= dt; }); bulles = bulles.filter(function (b) { return b.t > 0; });
     if (etat === 'compte') {
@@ -607,7 +658,7 @@
     z += dz;
     // Points de vitesse : chaque mètre rapporte plus quand on roule vite.
     if (dz > 0) gagnes += dz * (1 + 2 * Math.min(1.4, v / (E.vMax * voiture.vitesse)));
-    points = Math.max(0, gagnes - perdus);
+    points = Math.max(0, gagnes + bonusPts - perdus);
     decalDecor += segmentA(z).courbe * v * dt * 0.6;
 
     obstacles.forEach(function (o) {
@@ -625,6 +676,12 @@
       var p = Math.max(0, Math.min(1, (temps - d.change) / 1.6));
       t.x = d.a + (d.b - d.a) * doux(0, 1, p);
       if (raccourci) return;
+      var etaitDevant = t.devant;
+      t.devant = t.z > z;
+      if (etaitDevant && !t.devant && temps - (t.dernierChoc || -9) > 2 && v > d.vit + 3) {
+        var ecartLat = Math.abs(t.x - x) * E.demi - LARGEUR[d.type] - DEMI_KETCH;
+        if (ecartLat >= 0 && ecartLat < 0.9) { frolés++; gagner(100, 'frôlé !'); sonNote(1180, 0, 0.12, 0.1, 'sine'); }
+      }
       var devant = t.z - z;
       if (devant > 0 && devant < 16 && Math.abs(t.x - x) * E.demi < 1.6 && v > d.vit + 6 && temps - t.klaxon > 3) {
         t.klaxon = temps; klaxon(d.type === 'bus' || d.type === 'camion');
@@ -650,6 +707,20 @@
         retirer('piéton', 'piéton');
       }
     });
+    // Bonus : pièces (+50) et bidons de turbo (+30, turbo rechargé de moitié).
+    bonus.forEach(function (b) {
+      if (b.pris || Math.abs(b.z - z) > 2 || Math.abs(b.x - x) * E.demi > 1.3) return;
+      b.pris = true;
+      if (b.type === 'piece') { pieces++; gagner(50, 'pièce'); sonNote(1320, 0, 0.08, 0.12, 'square'); sonNote(1760, 0.07, 0.15, 0.12, 'square'); }
+      else { energie = Math.min(1, energie + 0.5); gagner(30, 'turbo rechargé'); sonNote(660, 0, 0.1, 0.12, 'triangle'); sonNote(990, 0.08, 0.2, 0.12, 'triangle'); }
+    });
+    // Effets : fumée des pneus, poussière sur la terre, petites flammes du turbo.
+    if (!mouvementReduit && etat === 'course') {
+      var dirFx = (appuye('droite') ? 1 : 0) - (appuye('gauche') ? 1 : 0);
+      if (v > 22 && ((dirFx && Math.abs(segmentA(z).courbe) > 2) || glisse || (appuye('frein') && v > 25)) && Math.random() < 0.6) { emettre(1, VX - 85, 372, 'fumee'); emettre(1, VX + 85, 372, 'fumee'); }
+      if (raccourci && v > 8 && Math.random() < 0.7) emettre(1, VX + (Math.random() - 0.5) * 160, 375, 'poussiere');
+      if (turboActif && Math.random() < 0.8) emettre(1, VX + (Math.random() < 0.5 ? -44 : 44), 360, 'turbo');
+    }
     if (choc > 0) choc = Math.max(0, choc - dt);
     if (z >= E.longueur) terminer();
   }
@@ -671,20 +742,25 @@
     var bonusPropre = 0;
     for (var i = 0; i < POINTS.propre.length; i++) if (nbChocs <= POINTS.propre[i][0]) { bonusPropre = POINTS.propre[i][1]; break; }
     var total = Math.max(0, Math.round(points) + bonusFantome + bonusPropre);
+    var etoiles = 1 + (ecart > 0 ? 1 : 0) + (ecart > 0 && nbChocs <= 2 ? 1 : 0);
+    if (ecart > 0 && !mouvementReduit) emettre(160, VX, -10, 'confetti');
 
     var avantOuvertes = ORDRE_VOITURES.filter(function (id) { return debloquee(VOITURES[id]); });
     var rec = lireRecord(E.id) || {}, nouveau = !rec.score || total > rec.score;
     var nouveauTemps = !rec.temps || temps < rec.temps;
-    ecrireRecord(E.id, { score: Math.max(total, rec.score || 0), temps: Math.min(temps, rec.temps || 1e9), gagne: !!rec.gagne || ecart > 0 });
+    ecrireRecord(E.id, { score: Math.max(total, rec.score || 0), temps: Math.min(temps, rec.temps || 1e9), gagne: !!rec.gagne || ecart > 0, etoiles: Math.max(etoiles, rec.etoiles || 0) });
     [523, 659, 784, 1047].forEach(function (f, j) { sonNote(f, j * 0.12, 0.3, 0.2); });
 
     document.getElementById('finEtape').textContent = 'Étape ' + E.numero + ' · ' + E.nom + ' · ' + voiture.nom + ' · ' + chrono(temps);
     document.getElementById('finTemps').textContent = total.toLocaleString('fr-FR') + ' points';
+    var finEt = document.getElementById('finEtoiles');
+    if (finEt) { finEt.textContent = '\u2605'.repeat(etoiles) + '\u2606'.repeat(3 - etoiles); finEt.setAttribute('aria-label', etoiles + ' étoile' + (etoiles > 1 ? 's' : '') + ' sur 3'); }
     document.getElementById('finVerdict').textContent = ecart > 0
       ? 'Vous battez le fantôme de ' + secondes(ecart) + '.'
       : 'Le fantôme gagne de ' + secondes(-ecart) + '.';
     var lignes = [
       ['Vitesse sur la route', '+' + route.toLocaleString('fr-FR')],
+      ['Pièces, bidons et frôlés (' + pieces + ' pièces, ' + frolés + ' frôlés)', bonusPts ? '+' + bonusPts.toLocaleString('fr-FR') : '0'],
       ['Course contre le fantôme', bonusFantome ? '+' + bonusFantome.toLocaleString('fr-FR') : '0'],
       ['Conduite propre (' + nbChocs + (nbChocs > 1 ? ' chocs' : ' choc') + ')', bonusPropre ? '+' + bonusPropre : '0'],
       ['Chocs', perdus ? '−' + perdus.toLocaleString('fr-FR') : '0']
@@ -1307,6 +1383,43 @@
     ctx.restore();
   }
 
+  function dessinBonus(b, sx, sy, s) {
+    ctx.save(); ctx.translate(sx, sy - 90 * s - Math.sin(temps * 4 + b.z) * 8 * s); ctx.scale(s * 1.6, s * 1.6);
+    if (b.type === 'piece') {
+      var l = Math.abs(Math.cos(temps * 3 + b.z));
+      ctx.shadowColor = '#FFD23F'; ctx.shadowBlur = 18;
+      ctx.fillStyle = '#E8A800'; ctx.beginPath(); ctx.ellipse(0, 0, 34 * l + 4, 34, 0, 0, 7); ctx.fill();
+      ctx.fillStyle = '#FFD23F'; ctx.beginPath(); ctx.ellipse(0, 0, 28 * l + 3, 28, 0, 0, 7); ctx.fill();
+      ctx.shadowBlur = 0;
+      if (l > 0.4) { ctx.fillStyle = '#8A5A00'; ctx.font = '900 30px Inter, sans-serif'; ctx.textAlign = 'center'; ctx.save(); ctx.scale(l, 1); ctx.fillText('G', 0, 11); ctx.restore(); }
+    } else {
+      ctx.shadowColor = '#7FD8FF'; ctx.shadowBlur = 18;
+      ctx.fillStyle = '#1E5FD6'; rect(-30, -40, 60, 80, 10); ctx.fill(); ctx.shadowBlur = 0;
+      ctx.fillStyle = '#163E99'; rect(-12, -52, 24, 14, 4); ctx.fill();
+      ctx.fillStyle = '#FFD23F'; ctx.beginPath(); ctx.moveTo(6, -26); ctx.lineTo(-12, 4); ctx.lineTo(0, 4); ctx.lineTo(-6, 28); ctx.lineTo(14, -6); ctx.lineTo(2, -6); ctx.closePath(); ctx.fill();
+    }
+    ctx.restore();
+  }
+  function lignesVitesse() {
+    var seuil = E.vMax * voiture.vitesse * 0.8;
+    if (mouvementReduit || etat !== 'course' || (v < seuil && !turboActif)) return;
+    var force = Math.min(1, (v - seuil * 0.9) / (seuil * 0.4)) * (turboActif ? 1 : 0.6);
+    ctx.strokeStyle = 'rgba(255,255,255,' + (0.25 * force) + ')'; ctx.lineWidth = 2;
+    for (var i = 0; i < 18; i++) {
+      var a = Math.random() * Math.PI * 2, r0 = 160 + Math.random() * 120, r1 = r0 + 60 + Math.random() * 120;
+      ctx.beginPath(); ctx.moveTo(VX + Math.cos(a) * r0, 200 + Math.sin(a) * r0 * 0.6); ctx.lineTo(VX + Math.cos(a) * r1, 200 + Math.sin(a) * r1 * 0.6); ctx.stroke();
+    }
+  }
+  function feuDepart() {
+    var n = Math.ceil(compte - 1), x0 = VX - 90, y0 = 150;
+    ctx.fillStyle = 'rgba(14,22,48,.92)'; rect(x0, y0, 180, 64, 14); ctx.fill();
+    for (var i = 0; i < 3; i++) {
+      var allume = n <= 0 ? '#3DDC84' : i < 4 - n ? '#FF3B30' : '#3A2226';
+      ctx.shadowColor = allume; ctx.shadowBlur = allume === '#3A2226' ? 0 : 18;
+      ctx.fillStyle = allume; ctx.beginPath(); ctx.arc(x0 + 40 + i * 50, y0 + 32, 18, 0, 7); ctx.fill();
+    }
+    ctx.shadowBlur = 0;
+  }
   function scene(vue) {
     var objets = [];
     function poser(zz, xx, dessin) {
@@ -1345,6 +1458,9 @@
     });
     E.raccourcis.forEach(function (r) {
       poser(r.debut - 40, r.cote * 1.05, function (sx, sy, s) { panneau(sx, sy, s, 'RACCOURCI', '#1E7D45', r.cote); });
+    });
+    bonus.forEach(function (b) {
+      if (!b.pris) poser(b.z, b.x, function (sx, sy, s) { dessinBonus(b, sx, sy, s); });
     });
     obstacles.forEach(function (o) {
       if (o.type === 'bosse') poser(o.z, 0, function (sx, sy, s, e) { bosse(e); });
@@ -1406,7 +1522,7 @@
       ctx.globalAlpha = Math.min(1, b.t * 2);
       ctx.font = '800 17px Inter, sans-serif'; ctx.textAlign = 'center';
       var lw = ctx.measureText(b.texte).width + 26, y = 150 + i * 34 - (1.4 - b.t) * 18;
-      ctx.fillStyle = 'rgba(180,35,24,.95)'; rect(VX - lw / 2, y, lw, 30, 15); ctx.fill();
+      ctx.fillStyle = b.bon ? 'rgba(30,125,69,.95)' : 'rgba(180,35,24,.95)'; rect(VX - lw / 2, y, lw, 30, 15); ctx.fill();
       ctx.fillStyle = '#FFFFFF'; ctx.fillText(b.texte, VX, y + 21);
       ctx.globalAlpha = 1;
     });
@@ -1444,16 +1560,19 @@
     var dir = (appuye('droite') ? 1 : 0) - (appuye('gauche') ? 1 : 0);
     var cahot = (raccourci || E.id === 'poidslourds') && v > 5 && !mouvementReduit ? Math.sin(temps * 38) * (raccourci ? 2.5 : 1) : 0;
     var penche = etat === 'course' ? dir * (glisse ? 0.06 : 0.03) : 0;
+    lignesVitesse();
     if (voiture === VOITURES.ketch) ketch(VX, 384 + cahot, 0.78, false, penche);
     else sportive(voiture, VX, 384 + cahot, 0.78, penche);
+    particulesDessiner();
     ctx.restore();
     hud();
     if (etat === 'compte') {
       var n = Math.ceil(compte - 1);
-      ctx.fillStyle = 'rgba(14,22,48,.35)'; ctx.fillRect(0, 0, W, H);
-      ctx.fillStyle = n > 0 ? '#FFFFFF' : '#FFC814'; ctx.textAlign = 'center';
-      ctx.font = '800 110px "Bricolage Grotesque", Inter, sans-serif';
-      ctx.fillText(n > 0 ? String(n) : 'Partez !', VX, 236);
+      ctx.fillStyle = 'rgba(14,22,48,.3)'; ctx.fillRect(0, 0, W, H);
+      feuDepart();
+      ctx.fillStyle = n > 0 ? '#FFFFFF' : '#3DDC84'; ctx.textAlign = 'center';
+      ctx.font = '800 72px "Bricolage Grotesque", Inter, sans-serif';
+      ctx.fillText(n > 0 ? String(n) : 'Partez !', VX, 290);
     }
   }
 
@@ -1474,6 +1593,7 @@
     avancer(dt);
     sonMoteur(dt);
     dessiner();
+    dessinerApercu();
     requestAnimationFrame(boucle);
   }
   document.addEventListener('visibilitychange', function () {
@@ -1499,20 +1619,82 @@
     canvas.focus({ preventScroll: true });
   }
   function majRecords() {
+    var total = 0;
     ORDRE.forEach(function (id) {
       var el = document.getElementById('record-' + id), r = lireRecord(id);
-      if (el) el.textContent = r && r.score ? 'Record : ' + r.score.toLocaleString('fr-FR') + ' pts' : 'Pas encore joué';
+      if (el) el.textContent = r && r.score ? r.score.toLocaleString('fr-FR') + ' pts' : 'Nouveau';
+      var et = document.getElementById('etoiles-' + id), n = r ? (r.etoiles || (r.gagne ? 2 : r.score ? 1 : 0)) : 0;
+      if (et) et.textContent = '\u2605'.repeat(n) + '\u2606'.repeat(3 - n);
+      var carte = document.querySelector('[data-etape="' + id + '"]');
+      if (carte) carte.setAttribute('aria-label', carte.querySelector('.jeu-nom').textContent + ', ' + n + ' étoile' + (n > 1 ? 's' : '') + ' sur 3' + (r && r.score ? ', record ' + r.score + ' points' : ''));
+      total += n;
     });
+    var ce = document.getElementById('compteurEtoiles'); if (ce) ce.textContent = '\u2605 ' + total + ' / ' + ORDRE.length * 3;
   }
   var infoVoiture = document.getElementById('infoVoiture');
+  var vueGarage = voiture; // voiture affichée dans la vitrine (peut être verrouillée)
+  var STATS = [['Vitesse', 'vitesse'], ['Accélération', 'accel'], ['Maniabilité', 'direction'], ['Robustesse', 'robuste']];
+  function barreStat(cle, val) {
+    var vals = ORDRE_VOITURES.map(function (k) { return VOITURES[k][cle]; });
+    var mn = Math.min.apply(null, vals), mx = Math.max.apply(null, vals);
+    return Math.round(30 + 70 * (val - mn) / Math.max(1e-6, mx - mn));
+  }
+  function majVitrine() {
+    var m = vueGarage, ouverte = debloquee(m);
+    var nom = document.getElementById('nomVoiture'), type = document.getElementById('typeVoiture');
+    if (nom) nom.textContent = m.nom;
+    if (type) type.textContent = m.type;
+    if (infoVoiture) infoVoiture.textContent = ouverte ? '' : '\uD83D\uDD12 Se débloque avec ' + conditionDeblocage(m) + ' sur une étape · votre meilleur score : ' + meilleurScore().toLocaleString('fr-FR') + (m.id === 'leopard' ? ' · étapes gagnées : ' + etapesGagnees() + ' / 5' : '');
+    var st = document.getElementById('statsVoiture');
+    if (st) st.innerHTML = STATS.map(function (k) {
+      var pc = barreStat(k[1], m[k[1]]);
+      return '<span>' + k[0] + '</span><span class="jeu-barre" role="meter" aria-label="' + k[0] + '" aria-valuemin="0" aria-valuemax="100" aria-valuenow="' + pc + '"><i style="width:' + pc + '%"></i></span>';
+    }).join('');
+    var nb = ORDRE_VOITURES.filter(function (k) { return debloquee(VOITURES[k]); }).length;
+    var cg = document.getElementById('compteurGarage'); if (cg) cg.textContent = nb + ' / ' + ORDRE_VOITURES.length + ' débloquées';
+    var lancerBtn = document.getElementById('boutonLancer');
+    if (lancerBtn) lancerBtn.querySelector('span').textContent = ouverte ? 'Lancer la course' : 'Lancer avec ' + voiture.nom;
+  }
+  // Aperçu animé de la voiture dans la vitrine : on redessine avec les mêmes fonctions que le jeu.
+  var apercu = document.getElementById('apercuVoiture'), apCtx = apercu && apercu.getContext('2d');
+  function dessinerApercu() {
+    if (!apCtx || panneauDebut.hidden) return;
+    var principal = ctx, m = vueGarage, ouverte = debloquee(m);
+    apCtx.clearRect(0, 0, apercu.width, apercu.height);
+    apCtx.fillStyle = 'rgba(0,0,0,.45)'; apCtx.beginPath(); apCtx.ellipse(180, 152, 120, 12, 0, 0, 7); apCtx.fill();
+    ctx = apCtx;
+    try {
+      ctx.save();
+      if (!ouverte) ctx.filter = 'grayscale(1) brightness(.45)';
+      var bob = mouvementReduit ? 0 : Math.sin(performance.now() / 500) * 1.5;
+      if (m === VOITURES.ketch) ketch(180, 150 + bob, 0.62, false, 0); else sportive(m, 180, 150 + bob, 0.62, 0);
+      ctx.restore();
+    } finally { ctx = principal; }
+    if (!ouverte) {
+      apCtx.fillStyle = 'rgba(10,16,38,.8)'; apCtx.beginPath(); apCtx.arc(180, 78, 26, 0, 7); apCtx.fill();
+      apCtx.fillStyle = '#FFC814'; apCtx.fillRect(169, 76, 22, 16); apCtx.strokeStyle = '#FFC814'; apCtx.lineWidth = 3.5;
+      apCtx.beginPath(); apCtx.arc(180, 75, 7, Math.PI, 0); apCtx.stroke();
+    }
+  }
+  function montrer(m) {
+    vueGarage = m;
+    if (debloquee(m)) { voiture = m; try { localStorage.setItem('ketch-voiture', m.id); } catch (e) {} }
+    majVoitures();
+  }
+  function decaler(pas) {
+    var i = ORDRE_VOITURES.indexOf(vueGarage.id);
+    montrer(VOITURES[ORDRE_VOITURES[(i + pas + ORDRE_VOITURES.length) % ORDRE_VOITURES.length]]);
+  }
+  var precedente = document.getElementById('voiturePrecedente'), suivanteV = document.getElementById('voitureSuivante');
+  if (precedente) precedente.addEventListener('click', function () { decaler(-1); });
+  if (suivanteV) suivanteV.addEventListener('click', function () { decaler(1); });
   function majVoitures() {
-    var meilleur = meilleurScore();
+    majVitrine();
     Array.prototype.forEach.call(document.querySelectorAll('[data-voiture]'), function (b) {
       var m = VOITURES[b.getAttribute('data-voiture')], ouverte = debloquee(m);
-      b.setAttribute('aria-pressed', m === voiture ? 'true' : 'false');
+      b.setAttribute('aria-pressed', m === vueGarage ? 'true' : 'false');
       b.setAttribute('aria-disabled', ouverte ? 'false' : 'true');
-      var etiquette = b.querySelector('span');
-      if (etiquette) etiquette.textContent = ouverte ? m.type : 'Verrouillée · ' + conditionDeblocage(m);
+      b.title = ouverte ? m.nom + ' · ' + m.type : m.nom + ' · verrouillée : ' + conditionDeblocage(m);
     });
     Array.prototype.forEach.call(document.querySelectorAll('[data-couleur]'), function (b) {
       b.setAttribute('aria-pressed', b.getAttribute('data-couleur') === voiture.teinte ? 'true' : 'false');
@@ -1520,20 +1702,13 @@
   }
   Array.prototype.forEach.call(document.querySelectorAll('[data-voiture]'), function (b) {
     b.addEventListener('click', function () {
-      var m = VOITURES[b.getAttribute('data-voiture')];
-      if (!debloquee(m)) {
-        if (infoVoiture) infoVoiture.textContent = m.nom + ' se débloque avec ' + conditionDeblocage(m) + ' sur une étape. Votre meilleur score : ' + meilleurScore().toLocaleString('fr-FR') + (m.id === 'leopard' ? ', étapes gagnées : ' + etapesGagnees() + ' / 5' : '') + '.';
-        return;
-      }
-      voiture = m;
-      if (infoVoiture) infoVoiture.textContent = m.nom + ' · ' + m.type;
-      try { localStorage.setItem('ketch-voiture', m.id); } catch (e) {}
-      majVoitures();
+      montrer(VOITURES[b.getAttribute('data-voiture')]);
     });
   });
   Array.prototype.forEach.call(document.querySelectorAll('[data-couleur]'), function (b) {
     b.addEventListener('click', function () {
       var c = b.getAttribute('data-couleur');
+      if (!debloquee(vueGarage)) return;
       voiture.teinte = c; voiture.couleur = COULEURS[c];
       try { localStorage.setItem('ketch-couleur-' + voiture.id, c); } catch (e) {}
       majVoitures();
@@ -1541,15 +1716,25 @@
   });
   majVoitures();
   Array.prototype.forEach.call(document.querySelectorAll('[data-etape]'), function (b) {
-    b.addEventListener('click', function () { lancer(b.getAttribute('data-etape')); });
+    b.addEventListener('click', function () { choisirEtape(b.getAttribute('data-etape')); });
+    b.addEventListener('dblclick', function () { lancer(b.getAttribute('data-etape')); });
   });
+  function choisirEtape(id) {
+    etapeChoisie = id;
+    Array.prototype.forEach.call(document.querySelectorAll('[data-etape]'), function (c) { c.setAttribute('aria-pressed', c.getAttribute('data-etape') === id ? 'true' : 'false'); });
+    var le = document.getElementById('lancerEtape'), carte = document.querySelector('[data-etape="' + id + '"]');
+    if (le && carte) le.textContent = carte.querySelector('.jeu-num').textContent + ' · ' + carte.querySelector('.jeu-nom').textContent;
+  }
+  var boutonLancer = document.getElementById('boutonLancer');
+  if (boutonLancer) boutonLancer.addEventListener('click', function () { vueGarage = voiture; lancer(etapeChoisie); });
   document.getElementById('boutonRejouer').addEventListener('click', function () { lancer(); });
   var suivante = document.getElementById('boutonSuivante');
   if (suivante) suivante.addEventListener('click', function () { lancer(ORDRE[(ORDRE.indexOf(etapeChoisie) + 1) % ORDRE.length]); });
   var autre = document.getElementById('boutonAutreEtape');
   if (autre) autre.addEventListener('click', function () {
     panneauFin.hidden = true; panneauDebut.hidden = false; etat = 'accueil'; musiqueArreter();
-    var p = panneauDebut.querySelector('[data-etape]'); if (p) p.focus({ preventScroll: true });
+    vueGarage = voiture; majVoitures(); majRecords(); choisirEtape(etapeChoisie);
+    if (boutonLancer) boutonLancer.focus({ preventScroll: true });
   });
 
   var boutonSon = document.getElementById('boutonSon'), boutonMusique = document.getElementById('boutonMusique');
