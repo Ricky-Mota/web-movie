@@ -3,7 +3,8 @@
 //
 //   cd g-challenge-landing/scripts/sprites && npm install && node sprites-voitures.cjs
 //
-// Entrée : g-challenge-landing/modeles/<id>.glb  (id : ketch, zigzag, mbote, blinde, kingt, fleuve, turbo, leopard)
+// Entrée : g-challenge-landing/modeles/<id>.glb  (id : ketch, zigzag, mbote, blinde, kingt, fleuve, turbo, leopard,
+//          trafic-voiture, trafic-bus, trafic-camion, trafic-fula, trafic-moto, trafic-police)
 // Réglages facultatifs : g-challenge-landing/modeles/reglages.json, par exemple { "turbo": { "rotation": 180 } }
 //   rotation : degrés autour de l'axe vertical pour que la voiture montre son arrière (0, 90, 180 ou 270 selon le modèle)
 // Sortie : g-challenge-landing/public/voitures/<id>-0.png … <id>-4.png (de « tourne à gauche » à « tourne à droite »)
@@ -17,7 +18,9 @@ const RACINE = path.resolve(__dirname, '..', '..');
 const MODELES = path.join(RACINE, 'modeles');
 const SORTIE = path.join(RACINE, 'public', 'voitures');
 const THREE = path.join(__dirname, 'node_modules', 'three');
-const IDS = ['ketch', 'zigzag', 'mbote', 'blinde', 'kingt', 'fleuve', 'turbo', 'leopard'];
+const IDS = ['ketch', 'zigzag', 'mbote', 'blinde', 'kingt', 'fleuve', 'turbo', 'leopard',
+  // Trafic : les véhicules que l'on double sur la route.
+  'trafic-voiture', 'trafic-bus', 'trafic-camion', 'trafic-fula', 'trafic-moto', 'trafic-police'];
 const VUES = [-14, -7, 0, 7, 14]; // angle de la voiture vue de derrière, en degrés
 
 const PAGE = `<!doctype html><html><body style="margin:0;background:transparent">
@@ -30,7 +33,7 @@ const rendu = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDr
 rendu.setSize(L, Hh); rendu.setClearColor(0x000000, 0); rendu.outputColorSpace = THREE.SRGBColorSpace;
 rendu.toneMapping = THREE.ACESFilmicToneMapping;
 document.body.appendChild(rendu.domElement);
-window.photographier = async (url, rotation, vues) => {
+window.photographier = async (url, rotation, vues, longueur) => {
   const scene = new THREE.Scene();
   scene.add(new THREE.HemisphereLight(0xffffff, 0x445066, 1.6));
   const soleil = new THREE.DirectionalLight(0xfff1dd, 2.2); soleil.position.set(3, 6, -4); scene.add(soleil);
@@ -39,7 +42,7 @@ window.photographier = async (url, rotation, vues) => {
   const voiture = gltf.scene;
   // Centrer, poser au sol et ramener à 4 m de long.
   let boite = new THREE.Box3().setFromObject(voiture), taille = boite.getSize(new THREE.Vector3());
-  voiture.scale.setScalar(4 / Math.max(taille.x, taille.z));
+  voiture.scale.setScalar(longueur / Math.max(taille.x, taille.z));
   boite = new THREE.Box3().setFromObject(voiture); const centre = boite.getCenter(new THREE.Vector3());
   voiture.position.sub(new THREE.Vector3(centre.x, boite.min.y, centre.z));
   const pivot = new THREE.Group(); pivot.add(voiture); scene.add(pivot);
@@ -99,7 +102,8 @@ function servir(req, res) {
   for (const id of presents) {
     const rotation = (reglages[id] && reglages[id].rotation) || 0;
     try {
-      const images = await page.evaluate(([u, r, v]) => window.photographier(u, r, v), ['/modeles/' + id + '.glb', rotation, VUES]);
+      const longueur = { 'trafic-bus': 10, 'trafic-camion': 9, 'trafic-fula': 9, 'trafic-moto': 2 }[id] || 4.3;
+      const images = await page.evaluate(([u, r, v, l]) => window.photographier(u, r, v, l), ['/modeles/' + id + '.glb', rotation, VUES, longueur]);
       images.forEach((d, k) => fs.writeFileSync(path.join(SORTIE, id + '-' + k + '.png'), Buffer.from(d.split(',')[1], 'base64')));
       faits.push(id); console.log('OK ' + id + ' : ' + images.length + ' vues');
     } catch (e) { console.error('Échec ' + id + ' : ' + e.message); }

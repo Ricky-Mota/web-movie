@@ -1405,7 +1405,18 @@
     if (type === 'moto') lumiere(sx, sy - 68 * s, 60 * s, '255,60,48');
     else if (type !== 'pousse') { lumiere(sx - demiL * s, sy - 61 * s, 70 * s, '255,60,48'); lumiere(sx + demiL * s, sy - 61 * s, 70 * s, '255,60,48'); }
     if (type === 'police') lumiere(sx, sy - 215 * s, 140 * s, Math.floor(temps * 6) % 2 ? '60,120,255' : '255,50,50');
-    if (type === 'ketch') { ketch(sx, sy, s * 0.92, false, 0, true); return; }
+    if (type === 'ketch') { if (!spriteVoiture('ketch', sx, sy, s * 0.92, 0, false)) ketch(sx, sy, s * 0.92, false, 0, true); return; }
+    var largeurs = { voiture: 210, bus: 260, camion: 260, fula: 260, moto: 70, police: 210 };
+    if (largeurs[type] && spriteVoiture('trafic-' + type, sx, sy, s, 0, false, largeurs[type])) {
+      if (type === 'police') { // gyrophares qui clignotent par-dessus le modèle 3D
+        var bl = Math.floor(temps * 6) % 2;
+        ctx.save(); ctx.globalAlpha = 0.85;
+        ctx.fillStyle = bl ? '#3B82F6' : '#EF4444'; ctx.beginPath(); ctx.arc(sx - 30 * s, sy - 205 * s, 16 * s, 0, 7); ctx.fill();
+        ctx.fillStyle = bl ? '#EF4444' : '#3B82F6'; ctx.beginPath(); ctx.arc(sx + 30 * s, sy - 205 * s, 16 * s, 0, 7); ctx.fill();
+        ctx.restore();
+      }
+      return;
+    }
     if (type === 'pousse') {
       ctx.save(); ctx.translate(sx, sy); ctx.scale(s, s);
       ctx.fillStyle = '#8A5A2B'; rect(-80, -80, 160, 50, 4); ctx.fill();
@@ -1495,7 +1506,7 @@
     fetch('voitures/liste.json', { cache: 'no-cache' }).then(function (r) { return r.ok ? r.json() : null; }).then(function (l) {
       if (!l || !Array.isArray(l.voitures)) return;
       l.voitures.forEach(function (id) {
-        if (!VOITURES[id]) return;
+        if (!VOITURES[id] && id.indexOf('trafic-') !== 0) return;
         var vues = [], prets = 0, n = l.vues || 5;
         for (var k = 0; k < n; k++) {
           var img = new Image();
@@ -1506,11 +1517,11 @@
       });
     }).catch(function () {});
   })();
-  function spriteVoiture(id, cx, by, s, penche, turbo) {
+  function spriteVoiture(id, cx, by, s, penche, turbo, largeur) {
     var vues = SPRITES[id];
     if (!vues) return false;
     var k = Math.max(0, Math.min(vues.length - 1, Math.round((vues.length - 1) / 2 + (penche || 0) / 0.03)));
-    var img = vues[k], w = 290 * s, h = w * img.height / img.width;
+    var img = vues[k], w = (largeur || 290) * s, h = w * img.height / img.width;
     ctx.save();
     ctx.globalAlpha = 0.35; ctx.fillStyle = '#000'; ctx.beginPath(); ctx.ellipse(cx, by, w * 0.52, 14 * s, 0, 0, 7); ctx.fill(); ctx.globalAlpha = 1;
     ctx.drawImage(img, cx - w / 2, by - h + 4 * s, w, h);

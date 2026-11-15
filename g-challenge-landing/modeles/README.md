@@ -13,6 +13,19 @@ Déposez ici les modèles 3D des voitures, au format **GLB**, avec ces noms exac
 | `turbo.glb` | Turbo GT | Red mid-engine supercar, low and wide, cyan underglow, large rear wing, game asset |
 | `leopard.glb` | Léopard | Yellow hypercar with subtle leopard-spot pattern, X-shaped tail lights, central exhaust, carbon diffuser, game asset |
 
+### Le trafic (véhicules que l'on double)
+
+| Fichier | Véhicule | Description à coller dans Hyper3D (texte vers 3D) |
+| --- | --- | --- |
+| `trafic-voiture.glb` | Voiture ordinaire | Ordinary 2000s family hatchback, silver grey, slightly worn, everyday city car, low-poly game asset |
+| `trafic-bus.glb` | Bus urbain | City bus, white and blue livery with yellow stripe, large rear window, rear destination sign, low-poly game asset |
+| `trafic-camion.glb` | Camion | Old cargo truck with cream box body, colourful stripe, mud flaps, African city delivery truck, low-poly game asset |
+| `trafic-fula.glb` | Fula-fula | Old converted truck used as a crowded bus in Kinshasa, blue lower body, yellow upper body, open rear with passengers, luggage piled on the roof, low-poly game asset |
+| `trafic-moto.glb` | Moto-taxi | Small 125cc motorcycle taxi with rider wearing a yellow helmet and colourful shirt, low-poly game asset |
+| `trafic-police.glb` | Police | White police patrol sedan with dark blue side band, roof light bar, generic "POLICE" text, no real force logos, low-poly game asset |
+
+Les taxis du trafic reprennent automatiquement le modèle `ketch.glb`. Les gyrophares de la police continuent de clignoter par-dessus le modèle.
+
 Dessins originaux uniquement : pas de marque ni de logo réels.
 
 ## Mettre les voitures dans le jeu
