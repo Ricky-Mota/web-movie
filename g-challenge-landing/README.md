@@ -24,11 +24,15 @@ Le joueur choisit sa voiture avant l'étape. Les trois sportives sont des dessin
 | Turbo GT | Supercar | +15 % | +20 % | −10 % | garde 30 % |
 | Zigzag R | Sportive | +5 % | +8 % | +40 % | garde 35 % |
 | Blindé X | SUV sport | −3 % | −5 % | −5 % | garde 60 % |
+| Mbote E | Berline électrique (sifflement, pas de rapports) | +5 % | +35 % | +5 % | garde 40 % |
+| Kin GT | Grand tourisme | +12 % | +5 % | référence | garde 40 % |
+| Fleuve V8 | Muscle car (son grave et fort) | +10 % | +15 % | −15 % | garde 45 % |
+| Léopard | Hypercar | +22 % | +30 % | +20 % | garde 40 % |
 
 Chaque voiture a son propre son de moteur : plus aigu pour les sportives, plus grave pour le SUV.
 
 - **Couleurs** : chaque voiture se peint en jaune, noir, blanc, vert, rouge, bleu, orange ou violet. Le choix est mémorisé pour chaque voiture.
-- **Voitures à débloquer** : le Ketch est disponible dès le départ. Les sportives s'ouvrent avec le meilleur score obtenu sur une étape : Zigzag R à 1 500 points, Blindé X à 2 500, Turbo GT à 4 000. L'écran d'arrivée annonce chaque voiture débloquée.
+- **Voitures à débloquer** : le Ketch est disponible dès le départ. Les autres s'ouvrent avec le meilleur score obtenu sur une étape : Zigzag R à 1 500 points, Mbote E à 2 000, Blindé X à 2 500, Kin GT à 3 000, Fleuve V8 à 3 500, Turbo GT à 4 000. Le Léopard demande 8 000 points, ou les 5 étapes gagnées contre le fantôme. L'écran d'arrivée annonce chaque voiture débloquée.
 - **Fantôme adapté** : il roule plus vite quand le joueur prend une voiture plus puissante (+15 % face à la Turbo GT, +8 % face à la Zigzag R, +2 % face au Blindé X). Le défi reste le même avec toutes les voitures.
 
 ### Les commandes

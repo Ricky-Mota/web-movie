@@ -120,9 +120,13 @@ html{scroll-behavior:smooth}
 <p class="jeu-titre">Votre voiture, puis votre étape</p>
 <div class="jeu-voitures" role="group" aria-label="Voiture">
 <button type="button" class="jeu-voiture" data-voiture="ketch" aria-pressed="false"><b>Ketch</b><span>Taxi de Kinshasa</span></button>
-<button type="button" class="jeu-voiture" data-voiture="turbo" aria-pressed="false"><b>Turbo GT</b><span>Supercar · vitesse</span></button>
 <button type="button" class="jeu-voiture" data-voiture="zigzag" aria-pressed="false"><b>Zigzag R</b><span>Sportive · maniabilité</span></button>
+<button type="button" class="jeu-voiture" data-voiture="mbote" aria-pressed="false"><b>Mbote E</b><span>Berline électrique · accélération</span></button>
 <button type="button" class="jeu-voiture" data-voiture="blinde" aria-pressed="false"><b>Blindé X</b><span>SUV sport · robustesse</span></button>
+<button type="button" class="jeu-voiture" data-voiture="kingt" aria-pressed="false"><b>Kin GT</b><span>Grand tourisme · stabilité</span></button>
+<button type="button" class="jeu-voiture" data-voiture="fleuve" aria-pressed="false"><b>Fleuve V8</b><span>Muscle car · dérapages</span></button>
+<button type="button" class="jeu-voiture" data-voiture="turbo" aria-pressed="false"><b>Turbo GT</b><span>Supercar · vitesse</span></button>
+<button type="button" class="jeu-voiture" data-voiture="leopard" aria-pressed="false"><b>Léopard</b><span>Hypercar · la meilleure</span></button>
 </div>
 <div class="jeu-couleurs" role="group" aria-label="Couleur de la voiture"><span class="jeu-couleurs-titre">Couleur</span><button type="button" class="jeu-couleur" data-couleur="jaune" aria-label="Jaune" aria-pressed="false" style="background:#FFD23F"></button><button type="button" class="jeu-couleur" data-couleur="noir" aria-label="Noir" aria-pressed="false" style="background:#232831"></button><button type="button" class="jeu-couleur" data-couleur="blanc" aria-label="Blanc" aria-pressed="false" style="background:#FFFFFF"></button><button type="button" class="jeu-couleur" data-couleur="vert" aria-label="Vert" aria-pressed="false" style="background:#3DDC84"></button><button type="button" class="jeu-couleur" data-couleur="rouge" aria-label="Rouge" aria-pressed="false" style="background:#FF4A3D"></button><button type="button" class="jeu-couleur" data-couleur="bleu" aria-label="Bleu" aria-pressed="false" style="background:#4C8DFF"></button><button type="button" class="jeu-couleur" data-couleur="orange" aria-label="Orange" aria-pressed="false" style="background:#FF9A3D"></button><button type="button" class="jeu-couleur" data-couleur="violet" aria-label="Violet" aria-pressed="false" style="background:#B07CFF"></button></div>
 <p class="jeu-info" id="infoVoiture" role="status"></p>
@@ -149,7 +153,7 @@ html{scroll-behavior:smooth}
 </div>
 </div>
 </div>
-<p style="margin: 12px 0 0; font-size: 13px; color: #9EA7C6; text-align: center">Démo jouable · 5 étapes, 4 voitures · bouton plein écran en haut à droite pour jouer encore plus grand</p>
+<p style="margin: 12px 0 0; font-size: 13px; color: #9EA7C6; text-align: center">Démo jouable · 5 étapes, 8 voitures · bouton plein écran en haut à droite pour jouer encore plus grand</p>
 </div>
 </div>
 </section>
@@ -468,8 +472,17 @@ html{scroll-behavior:smooth}
       couleur: ['#4C8DFF', '#163E99'], neon: '#C04CFF', son: { hauteur: 1.25, filtre: 600 } },
     blinde: { nom: 'Blindé X', type: 'SUV sport · robustesse', vitesse: 0.97, accel: 0.95, direction: 0.95, robuste: 0.6,
       fantome: 1.02, debloque: 2500, couleurDefaut: 'noir',
-      couleur: ['#56606F', '#232831'], neon: '#FF8A00', son: { hauteur: 0.8, filtre: -150 } }
+      couleur: ['#56606F', '#232831'], neon: '#FF8A00', son: { hauteur: 0.8, filtre: -150 } },
+    mbote: { nom: 'Mbote E', type: 'Berline électrique · accélération', vitesse: 1.05, accel: 1.35, direction: 1.05, robuste: 0.4,
+      fantome: 1.1, debloque: 2000, couleurDefaut: 'blanc', neon: '#3DDC84', electrique: true, son: { hauteur: 1, filtre: 0 } },
+    kingt: { nom: 'Kin GT', type: 'Grand tourisme · stabilité', vitesse: 1.12, accel: 1.05, direction: 1, robuste: 0.4,
+      fantome: 1.1, debloque: 3000, couleurDefaut: 'vert', neon: '#FFD23F', son: { hauteur: 1.2, filtre: 400 } },
+    fleuve: { nom: 'Fleuve V8', type: 'Muscle car · dérapages', vitesse: 1.1, accel: 1.15, direction: 0.85, robuste: 0.45,
+      fantome: 1.08, debloque: 3500, couleurDefaut: 'orange', neon: '#FF3B30', son: { hauteur: 0.7, filtre: -100 }, v8: true },
+    leopard: { nom: 'Léopard', type: 'Hypercar · la meilleure', vitesse: 1.22, accel: 1.3, direction: 1.2, robuste: 0.4,
+      fantome: 1.22, debloque: 8000, couleurDefaut: 'jaune', neon: '#FFB000', son: { hauteur: 1.6, filtre: 1200 } }
   };
+  var ORDRE_VOITURES = ['ketch', 'zigzag', 'mbote', 'blinde', 'kingt', 'fleuve', 'turbo', 'leopard'];
   // Peintures au choix : [teinte claire, teinte foncée].
   var COULEURS = {
     jaune: ['#FFD23F', '#D9A400'], noir: ['#4A505C', '#14171C'], blanc: ['#FFFFFF', '#B9BEC6'], vert: ['#3DDC84', '#127A45'],
@@ -488,7 +501,17 @@ html{scroll-behavior:smooth}
     });
     return max;
   }
-  function debloquee(m) { return meilleurScore() >= m.debloque; }
+  function etapesGagnees() {
+    var n = 0;
+    ['rondpoint', 'marche', 'poidslourds', 'corniche', 'boulevard'].forEach(function (id) {
+      try { var r = JSON.parse(localStorage.getItem('ketch-records-' + id) || 'null'); if (r && r.gagne) n++; } catch (e) {}
+    });
+    return n;
+  }
+  function debloquee(m) { return meilleurScore() >= m.debloque || (m.id === 'leopard' && etapesGagnees() >= 5); }
+  function conditionDeblocage(m) {
+    return m.debloque.toLocaleString('fr-FR') + ' pts' + (m.id === 'leopard' ? ' ou 5 étapes gagnées' : '');
+  }
   var voiture = VOITURES.ketch;
   try { var vSauve = localStorage.getItem('ketch-voiture'); if (VOITURES[vSauve] && debloquee(VOITURES[vSauve])) voiture = VOITURES[vSauve]; } catch (e) {}
 
@@ -789,11 +812,20 @@ html{scroll-behavior:smooth}
       rapport = i;
       if (va <= RAPPORTS[i] || i === RAPPORTS.length - 1) { r = (va - RAPPORTS[i - 1]) / (RAPPORTS[i] - RAPPORTS[i - 1]); break; }
     }
-    if (rapport > rapportAvant && etat === 'course') { coupure = 0.12; sonBruit(900, 'bandpass', 0.12, 0.25); }
+    if (rapport > rapportAvant && etat === 'course' && !voiture.electrique) { coupure = 0.12; sonBruit(900, 'bandpass', 0.12, 0.25); }
     rapportAvant = rapport;
     if (coupure > 0) coupure -= dt;
     var regime = va < 0.5 ? 0.12 : 0.28 + 0.72 * Math.max(0, Math.min(1, r));
     if (etat === 'compte') regime = 0.15 + (appuye('turbo') ? 0.55 : 0);
+    if (voiture.electrique) {
+      // Moteur électrique : pas de rapports, un sifflement qui monte avec la vitesse.
+      var fe = 180 + Math.min(1.3, va / 40) * 900;
+      son.oscA.frequency.setTargetAtTime(fe, t, 0.05); son.oscB.frequency.setTargetAtTime(fe * 1.5, t, 0.05);
+      son.oscC.frequency.setTargetAtTime(fe / 2, t, 0.05); son.lfo.frequency.setTargetAtTime(30, t, 0.1);
+      son.filtre.frequency.setTargetAtTime(1200 + fe, t, 0.05);
+      son.moteur.gain.setTargetAtTime(enCourse ? 0.035 + 0.04 * Math.min(1, va / 40) : 0, t, 0.05);
+      son.gSifflet.gain.setTargetAtTime(0, t, 0.1);
+    } else {
     var tours = 900 + regime * 5600;                    // tours/minute
     var freq = tours / 60 * 2 * voiture.son.hauteur;    // 4 cylindres : 2 explosions par tour (plus aigu pour les sportives)
     son.oscA.frequency.setTargetAtTime(freq, t, 0.03);
@@ -801,10 +833,11 @@ html{scroll-behavior:smooth}
     son.oscC.frequency.setTargetAtTime(freq / 2, t, 0.03);
     son.lfo.frequency.setTargetAtTime(freq / 2, t, 0.03);
     son.filtre.frequency.setTargetAtTime(Math.max(200, 380 + regime * 2100 + (turboActif ? 500 : 0) + voiture.son.filtre), t, 0.05);
-    var vol = enCourse ? (0.13 + 0.12 * regime) * (coupure > 0 ? 0.35 : 1) * (appuye('frein') ? 0.7 : 1) : 0;
+    var vol = enCourse ? (0.13 + 0.12 * regime) * (coupure > 0 ? 0.35 : 1) * (appuye('frein') ? 0.7 : 1) * (voiture.v8 ? 1.35 : 1) : 0;
     son.moteur.gain.setTargetAtTime(vol, t, 0.04);
     son.sifflet.frequency.setTargetAtTime(1800 + regime * 2600, t, 0.1);
     son.gSifflet.gain.setTargetAtTime(turboActif && enCourse ? 0.018 : 0, t, 0.15);
+    }
     var dir = (appuye('droite') ? 1 : 0) - (appuye('gauche') ? 1 : 0);
     var crisse = etat === 'course' && v > 22 && ((dir && Math.abs(segmentA(z).courbe) > 2) || (dir && zoneGlissante(E, z)) || (appuye('frein') && v > 25));
     son.gCriss.gain.setTargetAtTime(crisse ? 0.05 : 0, t, 0.08);
@@ -1073,10 +1106,10 @@ html{scroll-behavior:smooth}
     for (var i = 0; i < POINTS.propre.length; i++) if (nbChocs <= POINTS.propre[i][0]) { bonusPropre = POINTS.propre[i][1]; break; }
     var total = Math.max(0, Math.round(points) + bonusFantome + bonusPropre);
 
-    var avantMeilleur = meilleurScore();
+    var avantOuvertes = ORDRE_VOITURES.filter(function (id) { return debloquee(VOITURES[id]); });
     var rec = lireRecord(E.id) || {}, nouveau = !rec.score || total > rec.score;
     var nouveauTemps = !rec.temps || temps < rec.temps;
-    ecrireRecord(E.id, { score: Math.max(total, rec.score || 0), temps: Math.min(temps, rec.temps || 1e9) });
+    ecrireRecord(E.id, { score: Math.max(total, rec.score || 0), temps: Math.min(temps, rec.temps || 1e9), gagne: !!rec.gagne || ecart > 0 });
     [523, 659, 784, 1047].forEach(function (f, j) { sonNote(f, j * 0.12, 0.3, 0.2); });
 
     document.getElementById('finEtape').textContent = 'Étape ' + E.numero + ' · ' + E.nom + ' · ' + voiture.nom + ' · ' + chrono(temps);
@@ -1096,8 +1129,8 @@ html{scroll-behavior:smooth}
       var li = document.createElement('li'), a = document.createElement('span'), b = document.createElement('b');
       a.textContent = l[0]; b.textContent = l[1]; li.appendChild(a); li.appendChild(b); ul.appendChild(li);
     });
-    var debloquees = Object.keys(VOITURES).map(function (id) { return VOITURES[id]; })
-      .filter(function (m) { return m.debloque > avantMeilleur && m.debloque <= total; });
+    var debloquees = ORDRE_VOITURES.filter(function (id) { return avantOuvertes.indexOf(id) < 0 && debloquee(VOITURES[id]); })
+      .map(function (id) { return VOITURES[id]; });
     document.getElementById('finDetail').textContent = (nouveau ? 'Nouveau meilleur score !' : 'Meilleur score : ' + rec.score.toLocaleString('fr-FR')) +
       (nouveauTemps ? ' · Nouveau meilleur temps' : '') +
       (debloquees.length ? ' · Voiture débloquée : ' + debloquees.map(function (m) { return m.nom; }).join(', ') + ' !' : '');
@@ -1584,7 +1617,7 @@ html{scroll-behavior:smooth}
     neon.addColorStop(0, m.neon); neon.addColorStop(1, 'rgba(0,0,0,0)');
     ctx.globalAlpha = 0.55; ctx.fillStyle = neon; ctx.beginPath(); ctx.ellipse(0, -4, 170, 26, 0, 0, 7); ctx.fill();
     ctx.globalAlpha = 0.45; ctx.fillStyle = '#000'; ctx.beginPath(); ctx.ellipse(0, 2, 128, 10, 0, 0, 7); ctx.fill(); ctx.globalAlpha = 1;
-    var id = m === VOITURES.turbo ? 'turbo' : m === VOITURES.zigzag ? 'zigzag' : 'blinde';
+    var id = m.id;
     var feux = turboActif || appuye('frein') ? '#FF4D5A' : '#E0182A';
     if (id === 'turbo') {
       ctx.fillStyle = '#121212'; rect(-124, -44, 48, 44, 8); ctx.fill(); rect(76, -44, 48, 44, 8); ctx.fill();
@@ -1622,6 +1655,67 @@ html{scroll-behavior:smooth}
       ctx.fillStyle = '#9AA0A9'; [-12, 12].forEach(function (ex) { ctx.beginPath(); ctx.arc(ex, -34, 8, 0, 7); ctx.fill(); });
       ctx.fillStyle = '#FFFFFF'; rect(-28, -76, 56, 15, 3); ctx.fill();
       ctx.fillStyle = '#111'; ctx.font = '800 11px Inter, sans-serif'; ctx.textAlign = 'center'; ctx.fillText('KIN R', 0, -64);
+    } else if (id === 'mbote') {
+      ctx.fillStyle = '#121212'; rect(-116, -40, 42, 40, 8); ctx.fill(); rect(74, -40, 42, 40, 8); ctx.fill();
+      ctx.fillStyle = peinture(m.couleur, -110, -28); rect(-124, -108, 248, 80, 28); ctx.fill();
+      ctx.fillStyle = m.couleur[1];
+      ctx.beginPath(); ctx.moveTo(-90, -106); ctx.quadraticCurveTo(-72, -160, -40, -162); ctx.lineTo(40, -162); ctx.quadraticCurveTo(72, -160, 90, -106); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = '#0D1118'; ctx.beginPath(); ctx.moveTo(-76, -108); ctx.quadraticCurveTo(-62, -150, -36, -152); ctx.lineTo(36, -152); ctx.quadraticCurveTo(62, -150, 76, -108); ctx.fill();
+      ctx.shadowColor = feux; ctx.shadowBlur = 14; ctx.fillStyle = feux; rect(-120, -90, 240, 5, 2); ctx.fill(); ctx.shadowBlur = 0;
+      ctx.fillStyle = '#0B0B0B'; rect(-100, -40, 200, 12, 4); ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,.25)'; ctx.fillRect(-110, -104, 220, 3);
+      ctx.fillStyle = '#FFFFFF'; rect(-28, -72, 56, 16, 3); ctx.fill();
+      ctx.fillStyle = '#111'; ctx.font = '800 11px Inter, sans-serif'; ctx.textAlign = 'center'; ctx.fillText('KIN E', 0, -60);
+      ctx.fillStyle = '#3DDC84'; ctx.font = '800 9px Inter, sans-serif'; ctx.fillText('ÉLECTRIQUE', 0, -46);
+    } else if (id === 'kingt') {
+      ctx.fillStyle = '#121212'; rect(-124, -44, 46, 44, 8); ctx.fill(); rect(78, -44, 46, 44, 8); ctx.fill();
+      ctx.fillStyle = peinture(m.couleur, -104, -28);
+      ctx.beginPath(); ctx.moveTo(-128, -30); ctx.lineTo(-128, -78); ctx.quadraticCurveTo(-120, -104, -90, -104); ctx.lineTo(90, -104);
+      ctx.quadraticCurveTo(120, -104, 128, -78); ctx.lineTo(128, -30); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = m.couleur[1];
+      ctx.beginPath(); ctx.moveTo(-64, -104); ctx.lineTo(-44, -140); ctx.lineTo(44, -140); ctx.lineTo(64, -104); ctx.fill();
+      ctx.fillStyle = '#0D1118'; ctx.beginPath(); ctx.moveTo(-52, -106); ctx.lineTo(-38, -132); ctx.lineTo(38, -132); ctx.lineTo(52, -106); ctx.fill();
+      ctx.fillStyle = '#111'; rect(-60, -108, 120, 6, 3); ctx.fill();
+      ctx.shadowColor = feux; ctx.shadowBlur = 12; ctx.fillStyle = feux;
+      [-100, -76, 76, 100].forEach(function (lx) { ctx.beginPath(); ctx.arc(lx, -78, 9, 0, 7); ctx.fill(); }); ctx.shadowBlur = 0;
+      ctx.fillStyle = '#0B0B0B'; rect(-104, -42, 208, 14, 4); ctx.fill();
+      ctx.fillStyle = '#9AA0A9'; [-92, -72, 72, 92].forEach(function (ex) { ctx.beginPath(); ctx.arc(ex, -34, 6, 0, 7); ctx.fill(); });
+      ctx.fillStyle = '#FFFFFF'; rect(-28, -70, 56, 16, 3); ctx.fill();
+      ctx.fillStyle = '#111'; ctx.font = '800 11px Inter, sans-serif'; ctx.textAlign = 'center'; ctx.fillText('KIN GT', 0, -58);
+    } else if (id === 'fleuve') {
+      ctx.fillStyle = '#121212'; rect(-130, -48, 56, 48, 8); ctx.fill(); rect(74, -48, 56, 48, 8); ctx.fill();
+      ctx.fillStyle = peinture(m.couleur, -116, -30); rect(-132, -116, 264, 86, 10); ctx.fill();
+      ctx.fillStyle = m.couleur[1];
+      ctx.beginPath(); ctx.moveTo(-80, -114); ctx.lineTo(-62, -156); ctx.lineTo(62, -156); ctx.lineTo(80, -114); ctx.fill();
+      ctx.fillStyle = '#0D1118'; ctx.beginPath(); ctx.moveTo(-68, -116); ctx.lineTo(-54, -148); ctx.lineTo(54, -148); ctx.lineTo(68, -116); ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,.9)'; ctx.fillRect(-22, -158, 14, 128); ctx.fillRect(8, -158, 14, 128);
+      ctx.fillStyle = '#111'; rect(-90, -120, 180, 7, 3); ctx.fill();
+      ctx.shadowColor = feux; ctx.shadowBlur = 10; ctx.fillStyle = feux;
+      [-124, -82, 46].forEach(function (lx) { rect(lx, -98, 36, 14, 3); ctx.fill(); }); rect(88, -98, 36, 14, 3); ctx.fill(); ctx.shadowBlur = 0;
+      ctx.fillStyle = '#111'; rect(-132, -48, 264, 18, 4); ctx.fill();
+      ctx.fillStyle = '#B9BEC6'; [-110, -88, 88, 110].forEach(function (ex) { ctx.beginPath(); ctx.arc(ex, -38, 8, 0, 7); ctx.fill(); });
+      ctx.fillStyle = '#FFFFFF'; rect(-28, -76, 56, 16, 3); ctx.fill();
+      ctx.fillStyle = '#111'; ctx.font = '800 11px Inter, sans-serif'; ctx.textAlign = 'center'; ctx.fillText('KIN V8', 0, -64);
+    } else if (id === 'leopard') {
+      ctx.fillStyle = '#121212'; rect(-126, -40, 50, 40, 8); ctx.fill(); rect(76, -40, 50, 40, 8); ctx.fill();
+      ctx.fillStyle = peinture(m.couleur, -92, -26);
+      ctx.beginPath(); ctx.moveTo(-134, -28); ctx.lineTo(-134, -60); ctx.quadraticCurveTo(-130, -88, -96, -92); ctx.lineTo(96, -92);
+      ctx.quadraticCurveTo(130, -88, 134, -60); ctx.lineTo(134, -28); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = 'rgba(40,24,8,.35)';
+      [[-96, -70], [-70, -56], [-40, -74], [44, -72], [72, -58], [98, -70], [-110, -48], [110, -48]].forEach(function (t) { ctx.beginPath(); ctx.ellipse(t[0], t[1], 7, 5, 0, 0, 7); ctx.fill(); });
+      ctx.fillStyle = m.couleur[1];
+      ctx.beginPath(); ctx.moveTo(-46, -92); ctx.quadraticCurveTo(-34, -136, 0, -138); ctx.quadraticCurveTo(34, -136, 46, -92); ctx.fill();
+      ctx.fillStyle = '#0D1118'; ctx.beginPath(); ctx.moveTo(-34, -94); ctx.quadraticCurveTo(-26, -126, 0, -128); ctx.quadraticCurveTo(26, -126, 34, -94); ctx.fill();
+      ctx.fillStyle = '#111'; ctx.fillRect(-70, -128, 6, 34); ctx.fillRect(64, -128, 6, 34); rect(-128, -138, 256, 10, 4); ctx.fill();
+      ctx.shadowColor = feux; ctx.shadowBlur = 16; ctx.strokeStyle = feux; ctx.lineWidth = 6;
+      ctx.beginPath(); ctx.moveTo(-128, -84); ctx.lineTo(-84, -64); ctx.moveTo(-128, -64); ctx.lineTo(-84, -84);
+      ctx.moveTo(128, -84); ctx.lineTo(84, -64); ctx.moveTo(128, -64); ctx.lineTo(84, -84); ctx.stroke(); ctx.shadowBlur = 0;
+      ctx.fillStyle = '#0B0B0B'; rect(-110, -40, 220, 18, 4); ctx.fill();
+      ctx.fillStyle = '#2A2A2A'; for (var f2 = -96; f2 <= 96; f2 += 24) ctx.fillRect(f2, -40, 4, 18);
+      ctx.fillStyle = '#9AA0A9'; ctx.beginPath(); ctx.arc(0, -46, 11, 0, 7); ctx.fill();
+      ctx.fillStyle = '#1A1A1A'; ctx.beginPath(); ctx.arc(0, -46, 6, 0, 7); ctx.fill();
+      ctx.fillStyle = '#FFFFFF'; rect(-28, -76, 56, 14, 3); ctx.fill();
+      ctx.fillStyle = '#111'; ctx.font = '800 10px Inter, sans-serif'; ctx.textAlign = 'center'; ctx.fillText('LÉOPARD', 0, -65);
     } else {
       ctx.fillStyle = '#121212'; rect(-126, -52, 52, 52, 10); ctx.fill(); rect(74, -52, 52, 52, 10); ctx.fill();
       ctx.fillStyle = peinture(m.couleur, -176, -36); rect(-130, -168, 260, 132, 18); ctx.fill();
@@ -1640,7 +1734,7 @@ html{scroll-behavior:smooth}
       ctx.shadowColor = '#FFFFFF'; ctx.shadowBlur = 10; ctx.fillStyle = '#FFFFFF';
       rect(-96, id === 'blinde' ? -126 : -96, 16, 10, 3); ctx.fill(); rect(80, id === 'blinde' ? -126 : -96, 16, 10, 3); ctx.fill(); ctx.shadowBlur = 0;
     }
-    if (turboActif) {
+    if (turboActif && !m.electrique) {
       ctx.fillStyle = 'rgba(80,170,255,.9)';
       [-44, 44].forEach(function (ex) { ctx.beginPath(); ctx.moveTo(ex - 8, -30); ctx.lineTo(ex, 10 + Math.random() * 18); ctx.lineTo(ex + 8, -30); ctx.fill(); });
     }
@@ -1829,6 +1923,11 @@ html{scroll-behavior:smooth}
     reinitialiser(etapeChoisie);
     etat = 'compte';
     sonDemarrer();
+    if (son.ctx) {
+      son.oscA.type = voiture.electrique ? 'sine' : 'sawtooth';
+      son.oscB.type = voiture.electrique ? 'sine' : 'sawtooth';
+      son.lfo.type = voiture.electrique ? 'sine' : 'square';
+    }
     musiqueArreter(); musiqueDemarrer();
     panneauDebut.hidden = true; panneauFin.hidden = true;
     canvas.focus({ preventScroll: true });
@@ -1843,11 +1942,11 @@ html{scroll-behavior:smooth}
   function majVoitures() {
     var meilleur = meilleurScore();
     Array.prototype.forEach.call(document.querySelectorAll('[data-voiture]'), function (b) {
-      var m = VOITURES[b.getAttribute('data-voiture')], ouverte = meilleur >= m.debloque;
+      var m = VOITURES[b.getAttribute('data-voiture')], ouverte = debloquee(m);
       b.setAttribute('aria-pressed', m === voiture ? 'true' : 'false');
       b.setAttribute('aria-disabled', ouverte ? 'false' : 'true');
       var etiquette = b.querySelector('span');
-      if (etiquette) etiquette.textContent = ouverte ? m.type : 'Verrouillée · ' + m.debloque.toLocaleString('fr-FR') + ' pts';
+      if (etiquette) etiquette.textContent = ouverte ? m.type : 'Verrouillée · ' + conditionDeblocage(m);
     });
     Array.prototype.forEach.call(document.querySelectorAll('[data-couleur]'), function (b) {
       b.setAttribute('aria-pressed', b.getAttribute('data-couleur') === voiture.teinte ? 'true' : 'false');
@@ -1857,7 +1956,7 @@ html{scroll-behavior:smooth}
     b.addEventListener('click', function () {
       var m = VOITURES[b.getAttribute('data-voiture')];
       if (!debloquee(m)) {
-        if (infoVoiture) infoVoiture.textContent = m.nom + ' se débloque avec un score de ' + m.debloque.toLocaleString('fr-FR') + ' points sur une étape. Votre meilleur score : ' + meilleurScore().toLocaleString('fr-FR') + '.';
+        if (infoVoiture) infoVoiture.textContent = m.nom + ' se débloque avec ' + conditionDeblocage(m) + ' sur une étape. Votre meilleur score : ' + meilleurScore().toLocaleString('fr-FR') + (m.id === 'leopard' ? ', étapes gagnées : ' + etapesGagnees() + ' / 5' : '') + '.';
         return;
       }
       voiture = m;
