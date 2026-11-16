@@ -2696,10 +2696,22 @@
         .then(function (rep) { if (rep && rep.erreur) configDirect(rep.erreur); })
         .catch(function (e) { configDirect(e.message); });
     }
+    if (codeInvite) {
+      document.getElementById('codeSalon').value = codeInvite;
+      var c0 = codeInvite; codeInvite = '';
+      essayer('salon:rejoindre', { code: c0 });
+    }
     document.getElementById('creerSalon').addEventListener('click', function () { essayer('salon:creer', { etape: document.getElementById('etapeDirect').value }); });
     document.getElementById('rejoindreSalon').addEventListener('click', function () { essayer('salon:rejoindre', { code: document.getElementById('codeSalon').value }); });
     document.getElementById('retourLocal').addEventListener('click', function () { quitterSalon(); configDuel(); });
   }
+  // Lien « Rejoindre ma course » : ouvre le jeu directement sur le salon (?salon=CODE).
+  function lienSalon(code) { return location.origin + location.pathname + '?salon=' + code + '#jouer'; }
+  function lienWhatsApp(code) {
+    return 'https://wa.me/?text=' + encodeURIComponent('\uD83C\uDFC1 Viens courir contre moi sur La Course des Ketch ! Rejoins ma course : ' + lienSalon(code) + ' (code ' + code + ')');
+  }
+  var codeInvite = '';
+  try { codeInvite = (new URLSearchParams(location.search).get('salon') || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 5); } catch (e) {}
   function quitterSalon() { if (socketJeu && salon) socketJeu.emit('salon:quitter', {}, function () {}); salon = null; }
   function ecranSalon() {
     if (!salon) return configDirect();
@@ -2713,7 +2725,7 @@
       (hote ? '<label class="duel-ligne"><span>Étape</span><select id="etapeSalon">' + optionsEtapes(salon.etape) + '</select></label>' +
         '<button type="button" class="jeu-lancer" id="lancerSalon"' + (salon.joueurs.length < 2 ? ' disabled' : '') + '><svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M7 4.5v15l12-7.5z"/></svg><span>' + (salon.joueurs.length < 2 ? 'En attente d\'un ami…' : 'Lancer la course') + '</span><small>' + echapper(e2.nom) + ' · ' + salon.joueurs.length + ' / 3 joueurs</small></button>'
         : '<p class="tournoi-sous">Étape : <b>' + echapper(e2.nom) + '</b>. L\'hôte lance la course.</p>') +
-      '<div class="jeu-actions"><button type="button" class="jeu-lien" id="quitterSalon">Quitter le salon</button></div></div>');
+      '<div class="jeu-actions"><a class="jeu-bouton duel-whatsapp" id="inviterSalon" target="_blank" rel="noopener" href="' + lienWhatsApp(salon.code) + '">Inviter sur WhatsApp</a><button type="button" class="jeu-lien" id="quitterSalon">Quitter le salon</button></div></div>');
     if (hote) {
       document.getElementById('etapeSalon').addEventListener('change', function (ev) { demander('salon:etape', { etape: ev.target.value }); });
       document.getElementById('lancerSalon').addEventListener('click', function () { demander('salon:lancer').then(function (rep) { if (rep && rep.erreur) direct('Salon', rep.erreur, 'commentateur'); }); });
@@ -2740,6 +2752,11 @@
   }
 
   var boutonDuel = document.getElementById('boutonDuel');
+  if (codeInvite) setTimeout(function () {
+    var jeu = document.getElementById('ecranJeu');
+    if (jeu) jeu.scrollIntoView({ block: 'center' });
+    nbJoueursDuel = 2; configDirect();
+  }, 300);
   if (boutonDuel) boutonDuel.addEventListener('click', function () { nbJoueursDuel = 2; configDuel(); });
   document.getElementById('retourDuel').addEventListener('click', function () { modeJeu = 'entrainement'; duel = null; panneauDuel.hidden = true; panneauModes.hidden = false; });
   // Radio : un clic sur le titre passe à la chanson suivante (automatique selon l'étape, puis les 4 chansons).
