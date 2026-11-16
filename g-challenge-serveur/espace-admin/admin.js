@@ -126,7 +126,8 @@
     e.preventDefault();
     var f = e.target, circuits = [];
     for (var i = 0; i < 5; i++) circuits.push(f['circuit' + i].value);
-    api('POST', '/admin/tournois/championnats', { pays: f.pays.value, nom: f.nom.value.trim(), sponsor: f.sponsor.value.trim(), premier_lundi: f.premier_lundi.value, circuits: circuits })
+    api('POST', '/admin/tournois/championnats', { pays: f.pays.value, nom: f.nom.value.trim(), sponsor: f.sponsor.value.trim(), premier_lundi: f.premier_lundi.value, circuits: circuits,
+      nb_equipes: parseInt(f.nb_equipes.value, 10), taille_equipe: parseInt(f.taille_equipe.value, 10), nb_qualifies: parseInt(f.nb_qualifies.value, 10) })
       .then(function (c) { dire('msgChampionnat', 'Championnat créé : ' + c.nom + ', qualifications à partir du ' + f.premier_lundi.value + '.', true); return charger(); })
       .catch(function (err) { dire('msgChampionnat', err.message, false); });
   });

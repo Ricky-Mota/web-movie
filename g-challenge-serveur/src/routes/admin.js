@@ -79,7 +79,7 @@ routesAdmin.post('/paiements/:id/relancer', asynchrone(async (req, res) => {
 const date = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 
 // Championnat national (Tournoi Sponsor) d'un pays : semaine 1 = qualifications, puis championnat.
-// Par défaut : 16 équipes de 3, 4 × 20 $ par semaine, 2 qualifiées pour la Coupe d'Afrique.
+// Par défaut : 16 équipes de 4 pilotes, 4 × 20 $ par semaine, 2 qualifiées pour la Coupe d'Afrique.
 const schemaChampionnat = z.object({
   pays: z.string().length(2).transform((s) => s.toUpperCase()),
   nom: z.string().min(2).max(80),
@@ -87,7 +87,7 @@ const schemaChampionnat = z.object({
   premier_lundi: date,
   circuits: z.array(z.string().min(1)).min(2).max(21),
   nb_equipes: z.number().int().min(2).max(64).default(16),
-  taille_equipe: z.number().int().min(1).max(5).default(3),
+  taille_equipe: z.number().int().min(1).max(5).default(4),
   nb_qualifies: z.number().int().min(1).max(8).default(2),
   primes_centimes: z.array(z.number().int().min(0)).max(20).optional(), // par défaut : les réglages de l'espace administrateur
   points: z.array(z.number().int().min(0)).min(1).max(64).default([25, 20, 16, 13, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1]),
@@ -115,7 +115,7 @@ const schemaCoupe = z.object({
   premier_lundi: date,
   championnats: z.array(z.string().uuid()).min(2).max(16),
   circuits: z.array(z.string().min(1)).min(1).max(5),
-  taille_equipe: z.number().int().min(1).max(5).default(3),
+  taille_equipe: z.number().int().min(1).max(5).default(4),
   primes_centimes: z.array(z.number().int().min(0)).max(2).optional(), // par défaut : les réglages
   devise: z.string().length(3).default('USD'),
 });

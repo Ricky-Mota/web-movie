@@ -289,7 +289,7 @@ html{scroll-behavior:smooth}
 <button type="button" class="mode-carte mode-sponsor" data-mode="sponsor">
 <span class="mode-icone" aria-hidden="true"><svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0z"/><path d="M17 5h3a3 3 0 0 1-3 4M7 5H4a3 3 0 0 0 3 4"/></svg></span>
 <span class="mode-nom">Tournoi Sponsor</span>
-<span class="mode-sous">Championnat national · 16 équipes de 3</span>
+<span class="mode-sous">Championnat national · 16 équipes de 4</span>
 <span class="mode-desc">Qualifications puis 4 semaines de championnat. Chaque semaine, 20 $ pour chacune des 4 meilleures équipes, par M-PESA. Les 2 premières vont à la Coupe d'Afrique.</span>
 <span class="mode-badge">4 × 20 $ chaque semaine</span>
 </button>
@@ -380,7 +380,7 @@ html{scroll-behavior:smooth}
 <div class="tournoi-bloc" id="blocProfil" hidden>
 <p class="tournoi-epreuve" id="profilNom"></p>
 <p class="tournoi-note" id="profilDetail"></p>
-<p class="compte-titre">Mes équipes (3 pilotes pour les tournois)</p>
+<p class="compte-titre">Mes équipes (4 pilotes pour les tournois)</p>
 <div id="listeEquipes"></div>
 <form id="formCreerEquipe" class="compte-ligne"><input id="champNomEquipe" maxlength="40" placeholder="Nom de la nouvelle équipe" required aria-label="Nom de la nouvelle équipe"><button type="submit" class="jeu-bouton">Créer</button></form>
 <form id="formRejoindre" class="compte-ligne"><input id="champCodeEquipe" maxlength="12" placeholder="Code d'invitation" required aria-label="Code d'invitation"><button type="submit" class="jeu-lien">Rejoindre</button></form>
@@ -3122,13 +3122,13 @@ html{scroll-behavior:smooth}
     var texte = document.getElementById('boutonTournoiTexte'), sousBouton = document.getElementById('boutonTournoiSous'), paysBloc = document.getElementById('tournoiPays');
     if (mode === 'sponsor') {
       titre.textContent = 'Tournoi Sponsor · semaine ' + st.numero + ' / 5';
-      sous.textContent = 'Championnat national par équipes de 3 pilotes. Temps de l\'équipe : la somme des temps de ses 3 pilotes. Clôture chaque dimanche à minuit (heure de Kinshasa).';
+      sous.textContent = 'Championnat national par équipes de 4 pilotes. Temps de l\'équipe : la somme des temps de ses 4 pilotes. Clôture chaque dimanche à minuit (heure de Kinshasa).';
       etapes.innerHTML = CALENDRIER.map(function (c, i) { return ligne(c[0], c[1], c[2], i + 1 === st.numero); }).join('') +
         ligne('Primes', 'Chaque semaine, les 4 meilleures équipes', '20 $ chacune · M-PESA', false);
       epreuve.textContent = "Épreuve de la semaine : Étape " + E2.numero + ' · ' + E2.nom;
       texte.textContent = st.numero === 1 ? 'Jouer ma qualification' : 'Courir pour mon équipe';
       sousBouton.textContent = st.numero === 1 ? 'Votre meilleur temps compte pour votre équipe' : 'Réservé aux 16 équipes retenues';
-      note.textContent = 'Démo : vous courez seul et votre temps reste sur cet appareil. Dans le jeu en ligne, votre temps s\'ajoute à ceux de vos 2 coéquipiers, chaque course est vérifiée par le serveur (anti-triche) et les 20 $ sont partagés entre les pilotes de l\'équipe, versés automatiquement par M-PESA. Aucune mise : le sponsor paie.';
+      note.textContent = 'Démo : vous courez seul et votre temps reste sur cet appareil. Dans le jeu en ligne, votre temps s\'ajoute à ceux de vos 3 coéquipiers, chaque course est vérifiée par le serveur (anti-triche) et les 20 $ sont partagés entre les pilotes de l\'équipe, versés automatiquement par M-PESA. Aucune mise : le sponsor paie.';
       paysBloc.hidden = true;
     } else {
       titre.textContent = 'Tournoi international · Champion d\'Afrique';
@@ -3141,7 +3141,7 @@ html{scroll-behavior:smooth}
         '<p class="tournoi-note">' + PAYS_AFRIQUE.map(function (p) { return p[2] + ' ' + echapper(p[1]); }).join(' · ') + '</p>';
       epreuve.textContent = 'Épreuve continentale : Étape ' + E2.numero + ' · ' + E2.nom;
       texte.textContent = "S'entraîner sur l'épreuve continentale"; sousBouton.textContent = 'Représentez votre pays';
-      note.textContent = 'Démo : votre temps reste sur cet appareil. Dans le jeu en ligne, chaque match oppose deux équipes de 3 pilotes : le plus petit temps total passe au tour suivant.';
+      note.textContent = 'Démo : votre temps reste sur cet appareil. Dans le jeu en ligne, chaque match oppose deux équipes de 4 pilotes : le plus petit temps total passe au tour suivant.';
       paysBloc.hidden = false;
       var choix = document.getElementById('choixPays'), sauve = null;
       try { sauve = localStorage.getItem('ketch-pays'); } catch (e) {}
@@ -3241,7 +3241,7 @@ html{scroll-behavior:smooth}
     var liste = document.getElementById('listeEquipes');
     apiJeu('GET', '/equipes').then(function (equipes) {
       liste.textContent = '';
-      if (!equipes.length) { liste.innerHTML = '<p class="tournoi-note">Aucune équipe : créez la vôtre, puis donnez le code à vos 2 coéquipiers.</p>'; return; }
+      if (!equipes.length) { liste.innerHTML = '<p class="tournoi-note">Aucune équipe : créez la vôtre, puis donnez le code à vos 3 coéquipiers.</p>'; return; }
       equipes.forEach(function (e) {
         var d = document.createElement('div'); d.className = 'equipe-ligne';
         d.innerHTML = '<span><b>' + echapper(e.nom) + '</b> · ' + e.membres.map(function (m) { return echapper(m.pseudo); }).join(', ') + ' (' + e.membres.length + '/' + e.taille_max + ')</span><span>code <code>' + echapper(e.code_invitation) + '</code></span>';
@@ -3280,8 +3280,8 @@ html{scroll-behavior:smooth}
   });
   document.getElementById('formCreerEquipe').addEventListener('submit', function (e) {
     e.preventDefault();
-    apiJeu('POST', '/equipes', { nom: document.getElementById('champNomEquipe').value.trim(), taille_max: 3 })
-      .then(function (eq) { msg('messageEquipe', 'Équipe créée. Donnez le code ' + eq.code_invitation + ' à vos 2 coéquipiers.', true); document.getElementById('champNomEquipe').value = ''; chargerEquipes(); })
+    apiJeu('POST', '/equipes', { nom: document.getElementById('champNomEquipe').value.trim(), taille_max: 4 })
+      .then(function (eq) { msg('messageEquipe', 'Équipe créée. Donnez le code ' + eq.code_invitation + ' à vos 3 coéquipiers.', true); document.getElementById('champNomEquipe').value = ''; chargerEquipes(); })
       .catch(function (err) { msg('messageEquipe', err.message, false); });
   });
   document.getElementById('formRejoindre').addEventListener('submit', function (e) {
@@ -3322,7 +3322,7 @@ html{scroll-behavior:smooth}
         bouton.disabled = !etapeTournoiServeur;
         texte.textContent = etapeTournoiServeur ? 'Courir pour mon équipe' : sem ? 'Épreuve à courir dans le jeu Unreal' : 'Championnat terminé';
         sousBouton.textContent = session ? 'Connecté : ' + session.joueur.pseudo : 'Connectez-vous (Mon compte) pour que la course compte';
-        note.textContent = 'Classement réel du serveur. Le temps de l\'équipe est la somme de ses 3 pilotes ; clôture le dimanche à minuit (heure de Kinshasa).';
+        note.textContent = 'Classement réel du serveur. Le temps de l\'équipe est la somme de ses ' + c.taille_equipe + ' pilotes ; clôture le dimanche à minuit (heure de Kinshasa).';
       }).catch(function () { note.textContent = 'Aucun championnat en cours dans votre pays pour le moment : entraînez-vous sur l\'épreuve de démonstration.'; });
     } else {
       apiJeu('GET', '/tournois/coupe').then(function (c) {

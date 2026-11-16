@@ -257,7 +257,7 @@ Pour les appels HTTP, le plugin gratuit **VaRest** (sur Fab) est le plus simple 
 
 ---
 
-## 4 bis. Les tournois (par équipes de 3)
+## 4 bis. Les tournois (par équipes de 4 pilotes)
 
 ### Championnat national (Tournoi Sponsor), un par pays
 
@@ -267,7 +267,7 @@ Pour les appels HTTP, le plugin gratuit **VaRest** (sur Fab) est le plus simple 
 | 2 à 5 · championnat | les 16 équipes | points selon le classement de la semaine : 25, 20, 16, 13, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1 |
 | fin du championnat | — | les **2 premières** (points, puis temps cumulé) vont à la **Coupe d'Afrique** |
 
-- **Temps d'une équipe** : somme des meilleurs temps de ses **3 pilotes** sur le circuit de la semaine (courses d'entraînement valides, vérifiées par l'anti-triche). Une équipe incomplète est classée derrière et ne marque pas de point. Un pilote ne compte que pour une seule équipe retenue.
+- **Temps d'une équipe** : somme des meilleurs temps de ses **4 pilotes** (réglable par championnat ; un championnat test peut se jouer à 4 équipes) sur le circuit de la semaine (courses d'entraînement valides, vérifiées par l'anti-triche). Une équipe incomplète est classée derrière et ne marque pas de point. Un pilote ne compte que pour une seule équipe retenue.
 - **Primes** : chaque semaine (qualifications comprises), les **4 meilleures équipes reçoivent 20 $ chacune**, payés par le sponsor et **partagés entre les pilotes qui ont couru** (le capitaine reçoit les centimes restants). Versement **automatique par M-Pesa** quand le pays du pilote le permet (aujourd'hui la RDC), sinon « à verser manuellement ».
 - **Aucune mise** des joueurs : le sponsor paie. Nombre d'équipes, taille, primes, barème de points et nombre de semaines se règlent pour chaque championnat.
 
@@ -304,7 +304,7 @@ curl -X PUT http://localhost:3000/admin/pays/ZM -H "Authorization: Bearer <jeton
 
 | Méthode | Adresse | Rôle |
 | --- | --- | --- |
-| POST | `/admin/tournois/championnats` | Créer un championnat `{ pays, nom, sponsor, premier_lundi, circuits[] (qualifications puis une par semaine), nb_equipes? (16), taille_equipe? (3), nb_qualifies? (2), primes_centimes? ([2000,2000,2000,2000]), points? }` |
+| POST | `/admin/tournois/championnats` | Créer un championnat `{ pays, nom, sponsor, premier_lundi, circuits[] (qualifications puis une par semaine), nb_equipes? (16), taille_equipe? (4), nb_qualifies? (2), primes_centimes? ([2000,2000,2000,2000]), points? }` |
 | POST | `/admin/tournois/championnats/:id/semaines/:n/cloturer` | Clôturer une semaine tout de suite |
 | POST | `/admin/tournois/coupes` | Créer la Coupe d'Afrique `{ nom, sponsor, premier_lundi, championnats[] (8 terminés), circuits[] (un par tour : 4 pour 16 équipes), primes_centimes? ([championne, finaliste]) }` |
 | POST | `/admin/tournois/coupes/:id/tours/:t/cloturer` | Clôturer un tour tout de suite |

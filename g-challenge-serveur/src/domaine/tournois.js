@@ -12,7 +12,7 @@
 // Coupe d'Afrique : les qualifiés de plusieurs pays (8 pays → 16 équipes), à élimination directe,
 // un tour par semaine : huitièmes, quarts, demi-finales, finale.
 //
-// Temps d'une équipe : somme des meilleurs temps de ses 3 meilleurs pilotes (courses valides, hors
+// Temps d'une équipe : somme des meilleurs temps de ses 4 meilleurs pilotes (taille réglable) (courses valides, hors
 // duels, envoyées pendant la semaine sur le circuit de la semaine). Une équipe incomplète est classée
 // derrière les équipes complètes, et ne marque pas de points. Un pilote ne compte que pour une seule
 // équipe retenue d'un même championnat.

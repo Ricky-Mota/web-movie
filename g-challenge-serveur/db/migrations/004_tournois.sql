@@ -1,12 +1,12 @@
 -- Tournois par équipes :
 --   * Championnat national (« Tournoi Sponsor ») : un par pays. Semaine 1 : qualifications ouvertes,
---     les 16 meilleures équipes (de 3 pilotes) sont retenues. Puis plusieurs semaines de championnat :
+--     les 16 meilleures équipes (de 4 pilotes) sont retenues. Puis plusieurs semaines de championnat :
 --     chaque semaine une course, des points selon le classement. Chaque semaine, les 4 meilleures équipes
 --     reçoivent 20 $ chacune (payés par le sponsor, partagés entre les pilotes qui ont couru).
 --     À la fin, les 2 premières du pays sont qualifiées pour la Coupe d'Afrique.
 --   * Coupe d'Afrique : les qualifiés de 8 pays (16 équipes), à élimination directe :
 --     huitièmes, quarts, demi-finales, finale. Un tour par semaine.
--- Temps d'une équipe : somme des meilleurs temps de ses 3 meilleurs pilotes (courses valides hors duels,
+-- Temps d'une équipe : somme des meilleurs temps de ses 4 meilleurs pilotes (réglable) (courses valides hors duels,
 -- envoyées pendant la semaine, sur le circuit de la semaine). Une équipe incomplète est classée derrière.
 SET search_path TO gchallenge;
 
@@ -38,7 +38,7 @@ CREATE TABLE championnats (
   sponsor                text        NOT NULL,
   premier_lundi          date        NOT NULL,
   nb_equipes             int         NOT NULL DEFAULT 16 CHECK (nb_equipes BETWEEN 2 AND 64),
-  taille_equipe          int         NOT NULL DEFAULT 3 CHECK (taille_equipe BETWEEN 1 AND 5),
+  taille_equipe          int         NOT NULL DEFAULT 4 CHECK (taille_equipe BETWEEN 1 AND 5),
   nb_qualifies           int         NOT NULL DEFAULT 2 CHECK (nb_qualifies >= 1),
   circuits               text[]      NOT NULL,       -- semaine 1 = qualifications, puis championnat
   primes_centimes        bigint[]    NOT NULL DEFAULT '{2000,2000,2000,2000}', -- par équipe, 1re à 4e
@@ -89,7 +89,7 @@ CREATE TABLE coupes (
   sponsor                text        NOT NULL,
   premier_lundi          date        NOT NULL,
   circuits               text[]      NOT NULL,       -- un par tour : huitièmes, quarts, demies, finale
-  taille_equipe          int         NOT NULL DEFAULT 3,
+  taille_equipe          int         NOT NULL DEFAULT 4,
   primes_centimes        bigint[]    NOT NULL DEFAULT '{}', -- par équipe : vainqueur, finaliste
   devise                 char(3)     NOT NULL DEFAULT 'USD',
   statut                 text        NOT NULL DEFAULT 'active' CHECK (statut IN ('active', 'terminee', 'annulee')),

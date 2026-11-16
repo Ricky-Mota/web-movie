@@ -100,7 +100,7 @@ test('préparation : administrateur, circuit, 5 équipes en RDC et 2 en Zambie',
 
 test('championnat national : contrôles à la création', async () => {
   const corps = { pays: 'cd', nom: 'Championnat RDC', sponsor: 'Vodacom', premier_lundi: lundiCourant(),
-    nb_equipes: 4, nb_qualifies: 2, circuits: Array(3).fill(CIRCUIT_TEST.code) };
+    nb_equipes: 4, nb_qualifies: 2, circuits: Array(3).fill(CIRCUIT_TEST.code), taille_equipe: 3 };
   assert.equal((await api('POST', '/admin/tournois/championnats', { jeton: E.Gombe.pilotes[0].jeton, corps })).statut, 403);
   const uneSemaine = await api('POST', '/admin/tournois/championnats', { jeton: J.admin.jeton, corps: { ...corps, circuits: [CIRCUIT_TEST.code] } });
   assert.equal(uneSemaine.statut, 400);
@@ -164,7 +164,7 @@ test('semaines 2 et 3 : points, départage au temps cumulé, 2 équipes qualifi�
 
 test('championnat de Zambie : primes à verser à la main (pas de versement automatique dans ce pays)', async () => {
   const r = await api('POST', '/admin/tournois/championnats', { jeton: J.admin.jeton, corps: {
-    pays: 'ZM', nom: 'Championnat Zambie', sponsor: 'Sponsor ZM', premier_lundi: lundiCourant(), nb_equipes: 2,
+    pays: 'ZM', nom: 'Championnat Zambie', sponsor: 'Sponsor ZM', premier_lundi: lundiCourant(), nb_equipes: 2, taille_equipe: 3,
     circuits: [CIRCUIT_TEST.code, CIRCUIT_TEST.code] } });
   champZM = r.json;
   await courirEquipe(E.Lusaka, 30000);
@@ -186,7 +186,7 @@ test("Coupe d'Afrique : tableau croisé, élimination directe, championne et pri
   assert.equal(mauvais.json.erreur.code, 'circuits_tours');
   const r = await api('POST', '/admin/tournois/coupes', { jeton: J.admin.jeton, corps: {
     nom: "Coupe d'Afrique test", sponsor: 'Rawbank', premier_lundi: lundiCourant(), championnats: [champCD.id, champZM.id],
-    circuits: [CIRCUIT_TEST.code, CIRCUIT_TEST.code], primes_centimes: [5000, 2500] } });
+    circuits: [CIRCUIT_TEST.code, CIRCUIT_TEST.code], primes_centimes: [5000, 2500], taille_equipe: 3 } });
   assert.equal(r.statut, 201, JSON.stringify(r.json));
   coupe = r.json;
   let etat = (await api('GET', '/tournois/coupe')).json;
@@ -217,7 +217,7 @@ test("Coupe d'Afrique : tableau croisé, élimination directe, championne et pri
 
 test('clôture automatique des semaines finies', async () => {
   const r = await api('POST', '/admin/tournois/championnats', { jeton: J.admin.jeton, corps: {
-    pays: 'CD', nom: 'Championnat passé', sponsor: 'Bralima', premier_lundi: lundiCourant(-4), nb_equipes: 2,
+    pays: 'CD', nom: 'Championnat passé', sponsor: 'Bralima', premier_lundi: lundiCourant(-4), nb_equipes: 2, taille_equipe: 3,
     circuits: [CIRCUIT_TEST.code, CIRCUIT_TEST.code] } });
   assert.equal(r.statut, 201);
   await traiterTournois();
