@@ -277,6 +277,10 @@ Les 2 qualifiées de **8 pays** forment **16 équipes** : **huitièmes, quarts, 
 
 `/tournois/international/:circuit` donne aussi un **classement continental des pilotes** (individuel), réservé aux pays d'Afrique.
 
+### Les circuits et leurs niveaux
+
+`db/circuits.json` déclare **8 circuits Unreal** (`L_…`, de 5 à 9 km, 2 par niveau : facile, moyen, difficile, très difficile) et les **8 étapes de la démo web** (`W_…`). Ces dernières permettent un **championnat test** depuis le site, avant que les niveaux Unreal soient prêts : la démo envoie ses courses au serveur avec leur trajet. `GET /circuits` renvoie le niveau et la longueur de chaque circuit. La variable `CORS_ORIGINES` (adresses séparées par des virgules) limite les sites autorisés à appeler l'API ; par défaut, tous.
+
 ## 5. Administration
 
 | Méthode | Adresse | Rôle |

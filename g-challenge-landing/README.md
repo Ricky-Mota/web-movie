@@ -70,6 +70,9 @@ Chaque voiture a son propre son de moteur : plus aigu pour les sportives, plus g
 
 - **3 compétitions** (premier écran du jeu) : **Entraînement** (challenge individuel : 8 étapes, défi du jour, garage), **Tournoi Sponsor** (championnat national par équipes de 3 : qualifications, 16 équipes retenues, 4 semaines de championnat à points ; chaque semaine 20 $ pour chacune des 4 meilleures équipes via M-PESA ; les 2 premières vont à la Coupe d'Afrique) et **Tournoi international** (Coupe d'Afrique : 8 pays × 2 équipes, huitièmes, quarts, demies, finale). Dans la démo, les temps de tournoi restent sur l'appareil ; les règles officielles tournent sur le serveur (`g-challenge-serveur`, section « Les tournois »).
 
+- **Niveaux de difficulté** : chaque étape porte un niveau (Facile, Moyen, Difficile, Très difficile). En entraînement, le joueur choisit le niveau, qui règle la vitesse des rivaux, du fantôme et de la police ; en tournoi et au défi du jour, tout le monde court au niveau Moyen.
+- **Démo reliée au serveur** : renseignez l'adresse du serveur dans `<meta name="gchallenge-serveur" content="https://g-challenge-serveur.onrender.com">` (en haut de `public/index.html`). Le bouton **Mon compte** apparaît alors : inscription, connexion, équipes de 3 (créer, rejoindre avec un code). Chaque course d'un joueur connecté est envoyée au serveur avec son trajet (20 positions par seconde), vérifiée par l'anti-triche et comptée pour son équipe si c'est l'épreuve de la semaine (circuits `W_…` du serveur). Les écrans des tournois affichent alors le vrai championnat du pays et la vraie Coupe d'Afrique. Sans adresse, la démo reste entièrement locale.
+
 ### Les commandes
 
 | Action | Clavier | Téléphone |

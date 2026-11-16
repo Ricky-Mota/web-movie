@@ -13,7 +13,9 @@ async function circuitParCode(code) {
 }
 
 routesCircuits.get('/', asynchrone(async (_req, res) => {
-  const { rows } = await requete('SELECT code, nom, temps_min_ms FROM circuits WHERE actif ORDER BY nom');
+  const { rows } = await requete(
+    `SELECT code, nom, temps_min_ms, difficulte, longueur_m FROM circuits WHERE actif
+      ORDER BY array_position(ARRAY['facile','moyen','difficile','tres_difficile'], difficulte), longueur_m, nom`);
   res.json(rows);
 }));
 

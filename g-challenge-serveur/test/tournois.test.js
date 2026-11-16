@@ -248,3 +248,24 @@ test("réglages des primes (espace administrateur) : valeurs par défaut des com
   const vue = (await api('GET', '/admin/tournois', { jeton: J.admin.jeton })).json;
   assert.ok(vue.circuits.some((x) => x.code === CIRCUIT_TEST.code) && vue.championnats.length >= 3);
 });
+
+test('circuits : niveaux de difficulté, circuits de la démo web, CORS', async () => {
+  const { declarerCircuitsDuFichier } = await import('../src/domaine/circuits.js');
+  const r = await declarerCircuitsDuFichier();
+  assert.equal(r.enregistres.length, 16);
+  const liste = (await api('GET', '/circuits')).json;
+  const niveaux = [...new Set(liste.map((c) => c.difficulte))];
+  assert.deepEqual(niveaux, ['facile', 'moyen', 'difficile', 'tres_difficile']); // trié par difficulté
+  assert.equal(liste.find((c) => c.code === 'L_Kinshasa_Gombe').longueur_m, 9000);
+
+  // Course de la démo web : X = distance le long de la route (cm), Y = écart latéral, 20 points par seconde.
+  const tempsMs = 75000, trajet = [];
+  for (let t = 0; t <= tempsMs; t += 50) trajet.push([(240000 * t) / tempsMs, 150 * Math.sin(t / 3000), 0, 0, 0, 0]);
+  trajet.push([240100, 120, 0, 0, 0, 0]);
+  const course = await api('POST', '/courses', { jeton: E.Gombe.pilotes[1].jeton, corps: { circuit: 'W_rondpoint', temps_ms: tempsMs, intervalle_ms: 50, trajet } });
+  assert.equal(course.json.valide, true, JSON.stringify(course.json));
+
+  const pre = await fetch(base + '/courses', { method: 'OPTIONS', headers: { Origin: 'https://course-des-ketch.pages.dev', 'Access-Control-Request-Method': 'POST' } });
+  assert.equal(pre.status, 204);
+  assert.equal(pre.headers.get('access-control-allow-origin'), '*');
+});

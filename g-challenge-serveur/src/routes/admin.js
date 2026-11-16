@@ -166,7 +166,9 @@ routesAdmin.get('/tournois', asynchrone(async (_req, res) => {
   const coupes = (await requete(
     `SELECT c.id, c.nom, c.sponsor, c.premier_lundi, c.statut, c.primes_centimes, e.nom AS championne
        FROM coupes c LEFT JOIN equipes e ON e.id = c.championne_id ORDER BY c.cree_le DESC LIMIT 20`)).rows;
-  const circuits = (await requete('SELECT code, nom FROM circuits WHERE actif ORDER BY nom')).rows;
+  const circuits = (await requete(
+    `SELECT code, nom, difficulte, longueur_m FROM circuits WHERE actif
+      ORDER BY code LIKE 'W\\_%' DESC, array_position(ARRAY['facile','moyen','difficile','tres_difficile'], difficulte), longueur_m`)).rows;
   res.json({ championnats, coupes, circuits, reglages: await reglagesTournois() });
 }));
 

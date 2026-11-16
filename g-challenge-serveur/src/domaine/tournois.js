@@ -271,7 +271,8 @@ export async function cloturerSemaineChampionnat(championnatId, numero, { forcer
 
 export async function championnatEnCours(paysCode) {
   const { rows: [c] } = await requete(
-    `SELECT * FROM championnats WHERE pays_code = $1 ORDER BY (statut = 'active') DESC, premier_lundi DESC LIMIT 1`, [paysCode]);
+    `SELECT * FROM championnats WHERE pays_code = $1
+      ORDER BY (statut = 'active') DESC, (premier_lundi <= (now() AT TIME ZONE 'Africa/Kinshasa')::date) DESC, premier_lundi DESC LIMIT 1`, [paysCode]);
   if (!c) return null;
   const { rows: semaines } = await requete(
     `SELECT s.numero, s.debut, s.fin, s.cloturee_le IS NOT NULL AS cloturee, ci.code AS circuit, ci.nom AS circuit_nom
@@ -390,7 +391,7 @@ const NOMS_TOURS = { 1: 'Finale', 2: 'Demi-finales', 4: 'Quarts de finale', 8: '
 export async function coupeEnCours() {
   const { rows: [c] } = await requete(
     `SELECT c.*, e.nom AS championne FROM coupes c LEFT JOIN equipes e ON e.id = c.championne_id
-      ORDER BY (c.statut = 'active') DESC, c.premier_lundi DESC LIMIT 1`);
+      ORDER BY (c.statut = 'active') DESC, (c.premier_lundi <= (now() AT TIME ZONE 'Africa/Kinshasa')::date) DESC, c.premier_lundi DESC LIMIT 1`);
   if (!c) return null;
   const { rows: tours } = await requete(
     `SELECT t.tour, t.debut, t.fin, t.cloture_le IS NOT NULL AS cloture, ci.code AS circuit

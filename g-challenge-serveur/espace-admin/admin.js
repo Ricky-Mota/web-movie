@@ -3,6 +3,7 @@
   var jeton = null;
   try { jeton = sessionStorage.getItem('gc-admin'); } catch (e) {}
   var $ = function (id) { return document.getElementById(id); };
+  var NIVEAUX = { facile: 'Facile', moyen: 'Moyen', difficile: 'Difficile', tres_difficile: 'Très difficile' };
 
   function api(methode, chemin, corps) {
     return fetch(chemin, {
@@ -53,7 +54,7 @@
           var l = document.createElement('label'); l.textContent = nom;
           var s = document.createElement('select'); s.name = 'circuit' + i;
           t.circuits.forEach(function (c, k) {
-            var o = document.createElement('option'); o.value = c.code; o.textContent = c.nom; if (k === i % t.circuits.length) o.selected = true; s.appendChild(o);
+            var o = document.createElement('option'); o.value = c.code; o.textContent = c.nom + ' · ' + NIVEAUX[c.difficulte] + (c.longueur_m ? ' · ' + (c.longueur_m / 1000).toString().replace('.', ',') + ' km' : ''); if (k === i % t.circuits.length) o.selected = true; s.appendChild(o);
           });
           l.appendChild(s); zone.appendChild(l);
         });

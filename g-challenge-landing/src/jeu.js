@@ -170,7 +170,7 @@
   // plan : [entrée, tenue, sortie, courbe, dénivelé, répétitions] en segments de 5 m.
   var ETAPES = {
     rondpoint: {
-      id: 'rondpoint', numero: 1, nom: 'Rond-point Victoire', longueur: 1500, demi: 4.4,
+      id: 'rondpoint', niveau: 'facile', numero: 1, nom: 'Rond-point Victoire', longueur: 1500, demi: 4.4,
       voies: [-0.75, -0.25, 0.25, 0.75], lignes: [{ x: -0.5, type: 'tirets' }, { x: 0, type: 'double' }, { x: 0.5, type: 'tirets' }],
       vMax: 34, vTurbo: 46, vFantome: 30, xFantome: 0.25, nbTrafic: 26, vitesseTrafic: 0.75,
       couleurs: { sol: ['#8E8A80', '#87837A'], trottoir: ['#C3BDB0', '#B8B2A5'], route: ['#3A3F4B', '#363A45'], bord: '#F5F3EA', ligne: '#F5F3EA' },
@@ -184,7 +184,7 @@
       musique: { tempo: 124, tonique: 57, gamme: 'majeur' }
     },
     marche: {
-      id: 'marche', numero: 2, nom: 'Le Grand Marché', longueur: 1600, demi: 3.2,
+      id: 'marche', niveau: 'moyen', numero: 2, nom: 'Le Grand Marché', longueur: 1600, demi: 3.2,
       voies: [-0.45, 0.45], lignes: [{ x: 0, type: 'tirets' }],
       vMax: 30, vTurbo: 40, vFantome: 26.5, xFantome: 0.45, nbTrafic: 12, vitesseTrafic: 1,
       couleurs: { sol: ['#8A6446', '#82603F'], trottoir: ['#A57C55', '#9C744E'], route: ['#5E5048', '#584B43'], bord: '#C9B79A', ligne: '#E8E0CF' },
@@ -199,7 +199,7 @@
       musique: { tempo: 132, tonique: 60, gamme: 'majeur' }
     },
     poidslourds: {
-      id: 'poidslourds', numero: 3, nom: 'Route des Poids Lourds', longueur: 2000, demi: 3.6,
+      id: 'poidslourds', niveau: 'moyen', numero: 3, nom: 'Route des Poids Lourds', longueur: 2000, demi: 3.6,
       voies: [-0.5, 0.5], lignes: [{ x: 0, type: 'tirets' }],
       vMax: 36, vTurbo: 48, vFantome: 32, xFantome: 0.5, nbTrafic: 14, vitesseTrafic: 0.85,
       couleurs: { sol: ['#9B7A52', '#93734C'], trottoir: ['#B49A74', '#AA906A'], route: ['#4A4A4E', '#454549'], bord: '#E8E0CF', ligne: '#F5F3EA' },
@@ -213,7 +213,7 @@
       musique: { tempo: 112, tonique: 55, gamme: 'mineur' }
     },
     corniche: {
-      id: 'corniche', numero: 4, nom: 'Corniche du Fleuve', longueur: 1800, demi: 3.6,
+      id: 'corniche', niveau: 'difficile', numero: 4, nom: 'Corniche du Fleuve', longueur: 1800, demi: 3.6,
       voies: [-0.5, 0.5], lignes: [{ x: 0, type: 'tirets' }],
       vMax: 36, vTurbo: 48, vFantome: 33, xFantome: 0.5, nbTrafic: 10, vitesseTrafic: 1,
       couleurs: { sol: ['#7FA35B', '#78995A'], trottoir: ['#D8CDB8', '#CEC3AE'], route: ['#3E434F', '#3A3E4A'], bord: '#F5F3EA', ligne: '#F5F3EA' },
@@ -227,7 +227,7 @@
       musique: { tempo: 104, tonique: 62, gamme: 'majeur' }
     },
     boulevard: {
-      id: 'boulevard', numero: 5, nom: 'Boulevard du 30 Juin', longueur: 2000, demi: 4.4,
+      id: 'boulevard', niveau: 'facile', numero: 5, nom: 'Boulevard du 30 Juin', longueur: 2000, demi: 4.4,
       voies: [-0.75, -0.25, 0.25, 0.75], lignes: [{ x: -0.5, type: 'tirets' }, { x: 0, type: 'double' }, { x: 0.5, type: 'tirets' }],
       vMax: 38, vTurbo: 50, vFantome: 32.5, xFantome: 0.25, nbTrafic: 16, vitesseTrafic: 1,
       couleurs: { sol: ['#8E8A80', '#87837A'], trottoir: ['#C3BDB0', '#B8B2A5'], route: ['#3A3F4B', '#363A45'], bord: '#F5F3EA', ligne: '#F5F3EA' },
@@ -243,7 +243,7 @@
     }
   };
   ETAPES.gombe = {
-    id: 'gombe', numero: 6, nom: 'Poursuite à la Gombe', longueur: 1800, demi: 4.4, nouveaute: 'Police aux trousses',
+    id: 'gombe', niveau: 'tres_difficile', numero: 6, nom: 'Poursuite à la Gombe', longueur: 1800, demi: 4.4, nouveaute: 'Police aux trousses',
     voies: [-0.75, -0.25, 0.25, 0.75], lignes: [{ x: -0.5, type: 'tirets' }, { x: 0, type: 'double' }, { x: 0.5, type: 'tirets' }],
     vMax: 37, vTurbo: 49, vFantome: 31.5, xFantome: 0.25, nbTrafic: 18, vitesseTrafic: 0.9,
     couleurs: { sol: ['#8E8A80', '#87837A'], trottoir: ['#C9C3B6', '#BEB8AB'], route: ['#363B46', '#323641'], bord: '#F5F3EA', ligne: '#F5F3EA' },
@@ -258,7 +258,7 @@
     musique: { tempo: 142, tonique: 52, gamme: 'mineur' }
   };
   ETAPES.matonge = {
-    id: 'matonge', numero: 7, nom: 'Matonge by night', longueur: 1700, demi: 3.6, nouveaute: 'De nuit, motos-taxis partout',
+    id: 'matonge', niveau: 'difficile', numero: 7, nom: 'Matonge by night', longueur: 1700, demi: 3.6, nouveaute: 'De nuit, motos-taxis partout',
     voies: [-0.5, 0.5], lignes: [{ x: 0, type: 'tirets' }],
     vMax: 34, vTurbo: 46, vFantome: 29.5, xFantome: 0.5, nbTrafic: 24, vitesseTrafic: 1,
     couleurs: { sol: ['#6E665C', '#685F56'], trottoir: ['#9A8F80', '#918677'], route: ['#34363F', '#30323A'], bord: '#E8E0CF', ligne: '#F5F3EA' },
@@ -272,7 +272,7 @@
     musique: { tempo: 118, tonique: 58, gamme: 'mineur' }
   };
   ETAPES.limete = {
-    id: 'limete', numero: 8, nom: 'Orage sur Limete', longueur: 1900, demi: 3.8, nouveaute: 'Pluie, éclairs et bus fula-fula',
+    id: 'limete', niveau: 'tres_difficile', numero: 8, nom: 'Orage sur Limete', longueur: 1900, demi: 3.8, nouveaute: 'Pluie, éclairs et bus fula-fula',
     voies: [-0.5, 0.5], lignes: [{ x: 0, type: 'tirets' }],
     vMax: 35, vTurbo: 46, vFantome: 30, xFantome: 0.5, nbTrafic: 16, vitesseTrafic: 0.9,
     couleurs: { sol: ['#5E6A55', '#58644F'], trottoir: ['#8C8C88', '#84847F'], route: ['#2B3038', '#282C34'], bord: '#C9CDD6', ligne: '#DADDE3' },
@@ -286,6 +286,17 @@
     musique: { tempo: 100, tonique: 53, gamme: 'mineur' }
   };
   var ORDRE = ['rondpoint', 'marche', 'poidslourds', 'corniche', 'boulevard', 'gombe', 'matonge', 'limete'];
+  var NOMS_NIVEAUX = { facile: 'Facile', moyen: 'Moyen', difficile: 'Difficile', tres_difficile: 'Très difficile' };
+  // Niveau de l'entraînement : il règle la vitesse des rivaux, du fantôme et de la police.
+  // En tournoi et au défi du jour, tout le monde court au niveau « Moyen » (équité).
+  var REGLAGES_NIVEAU = {
+    facile: { rivaux: 0.9, fantome: 0.94, police: 0.9 },
+    moyen: { rivaux: 1, fantome: 1, police: 1 },
+    difficile: { rivaux: 1.06, fantome: 1.04, police: 1.06 },
+    tres_difficile: { rivaux: 1.12, fantome: 1.08, police: 1.12 }
+  };
+  var niveauChoisi = 'moyen';
+  try { var nivSauve = localStorage.getItem('ketch-niveau'); if (REGLAGES_NIVEAU[nivSauve]) niveauChoisi = nivSauve; } catch (e) {}
 
   // Routes plus larges (+35 %), plus longues (+60 %), plus lisses et beaucoup plus sinueuses.
   var ELARGIT = 1.35, ALLONGE = 1.6;
@@ -606,7 +617,7 @@
   var etat = 'accueil', temps = 0, compte = 0, z = 0, v = 0, x = 0, energie = 1, turboActif = false, choc = 0;
   var touches = {}, obstacles = [], trafic = [], pietons = [], zFantome = 0, raccourci = null, decalDecor = 0;
   var message = '', messageTemps = 0, derniereSeconde = 4, glisse = false;
-  var rivaux = [], rivalDessin = null, prochainBarrage = 0, braquage = 0, defiEnCours = false, voitureAvantDefi = null, police = [], sirene = 0, eclair = 0, prochainEclair = 8, lumieres = [], bonus = [], particules = [], bonusPts = 0, frolés = 0, pieces = 0, arriere = false, tempsArret = 0, bipArriere = 0, grace = 0, points = 0, gagnes = 0, perdus = 0, chocs = { piéton: 0, véhicule: 0, obstacle: 0, trou: 0, police: 0 }, bulles = [], flashScore = 0;
+  var trajet = [], prochainPoint = 0, rivaux = [], rivalDessin = null, prochainBarrage = 0, braquage = 0, defiEnCours = false, voitureAvantDefi = null, police = [], sirene = 0, eclair = 0, prochainEclair = 8, lumieres = [], bonus = [], particules = [], bonusPts = 0, frolés = 0, pieces = 0, arriere = false, tempsArret = 0, bipArriere = 0, grace = 0, points = 0, gagnes = 0, perdus = 0, chocs = { piéton: 0, véhicule: 0, obstacle: 0, trou: 0, police: 0 }, bulles = [], flashScore = 0;
 
   function lireRecord(id) {
     try { var r = JSON.parse(localStorage.getItem('ketch-records-' + id) || 'null'); return r && typeof r === 'object' ? r : null; } catch (e) { return null; }
@@ -620,7 +631,7 @@
     message = ''; messageTemps = 0; derniereSeconde = 4;
     bonus = E.bonus.map(function (b) { return { z: b.z, x: b.x, type: b.type, pris: false }; });
     particules = []; bonusPts = 0; frolés = 0; pieces = 0; sirene = 0; eclair = 0; prochainEclair = 6;
-    prochainBarrage = 0;
+    prochainBarrage = 0; trajet = []; prochainPoint = 0;
     // Grille de départ : les rivaux partent dans les autres voies, jamais juste devant vous.
     var autres = E.voies.filter(function (vx) { return Math.abs(vx - x) * E.demi > 2.2; });
     if (!autres.length) autres = [E.voies[0]];
@@ -754,6 +765,11 @@
     }
     if (etat !== 'course') return;
     temps += dt;
+    // Trajet pour l'anti-triche du serveur : 20 positions par seconde, comme le jeu Unreal.
+    while (temps >= prochainPoint && trajet.length < 36000) {
+      trajet.push([Math.round(z * 100), Math.round(x * E.demi * 100), 0, 0, 0, 0]);
+      prochainPoint += 0.05;
+    }
 
     zFantome = Math.min(E.longueur + 60, zFantome + Math.min(vFantome(), 9 * temps) * dt);
 
@@ -862,7 +878,7 @@
       annoncer('Barrage de police : trouvez la voie libre !'); prochainBarrage++; klaxon(true);
     }
     police.forEach(function (pc, ip) {
-      var ecartP = z - pc.z, vRef = E.vMax * 0.96;
+      var ecartP = z - pc.z, vRef = E.vMax * 0.96 * reglageNiveau().police;
       if (pc.mode === 'bloque') {
         // La police vous dépasse, se rabat devant vous et freine.
         pc.t -= dt;
@@ -911,7 +927,7 @@
       .concat(obstacles.filter(function (o) { return o.type === 'policeArret'; }).map(function (o) { return { z: o.z, x: o.x, vit: 0 }; }))
       .concat(police.filter(function (pc) { return pc.mode !== 'chasse'; }).map(function (pc) { return { z: pc.z, x: pc.x, vit: pc.v }; }));
     rivaux.forEach(function (rv, i) {
-      var cible = E.vMax * voiture.vitesse * rv.habilete * 1.02;
+      var cible = E.vMax * voiture.vitesse * rv.habilete * 1.02 * reglageNiveau().rivaux;
       var avance = rv.z - z;
       if (avance > 120) cible *= 0.86; else if (avance < -70) cible *= 1.16;
       rv.turboT -= dt;
@@ -968,7 +984,7 @@
   }
 
   // Le fantôme s'adapte à la voiture : avec une sportive, il roule plus vite.
-  function vFantome() { return E.vFantome * voiture.fantome * 1.13; } // +13 % depuis le retrait des obstacles fixes
+  function vFantome() { return E.vFantome * voiture.fantome * 1.13 * reglageNiveau().fantome; } // +13 % depuis le retrait des obstacles fixes
   function tempsFantome() {
     var vf = vFantome(), tA = vf / 9, dA = 0.5 * 9 * tA * tA;
     return tA + (E.longueur - dA) / vf;
@@ -976,6 +992,8 @@
 
   function terminer() {
     etat = 'fin';
+    trajet.push([Math.round(z * 100), Math.round(x * E.demi * 100), 0, 0, 0, 0]);
+    envoyerCourse(E.id, temps, trajet);
     musiqueArreter();
     var ecart = tempsFantome() - temps;
     var nbChocs = chocs.piéton + chocs.véhicule + chocs.obstacle + chocs.trou + chocs.police;
@@ -999,7 +1017,7 @@
     if (!defiEnCours) ecrireRecord(E.id, { score: Math.max(total, rec.score || 0), temps: Math.min(temps, rec.temps || 1e9), gagne: !!rec.gagne || ecart > 0, etoiles: Math.max(etoiles, rec.etoiles || 0) });
     [523, 659, 784, 1047].forEach(function (f, j) { sonNote(f, j * 0.12, 0.3, 0.2); });
 
-    document.getElementById('finEtape').textContent = 'Étape ' + E.numero + ' · ' + E.nom + ' · ' + voiture.nom + ' · ' + chrono(temps);
+    document.getElementById('finEtape').textContent = 'Étape ' + E.numero + ' · ' + E.nom + ' · ' + voiture.nom + ' · niveau ' + NOMS_NIVEAUX[niveauActif()] + ' · ' + chrono(temps);
     document.getElementById('finTemps').textContent = total.toLocaleString('fr-FR') + ' points';
     var finEt = document.getElementById('finEtoiles');
     if (finEt) { finEt.textContent = '\u2605'.repeat(etoiles) + '\u2606'.repeat(3 - etoiles); finEt.setAttribute('aria-label', etoiles + ' étoile' + (etoiles > 1 ? 's' : '') + ' sur 3'); }
@@ -1032,7 +1050,7 @@
       var mieux = !meilleur || temps < meilleur.temps;
       if (mieux) { try { localStorage.setItem(cle, JSON.stringify({ temps: temps, score: total, voiture: voiture.nom })); } catch (e) {} }
       document.getElementById('finDetail').textContent += ' · ' + (modeJeu === 'sponsor' ? 'Tournoi Sponsor' : 'Tournoi international') + ' : ' +
-        (mieux ? 'nouveau meilleur temps de la semaine, ' + chrono(temps) : 'meilleur temps de la semaine ' + chrono(meilleur.temps)) + ' (enregistré sur cet appareil dans la démo)';
+        (mieux ? 'nouveau meilleur temps de la semaine, ' + chrono(temps) : 'meilleur temps de la semaine ' + chrono(meilleur.temps)) + (SERVEUR && session ? '' : ' (enregistré sur cet appareil dans la démo)');
     }
     majVoitures();
     panneauFin.hidden = false;
@@ -2127,7 +2145,8 @@
       son.lfo.type = voiture.electrique ? 'sine' : 'square';
     }
     musiqueArreter(); musiqueDemarrer();
-    panneauDebut.hidden = true; panneauFin.hidden = true; panneauModes.hidden = true; panneauTournoi.hidden = true;
+    panneauDebut.hidden = true; panneauFin.hidden = true; panneauModes.hidden = true; panneauTournoi.hidden = true; panneauCompte.hidden = true;
+    var envoi = document.getElementById('finEnvoi'); if (envoi) envoi.hidden = true;
     canvas.focus({ preventScroll: true });
   }
   function majRecords() {
@@ -2428,7 +2447,9 @@
     record.textContent = rec ? 'Votre meilleur temps cette semaine : ' + chrono(rec.temps) + ' (' + rec.voiture + ', ' + rec.score.toLocaleString('fr-FR') + ' pts)' : "Pas encore de temps cette semaine.";
     [panneauModes, panneauDebut, panneauFin, panneauClassement].forEach(function (p) { p.hidden = true; });
     panneauTournoi.hidden = false; etat = 'accueil';
+    document.getElementById('boutonTournoi').disabled = false;
     majChronoTournoi();
+    tournoiEnLigne(mode);
   }
   setInterval(majChronoTournoi, 20000);
   var choixPays = document.getElementById('choixPays');
@@ -2448,7 +2469,190 @@
     });
   });
   var boutonTournoi = document.getElementById('boutonTournoi');
-  if (boutonTournoi) boutonTournoi.addEventListener('click', function () { lancer(etapeTournoi(modeJeu)); });
+  if (boutonTournoi) boutonTournoi.addEventListener('click', function () { lancer(etapeTournoiServeur || etapeTournoi(modeJeu)); });
+
+  // ---------- En ligne : compte, équipe, envoi des courses, vrais tournois ----------
+  // Adresse du serveur : balise <meta name="gchallenge-serveur" content="https://…onrender.com"> de la page
+  // (vide tant que le serveur n'est pas en ligne : la démo reste alors 100 % locale).
+  var SERVEUR = '';
+  try { SERVEUR = (localStorage.getItem('ketch-serveur') || (document.querySelector('meta[name="gchallenge-serveur"]') || {}).content || '').trim().replace(/\/+$/, ''); } catch (e) {}
+  var session = null; // { jeton, joueur }
+  try { session = JSON.parse(localStorage.getItem('ketch-session') || 'null'); } catch (e) {}
+  function apiJeu(methode, chemin, corps) {
+    if (!SERVEUR) return Promise.reject(new Error('Serveur non configuré.'));
+    return fetch(SERVEUR + chemin, {
+      method: methode,
+      headers: Object.assign({ 'Content-Type': 'application/json' }, session ? { Authorization: 'Bearer ' + session.jeton } : {}),
+      body: corps ? JSON.stringify(corps) : undefined
+    }).then(function (r) {
+      return r.json().catch(function () { return {}; }).then(function (j) {
+        if (r.status === 401 && session) { session = null; try { localStorage.removeItem('ketch-session'); } catch (e) {} majCompte(); }
+        if (!r.ok) throw new Error(j && j.erreur ? j.erreur.message : 'Erreur ' + r.status);
+        return j;
+      });
+    });
+  }
+  var MOTIFS = { temps_impossible: 'temps impossible', temps_incoherent_avec_trajet: 'trajet incomplet', depart_hors_zone: 'départ hors zone',
+    arrivee_hors_zone: 'arrivée hors zone', vitesse_impossible: 'vitesse impossible', trajet_trop_court: 'trajet trop court' };
+  function envoyerCourse(etapeId, t, points) {
+    var el = document.getElementById('finEnvoi');
+    if (!el) return;
+    if (!SERVEUR || !session) { el.hidden = true; return; }
+    el.hidden = false; el.className = 'fin-envoi'; el.textContent = 'Envoi de votre course au serveur…';
+    apiJeu('POST', '/courses', { circuit: 'W_' + etapeId, temps_ms: Math.round(t * 1000), intervalle_ms: 50, trajet: points })
+      .then(function (r) {
+        el.className = 'fin-envoi ' + (r.valide ? 'ok' : 'erreur');
+        el.textContent = r.valide ? 'Course enregistrée sur le serveur' + (r.rang ? ' · ' + r.rang + 'e du classement de l\'étape' : '') + ' · elle compte pour votre équipe si c\'est l\'épreuve de la semaine.'
+          : 'Course refusée par l\'anti-triche (' + (MOTIFS[r.motif_rejet] || r.motif_rejet) + ').';
+      })
+      .catch(function (e) { el.className = 'fin-envoi erreur'; el.textContent = 'Course non envoyée : ' + e.message; });
+  }
+  var panneauCompte = document.getElementById('panneauCompte'), boutonCompte = document.getElementById('boutonCompte');
+  var ongletCompte = 'connexion';
+  function msg(id, texte, ok) { var el = document.getElementById(id); if (el) { el.textContent = texte; el.className = 'compte-message' + (ok === undefined ? '' : ok ? ' ok' : ' erreur'); } }
+  function majCompte() {
+    if (boutonCompte) {
+      boutonCompte.hidden = !SERVEUR;
+      boutonCompte.textContent = session ? session.joueur.pseudo : 'Mon compte';
+      boutonCompte.classList.toggle('connecte', !!session);
+    }
+    document.getElementById('blocAcces').hidden = !!session;
+    document.getElementById('blocProfil').hidden = !session;
+    if (session) {
+      document.getElementById('profilNom').textContent = session.joueur.pseudo;
+      document.getElementById('profilDetail').textContent = 'Pays : ' + session.joueur.pays + ' · vos courses de la démo sont envoyées au serveur et vérifiées par l\'anti-triche.';
+    }
+  }
+  function choisirOnglet(o) {
+    ongletCompte = o;
+    Array.prototype.forEach.call(document.querySelectorAll('[data-onglet]'), function (b) { b.setAttribute('aria-selected', b.getAttribute('data-onglet') === o ? 'true' : 'false'); });
+    Array.prototype.forEach.call(document.querySelectorAll('[data-champ="inscription"]'), function (l) { l.hidden = o !== 'inscription'; });
+    document.getElementById('libelleIdentifiant').textContent = o === 'inscription' ? 'Téléphone (ex. 243812345678)' : 'Pseudo ou téléphone';
+    document.getElementById('champMotDePasse').autocomplete = o === 'inscription' ? 'new-password' : 'current-password';
+    document.getElementById('boutonAcces').textContent = o === 'inscription' ? "S'inscrire" : 'Se connecter';
+    msg('messageAcces', '');
+  }
+  Array.prototype.forEach.call(document.querySelectorAll('[data-onglet]'), function (b) { b.addEventListener('click', function () { choisirOnglet(b.getAttribute('data-onglet')); }); });
+  function chargerEquipes() {
+    var liste = document.getElementById('listeEquipes');
+    apiJeu('GET', '/equipes').then(function (equipes) {
+      liste.textContent = '';
+      if (!equipes.length) { liste.innerHTML = '<p class="tournoi-note">Aucune équipe : créez la vôtre, puis donnez le code à vos 2 coéquipiers.</p>'; return; }
+      equipes.forEach(function (e) {
+        var d = document.createElement('div'); d.className = 'equipe-ligne';
+        d.innerHTML = '<span><b>' + echapper(e.nom) + '</b> · ' + e.membres.map(function (m) { return echapper(m.pseudo); }).join(', ') + ' (' + e.membres.length + '/' + e.taille_max + ')</span><span>code <code>' + echapper(e.code_invitation) + '</code></span>';
+        liste.appendChild(d);
+      });
+    }).catch(function (e) { liste.textContent = e.message; });
+  }
+  function ouvrirCompte() {
+    [panneauModes, panneauDebut, panneauFin, panneauClassement, panneauTournoi].forEach(function (p) { p.hidden = true; });
+    panneauCompte.hidden = false; majCompte();
+    var sel = document.getElementById('champPaysCompte');
+    if (!sel.options.length) {
+      apiJeu('GET', '/pays').then(function (pays) {
+        pays.filter(function (p) { return p.continent === 'AF'; }).forEach(function (p) { var o = document.createElement('option'); o.value = p.code; o.textContent = p.nom; sel.appendChild(o); });
+        sel.value = 'CD';
+      }).catch(function () {});
+    }
+    if (session) chargerEquipes();
+  }
+  if (boutonCompte) boutonCompte.addEventListener('click', ouvrirCompte);
+  document.getElementById('retourCompte').addEventListener('click', function () { panneauCompte.hidden = true; panneauModes.hidden = false; });
+  document.getElementById('formAcces').addEventListener('submit', function (e) {
+    e.preventDefault(); e.stopPropagation();
+    var ident = document.getElementById('champIdentifiant').value.trim(), mdp = document.getElementById('champMotDePasse').value;
+    var appel = ongletCompte === 'inscription'
+      ? apiJeu('POST', '/joueurs/inscription', { pseudo: document.getElementById('champPseudoCompte').value.trim(), telephone: ident, pays: document.getElementById('champPaysCompte').value, mot_de_passe: mdp })
+      : apiJeu('POST', '/joueurs/connexion', { identifiant: ident, mot_de_passe: mdp });
+    msg('messageAcces', 'Un instant…');
+    appel.then(function (r) {
+      session = { jeton: r.jeton, joueur: r.joueur };
+      try { localStorage.setItem('ketch-session', JSON.stringify(session)); localStorage.setItem('ketch-pays', r.joueur.pays); } catch (e2) {}
+      document.getElementById('champMotDePasse').value = '';
+      majCompte(); chargerEquipes();
+      direct('Direct', session.joueur.pseudo + ' est connecté : ses courses comptent maintenant pour les tournois.', 'commentateur');
+    }).catch(function (err) { msg('messageAcces', err.message, false); });
+  });
+  document.getElementById('formCreerEquipe').addEventListener('submit', function (e) {
+    e.preventDefault();
+    apiJeu('POST', '/equipes', { nom: document.getElementById('champNomEquipe').value.trim(), taille_max: 3 })
+      .then(function (eq) { msg('messageEquipe', 'Équipe créée. Donnez le code ' + eq.code_invitation + ' à vos 2 coéquipiers.', true); document.getElementById('champNomEquipe').value = ''; chargerEquipes(); })
+      .catch(function (err) { msg('messageEquipe', err.message, false); });
+  });
+  document.getElementById('formRejoindre').addEventListener('submit', function (e) {
+    e.preventDefault();
+    apiJeu('POST', '/equipes/rejoindre', { code: document.getElementById('champCodeEquipe').value.trim() })
+      .then(function (eq) { msg('messageEquipe', 'Vous avez rejoint ' + eq.nom + '.', true); document.getElementById('champCodeEquipe').value = ''; chargerEquipes(); })
+      .catch(function (err) { msg('messageEquipe', err.message, false); });
+  });
+  document.getElementById('boutonDeconnexionJeu').addEventListener('click', function () {
+    session = null; try { localStorage.removeItem('ketch-session'); } catch (e) {}
+    majCompte(); choisirOnglet('connexion');
+  });
+  ['formAcces', 'formCreerEquipe', 'formRejoindre'].forEach(function (id) {
+    document.getElementById(id).addEventListener('keydown', function (e) { e.stopPropagation(); }); // les touches ne pilotent pas la voiture
+  });
+  majCompte();
+
+  // Tournois réels (serveur en ligne) : remplace le calendrier de démonstration.
+  var etapeTournoiServeur = null;
+  function tournoiEnLigne(mode) {
+    etapeTournoiServeur = null;
+    if (!SERVEUR) return;
+    var titre = document.getElementById('tournoiTitre'), sous = document.getElementById('tournoiSous'), etapes = document.getElementById('tournoiEtapes');
+    var epreuve = document.getElementById('tournoiEpreuve'), note = document.getElementById('tournoiNote'), bouton = document.getElementById('boutonTournoi');
+    var texte = document.getElementById('boutonTournoiTexte'), sousBouton = document.getElementById('boutonTournoiSous');
+    var pays = (session && session.joueur.pays) || (function () { try { return localStorage.getItem('ketch-pays'); } catch (e) { return null; } })() || 'CD';
+    if (mode === 'sponsor') {
+      apiJeu('GET', '/tournois/championnats/' + pays).then(function (c) {
+        var sem = c.semaines.find(function (x) { return x.numero === c.semaine_courante; });
+        titre.textContent = c.nom + ' · semaine ' + (c.semaine_courante || c.semaines.length) + ' / ' + c.semaines.length;
+        sous.textContent = 'Sponsor : ' + c.sponsor + ' · ' + c.nb_equipes + ' équipes de ' + c.taille_equipe + ' · chaque semaine ' + c.primes_centimes.length + ' × ' + (c.primes_centimes[0] / 100) + ' $ par M-PESA · ' + c.nb_qualifies + ' qualifiées pour la Coupe d\'Afrique.';
+        etapes.innerHTML = c.classement.length
+          ? c.classement.slice(0, 16).map(function (e, i) { return ligne((i + 1) + '.', e.nom, e.points + ' pts' + (e.qualifiee ? ' · qualifiée' : ''), i < c.nb_qualifies); }).join('')
+          : ligne('Semaine 1', 'Qualifications en cours : les 16 meilleures équipes seront retenues', 'classement dimanche', true);
+        var id = sem && sem.circuit.indexOf('W_') === 0 ? sem.circuit.slice(2) : null;
+        etapeTournoiServeur = id && ETAPES[id] ? id : null;
+        epreuve.textContent = sem ? 'Épreuve de la semaine : ' + sem.circuit_nom : 'Championnat terminé';
+        bouton.disabled = !etapeTournoiServeur;
+        texte.textContent = etapeTournoiServeur ? 'Courir pour mon équipe' : sem ? 'Épreuve à courir dans le jeu Unreal' : 'Championnat terminé';
+        sousBouton.textContent = session ? 'Connecté : ' + session.joueur.pseudo : 'Connectez-vous (Mon compte) pour que la course compte';
+        note.textContent = 'Classement réel du serveur. Le temps de l\'équipe est la somme de ses 3 pilotes ; clôture le dimanche à minuit (heure de Kinshasa).';
+      }).catch(function () { note.textContent = 'Aucun championnat en cours dans votre pays pour le moment : entraînez-vous sur l\'épreuve de démonstration.'; });
+    } else {
+      apiJeu('GET', '/tournois/coupe').then(function (c) {
+        titre.textContent = c.nom + (c.championne ? ' · championne : ' + c.championne : '');
+        sous.textContent = 'Sponsor : ' + c.sponsor + ' · élimination directe, un tour par semaine.';
+        etapes.innerHTML = c.tours.map(function (t) {
+          return t.matchs.map(function (m) { return ligne(t.nom, (m.equipe_a || '?') + ' (' + (m.pays_a || '') + ') contre ' + (m.equipe_b || '?') + ' (' + (m.pays_b || '') + ')', m.gagnante ? 'qualifiée : ' + m.gagnante : 'à jouer', !t.cloture && !!m.equipe_a); }).join('');
+        }).join('');
+      }).catch(function () {});
+    }
+  }
+
+  // ---------- Niveau de difficulté ----------
+  function niveauActif() { return modeJeu === 'entrainement' && !defiEnCours ? niveauChoisi : 'moyen'; }
+  function reglageNiveau() { return REGLAGES_NIVEAU[niveauActif()]; }
+  function majNiveaux() {
+    Array.prototype.forEach.call(document.querySelectorAll('[data-niveau]'), function (b) { b.setAttribute('aria-pressed', b.getAttribute('data-niveau') === niveauChoisi ? 'true' : 'false'); });
+  }
+  Array.prototype.forEach.call(document.querySelectorAll('[data-niveau]'), function (b) {
+    b.addEventListener('click', function () {
+      niveauChoisi = b.getAttribute('data-niveau');
+      try { localStorage.setItem('ketch-niveau', niveauChoisi); } catch (e) {}
+      majNiveaux();
+    });
+  });
+  majNiveaux();
+  // Badge de difficulté sur chaque carte d'étape.
+  ORDRE.forEach(function (id) {
+    var desc = document.querySelector('[data-etape="' + id + '"] .jeu-desc'), niv = ETAPES[id].niveau;
+    if (desc && !desc.querySelector('.niv')) {
+      var b = document.createElement('b'); b.className = 'niv niv-' + niv; b.textContent = NOMS_NIVEAUX[niv];
+      desc.insertBefore(b, desc.firstChild);
+    }
+  });
 
   // ---------- Défi du jour ----------
   // Chaque jour (heure de Kinshasa), une étape et une voiture imposées, les mêmes pour tout le monde.

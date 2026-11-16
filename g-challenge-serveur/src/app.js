@@ -15,7 +15,22 @@ import { asynchrone } from './routes/outils.js';
 export function creerApp({ limiteConnexions = 20, apresSante = null } = {}) {
   const app = express();
   app.set('trust proxy', 1); // derrière l'hébergeur (Render, Railway...)
-  app.use(helmet());
+  app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
+  // CORS : la démo web (landing page, sur une autre adresse) appelle l'API avec un jeton, sans cookie.
+  // CORS_ORIGINES : adresses autorisées séparées par des virgules (par défaut : toutes).
+  const origines = (process.env.CORS_ORIGINES || '*').split(',').map((o) => o.trim()).filter(Boolean);
+  app.use((req, res, next) => {
+    const origine = req.headers.origin;
+    if (origine && (origines.includes('*') || origines.includes(origine))) {
+      res.setHeader('Access-Control-Allow-Origin', origines.includes('*') ? '*' : origine);
+      res.setHeader('Vary', 'Origin');
+      res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+      res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+      res.setHeader('Access-Control-Max-Age', '86400');
+    }
+    if (req.method === 'OPTIONS') return res.sendStatus(204);
+    next();
+  });
   app.use(express.json({ limit: '3mb' })); // un trajet de 30 min tient en ~2 Mo
   // Espace administrateur : primes, championnats, coupe, primes à verser (page + script, même adresse que l'API).
   app.use('/espace-admin', express.static(new URL('../espace-admin/', import.meta.url).pathname, { index: 'index.html' }));

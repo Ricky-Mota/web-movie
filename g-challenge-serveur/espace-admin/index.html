@@ -67,7 +67,7 @@ table{width:100%;border-collapse:collapse;font-size:14px}th,td{text-align:left;p
 <label>Sponsor<input name="sponsor" required placeholder="Nom du sponsor"></label>
 <label>Lundi de départ (qualifications)<input name="premier_lundi" type="date" required></label>
 </div>
-<p class="aide">Semaine 1 : qualifications (16 équipes retenues), puis 4 semaines de championnat. Choisissez le circuit de chaque semaine :</p>
+<p class="aide">Semaine 1 : qualifications (16 équipes retenues), puis 4 semaines de championnat. Choisissez le circuit de chaque semaine. Les circuits « (web) » se jouent dans la démo du site, les autres dans le jeu Unreal :</p>
 <div class="grille" id="choixCircuits"></div>
 <p class="aide erreur" id="sansCircuit" hidden>Aucun circuit déclaré : renseignez l'arrivée des circuits dans <code>db/circuits.json</code> (position de la ligne d'arrivée dans Unreal), puis redéployez. Le serveur les déclare au démarrage.</p>
 <p><button type="submit" id="boutonChampionnat">Créer le championnat</button></p>
