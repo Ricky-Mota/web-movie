@@ -167,6 +167,9 @@ Après l'inscription ou la connexion, gardez le `jeton` reçu et envoyez-le dans
 | POST | `/duels/:id/payer` | Le capitaine paie la mise (demande M-Pesa sur son téléphone) |
 | POST | `/duels/:id/depart` | Le joueur appuie sur « Courir » (un seul départ par duel) |
 | GET | `/duels/:id/fantome-adverse` | Trajet de l'équipe adverse, pour courir contre son fantôme |
+| GET | `/tournois/sponsor` | Tournoi Sponsor : saison en cours, semaines, circuit de la semaine, joueurs en lice, éliminés, primes |
+| GET | `/tournois/sponsor/:saison/semaines/:n` | Classement de la semaine n (provisoire, puis définitif après la clôture) |
+| GET | `/tournois/international/:circuit?par_pays=3` | Tournoi international : classement continental (Afrique) et meilleurs de chaque pays |
 
 Les montants sont **en centimes** : `1000` = 10,00 $. En 1 contre 1, `equipe_id` est facultatif, le serveur crée une équipe d'un joueur.
 
@@ -217,6 +220,27 @@ Pour les appels HTTP, le plugin gratuit **VaRest** (sur Fab) est le plus simple 
 
 ---
 
+## 4 bis. Les tournois
+
+### Tournoi Sponsor (hebdomadaire)
+
+| Semaine | Qui court | À la fin de la semaine (dimanche minuit, heure de Kinshasa) |
+| --- | --- | --- |
+| 1 · qualifications | tout le monde, sur le circuit de la semaine | les **18 meilleurs temps** sont sélectionnés |
+| 2 | les 18 sélectionnés | les 6 derniers sont éliminés → 12 |
+| 3 | les 12 | 4 éliminés → 8 |
+| 4 | les 8 | 4 éliminés → 4 |
+| 5 · finale | les 4 | le premier est **champion** |
+
+- Chaque semaine, les **3 meilleurs** reçoivent une prime payée par le sponsor (50 $, 30 $, 20 $ par défaut), plus une prime pour le champion. Tout est réglable par saison.
+- Les primes sont versées **automatiquement par M-Pesa** quand le pays du joueur le permet (colonne `primes_autorisees`, aujourd'hui la RDC) et dans la même devise. Sinon, la prime est notée « à verser manuellement ».
+- Le joueur n'a **rien à miser** : c'est le sponsor qui paie. Seul compte le meilleur temps **valide** (anti-triche) d'une course d'entraînement envoyée pendant la semaine, sur le circuit de la semaine. Un sélectionné qui ne court pas une semaine est classé derrière ceux qui ont couru.
+- La clôture est automatique (le serveur vérifie chaque minute). L'administrateur peut aussi clôturer tout de suite.
+
+### Tournoi international
+
+Les joueurs de tous les pays d'Afrique pris en charge (RDC, Congo-Brazzaville, Angola, Zambie, Zimbabwe, Afrique du Sud, Cameroun, Côte d'Ivoire, Sénégal, Nigeria, Ghana, Kenya, Tanzanie, Mozambique, Rwanda) courent sur le même circuit. `/tournois/international/:circuit` donne le **classement continental** et les **meilleurs de chaque pays** : ce sont les qualifiés nationaux pour la phase continentale, qui désigne le champion d'Afrique. Hors d'Afrique (Arabie saoudite), les joueurs ne figurent pas dans ce classement.
+
 ## 5. Administration
 
 | Méthode | Adresse | Rôle |
@@ -235,6 +259,15 @@ curl -X PUT http://localhost:3000/admin/pays/ZM -H "Authorization: Bearer <jeton
 ```
 
 ---
+
+### Administrer le Tournoi Sponsor
+
+| Méthode | Adresse | Rôle |
+| --- | --- | --- |
+| POST | `/admin/tournois/sponsor` | Créer une saison `{ nom, sponsor, premier_lundi, circuits[], nb_qualifies?, eliminations?, primes_centimes?, prime_champion_centimes?, devise? }` (un circuit par semaine ; la somme des éliminations doit laisser un seul champion) |
+| POST | `/admin/tournois/sponsor/:saison/semaines/:n/cloturer` | Clôturer une semaine tout de suite |
+| GET | `/admin/primes?statut=a_verser_manuellement` | Primes à verser à la main, échouées, réussies… |
+| POST | `/admin/primes/:id/relancer` | Relancer une prime M-Pesa échouée |
 
 ## 6. Passer à l'argent réel (M-Pesa RDC)
 

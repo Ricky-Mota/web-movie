@@ -5,6 +5,7 @@ import { valider, introuvable, conflit } from '../erreurs.js';
 import { connecte, admin } from '../auth.js';
 import { executerPaiement, resumePaiement } from '../domaine/duels.js';
 import { schemaCircuit, enregistrerCircuit } from '../domaine/circuits.js';
+import { creerSaison, cloturerSemaine, relancerPrime } from '../domaine/tournois.js';
 import { asynchrone } from './outils.js';
 
 export const routesAdmin = Router();
@@ -72,4 +73,43 @@ routesAdmin.post('/paiements/:id/relancer', asynchrone(async (req, res) => {
   await executerPaiement(p.id);
   const { rows: [maj] } = await requete('SELECT * FROM paiements WHERE id = $1', [p.id]);
   res.json(resumePaiement(maj));
+}));
+
+// ---------- Tournoi Sponsor ----------
+// Créer une saison : un circuit par semaine (qualifications + semaines à éliminations).
+// Par défaut : 18 sélectionnés, éliminations 6, 4, 4, 3 (18 → 12 → 8 → 4 → champion),
+// primes hebdomadaires 50 $, 30 $, 20 $ aux trois premiers (montants en centimes).
+const schemaSaison = z.object({
+  nom: z.string().min(2).max(80),
+  sponsor: z.string().min(2).max(60),
+  premier_lundi: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  nb_qualifies: z.number().int().min(2).max(200).default(18),
+  eliminations: z.array(z.number().int().min(1)).min(1).max(20).default([6, 4, 4, 3]),
+  primes_centimes: z.array(z.number().int().min(0)).max(20).default([5000, 3000, 2000]),
+  prime_champion_centimes: z.number().int().min(0).default(0),
+  devise: z.string().length(3).default('USD'),
+  circuits: z.array(z.string().min(1)).min(2).max(21),
+});
+routesAdmin.post('/tournois/sponsor', asynchrone(async (req, res) => {
+  res.status(201).json(await creerSaison(valider(schemaSaison, req.body)));
+}));
+
+// Clôturer une semaine tout de suite (sinon c'est automatique le dimanche à minuit, heure de Kinshasa).
+routesAdmin.post('/tournois/sponsor/:saison/semaines/:numero/cloturer', asynchrone(async (req, res) => {
+  const numero = valider(z.coerce.number().int().min(1).max(60), req.params.numero);
+  const r = await cloturerSemaine(req.params.saison, numero, { forcer: true });
+  if (!r) throw conflit('deja_cloturee', 'Cette semaine est déjà clôturée.');
+  res.json({ classes: r.classes, elimines: r.elimines, primes: r.primes.length, saison_terminee: r.termine });
+}));
+
+// Primes : liste, et relance d'une prime M-Pesa échouée.
+routesAdmin.get('/primes', asynchrone(async (req, res) => {
+  const statut = req.query.statut ? valider(z.enum(['en_attente', 'reussi', 'echoue', 'a_verser_manuellement']), req.query.statut) : null;
+  const { rows } = await requete(
+    `SELECT pr.*, j.pseudo, j.telephone FROM primes pr JOIN joueurs j ON j.id = pr.joueur_id
+      WHERE ($1::text IS NULL OR pr.statut = $1) ORDER BY pr.cree_le DESC LIMIT 200`, [statut]);
+  res.json(rows);
+}));
+routesAdmin.post('/primes/:id/relancer', asynchrone(async (req, res) => {
+  res.json(await relancerPrime(req.params.id));
 }));

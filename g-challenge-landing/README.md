@@ -68,6 +68,8 @@ Chaque voiture a son propre son de moteur : plus aigu pour les sportives, plus g
 - **Écrans LED** : panneaux et arches sont des écrans numériques ; chaque écran fait tourner les sponsors toutes les 6 s (glissement), avec un reflet lumineux et une trame de pixels (animations coupées si l'appareil demande moins d'animations).
 - **Bande « EN DIRECT »** sous l'écran de jeu, comme à la télévision : sponsor du moment (change toutes les 6 s), fil défilant et bouton **Commenter** (pseudo + 120 caractères). Le fil mêle les annonces du **commentateur**, tirées des vrais événements de la course (départ, dépassements, frôlés, arrestation, arrivée), et les **commentaires des fans**. Dans la démo, les commentaires restent sur l'appareil. Pour un tournoi en direct, il suffit d'appeler `window.GChallengeDirect.ajouter({ auteur, texte, type: 'fan' })` avec les messages reçus du serveur (WebSocket), après modération côté serveur.
 
+- **3 compétitions** (premier écran du jeu) : **Entraînement** (challenge individuel : 8 étapes, défi du jour, garage), **Tournoi Sponsor** (semaine 1 : qualifications ouvertes ; les 18 meilleurs sont sélectionnés ; éliminations chaque dimanche à minuit, heure de Kinshasa : 18 → 12 → 8 → 4 → champion ; les 3 meilleurs de chaque semaine primés par M-PESA) et **Tournoi international** (15 pays africains, top 3 par pays, phase continentale, champion d'Afrique). Dans la démo, les temps de tournoi restent sur l'appareil ; les règles officielles tournent sur le serveur (`g-challenge-serveur`, section « Les tournois »).
+
 ### Les commandes
 
 | Action | Clavier | Téléphone |

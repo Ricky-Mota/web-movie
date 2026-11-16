@@ -1027,6 +1027,13 @@
       (debloquees.length ? ' · Voiture débloquée : ' + debloquees.map(function (m) { return m.nom; }).join(', ') + ' !' : '') +
       (defiEnCours ? ' · Défi du jour : ' + (rangDefi === 1 ? '1re place !' : rangDefi + 'e place') + ' · série ' + lireSerie().serie + ' j' : '');
     var bfc = document.getElementById('boutonFinClassement'); if (bfc) bfc.hidden = !defiEnCours;
+    if (modeJeu !== 'entrainement') {
+      var cle = cleTournoi(modeJeu), meilleur = lireTournoi(cle);
+      var mieux = !meilleur || temps < meilleur.temps;
+      if (mieux) { try { localStorage.setItem(cle, JSON.stringify({ temps: temps, score: total, voiture: voiture.nom })); } catch (e) {} }
+      document.getElementById('finDetail').textContent += ' · ' + (modeJeu === 'sponsor' ? 'Tournoi Sponsor' : 'Tournoi international') + ' : ' +
+        (mieux ? 'nouveau meilleur temps de la semaine, ' + chrono(temps) : 'meilleur temps de la semaine ' + chrono(meilleur.temps)) + ' (enregistré sur cet appareil dans la démo)';
+    }
     majVoitures();
     panneauFin.hidden = false;
     majRecords();
@@ -1984,7 +1991,7 @@
     boite(16, 14, 282, 62, 14);
     ctx.fillStyle = '#FFC814'; ctx.font = '700 11px Inter, sans-serif';
     ctx.fillText('ÉTAPE ' + E.numero + ' / ' + ORDRE.length + ' · ' + String(E.longueur / 1000).replace('.', ',') + ' KM · ' + (v < -0.2 ? 'R · ' : '') + Math.round(Math.abs(v) * 3.6) + ' KM/H', 32, 38);
-    ctx.fillStyle = '#FFFFFF'; ctx.font = '700 16px Inter, sans-serif'; ctx.fillText((defiEnCours ? 'Défi · ' : '') + E.nom, 32, 60);
+    ctx.fillStyle = '#FFFFFF'; ctx.font = '700 16px Inter, sans-serif'; ctx.fillText((defiEnCours ? 'Défi · ' : modeJeu === 'sponsor' ? 'Tournoi · ' : modeJeu === 'international' ? 'International · ' : '') + E.nom, 32, 60);
 
     boite(356, 14, 132, 44, 12);
     ctx.textAlign = 'center'; ctx.fillStyle = '#FFFFFF'; ctx.font = '800 24px "Bricolage Grotesque", Inter, sans-serif';
@@ -2120,7 +2127,7 @@
       son.lfo.type = voiture.electrique ? 'sine' : 'square';
     }
     musiqueArreter(); musiqueDemarrer();
-    panneauDebut.hidden = true; panneauFin.hidden = true;
+    panneauDebut.hidden = true; panneauFin.hidden = true; panneauModes.hidden = true; panneauTournoi.hidden = true;
     canvas.focus({ preventScroll: true });
   }
   function majRecords() {
@@ -2267,14 +2274,16 @@
     if (le && carte) le.textContent = carte.querySelector('.jeu-num').textContent + ' · ' + carte.querySelector('.jeu-nom').textContent;
   }
   var boutonLancer = document.getElementById('boutonLancer');
-  if (boutonLancer) boutonLancer.addEventListener('click', function () { quitterDefi(); vueGarage = voiture; lancer(etapeChoisie); });
+  if (boutonLancer) boutonLancer.addEventListener('click', function () { quitterDefi(); modeJeu = 'entrainement'; vueGarage = voiture; lancer(etapeChoisie); });
   document.getElementById('boutonRejouer').addEventListener('click', function () { lancer(); });
   var suivante = document.getElementById('boutonSuivante');
   if (suivante) suivante.addEventListener('click', function () { quitterDefi(); lancer(ORDRE[(ORDRE.indexOf(etapeChoisie) + 1) % ORDRE.length]); });
   var autre = document.getElementById('boutonAutreEtape');
   if (autre) autre.addEventListener('click', function () {
     quitterDefi();
-    panneauFin.hidden = true; panneauDebut.hidden = false; etat = 'accueil'; musiqueArreter();
+    panneauFin.hidden = true; etat = 'accueil'; musiqueArreter();
+    if (modeJeu !== 'entrainement') { ouvrirTournoi(modeJeu); return; }
+    panneauDebut.hidden = false;
     vueGarage = voiture; majVoitures(); majRecords(); majDefi(); choisirEtape(etapeChoisie);
     if (boutonLancer) boutonLancer.focus({ preventScroll: true });
   });
@@ -2345,6 +2354,100 @@
     });
   }
 
+  // ---------- Les 3 compétitions : entraînement, Tournoi Sponsor, Tournoi international ----------
+  // Dans la démo, les temps de tournoi restent sur l'appareil. Dans le jeu en ligne, ils partent au serveur
+  // (anti-triche), qui sélectionne les 18 meilleurs, élimine chaque dimanche et verse les primes par M-PESA.
+  var modeJeu = 'entrainement';
+  var panneauModes = document.getElementById('panneauModes'), panneauTournoi = document.getElementById('panneauTournoi');
+  var EPOQUE_SAISONS = Date.UTC(2026, 10, 16); // lundi 16 novembre 2026 : début du premier cycle de 5 semaines
+  var CALENDRIER = [
+    ['Semaine 1', 'Qualifications ouvertes à tous', '18 sélectionnés'],
+    ['Semaine 2', 'Les 18 sélectionnés', '6 éliminés → 12'],
+    ['Semaine 3', 'Les 12 en lice', '4 éliminés → 8'],
+    ['Semaine 4', 'Les 8 en lice', '4 éliminés → 4'],
+    ['Semaine 5', 'Finale à 4', 'Champion de la saison']
+  ];
+  var PAYS_AFRIQUE = [['CD', 'RDC', '\uD83C\uDDE8\uD83C\uDDE9'], ['CG', 'Congo-Brazzaville', '\uD83C\uDDE8\uD83C\uDDEC'], ['AO', 'Angola', '\uD83C\uDDE6\uD83C\uDDF4'],
+    ['ZM', 'Zambie', '\uD83C\uDDFF\uD83C\uDDF2'], ['ZW', 'Zimbabwe', '\uD83C\uDDFF\uD83C\uDDFC'], ['ZA', 'Afrique du Sud', '\uD83C\uDDFF\uD83C\uDDE6'],
+    ['CM', 'Cameroun', '\uD83C\uDDE8\uD83C\uDDF2'], ['CI', "Côte d'Ivoire", '\uD83C\uDDE8\uD83C\uDDEE'], ['SN', 'Sénégal', '\uD83C\uDDF8\uD83C\uDDF3'],
+    ['NG', 'Nigeria', '\uD83C\uDDF3\uD83C\uDDEC'], ['GH', 'Ghana', '\uD83C\uDDEC\uD83C\uDDED'], ['KE', 'Kenya', '\uD83C\uDDF0\uD83C\uDDEA'],
+    ['TZ', 'Tanzanie', '\uD83C\uDDF9\uD83C\uDDFF'], ['MZ', 'Mozambique', '\uD83C\uDDF2\uD83C\uDDFF'], ['RW', 'Rwanda', '\uD83C\uDDF7\uD83C\uDDFC']];
+  function lundiKin() {
+    var d = new Date(jourKin() + 'T00:00:00Z');
+    return new Date(d.getTime() - ((d.getUTCDay() + 6) % 7) * 86400000);
+  }
+  function semaineTournoi() {
+    var lundi = lundiKin(), n = Math.floor((lundi.getTime() - EPOQUE_SAISONS) / (7 * 86400000));
+    return { lundi: lundi, indice: n, numero: ((n % 5) + 5) % 5 + 1, fin: lundi.getTime() + 7 * 86400000 - 3600000 };
+  }
+  function cleTournoi(mode) { return 'ketch-tournoi-' + mode + '-' + lundiKin().toISOString().slice(0, 10); }
+  function lireTournoi(cle) { try { var v = JSON.parse(localStorage.getItem(cle) || 'null'); return v && v.temps ? v : null; } catch (e) { return null; } }
+  function etapeTournoi(mode) { var n = semaineTournoi().indice; return mode === 'sponsor' ? ORDRE[((n % ORDRE.length) + ORDRE.length) % ORDRE.length] : 'boulevard'; }
+  function majChronoTournoi() {
+    var el = document.getElementById('tournoiChrono'); if (!el || panneauTournoi.hidden) return;
+    var reste = Math.max(0, semaineTournoi().fin - Date.now()), j = Math.floor(reste / 86400000), h = Math.floor(reste / 3600000) % 24, m = Math.floor(reste / 60000) % 60;
+    el.textContent = 'Clôture dans ' + j + ' j ' + String(h).padStart(2, '0') + ' h ' + String(m).padStart(2, '0') + ' min';
+  }
+  function ligne(b, span, em, actuelle) {
+    return '<div class="tournoi-ligne' + (actuelle ? ' actuelle' : '') + '"><b>' + echapper(b) + '</b><span>' + echapper(span) + '</span><em>' + echapper(em) + '</em></div>';
+  }
+  function ouvrirTournoi(mode) {
+    modeJeu = mode; quitterDefi();
+    var st = semaineTournoi(), E2 = ETAPES[etapeTournoi(mode)], rec = lireTournoi(cleTournoi(mode));
+    var titre = document.getElementById('tournoiTitre'), sous = document.getElementById('tournoiSous'), etapes = document.getElementById('tournoiEtapes');
+    var epreuve = document.getElementById('tournoiEpreuve'), record = document.getElementById('tournoiRecord'), note = document.getElementById('tournoiNote');
+    var texte = document.getElementById('boutonTournoiTexte'), sousBouton = document.getElementById('boutonTournoiSous'), paysBloc = document.getElementById('tournoiPays');
+    if (mode === 'sponsor') {
+      titre.textContent = 'Tournoi Sponsor · semaine ' + st.numero + ' / 5';
+      sous.textContent = 'Les 18 meilleurs de la semaine sont sélectionnés, puis éliminations chaque dimanche à minuit (heure de Kinshasa).';
+      etapes.innerHTML = CALENDRIER.map(function (c, i) { return ligne(c[0], c[1], c[2], i + 1 === st.numero); }).join('') +
+        ligne('Primes', 'Les 3 meilleurs de chaque semaine, payés par le sponsor', 'via M-PESA', false);
+      epreuve.textContent = "Épreuve de la semaine : Étape " + E2.numero + ' · ' + E2.nom;
+      texte.textContent = st.numero === 1 ? 'Jouer ma qualification' : "S'entraîner sur l'épreuve";
+      sousBouton.textContent = st.numero === 1 ? 'Seul votre meilleur temps compte' : 'Semaine réservée aux joueurs en lice';
+      note.textContent = 'Démo : votre temps reste sur cet appareil. Dans le jeu en ligne, chaque course est vérifiée par le serveur (anti-triche) et les primes sont versées automatiquement par M-PESA aux gagnants dont le pays le permet. Aucune mise : les primes sont payées par le sponsor.';
+      paysBloc.hidden = true;
+    } else {
+      titre.textContent = 'Tournoi international · Champion d\'Afrique';
+      sous.textContent = PAYS_AFRIQUE.length + ' pays · les 3 meilleurs de chaque pays se qualifient pour la phase continentale.';
+      etapes.innerHTML = ligne('Phase 1', 'Qualifications nationales sur l\'épreuve continentale', 'Top 3 par pays', true) +
+        ligne('Phase 2', 'Phase continentale : groupes de pays', 'Les meilleurs avancent', false) +
+        ligne('Phase 3', 'Finale continentale', "Champion d'Afrique", false) +
+        '<p class="tournoi-note">' + PAYS_AFRIQUE.map(function (p) { return p[2] + ' ' + echapper(p[1]); }).join(' · ') + '</p>';
+      epreuve.textContent = 'Épreuve continentale : Étape ' + E2.numero + ' · ' + E2.nom;
+      texte.textContent = 'Jouer ma qualification nationale'; sousBouton.textContent = 'Représentez votre pays';
+      note.textContent = 'Démo : votre temps reste sur cet appareil. Dans le jeu en ligne, le serveur établit le classement continental et les qualifiés de chaque pays.';
+      paysBloc.hidden = false;
+      var choix = document.getElementById('choixPays'), sauve = null;
+      try { sauve = localStorage.getItem('ketch-pays'); } catch (e) {}
+      if (!choix.options.length) choix.innerHTML = PAYS_AFRIQUE.map(function (p) { return '<option value="' + p[0] + '">' + p[2] + ' ' + echapper(p[1]) + '</option>'; }).join('');
+      if (sauve) choix.value = sauve;
+    }
+    record.textContent = rec ? 'Votre meilleur temps cette semaine : ' + chrono(rec.temps) + ' (' + rec.voiture + ', ' + rec.score.toLocaleString('fr-FR') + ' pts)' : "Pas encore de temps cette semaine.";
+    [panneauModes, panneauDebut, panneauFin, panneauClassement].forEach(function (p) { p.hidden = true; });
+    panneauTournoi.hidden = false; etat = 'accueil';
+    majChronoTournoi();
+  }
+  setInterval(majChronoTournoi, 20000);
+  var choixPays = document.getElementById('choixPays');
+  if (choixPays) choixPays.addEventListener('change', function () { try { localStorage.setItem('ketch-pays', choixPays.value); } catch (e) {} });
+  Array.prototype.forEach.call(document.querySelectorAll('[data-mode]'), function (b) {
+    b.addEventListener('click', function () {
+      var mode = b.getAttribute('data-mode');
+      if (mode === 'entrainement') { modeJeu = 'entrainement'; panneauModes.hidden = true; panneauDebut.hidden = false; vueGarage = voiture; majVoitures(); majRecords(); majDefi(); if (boutonLancer) boutonLancer.focus({ preventScroll: true }); }
+      else ouvrirTournoi(mode);
+    });
+  });
+  Array.prototype.forEach.call(document.querySelectorAll('[data-retour-modes]'), function (b) {
+    b.addEventListener('click', function () {
+      modeJeu = 'entrainement'; quitterDefi();
+      [panneauDebut, panneauTournoi, panneauFin, panneauClassement].forEach(function (p) { p.hidden = true; });
+      panneauModes.hidden = false; etat = 'accueil'; musiqueArreter();
+    });
+  });
+  var boutonTournoi = document.getElementById('boutonTournoi');
+  if (boutonTournoi) boutonTournoi.addEventListener('click', function () { lancer(etapeTournoi(modeJeu)); });
+
   // ---------- Défi du jour ----------
   // Chaque jour (heure de Kinshasa), une étape et une voiture imposées, les mêmes pour tout le monde.
   // La voiture est prêtée pour le défi, même si elle n'est pas encore débloquée.
@@ -2395,6 +2498,7 @@
   }
   function lancerDefi() {
     var d = defiDuJour();
+    modeJeu = 'entrainement';
     if (!defiEnCours) voitureAvantDefi = voiture;
     defiEnCours = true; voiture = VOITURES[d.voiture];
     panneauClassement.hidden = true;

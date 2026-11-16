@@ -9,6 +9,7 @@ import { routesCircuits } from './routes/circuits.js';
 import { routesCourses } from './routes/courses.js';
 import { routesDuels } from './routes/duels.js';
 import { routesAdmin } from './routes/admin.js';
+import { routesTournois } from './routes/tournois.js';
 import { asynchrone } from './routes/outils.js';
 
 export function creerApp({ limiteConnexions = 20 } = {}) {
@@ -27,7 +28,7 @@ export function creerApp({ limiteConnexions = 20 } = {}) {
     res.json({ commission_pourcent: p.commission_bp / 100, maj_le: p.maj_le });
   }));
   app.get('/pays', asynchrone(async (_req, res) => {
-    const { rows } = await requete('SELECT code, nom, devise, mises_autorisees, langue, indicatif FROM pays ORDER BY nom');
+    const { rows } = await requete('SELECT code, nom, devise, mises_autorisees, primes_autorisees, continent, langue, indicatif FROM pays ORDER BY nom');
     res.json(rows);
   }));
 
@@ -41,6 +42,7 @@ export function creerApp({ limiteConnexions = 20 } = {}) {
   app.use('/circuits', routesCircuits);
   app.use('/courses', routesCourses);
   app.use('/duels', routesDuels);
+  app.use('/tournois', routesTournois);
   app.use('/admin', routesAdmin);
 
   app.use((_req, _res, next) => next(new ErreurApi(404, 'route_inconnue', 'Adresse inconnue.')));
