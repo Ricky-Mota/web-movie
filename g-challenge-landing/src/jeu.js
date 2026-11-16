@@ -2773,7 +2773,14 @@
   // Adresse du serveur : balise <meta name="gchallenge-serveur" content="https://…onrender.com"> de la page
   // (vide tant que le serveur n'est pas en ligne : la démo reste alors 100 % locale).
   var SERVEUR = '';
-  try { SERVEUR = (localStorage.getItem('ketch-serveur') || (document.querySelector('meta[name="gchallenge-serveur"]') || {}).content || '').trim().replace(/\/+$/, ''); } catch (e) {}
+  // L'adresse de la page fait foi. localStorage ne sert qu'aux essais, quand la page n'en déclare aucune :
+  // personne ne peut ainsi détourner un joueur (et son jeton) vers un faux serveur.
+  try {
+    SERVEUR = ((document.querySelector('meta[name="gchallenge-serveur"]') || {}).content || '').trim();
+    if (!SERVEUR) SERVEUR = (localStorage.getItem('ketch-serveur') || '').trim();
+    SERVEUR = SERVEUR.replace(/\/+$/, '');
+    if (SERVEUR && !/^https:\/\/|^http:\/\/localhost(:\d+)?$/.test(SERVEUR)) SERVEUR = '';
+  } catch (e) { SERVEUR = ''; }
   var session = null; // { jeton, joueur }
   try { session = JSON.parse(localStorage.getItem('ketch-session') || 'null'); } catch (e) {}
   function apiJeu(methode, chemin, corps) {

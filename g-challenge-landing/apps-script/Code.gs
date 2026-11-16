@@ -10,6 +10,7 @@
  */
 function doPost(e) {
   var d;
+  if (!e || !e.postData || String(e.postData.contents).length > 4000) return repondre({ statut: 'erreur', message: 'trop_gros' });
   try {
     d = JSON.parse(e.postData.contents);
   } catch (err) {
@@ -32,11 +33,19 @@ function doPost(e) {
       }
     }
     // L'apostrophe force le texte : sinon Google Sheets transforme "+243..." en nombre.
-    feuille.appendRow([d.date, "'" + telephone, d.pseudo || '', d.plateforme || 'Android', d.source || 'landing']);
+    // Chaque texte est nettoyé : une cellule qui commence par = + - @ serait exécutée comme une formule
+    // par Google Sheets (« injection de formule ») ; on ne garde que lettres, chiffres et quelques signes.
+    var date = Utilities.formatDate(new Date(), 'Africa/Kinshasa', 'yyyy-MM-dd');
+    var plateforme = ['Android', 'iOS', 'PC'].indexOf(d.plateforme) >= 0 ? d.plateforme : 'Android';
+    feuille.appendRow([date, "'" + telephone, propre(d.pseudo, 20), plateforme, propre(d.source, 40) || 'landing']);
   } finally {
     verrou.releaseLock();
   }
   return repondre({ statut: 'inscrit' });
+}
+
+function propre(texte, max) {
+  return String(texte || '').replace(/[^\p{L}\p{N}_. -]/gu, '').replace(/^[-\s.]+/, '').slice(0, max);
 }
 
 function chiffres(t) {

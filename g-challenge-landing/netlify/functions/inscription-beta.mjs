@@ -16,7 +16,9 @@ function reponse(statut, corps) {
 export function verifier(d) {
   const telephone = String(d.telephone || '').replace(/[\s.\-()]/g, '');
   if (!/^\+\d{8,15}$/.test(telephone)) return { erreur: 'Numéro invalide. Exemple : +243 81 234 5678.' };
-  const pseudo = String(d.pseudo || '').trim().slice(0, 20).replace(/[^\p{L}\p{N}_.\- ]/gu, '');
+  // Pas de = + @ en tête (injection de formule dans Google Sheets) : seuls lettres, chiffres, _ . - et espaces passent,
+  // et le texte ne peut pas commencer par un tiret.
+  const pseudo = String(d.pseudo || '').trim().slice(0, 20).replace(/[^\p{L}\p{N}_.\- ]/gu, '').replace(/^[-\s.]+/, '');
   const plateforme = PLATEFORMES.includes(d.plateforme) ? d.plateforme : 'Android';
   const source = String(d.source || 'landing').trim().slice(0, 40).replace(/[^\p{L}\p{N}_.\-]/gu, '') || 'landing';
   return { telephone, pseudo, plateforme, source };
@@ -26,6 +28,7 @@ export function verifier(d) {
 export async function traiter(methode, texte, url = globalThis.process?.env?.APPS_SCRIPT_URL) {
   if (methode !== 'POST') return reponse(405, { message: 'Méthode non autorisée.' });
 
+  if (String(texte || '').length > 4000) return reponse(413, { message: 'Demande trop volumineuse.' });
   let d;
   try { d = JSON.parse(texte || ''); } catch { return reponse(400, { message: 'Demande illisible.' }); }
   if (!d || typeof d !== 'object') return reponse(400, { message: 'Demande illisible.' });

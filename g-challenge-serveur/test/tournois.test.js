@@ -19,7 +19,7 @@ let base;
 before(async () => {
   await requete('DROP SCHEMA IF EXISTS gchallenge CASCADE');
   await migrer();
-  serveur = createServer(creerApp({ limiteConnexions: 1000 }));
+  serveur = createServer(creerApp({ limiteConnexions: 1000, limiteGlobale: 100000, limiteCourses: 100000 }));
   await new Promise((r) => serveur.listen(0, r));
   base = `http://localhost:${serveur.address().port}`;
 });
@@ -135,7 +135,17 @@ test('semaine 1 : qualifications, les 4 meilleures équipes complètes sont rete
   assert.equal(primes.reduce((s, p) => s + p.montant_centimes, 0), 2000);
   // Le capitaine reçoit le reste de la division : 668 + 666 + 666.
   assert.equal(primes.find((p) => p.pseudo === 'Gombe1').montant_centimes, 668);
-  assert.ok(primes.every((p) => p.statut === 'reussi'));
+  // Sécurité : aucune prime ne part avant la validation d'un administrateur.
+  assert.ok(primes.every((p) => p.statut === 'a_valider'));
+  const pirate = (await api('POST', `/admin/primes/${primes[0].id}/valider`, { jeton: E.Gombe.pilotes[0].jeton })).statut;
+  assert.ok(pirate === 401 || pirate === 403);
+  for (const p of primes) assert.equal((await api('POST', `/admin/primes/${p.id}/valider`, { jeton: J.admin.jeton })).statut, 200);
+  assert.equal((await api('POST', `/admin/primes/${primes[0].id}/valider`, { jeton: J.admin.jeton })).statut, 409);
+  const apres = (await api('GET', '/admin/primes', { jeton: J.admin.jeton })).json.filter((p) => p.equipe === 'Gombe');
+  assert.ok(apres.every((p) => p.statut === 'reussi'));
+  // Les primes des autres équipes sont validées en lot pour la suite des tests.
+  const reste = (await api('GET', '/admin/primes?statut=a_valider', { jeton: J.admin.jeton })).json;
+  for (const p of reste) await api('POST', `/admin/primes/${p.id}/valider`, { jeton: J.admin.jeton });
 });
 
 test('semaines 2 et 3 : points, départage au temps cumulé, 2 équipes qualifiées', async () => {

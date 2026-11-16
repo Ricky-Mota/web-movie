@@ -22,7 +22,7 @@ const sockets = [];
 before(async () => {
   await requete('DROP SCHEMA IF EXISTS gchallenge CASCADE');
   await migrer();
-  serveur = createServer(creerApp({ limiteConnexions: 1000 }));
+  serveur = createServer(creerApp({ limiteConnexions: 1000, limiteGlobale: 100000, limiteCourses: 100000 }));
   demarrerTempsReel(serveur);
   await new Promise((r) => serveur.listen(0, r));
   base = `http://localhost:${serveur.address().port}`;

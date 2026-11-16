@@ -52,6 +52,7 @@ table{width:100%;border-collapse:collapse;font-size:14px}th,td{text-align:left;p
 <label>Coupe d'Afrique : équipe championne<span class="montant"><input name="coupe_championne" type="number" min="0" step="0.01" required placeholder="0"></span></label>
 <label>Coupe d'Afrique : équipe finaliste<span class="montant"><input name="coupe_finaliste" type="number" min="0" step="0.01" required placeholder="0"></span></label>
 </div>
+<label style="flex-direction:row;align-items:center;gap:8px;margin-top:10px"><input type="checkbox" name="validation_primes" style="height:auto"> Valider chaque prime à la main avant l'envoi M-Pesa (recommandé)</label>
 <p class="aide">Montants par équipe, partagés entre ses pilotes qui ont couru, versés par M-PESA quand le pays le permet. Ils valent pour les championnats créés ensuite ; ceux de la Coupe d'Afrique en cours sont mis à jour tout de suite.</p>
 <p><button type="submit">Enregistrer les primes</button></p>
 <p class="message" id="msgPrimes" role="status"></p>
@@ -81,6 +82,20 @@ table{width:100%;border-collapse:collapse;font-size:14px}th,td{text-align:left;p
 <section>
 <h2>Championnats et Coupe d'Afrique</h2>
 <table><thead><tr><th>Compétition</th><th>Sponsor</th><th>Départ</th><th>Semaine ouverte</th><th>État</th></tr></thead><tbody id="listeCompetitions"></tbody></table>
+</section>
+
+<section>
+<h2>Primes à valider (anti-triche)</h2>
+<p class="aide">Aucune prime ne part sur M-Pesa avant votre accord. Avant de valider, cliquez sur « Courses » : un temps à peine au-dessus du minimum du circuit, ou beaucoup plus rapide que ses autres courses, doit vous alerter.</p>
+<table><thead><tr><th>Pilote</th><th>Équipe</th><th>Rang</th><th>Montant</th><th></th></tr></thead><tbody id="listeAValider"></tbody></table>
+<div id="detailCourses" class="aide"></div>
+</section>
+
+<section>
+<h2>Joueurs : rechercher, bloquer un tricheur</h2>
+<form id="formRecherche" class="grille"><label>Pseudo ou téléphone<input name="q" minlength="2" required></label><button type="submit">Rechercher</button></form>
+<table><thead><tr><th>Pseudo</th><th>Téléphone</th><th>Pays</th><th>État</th><th></th></tr></thead><tbody id="listeJoueurs"></tbody></table>
+<p class="aide">Bloquer : le joueur est déconnecté, ne peut plus se connecter, ses courses sortent des classements et ses primes non validées sont refusées.</p>
 </section>
 
 <section>

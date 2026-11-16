@@ -38,6 +38,7 @@
         f.nb_equipes_primees.value = t.reglages.nb_equipes_primees;
         f.coupe_championne.value = (t.reglages.coupe_prime_championne_centimes / 100).toFixed(2);
         f.coupe_finaliste.value = (t.reglages.coupe_prime_finaliste_centimes / 100).toFixed(2);
+        f.validation_primes.checked = !!t.reglages.validation_primes;
 
         var sel = $('choixPays');
         if (!sel.options.length) {
@@ -93,11 +94,67 @@
       });
   }
 
+  function bouton(td, texte, secondaire, action) {
+    var b = document.createElement('button'); b.type = 'button'; b.textContent = texte; if (secondaire) b.className = 'secondaire';
+    b.style.marginRight = '6px';
+    b.addEventListener('click', function () { b.disabled = true; Promise.resolve(action()).catch(function (e) { alert(e.message); }).then(function () { b.disabled = false; }); });
+    td.appendChild(b); return b;
+  }
+  function chargerAValider() {
+    return api('GET', '/admin/primes?statut=a_valider').then(function (primes) {
+      var liste = $('listeAValider'); liste.textContent = '';
+      primes.forEach(function (p) {
+        var tr = document.createElement('tr');
+        cellule(tr, p.pseudo); cellule(tr, p.equipe); cellule(tr, p.rang + 'e'); cellule(tr, dollars(p.montant_centimes) + ' ' + p.devise);
+        var td = cellule(tr, '');
+        bouton(td, 'Courses', true, function () { return voirCourses(p.joueur_id, p.pseudo); });
+        bouton(td, 'Valider', false, function () { return api('POST', '/admin/primes/' + p.id + '/valider').then(chargerAValider); });
+        bouton(td, 'Refuser', true, function () {
+          var motif = prompt('Motif du refus (visible dans l\'historique) :', 'course suspecte');
+          if (!motif) return;
+          return api('POST', '/admin/primes/' + p.id + '/refuser', { motif: motif }).then(chargerAValider);
+        });
+        liste.appendChild(tr);
+      });
+      if (!primes.length) { var vide = document.createElement('tr'); cellule(vide, 'Aucune prime en attente de validation.').colSpan = 5; liste.appendChild(vide); }
+    });
+  }
+  function voirCourses(id, pseudo) {
+    return api('GET', '/admin/joueurs/' + id + '/courses').then(function (courses) {
+      var zone = $('detailCourses'); zone.textContent = 'Courses de ' + pseudo + ' : ';
+      if (!courses.length) { zone.textContent += 'aucune.'; return; }
+      zone.textContent += courses.slice(0, 12).map(function (c) {
+        var marge = Math.round((c.temps_ms / c.temps_min_ms - 1) * 100);
+        return c.circuit + ' ' + (c.temps_ms / 1000).toFixed(1) + ' s (' + (c.valide ? 'valide, ' + marge + ' % au-dessus du minimum' : 'rejetée : ' + c.motif_rejet) + ')' + (c.valide && marge < 5 ? ' ⚠' : '');
+      }).join(' · ');
+    });
+  }
+  $('formRecherche').addEventListener('submit', function (e) {
+    e.preventDefault();
+    api('GET', '/admin/joueurs?q=' + encodeURIComponent(e.target.q.value.trim())).then(function (joueurs) {
+      var liste = $('listeJoueurs'); liste.textContent = '';
+      joueurs.forEach(function (j) {
+        var tr = document.createElement('tr');
+        cellule(tr, j.pseudo); cellule(tr, '+' + j.telephone); cellule(tr, j.pays_code); cellule(tr, j.bloque ? 'bloqué (' + (j.bloque_motif || '') + ')' : (j.role === 'admin' ? 'admin' : 'actif'));
+        var td = cellule(tr, '');
+        bouton(td, 'Courses', true, function () { return voirCourses(j.id, j.pseudo); });
+        if (j.role !== 'admin') bouton(td, j.bloque ? 'Débloquer' : 'Bloquer', !j.bloque, function () {
+          var motif = j.bloque ? '' : prompt('Motif du blocage :', 'triche');
+          if (!j.bloque && !motif) return;
+          return api('POST', '/admin/joueurs/' + j.id + '/bloquer', { bloque: !j.bloque, motif: motif || undefined })
+            .then(function () { $('formRecherche').requestSubmit(); });
+        });
+        liste.appendChild(tr);
+      });
+      if (!joueurs.length) { var vide = document.createElement('tr'); cellule(vide, 'Aucun joueur trouvé.').colSpan = 5; liste.appendChild(vide); }
+    }).catch(function (err) { alert(err.message); });
+  });
+
   function ouvrir() {
     return api('GET', '/joueurs/moi').then(function (moi) {
       if (moi.role !== 'admin') throw new Error("Ce compte n'est pas administrateur.");
       $('connexion').hidden = true; $('espace').hidden = false;
-      return charger();
+      return Promise.all([charger(), chargerAValider()]);
     });
   }
 
@@ -115,6 +172,7 @@
     api('PUT', '/admin/tournois/reglages', {
       prime_semaine_centimes: centimes(f.prime_semaine.value), nb_equipes_primees: parseInt(f.nb_equipes_primees.value, 10) || 0,
       coupe_prime_championne_centimes: centimes(f.coupe_championne.value), coupe_prime_finaliste_centimes: centimes(f.coupe_finaliste.value),
+      validation_primes: f.validation_primes.checked,
     }).then(function (r) {
       dire('msgPrimes', 'Enregistré : ' + r.nb_equipes_primees + ' × ' + dollars(r.prime_semaine_centimes) + ' par semaine ; Coupe d\'Afrique : ' +
         dollars(r.coupe_prime_championne_centimes) + ' (championne), ' + dollars(r.coupe_prime_finaliste_centimes) + ' (finaliste).', true);

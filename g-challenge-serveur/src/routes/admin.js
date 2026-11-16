@@ -5,11 +5,26 @@ import { valider, introuvable, conflit } from '../erreurs.js';
 import { connecte, admin } from '../auth.js';
 import { executerPaiement, resumePaiement } from '../domaine/duels.js';
 import { schemaCircuit, enregistrerCircuit } from '../domaine/circuits.js';
-import { creerChampionnat, cloturerSemaineChampionnat, creerCoupe, cloturerTourCoupe, relancerPrime } from '../domaine/tournois.js';
+import { creerChampionnat, cloturerSemaineChampionnat, creerCoupe, cloturerTourCoupe, relancerPrime, deciderPrime } from '../domaine/tournois.js';
 import { asynchrone } from './outils.js';
 
 export const routesAdmin = Router();
 routesAdmin.use(connecte, admin);
+
+// Journal : chaque action qui modifie quelque chose (POST, PUT, DELETE) est notée avec son auteur.
+routesAdmin.use((req, res, next) => {
+  if (req.method !== 'GET') {
+    res.on('finish', () => {
+      if (res.statusCode >= 400) return;
+      const corps = { ...(req.body || {}) };
+      delete corps.mot_de_passe;
+      requete('INSERT INTO journal_admin (admin_id, action, cible, details) VALUES ($1, $2, $3, $4)',
+        [req.joueur.id, `${req.method} ${req.baseUrl}${req.route?.path ?? req.path}`, req.path, JSON.stringify(corps).slice(0, 4000)])
+        .catch((e) => console.error('Journal admin :', e));
+    });
+  }
+  next();
+});
 
 // Créer ou mettre à jour un circuit (code = nom du niveau Unreal).
 routesAdmin.put('/circuits/:code', asynchrone(async (req, res) => {
@@ -137,7 +152,7 @@ routesAdmin.post('/tournois/coupes/:id/tours/:tour/cloturer', asynchrone(async (
 // Réglages des primes (espace administrateur) : 20 $ × 4 équipes par semaine, primes de la Coupe d'Afrique.
 async function reglagesTournois() {
   const { rows: [p] } = await requete(
-    'SELECT prime_semaine_centimes, nb_equipes_primees, coupe_prime_championne_centimes, coupe_prime_finaliste_centimes FROM parametres');
+    'SELECT prime_semaine_centimes, nb_equipes_primees, coupe_prime_championne_centimes, coupe_prime_finaliste_centimes, validation_primes FROM parametres');
   return p;
 }
 routesAdmin.get('/tournois/reglages', asynchrone(async (_req, res) => { res.json(await reglagesTournois()); }));
@@ -145,11 +160,12 @@ routesAdmin.put('/tournois/reglages', asynchrone(async (req, res) => {
   const montant = z.number().int().min(0).max(10_000_000);
   const d = valider(z.object({
     prime_semaine_centimes: montant, nb_equipes_primees: z.number().int().min(0).max(16),
-    coupe_prime_championne_centimes: montant, coupe_prime_finaliste_centimes: montant }), req.body);
+    coupe_prime_championne_centimes: montant, coupe_prime_finaliste_centimes: montant,
+    validation_primes: z.boolean().optional() }), req.body);
   await requete(
     `UPDATE parametres SET prime_semaine_centimes = $1, nb_equipes_primees = $2, coupe_prime_championne_centimes = $3,
-       coupe_prime_finaliste_centimes = $4, maj_le = now(), maj_par = $5`,
-    [d.prime_semaine_centimes, d.nb_equipes_primees, d.coupe_prime_championne_centimes, d.coupe_prime_finaliste_centimes, req.joueur.id]);
+       coupe_prime_finaliste_centimes = $4, validation_primes = coalesce($6, validation_primes), maj_le = now(), maj_par = $5`,
+    [d.prime_semaine_centimes, d.nb_equipes_primees, d.coupe_prime_championne_centimes, d.coupe_prime_finaliste_centimes, req.joueur.id, d.validation_primes ?? null]);
   // La Coupe d'Afrique en cours prend les nouveaux montants (versés à la finale).
   await requete(`UPDATE coupes SET primes_centimes = $1 WHERE statut = 'active'`,
     [[d.coupe_prime_championne_centimes, d.coupe_prime_finaliste_centimes]]);
@@ -174,13 +190,56 @@ routesAdmin.get('/tournois', asynchrone(async (_req, res) => {
 
 // Primes : liste, et relance d'une prime M-Pesa échouée.
 routesAdmin.get('/primes', asynchrone(async (req, res) => {
-  const statut = req.query.statut ? valider(z.enum(['en_attente', 'reussi', 'echoue', 'a_verser_manuellement']), req.query.statut) : null;
+  const statut = req.query.statut ? valider(z.enum(['a_valider', 'en_attente', 'reussi', 'echoue', 'a_verser_manuellement', 'refusee']), req.query.statut) : null;
   const { rows } = await requete(
-    `SELECT pr.*, j.pseudo, j.telephone, e.nom AS equipe FROM primes pr JOIN joueurs j ON j.id = pr.joueur_id
+    `SELECT pr.*, j.pseudo, j.telephone, j.bloque, e.nom AS equipe FROM primes pr JOIN joueurs j ON j.id = pr.joueur_id
        JOIN equipes e ON e.id = pr.equipe_id
       WHERE ($1::text IS NULL OR pr.statut = $1) ORDER BY pr.cree_le DESC LIMIT 500`, [statut]);
   res.json(rows);
 }));
 routesAdmin.post('/primes/:id/relancer', asynchrone(async (req, res) => {
   res.json(await relancerPrime(req.params.id));
+}));
+// Valider (envoi M-Pesa) ou refuser une prime. Avant de valider : regarder les courses du pilote.
+routesAdmin.post('/primes/:id/valider', asynchrone(async (req, res) => {
+  res.json(await deciderPrime(req.params.id, req.joueur.id, true));
+}));
+routesAdmin.post('/primes/:id/refuser', asynchrone(async (req, res) => {
+  const { motif } = valider(z.object({ motif: z.string().trim().min(3).max(300) }), req.body ?? {});
+  res.json(await deciderPrime(req.params.id, req.joueur.id, false, motif));
+}));
+
+// Courses récentes d'un pilote (pour vérifier une prime) : temps, circuit, verdict de l'anti-triche.
+routesAdmin.get('/joueurs/:id/courses', asynchrone(async (req, res) => {
+  const { rows } = await requete(
+    `SELECT co.id, ci.code AS circuit, ci.temps_min_ms, co.temps_ms, co.valide, co.motif_rejet, co.cree_le
+       FROM courses co JOIN circuits ci ON ci.id = co.circuit_id
+      WHERE co.joueur_id = $1 ORDER BY co.cree_le DESC LIMIT 100`, [req.params.id]);
+  res.json(rows);
+}));
+
+// Rechercher un joueur par pseudo ou téléphone.
+routesAdmin.get('/joueurs', asynchrone(async (req, res) => {
+  const q = valider(z.object({ q: z.string().trim().min(2).max(30) }), req.query);
+  const { rows } = await requete(
+    `SELECT id, pseudo, telephone, pays_code, role, bloque, bloque_motif, cree_le FROM joueurs
+      WHERE pseudo ILIKE $1 OR ($2::text <> '' AND telephone LIKE '%' || $2 || '%') ORDER BY pseudo LIMIT 50`,
+    ['%' + q.q.replace(/[\\%_]/g, '\\$&') + '%', q.q.replace(/\D/g, '')]);
+  res.json(rows);
+}));
+
+// Bloquer un tricheur : sessions coupées, courses retirées des classements, primes en attente refusées.
+routesAdmin.post('/joueurs/:id/bloquer', asynchrone(async (req, res) => {
+  const d = valider(z.object({ bloque: z.boolean(), motif: z.string().trim().max(300).optional() }), req.body ?? {});
+  if (req.params.id === req.joueur.id) throw conflit('soi_meme', 'Vous ne pouvez pas bloquer votre propre compte.');
+  const { rows: [j] } = await requete(
+    `UPDATE joueurs SET bloque = $2, bloque_motif = $3, jetons_apres = CASE WHEN $2 THEN now() + interval '1 second' ELSE jetons_apres END
+      WHERE id = $1 RETURNING id, pseudo, bloque, bloque_motif`, [req.params.id, d.bloque, d.bloque ? (d.motif || 'triche') : null]);
+  if (!j) throw introuvable('Joueur introuvable.');
+  if (d.bloque) {
+    await requete(`UPDATE courses SET valide = false, motif_rejet = 'compte_bloque' WHERE joueur_id = $1 AND valide`, [j.id]);
+    await requete(`UPDATE primes SET statut = 'refusee', decide_par = $2, decide_le = now(), motif_refus = 'compte bloqué'
+                    WHERE joueur_id = $1 AND statut = 'a_valider'`, [j.id, req.joueur.id]);
+  }
+  res.json(j);
 }));

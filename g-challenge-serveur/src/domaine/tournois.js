@@ -87,6 +87,8 @@ async function primeEquipe(client, { origine, competitionId, numero, devise, equ
   if (payes.includes(eq.capitaine_id)) payes = [eq.capitaine_id, ...payes.filter((j) => j !== eq.capitaine_id)];
   const part = Math.floor(montant / payes.length), reste = montant - part * payes.length;
   const crees = [];
+  // Par défaut, un administrateur valide chaque prime avant l'envoi M-Pesa (vérification anti-triche).
+  const { rows: [reg] } = await client.query('SELECT validation_primes FROM parametres');
   for (let i = 0; i < payes.length; i++) {
     const m = part + (i === 0 ? reste : 0);
     if (m <= 0) continue;
@@ -100,7 +102,7 @@ async function primeEquipe(client, { origine, competitionId, numero, devise, equ
       `INSERT INTO primes (origine, competition_id, numero, equipe_id, joueur_id, rang, montant_centimes, devise, fournisseur, statut)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
       [origine, competitionId, numero, equipe.equipe_id, payes[i], rang, m, devise, fournisseur,
-        fournisseur ? 'en_attente' : 'a_verser_manuellement']);
+        fournisseur ? (reg.validation_primes ? 'a_valider' : 'en_attente') : 'a_verser_manuellement']);
     crees.push(p);
   }
   return crees;
@@ -127,6 +129,17 @@ export async function relancerPrime(primeId) {
     `UPDATE primes SET statut = 'en_attente', maj_le = now() WHERE id = $1 AND statut = 'echoue' AND fournisseur IS NOT NULL RETURNING id`, [primeId]);
   if (!p) throw conflit('prime_non_relancable', 'Seule une prime automatique échouée peut être relancée.');
   await executerPrime(primeId);
+  return (await requete('SELECT * FROM primes WHERE id = $1', [primeId])).rows[0];
+}
+
+/** L'administrateur accepte (envoi M-Pesa) ou refuse (triche, erreur) une prime en attente de validation. */
+export async function deciderPrime(primeId, adminId, accepter, motif = null) {
+  const { rows: [p] } = await requete(
+    `UPDATE primes SET statut = $3, decide_par = $2, decide_le = now(), motif_refus = $4, maj_le = now()
+      WHERE id = $1 AND statut = 'a_valider' RETURNING *`,
+    [primeId, adminId, accepter ? 'en_attente' : 'refusee', accepter ? null : motif]);
+  if (!p) throw conflit('prime_deja_decidee', 'Cette prime a déjà été validée ou refusée.');
+  if (accepter) await executerPrime(primeId);
   return (await requete('SELECT * FROM primes WHERE id = $1', [primeId])).rows[0];
 }
 

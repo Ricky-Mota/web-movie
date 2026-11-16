@@ -12,7 +12,7 @@ import { routesAdmin } from './routes/admin.js';
 import { routesTournois } from './routes/tournois.js';
 import { asynchrone } from './routes/outils.js';
 
-export function creerApp({ limiteConnexions = 20, apresSante = null } = {}) {
+export function creerApp({ limiteConnexions = 20, limiteGlobale = 300, limiteCourses = 30, apresSante = null } = {}) {
   const app = express();
   app.set('trust proxy', 1); // derrière l'hébergeur (Render, Railway...)
   app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
@@ -31,7 +31,14 @@ export function creerApp({ limiteConnexions = 20, apresSante = null } = {}) {
     if (req.method === 'OPTIONS') return res.sendStatus(204);
     next();
   });
-  app.use(express.json({ limit: '3mb' })); // un trajet de 30 min tient en ~2 Mo
+  // Anti-abus : au plus `limiteGlobale` requêtes par minute et par adresse IP, et `limiteCourses` envois de course.
+  const parMinute = (limit) => rateLimit({ windowMs: 60 * 1000, limit, standardHeaders: 'draft-7', legacyHeaders: false,
+    handler: (_req, res) => res.status(429).json({ erreur: { code: 'trop_de_requetes', message: 'Trop de demandes, patientez une minute.' } }) });
+  app.use(parMinute(limiteGlobale));
+  app.post('/courses', parMinute(limiteCourses));
+  // Seul l'envoi d'une course peut être gros (un trajet de 30 min tient en ~2 Mo) ; tout le reste : 100 Ko au plus.
+  app.use('/courses', express.json({ limit: '3mb' }));
+  app.use(express.json({ limit: '100kb' }));
   // Espace administrateur : primes, championnats, coupe, primes à verser (page + script, même adresse que l'API).
   app.use('/espace-admin', express.static(new URL('../espace-admin/', import.meta.url).pathname, { index: 'index.html' }));
 
@@ -53,7 +60,8 @@ export function creerApp({ limiteConnexions = 20, apresSante = null } = {}) {
   }));
 
   // Freine les essais de mots de passe en rafale.
-  const limiteAuth = rateLimit({ windowMs: 15 * 60 * 1000, limit: limiteConnexions, standardHeaders: 'draft-7', legacyHeaders: false });
+  const limiteAuth = rateLimit({ windowMs: 15 * 60 * 1000, limit: limiteConnexions, standardHeaders: 'draft-7', legacyHeaders: false,
+    handler: (_req, res) => res.status(429).json({ erreur: { code: 'trop_de_tentatives', message: 'Trop de tentatives : réessayez dans 15 minutes.' } }) });
   app.use('/joueurs/connexion', limiteAuth);
   app.use('/joueurs/inscription', limiteAuth);
 

@@ -15,6 +15,18 @@ const ETAPE = /^[a-z0-9_-]{1,32}$/;
 const LETTRES = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 
 const salons = new Map(); // code -> salon
+const SALONS_MAX = 2000; // garde-fou mémoire
+
+// Limiteur par connexion : au plus `max` messages par seconde pour chaque type d'action.
+function limiteur() {
+  const compteurs = new Map();
+  return (cle, max) => {
+    const s = Math.floor(Date.now() / 1000), c = compteurs.get(cle);
+    if (!c || c.s !== s) { compteurs.set(cle, { s, n: 1 }); return true; }
+    c.n += 1;
+    return c.n <= max;
+  };
+}
 
 function nouveauCode() {
   for (;;) {
@@ -34,6 +46,7 @@ function etat(s) {
 export function installerSalons(io, socket, lirePseudo = pseudoEnBase) {
   const moi = socket.data.joueur;
   let monSalon = null;
+  const autorise = limiteur();
 
   const diffuser = (s) => io.to(`salon:${s.code}`).emit('salon:etat', etat(s));
 
@@ -80,11 +93,13 @@ export function installerSalons(io, socket, lirePseudo = pseudoEnBase) {
 
   const sur = (evenement, fn) => socket.on(evenement, (donnees, repondre) => {
     const rep = typeof repondre === 'function' ? repondre : () => {};
+    if (!autorise(evenement, 3)) return rep({ erreur: 'Trop de demandes, patientez une seconde.' });
     Promise.resolve(fn(donnees ?? {}, rep)).catch(() => rep({ erreur: 'Erreur du serveur, réessayez.' }));
   });
 
   sur('salon:creer', async (d, rep) => {
     if (typeof d.etape !== 'string' || !ETAPE.test(d.etape)) return rep({ erreur: 'Étape invalide.' });
+    if (salons.size >= SALONS_MAX) return rep({ erreur: 'Trop de salons ouverts, réessayez dans un instant.' });
     const s = { code: nouveauCode(), etape: d.etape, statut: 'attente', hote: moi.id, joueurs: new Map(), minuterie: null };
     salons.set(s.code, s);
     await entrer(s, rep);
@@ -115,7 +130,7 @@ export function installerSalons(io, socket, lirePseudo = pseudoEnBase) {
   });
   socket.on('salon:position', (d) => {
     const s = salons.get(monSalon);
-    if (!s || s.statut !== 'course' || !d) return;
+    if (!s || s.statut !== 'course' || !d || !autorise('position', 25)) return;
     const n = (v, max) => (Number.isFinite(v) ? Math.max(-max, Math.min(max, v)) : 0);
     socket.to(`salon:${s.code}`).volatile.emit('salon:pos', { id: moi.id, z: n(d.z, 1e5), x: n(d.x, 3), v: n(d.v, 200) });
   });

@@ -1,5 +1,5 @@
 {
-  "_lisezmoi": "Circuits du jeu. 'L_…' : niveaux Unreal (coordonnées en cm, X devant, Y à droite, Z en haut) : BP_LigneDepart en 'depart', BP_LigneArrivee en 'arrivee' (tolérance 15 m). 'W_…' : les 8 étapes de la démo web (X = distance le long de la route). difficulte : facile, moyen, difficile ou tres_difficile. temps_min_ms = 95 % du parcours entier à vitesse_max_kmh ; après les tests, recalez-le à environ 85 % du meilleur temps des testeurs. Le serveur déclare ces circuits à chaque démarrage (ou : npm run circuits).",
+  "_lisezmoi": "Circuits du jeu. 'L_…' : niveaux Unreal (coordonnées en cm, X devant, Y à droite, Z en haut) : BP_LigneDepart en 'depart', BP_LigneArrivee en 'arrivee' (tolérance 15 m). 'W_…' : les 8 étapes de la démo web (X = distance le long de la route). difficulte : facile, moyen, difficile ou tres_difficile. temps_min_ms (Unreal) = 95 % du parcours entier à vitesse_max_kmh. Circuits web : vitesse_max_kmh = turbo maximal du jeu (+2 %), temps_min_ms = 97 % du parcours à la meilleure vitesse moyenne possible (vitesse max + 40 % du gain du turbo) ; après les tests, recalez-le à environ 85 % du meilleur temps des testeurs. Le serveur déclare ces circuits à chaque démarrage (ou : npm run circuits).",
   "circuits": [
     {
       "code": "L_Kinshasa_Victoire",
@@ -94,8 +94,8 @@
       "nom": "Rond-point Victoire (web)",
       "difficulte": "facile",
       "longueur_m": 2400,
-      "temps_min_ms": 30000,
-      "vitesse_max_kmh": 270,
+      "temps_min_ms": 58000,
+      "vitesse_max_kmh": 183,
       "depart": [0, 0, 0],
       "arrivee": [240000, 0, 0],
       "tolerance_cm": 1500
@@ -105,8 +105,8 @@
       "nom": "Boulevard du 30 Juin (web)",
       "difficulte": "facile",
       "longueur_m": 3200,
-      "temps_min_ms": 40000,
-      "vitesse_max_kmh": 270,
+      "temps_min_ms": 71000,
+      "vitesse_max_kmh": 199,
       "depart": [0, 0, 0],
       "arrivee": [320000, 0, 0],
       "tolerance_cm": 1500
@@ -116,8 +116,8 @@
       "nom": "Le Grand Marché (web)",
       "difficulte": "moyen",
       "longueur_m": 2600,
-      "temps_min_ms": 32000,
-      "vitesse_max_kmh": 270,
+      "temps_min_ms": 72000,
+      "vitesse_max_kmh": 159,
       "depart": [0, 0, 0],
       "arrivee": [260000, 0, 0],
       "tolerance_cm": 1500
@@ -127,8 +127,8 @@
       "nom": "Route des Poids Lourds (web)",
       "difficulte": "moyen",
       "longueur_m": 3200,
-      "temps_min_ms": 40000,
-      "vitesse_max_kmh": 270,
+      "temps_min_ms": 74000,
+      "vitesse_max_kmh": 191,
       "depart": [0, 0, 0],
       "arrivee": [320000, 0, 0],
       "tolerance_cm": 1500
@@ -138,8 +138,8 @@
       "nom": "Corniche du Fleuve (web)",
       "difficulte": "difficile",
       "longueur_m": 2900,
-      "temps_min_ms": 36000,
-      "vitesse_max_kmh": 270,
+      "temps_min_ms": 67000,
+      "vitesse_max_kmh": 191,
       "depart": [0, 0, 0],
       "arrivee": [290000, 0, 0],
       "tolerance_cm": 1500
@@ -149,8 +149,8 @@
       "nom": "Matonge by night (web)",
       "difficulte": "difficile",
       "longueur_m": 2700,
-      "temps_min_ms": 34000,
-      "vitesse_max_kmh": 270,
+      "temps_min_ms": 66000,
+      "vitesse_max_kmh": 183,
       "depart": [0, 0, 0],
       "arrivee": [270000, 0, 0],
       "tolerance_cm": 1500
@@ -160,8 +160,8 @@
       "nom": "Orage sur Limete (web)",
       "difficulte": "tres_difficile",
       "longueur_m": 3000,
-      "temps_min_ms": 38000,
-      "vitesse_max_kmh": 270,
+      "temps_min_ms": 72000,
+      "vitesse_max_kmh": 183,
       "depart": [0, 0, 0],
       "arrivee": [300000, 0, 0],
       "tolerance_cm": 1500
@@ -171,8 +171,8 @@
       "nom": "Poursuite à la Gombe (web)",
       "difficulte": "tres_difficile",
       "longueur_m": 2900,
-      "temps_min_ms": 36000,
-      "vitesse_max_kmh": 270,
+      "temps_min_ms": 65000,
+      "vitesse_max_kmh": 195,
       "depart": [0, 0, 0],
       "arrivee": [290000, 0, 0],
       "tolerance_cm": 1500

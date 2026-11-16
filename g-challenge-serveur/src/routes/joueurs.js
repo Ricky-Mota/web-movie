@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { requete } from '../db.js';
 import { valider, refus, conflit, ErreurApi, introuvable } from '../erreurs.js';
-import { hacherMotDePasse, verifierMotDePasse, creerJeton, connecte } from '../auth.js';
+import { hacherMotDePasse, comparerSansFuite, creerJeton, connecte } from '../auth.js';
 import { asynchrone } from './outils.js';
 
 export const routesJoueurs = Router();
@@ -38,7 +38,7 @@ routesJoueurs.post('/inscription', asynchrone(async (req, res) => {
 
 const schemaConnexion = z.object({
   identifiant: z.string().trim().min(3), // pseudo ou numéro de téléphone
-  mot_de_passe: z.string().min(1),
+  mot_de_passe: z.string().min(1).max(100),
 });
 
 routesJoueurs.post('/connexion', asynchrone(async (req, res) => {
@@ -46,9 +46,9 @@ routesJoueurs.post('/connexion', asynchrone(async (req, res) => {
   const tel = d.identifiant.replace(/[\s+()-]/g, '');
   const { rows: [j] } = await requete(
     'SELECT * FROM joueurs WHERE lower(pseudo) = lower($1) OR telephone = $2', [d.identifiant, tel]);
-  if (!j || !(await verifierMotDePasse(d.mot_de_passe, j.mot_de_passe_hash))) {
-    throw new ErreurApi(401, 'identifiants_invalides', 'Pseudo, numéro ou mot de passe incorrect.');
-  }
+  const bon = await comparerSansFuite(d.mot_de_passe, j?.mot_de_passe_hash);
+  if (!j || !bon) throw new ErreurApi(401, 'identifiants_invalides', 'Pseudo, numéro ou mot de passe incorrect.');
+  if (j.bloque) throw new ErreurApi(403, 'compte_bloque', 'Ce compte est bloqué. Contactez G-Challenge.');
   res.json({ jeton: creerJeton(j), joueur: publicJoueur(j) });
 }));
 

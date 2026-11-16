@@ -1,5 +1,7 @@
 # G-Challenge – serveur
 
+> Sécurité : lisez [SECURITE.md](SECURITE.md) (failles corrigées, risques restants, validation des primes, blocage des tricheurs).
+
 Le serveur de G-Challenge gère :
 
 - les **joueurs** : inscription par pseudo, téléphone et pays ;
