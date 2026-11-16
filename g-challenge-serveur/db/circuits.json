@@ -1,31 +1,54 @@
 {
-  "_lisezmoi": "Circuits du jeu. 'arrivee' = position de BP_LigneArrivee dans le niveau (Details > Location, en cm). Tant qu'elle vaut null, le circuit n'est pas déclaré. temps_min_ms : à recaler à 85 % du meilleur temps de vos testeurs. Puis : npm run circuits",
+  "_lisezmoi": "Les 5 circuits du jeu (proposition : de 4,4 à 6 km, soit 2 à 3 minutes de course). Coordonnées en centimètres (unités Unreal : X devant, Y à droite, Z en haut). Construisez chaque niveau pour que BP_LigneDepart soit en 'depart' et BP_LigneArrivee en 'arrivee' (tolérance : 15 m). temps_min_ms = 95 % du temps qu'il faudrait en roulant tout le parcours à vitesse_max_kmh : en dessous, la course est impossible, donc rejetée. Après les tests, recalez temps_min_ms à environ 85 % du meilleur temps de vos testeurs. Le serveur déclare ces circuits tout seul à chaque démarrage (ou : npm run circuits).",
   "circuits": [
     {
-      "code": "L_Kinshasa_30Juin",
-      "nom": "Boulevard du 30 Juin",
-      "temps_min_ms": 45000,
+      "code": "L_Kinshasa_Victoire",
+      "nom": "Rond-point Victoire",
+      "longueur_m": 4600,
+      "temps_min_ms": 92000,
       "vitesse_max_kmh": 170,
       "depart": [0, 0, 0],
-      "arrivee": null,
+      "arrivee": [-180000, 360000, 0],
       "tolerance_cm": 1500
     },
     {
       "code": "L_Kinshasa_Matonge",
       "nom": "Matonge",
-      "temps_min_ms": 50000,
+      "longueur_m": 4400,
+      "temps_min_ms": 88000,
       "vitesse_max_kmh": 170,
       "depart": [0, 0, 0],
-      "arrivee": null,
+      "arrivee": [190000, 250000, 0],
+      "tolerance_cm": 1500
+    },
+    {
+      "code": "L_Kinshasa_30Juin",
+      "nom": "Boulevard du 30 Juin",
+      "longueur_m": 5200,
+      "temps_min_ms": 104000,
+      "vitesse_max_kmh": 170,
+      "depart": [0, 0, 0],
+      "arrivee": [420000, 160000, 0],
+      "tolerance_cm": 1500
+    },
+    {
+      "code": "L_Kinshasa_PoidsLourds",
+      "nom": "Route des Poids Lourds",
+      "longueur_m": 5600,
+      "temps_min_ms": 112000,
+      "vitesse_max_kmh": 170,
+      "depart": [0, 0, 0],
+      "arrivee": [470000, 90000, -2500],
       "tolerance_cm": 1500
     },
     {
       "code": "L_Kinshasa_Fleuve",
-      "nom": "Le bord du fleuve",
-      "temps_min_ms": 70000,
+      "nom": "Corniche du Fleuve",
+      "longueur_m": 6000,
+      "temps_min_ms": 120000,
       "vitesse_max_kmh": 170,
       "depart": [0, 0, 0],
-      "arrivee": null,
+      "arrivee": [500000, -230000, 0],
       "tolerance_cm": 1500
     }
   ]
