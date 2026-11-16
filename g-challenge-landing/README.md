@@ -65,6 +65,9 @@ Chaque voiture a son propre son de moteur : plus aigu pour les sportives, plus g
 - **Décor 3D** (Hyper3D Rodin) : palmiers, lampadaires, abribus, étals du marché, pirogues et structure des panneaux publicitaires sont des modèles 3D photoréalistes, transformés en images par le même script que les voitures. Le conteneur, généré debout, garde son dessin d'origine.
 - **Sponsors** : panneaux le long de la route (tous les 200 m) et arches au-dessus de la route (tous les 300 m). Liste dans `PUBLICITES` (`src/jeu.js`) : Vodacom (M-PESA), Bralima (Coca-Cola), Canal+ (CANALBOX), Rawbank, Bracongo, Folucco et G-Challenge. Ce sont des **maquettes texte, sans logo** : avant toute mise en ligne publique, obtenez l'accord écrit de chaque marque (contrat de sponsoring), puis déposez son visuel officiel en `public/pubs/<id>.png` (format 2:1, par exemple 1600 × 800) et ajoutez son id dans `public/pubs/liste.json` (`{ "affiches": ["vodacom"] }`) : la démo l'affiche à la place de la maquette.
 
+- **Écrans LED** : panneaux et arches sont des écrans numériques ; chaque écran fait tourner les sponsors toutes les 6 s (glissement), avec un reflet lumineux et une trame de pixels (animations coupées si l'appareil demande moins d'animations).
+- **Bande « EN DIRECT »** sous l'écran de jeu, comme à la télévision : sponsor du moment (change toutes les 6 s), fil défilant et bouton **Commenter** (pseudo + 120 caractères). Le fil mêle les annonces du **commentateur**, tirées des vrais événements de la course (départ, dépassements, frôlés, arrestation, arrivée), et les **commentaires des fans**. Dans la démo, les commentaires restent sur l'appareil. Pour un tournoi en direct, il suffit d'appeler `window.GChallengeDirect.ajouter({ auteur, texte, type: 'fan' })` avec les messages reçus du serveur (WebSocket), après modération côté serveur.
+
 ### Les commandes
 
 | Action | Clavier | Téléphone |

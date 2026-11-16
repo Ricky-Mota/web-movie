@@ -830,7 +830,7 @@
       t.devant = t.z > z;
       if (etaitDevant && !t.devant && temps - (t.dernierChoc || -9) > 2 && v > d.vit + 3) {
         var ecartLat = Math.abs(t.x - x) * E.demi - LARGEUR[d.type] - DEMI_KETCH;
-        if (ecartLat >= 0 && ecartLat < 0.9) { frolés++; gagner(100, 'frôlé !'); sonNote(1180, 0, 0.12, 0.1, 'sine'); }
+        if (ecartLat >= 0 && ecartLat < 0.9) { frolés++; gagner(100, 'frôlé !'); if (frolés % 3 === 1) direct('Commentateur', 'Quel frôlé ! ' + voiture.nom + ' passe au ras de la carrosserie.'); sonNote(1180, 0, 0.12, 0.1, 'sine'); }
       }
       var devant = t.z - z;
       if (devant > 0 && devant < 16 && Math.abs(t.x - x) * E.demi < 1.6 && v > d.vit + 6 && temps - t.klaxon > 3) {
@@ -894,7 +894,7 @@
       pc.x += ((x > 0 ? 0.25 : -0.25) - pc.x) * dt;
       if (ecartP < 3.5 && grace <= 0) {
         pc.arrets++; pc.z = z - 75; pc.v = vRef * 0.6;
-        secousse(true); choc = 0.5; annoncer('Arrêté par la police !');
+        secousse(true); choc = 0.5; annoncer('Arrêté par la police !'); direct('Commentateur', 'La police arrête ' + voiture.nom + ' ! Gros temps perdu.');
         retirer('police', 'contrôle de police');
       }
     });
@@ -988,6 +988,7 @@
     var total = Math.max(0, Math.round(points) + bonusFantome + bonusPropre + bonusPlace);
     var etoiles = 1 + (ecart > 0 ? 1 : 0) + (ecart > 0 && nbChocs <= 2 ? 1 : 0);
     if (ecart > 0 && !mouvementReduit) emettre(160, VX, -10, 'confetti');
+    direct('Commentateur', voiture.nom + ' termine ' + E.nom + ' en ' + chrono(temps) + ' : ' + total.toLocaleString('fr-FR') + ' points' + (place === 1 ? ', victoire !' : ', ' + rangTexte(place) + ' place.'));
 
     var gainG = pieces + 5 * etoiles + (defiEnCours ? 15 : 0);
     var rangDefi = defiEnCours ? enregistrerEssaiDefi(total, temps) : 0;
@@ -1297,19 +1298,47 @@
     ctx.restore();
   }
   // Affiche d'un sponsor dans la zone (x, y, l, h) en unités du panneau.
-  function affiche(sp, x0, y0, l, h) {
+  // Écran LED numérique : le sponsor change toutes les 6 s (glissement), reflet lumineux qui balaie l'écran.
+  var horlogePub = 0;
+  function sponsorAffiche(sp) {
+    var i = PUBLICITES.indexOf(sp), t = horlogePub / 6;
+    return { sp: PUBLICITES[(i + Math.floor(t)) % PUBLICITES.length], suivant: PUBLICITES[(i + Math.floor(t) + 1) % PUBLICITES.length], f: t % 1 };
+  }
+  function contenuAffiche(sp, x0, y0, l, h) {
     var img = AFFICHES[sp.id];
     if (img) { ctx.drawImage(img, x0, y0, l, h); return; }
-    var g = ctx.createLinearGradient(0, y0, 0, y0 + h); g.addColorStop(0, sp.fond[0]); g.addColorStop(1, sp.fond[1]);
+    var g = ctx.createLinearGradient(x0, y0, x0 + l, y0 + h); g.addColorStop(0, sp.fond[0]); g.addColorStop(1, sp.fond[1]);
     ctx.fillStyle = g; ctx.fillRect(x0, y0, l, h);
-    ctx.fillStyle = sp.accent; ctx.fillRect(x0, y0 + h - h * 0.06, l, h * 0.06);
+    ctx.fillStyle = sp.accent; ctx.globalAlpha = 0.9; ctx.fillRect(x0, y0, l * 0.035, h); ctx.globalAlpha = 1;
     ctx.textAlign = 'center'; ctx.fillStyle = sp.texte;
-    ctx.font = '900 ' + Math.round(h * (sp.ligne ? 0.34 : 0.42)) + 'px "Bricolage Grotesque", Inter, sans-serif';
-    ctx.fillText(sp.nom, x0 + l / 2, y0 + h * (sp.ligne ? 0.5 : 0.62), l * 0.92);
+    ctx.shadowColor = 'rgba(0,0,0,.35)'; ctx.shadowBlur = h * 0.04;
+    ctx.font = '900 ' + Math.round(h * (sp.ligne ? 0.36 : 0.44)) + 'px "Bricolage Grotesque", Inter, sans-serif';
+    ctx.fillText(sp.nom, x0 + l / 2, y0 + h * (sp.ligne ? 0.52 : 0.64), l * 0.88);
+    ctx.shadowBlur = 0;
     if (sp.ligne) {
       ctx.fillStyle = sp.accent; ctx.font = '800 ' + Math.round(h * 0.15) + 'px Inter, sans-serif';
-      ctx.fillText(sp.ligne, x0 + l / 2, y0 + h * 0.78, l * 0.9);
+      ctx.fillText(sp.ligne, x0 + l / 2, y0 + h * 0.8, l * 0.86);
     }
+  }
+  function affiche(sp0, x0, y0, l, h) {
+    var a = sponsorAffiche(sp0);
+    ctx.save();
+    ctx.beginPath(); ctx.rect(x0, y0, l, h); ctx.clip();
+    // Les 0,5 dernières secondes : l'affiche suivante arrive par la droite.
+    var glisse = mouvementReduit ? 0 : Math.max(0, (a.f - 0.92) / 0.08);
+    contenuAffiche(a.sp, x0 - glisse * l, y0, l, h);
+    if (glisse > 0) contenuAffiche(a.suivant, x0 + l - glisse * l, y0, l, h);
+    if (!mouvementReduit) {
+      var bx = x0 - l * 0.4 + ((horlogePub * 0.35) % 1.8) * l;
+      var reflet = ctx.createLinearGradient(bx, y0, bx + l * 0.3, y0 + h);
+      reflet.addColorStop(0, 'rgba(255,255,255,0)'); reflet.addColorStop(0.5, 'rgba(255,255,255,.22)'); reflet.addColorStop(1, 'rgba(255,255,255,0)');
+      ctx.fillStyle = reflet; ctx.fillRect(x0, y0, l, h);
+    }
+    // Trame de pixels LED, très légère.
+    ctx.fillStyle = 'rgba(0,0,0,.12)';
+    var pas = Math.max(3, h / 40);
+    for (var ly = y0; ly < y0 + h; ly += pas) ctx.fillRect(x0, ly, l, pas * 0.25);
+    ctx.restore();
   }
   function pub(sx, sy, s, sp) {
     lumiere(sx, sy - 470 * s, 260 * s, '255,236,190');
@@ -1323,10 +1352,10 @@
       return;
     }
     ctx.save(); ctx.translate(sx, sy); ctx.scale(s, s);
-    ctx.fillStyle = '#4A505C'; ctx.fillRect(-90, -350, 14, 350); ctx.fillRect(76, -350, 14, 350);
-    ctx.fillStyle = '#2B2F38'; rect(-250, -600, 500, 260, 8); ctx.fill();
-    affiche(sp, -240, -590, 480, 240);
-    ctx.fillStyle = '#2B2F38'; ctx.fillRect(-120, -618, 10, 20); ctx.fillRect(110, -618, 10, 20);
+    ctx.fillStyle = '#3A3F4A'; ctx.fillRect(-20, -350, 40, 350);
+    ctx.fillStyle = '#11141B'; rect(-256, -606, 512, 272, 14); ctx.fill();
+    affiche(sp, -244, -594, 488, 248);
+    ctx.fillStyle = 'rgba(127,216,255,.55)'; ctx.fillRect(-244, -340, 488, 3);
     ctx.restore();
   }
   function abribus(sx, sy, s) {
@@ -1547,8 +1576,8 @@
     ctx.save();
     ctx.fillStyle = '#5A606C';
     ctx.fillRect(c - w * 1.04 - 7 * s, sy - haut, 14 * s, haut); ctx.fillRect(c + w * 1.04 - 7 * s, sy - haut, 14 * s, haut);
-    ctx.fillStyle = '#3A3F4A'; ctx.fillRect(c - w * 1.06, sy - haut - 6 * s, w * 2.12, 10 * s);
-    ctx.translate(c - w * 0.98, sy - haut + 6 * s); ctx.scale(w * 1.96 / 800, bh / 100);
+    ctx.fillStyle = '#11141B'; ctx.fillRect(c - w * 1.06, sy - haut - 8 * s, w * 2.12, bh + 16 * s);
+    ctx.translate(c - w * 0.99, sy - haut); ctx.scale(w * 1.98 / 800, bh / 100);
     affiche(sp, 0, 0, 800, 100);
     ctx.restore();
   }
@@ -2060,6 +2089,8 @@
   }
   function boucle(t) {
     var dt = avant ? Math.min(0.05, (t - avant) / 1000) : 0;
+    horlogePub += dt;
+    majBande(dt);
     avant = t;
     taille();
     avancer(dt);
@@ -2080,6 +2111,8 @@
     etapeChoisie = id || etapeChoisie;
     reinitialiser(etapeChoisie);
     etat = 'compte';
+    dernierRang = 0; dernierCommentaire = -9;
+    direct('Commentateur', 'Départ imminent : ' + voiture.nom + ' sur ' + ETAPES[etapeChoisie].nom + ', face à Kin Flash, Bana Mboka et Lisanga.');
     sonDemarrer();
     if (son.ctx) {
       son.oscA.type = voiture.electrique ? 'sine' : 'sawtooth';
@@ -2245,6 +2278,72 @@
     vueGarage = voiture; majVoitures(); majRecords(); majDefi(); choisirEtape(etapeChoisie);
     if (boutonLancer) boutonLancer.focus({ preventScroll: true });
   });
+
+  // ---------- Bande « EN DIRECT » : sponsor du moment + fil des commentaires ----------
+  // Fil : annonces du commentateur (événements réels de votre course) et commentaires des fans.
+  // Dans la démo, les commentaires restent sur l'appareil. Pour un tournoi en direct, brancher
+  // window.GChallengeDirect.ajouter({ auteur, texte, type: 'fan' }) sur le serveur (WebSocket),
+  // avec modération côté serveur avant diffusion.
+  var bandeSponsor = document.getElementById('bandeSponsor'), bandeDefile = document.getElementById('bandeDefile');
+  var fil = [], positionFil = 0, sponsorBande = -1, dernierRang = 0, dernierCommentaire = -9;
+  function echapper(t) { return String(t).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+  function direct(auteur, texte, type) {
+    fil.push({ auteur: auteur, texte: texte, type: type || 'commentateur' });
+    if (fil.length > 14) fil.shift();
+    if (bandeDefile) bandeDefile.innerHTML = fil.map(function (m) {
+      return '<span class="' + m.type + '"><b>' + echapper(m.auteur) + '</b>' + echapper(m.texte) + '</span>';
+    }).join('');
+  }
+  window.GChallengeDirect = { ajouter: function (m) { if (m && m.texte) direct(m.auteur || 'Fan', String(m.texte).slice(0, 120), m.type || 'fan'); } };
+  direct('Direct', 'Bienvenue sur La Course des Ketch ! Choisissez votre voiture et lancez la course.', 'commentateur');
+  direct('Direct', 'Écrivez votre commentaire avec le bouton « Commenter » à droite.', 'commentateur');
+  function majBande(dt) {
+    var i = Math.floor(horlogePub / 6) % PUBLICITES.length;
+    if (bandeSponsor && i !== sponsorBande) {
+      sponsorBande = i; var sp = PUBLICITES[i];
+      bandeSponsor.style.background = 'linear-gradient(90deg,' + sp.fond[0] + ',' + sp.fond[1] + ')';
+      bandeSponsor.style.color = sp.texte;
+      bandeSponsor.innerHTML = echapper(sp.nom) + (sp.ligne ? ' <small>' + echapper(sp.ligne) + '</small>' : '');
+    }
+    if (bandeDefile && !mouvementReduit) {
+      var largeur = bandeDefile.scrollWidth, zone = bandeDefile.parentNode.clientWidth;
+      positionFil -= dt * 70;
+      if (positionFil < -largeur) positionFil = zone;
+      bandeDefile.style.transform = 'translateX(' + positionFil.toFixed(1) + 'px)';
+    }
+    // Commentateur : il annonce ce qui se passe vraiment dans votre course.
+    if (etat === 'course' && rivaux.length) {
+      var rang = 1 + rivaux.filter(function (rv) { return rv.z > z; }).length;
+      if (dernierRang && rang !== dernierRang && temps - dernierCommentaire > 4) {
+        dernierCommentaire = temps;
+        direct('Commentateur', rang < dernierRang ? (rang === 1 ? voiture.nom + ' prend la tête de la course !' : 'Belle remontée : ' + rangTexte(rang) + ' place pour ' + voiture.nom + ' !') : 'Aïe, ' + voiture.nom + ' recule en ' + rangTexte(rang) + ' position.');
+      }
+      dernierRang = rang;
+    }
+  }
+  var boutonCommenter = document.getElementById('boutonCommenter'), formCommentaire = document.getElementById('formCommentaire');
+  var champPseudo = document.getElementById('champPseudo'), champCommentaire = document.getElementById('champCommentaire');
+  try { if (champPseudo) champPseudo.value = localStorage.getItem('ketch-pseudo') || ''; } catch (e) {}
+  if (boutonCommenter) boutonCommenter.addEventListener('click', function () {
+    formCommentaire.hidden = false; boutonCommenter.setAttribute('aria-expanded', 'true');
+    (champPseudo.value ? champCommentaire : champPseudo).focus();
+  });
+  if (formCommentaire) {
+    formCommentaire.addEventListener('submit', function (e) {
+      e.preventDefault();
+      var texte = champCommentaire.value.trim().replace(/\s+/g, ' ').slice(0, 120), pseudo = champPseudo.value.trim().slice(0, 16) || 'Fan';
+      if (!texte) return;
+      try { localStorage.setItem('ketch-pseudo', pseudo); } catch (e2) {}
+      direct(pseudo, texte, 'fan');
+      positionFil = Math.min(positionFil, 0);
+      champCommentaire.value = ''; formCommentaire.hidden = true; boutonCommenter.setAttribute('aria-expanded', 'false');
+      canvas.focus({ preventScroll: true });
+    });
+    formCommentaire.addEventListener('keydown', function (e) {
+      e.stopPropagation(); // les touches tapées ne pilotent pas la voiture
+      if (e.key === 'Escape') { formCommentaire.hidden = true; boutonCommenter.setAttribute('aria-expanded', 'false'); }
+    });
+  }
 
   // ---------- Défi du jour ----------
   // Chaque jour (heure de Kinshasa), une étape et une voiture imposées, les mêmes pour tout le monde.
