@@ -25,3 +25,22 @@ export async function enregistrerCircuit(d) {
     [d.code, d.nom, d.temps_min_ms, d.vitesse_max_kmh, d.depart, d.arrivee, d.tolerance_cm, d.actif]);
   return c;
 }
+
+/**
+ * Déclare les circuits de db/circuits.json dont l'arrivée est renseignée (appelé à chaque démarrage :
+ * l'offre gratuite de Render n'a pas de terminal pour lancer « npm run circuits »).
+ * Renvoie { enregistres: [...], ignores: [...] }.
+ */
+export async function declarerCircuitsDuFichier() {
+  const { readFile } = await import('node:fs/promises');
+  const { circuits } = JSON.parse(await readFile(new URL('../../db/circuits.json', import.meta.url), 'utf8'));
+  const enregistres = [], ignores = [];
+  for (const brut of circuits) {
+    if (brut.arrivee === null) { ignores.push(brut.code); continue; }
+    const r = schemaCircuit.safeParse(brut);
+    if (!r.success) { ignores.push(brut.code); continue; }
+    await enregistrerCircuit(r.data);
+    enregistres.push(r.data.code);
+  }
+  return { enregistres, ignores };
+}

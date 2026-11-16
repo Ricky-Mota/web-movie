@@ -147,7 +147,17 @@ L'offre gratuite de Render endort le serveur après 15 minutes sans visite. Les 
 
 À chaque visite, le serveur rattrape aussi les clôtures en retard. Un seul service tourne ainsi 24 h/24, dans la limite des 750 heures gratuites par mois.
 
-### d) Devenir administrateur
+### d) L'espace administrateur
+
+Ouvrez `https://<votre-service>.onrender.com/espace-admin/` et connectez-vous avec un compte administrateur (voir e). Vous y trouvez :
+
+- **Primes** : la prime de la semaine par équipe (20 $ par défaut), le nombre d'équipes primées (4), et les primes de la **Coupe d'Afrique** pour la championne et la finaliste (à 0 en attendant les sponsors). Les montants valent pour les compétitions créées ensuite, et la Coupe en cours est mise à jour tout de suite ;
+- **Créer un championnat national** : pays, nom, sponsor, lundi de départ (le prochain lundi par défaut) et circuit de chaque semaine ;
+- la liste des championnats et de la Coupe, et les **primes à verser à la main** ou échouées (bouton « Relancer »).
+
+Un championnat ne peut se créer que sur des **circuits déclarés**. Le serveur déclare au démarrage ceux de `db/circuits.json` dont l'arrivée est renseignée (position de `BP_LigneArrivee` dans le niveau Unreal).
+
+### e) Devenir administrateur
 
 Inscrivez-vous depuis le jeu ou avec l'API (`POST /joueurs/inscription`). Puis, dans Neon, ouvrez **SQL Editor** et exécutez :
 

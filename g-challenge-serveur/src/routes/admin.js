@@ -89,12 +89,17 @@ const schemaChampionnat = z.object({
   nb_equipes: z.number().int().min(2).max(64).default(16),
   taille_equipe: z.number().int().min(1).max(5).default(3),
   nb_qualifies: z.number().int().min(1).max(8).default(2),
-  primes_centimes: z.array(z.number().int().min(0)).max(20).default([2000, 2000, 2000, 2000]),
+  primes_centimes: z.array(z.number().int().min(0)).max(20).optional(), // par défaut : les réglages de l'espace administrateur
   points: z.array(z.number().int().min(0)).min(1).max(64).default([25, 20, 16, 13, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1]),
   devise: z.string().length(3).default('USD'),
 });
 routesAdmin.post('/tournois/championnats', asynchrone(async (req, res) => {
-  res.status(201).json(await creerChampionnat(valider(schemaChampionnat, req.body)));
+  const d = valider(schemaChampionnat, req.body);
+  if (!d.primes_centimes) {
+    const r = await reglagesTournois();
+    d.primes_centimes = Array(r.nb_equipes_primees).fill(r.prime_semaine_centimes);
+  }
+  res.status(201).json(await creerChampionnat(d));
 }));
 routesAdmin.post('/tournois/championnats/:id/semaines/:numero/cloturer', asynchrone(async (req, res) => {
   const numero = valider(z.coerce.number().int().min(1).max(60), req.params.numero);
@@ -111,17 +116,58 @@ const schemaCoupe = z.object({
   championnats: z.array(z.string().uuid()).min(2).max(16),
   circuits: z.array(z.string().min(1)).min(1).max(5),
   taille_equipe: z.number().int().min(1).max(5).default(3),
-  primes_centimes: z.array(z.number().int().min(0)).max(2).default([]),
+  primes_centimes: z.array(z.number().int().min(0)).max(2).optional(), // par défaut : les réglages
   devise: z.string().length(3).default('USD'),
 });
 routesAdmin.post('/tournois/coupes', asynchrone(async (req, res) => {
-  res.status(201).json(await creerCoupe(valider(schemaCoupe, req.body)));
+  const d = valider(schemaCoupe, req.body);
+  if (!d.primes_centimes) {
+    const r = await reglagesTournois();
+    d.primes_centimes = [r.coupe_prime_championne_centimes, r.coupe_prime_finaliste_centimes];
+  }
+  res.status(201).json(await creerCoupe(d));
 }));
 routesAdmin.post('/tournois/coupes/:id/tours/:tour/cloturer', asynchrone(async (req, res) => {
   const tour = valider(z.coerce.number().int().min(1).max(5), req.params.tour);
   const r = await cloturerTourCoupe(req.params.id, tour, { forcer: true });
   if (!r) throw conflit('deja_cloture', 'Ce tour est déjà clôturé.');
   res.json({ matchs: r.matchs, primes: r.primes.length, termine: r.termine });
+}));
+
+// Réglages des primes (espace administrateur) : 20 $ × 4 équipes par semaine, primes de la Coupe d'Afrique.
+async function reglagesTournois() {
+  const { rows: [p] } = await requete(
+    'SELECT prime_semaine_centimes, nb_equipes_primees, coupe_prime_championne_centimes, coupe_prime_finaliste_centimes FROM parametres');
+  return p;
+}
+routesAdmin.get('/tournois/reglages', asynchrone(async (_req, res) => { res.json(await reglagesTournois()); }));
+routesAdmin.put('/tournois/reglages', asynchrone(async (req, res) => {
+  const montant = z.number().int().min(0).max(10_000_000);
+  const d = valider(z.object({
+    prime_semaine_centimes: montant, nb_equipes_primees: z.number().int().min(0).max(16),
+    coupe_prime_championne_centimes: montant, coupe_prime_finaliste_centimes: montant }), req.body);
+  await requete(
+    `UPDATE parametres SET prime_semaine_centimes = $1, nb_equipes_primees = $2, coupe_prime_championne_centimes = $3,
+       coupe_prime_finaliste_centimes = $4, maj_le = now(), maj_par = $5`,
+    [d.prime_semaine_centimes, d.nb_equipes_primees, d.coupe_prime_championne_centimes, d.coupe_prime_finaliste_centimes, req.joueur.id]);
+  // La Coupe d'Afrique en cours prend les nouveaux montants (versés à la finale).
+  await requete(`UPDATE coupes SET primes_centimes = $1 WHERE statut = 'active'`,
+    [[d.coupe_prime_championne_centimes, d.coupe_prime_finaliste_centimes]]);
+  res.json(await reglagesTournois());
+}));
+
+// Vue d'ensemble pour l'espace administrateur.
+routesAdmin.get('/tournois', asynchrone(async (_req, res) => {
+  const championnats = (await requete(
+    `SELECT c.id, c.pays_code, c.nom, c.sponsor, c.premier_lundi, c.statut, c.nb_equipes, c.primes_centimes,
+            array_length(c.circuits, 1) AS semaines,
+            (SELECT min(numero) FROM championnat_semaines s WHERE s.championnat_id = c.id AND s.cloturee_le IS NULL) AS semaine_ouverte
+       FROM championnats c ORDER BY c.cree_le DESC LIMIT 50`)).rows;
+  const coupes = (await requete(
+    `SELECT c.id, c.nom, c.sponsor, c.premier_lundi, c.statut, c.primes_centimes, e.nom AS championne
+       FROM coupes c LEFT JOIN equipes e ON e.id = c.championne_id ORDER BY c.cree_le DESC LIMIT 20`)).rows;
+  const circuits = (await requete('SELECT code, nom FROM circuits WHERE actif ORDER BY nom')).rows;
+  res.json({ championnats, coupes, circuits, reglages: await reglagesTournois() });
 }));
 
 // Primes : liste, et relance d'une prime M-Pesa échouée.

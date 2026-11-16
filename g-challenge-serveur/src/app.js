@@ -17,6 +17,8 @@ export function creerApp({ limiteConnexions = 20, apresSante = null } = {}) {
   app.set('trust proxy', 1); // derrière l'hébergeur (Render, Railway...)
   app.use(helmet());
   app.use(express.json({ limit: '3mb' })); // un trajet de 30 min tient en ~2 Mo
+  // Espace administrateur : primes, championnats, coupe, primes à verser (page + script, même adresse que l'API).
+  app.use('/espace-admin', express.static(new URL('../espace-admin/', import.meta.url).pathname, { index: 'index.html' }));
 
   // Appelée toutes les 10 minutes par un service de réveil gratuit (cron-job.org) :
   // garde le serveur gratuit éveillé et rattrape les clôtures de tournois en retard.

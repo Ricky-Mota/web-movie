@@ -234,3 +234,17 @@ test('classement continental des pilotes : Afrique seulement', async () => {
   assert.ok(!r.continental.some((l) => l.pseudo === 'Sami'));
   assert.ok(r.meilleurs_par_pays.some((p) => p.code === 'GH'));
 });
+
+test("réglages des primes (espace administrateur) : valeurs par défaut des compétitions suivantes", async () => {
+  const avant = (await api('GET', '/admin/tournois/reglages', { jeton: J.admin.jeton })).json;
+  assert.deepEqual([avant.prime_semaine_centimes, avant.nb_equipes_primees, avant.coupe_prime_championne_centimes], [2000, 4, 0]);
+  assert.equal((await api('PUT', '/admin/tournois/reglages', { jeton: E.Gombe.pilotes[0].jeton, corps: {} })).statut, 403);
+  const r = await api('PUT', '/admin/tournois/reglages', { jeton: J.admin.jeton, corps: {
+    prime_semaine_centimes: 2500, nb_equipes_primees: 3, coupe_prime_championne_centimes: 30000, coupe_prime_finaliste_centimes: 15000 } });
+  assert.equal(r.statut, 200, JSON.stringify(r.json));
+  const c = await api('POST', '/admin/tournois/championnats', { jeton: J.admin.jeton, corps: {
+    pays: 'CD', nom: 'Saison 2', sponsor: 'Canal+', premier_lundi: lundiCourant(1), circuits: [CIRCUIT_TEST.code, CIRCUIT_TEST.code] } });
+  assert.deepEqual(c.json.primes_centimes.map(Number), [2500, 2500, 2500]);
+  const vue = (await api('GET', '/admin/tournois', { jeton: J.admin.jeton })).json;
+  assert.ok(vue.circuits.some((x) => x.code === CIRCUIT_TEST.code) && vue.championnats.length >= 3);
+});

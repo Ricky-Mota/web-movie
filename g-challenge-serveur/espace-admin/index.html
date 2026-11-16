@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>G-Challenge · Espace administrateur</title>
+<style>
+:root{--fond:#0E1630;--carte:#16204A;--bord:#2A3566;--texte:#F5F3EA;--doux:#C9CFE3;--jaune:#FFC814;--vert:#3DDC84;--rouge:#FF6B5E}
+*{box-sizing:border-box}
+body{margin:0;background:var(--fond);color:var(--texte);font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+main{max-width:980px;margin:0 auto;padding:24px 16px 60px;display:flex;flex-direction:column;gap:18px}
+h1{margin:0;font-size:26px}h1 span{color:var(--jaune)}
+h2{margin:0 0 10px;font-size:18px;color:var(--jaune)}
+section{background:var(--carte);border:1px solid var(--bord);border-radius:16px;padding:18px}
+label{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--doux)}
+input,select{height:42px;border-radius:10px;border:1px solid var(--bord);background:#0B1022;color:var(--texte);padding:0 12px;font:inherit}
+.grille{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;align-items:end}
+.montant{position:relative}.montant input{padding-right:34px;width:100%}.montant::after{content:"$";position:absolute;right:12px;bottom:10px;color:var(--doux)}
+button{height:42px;border:none;border-radius:999px;background:var(--jaune);color:#0E1630;font:700 14px system-ui,sans-serif;padding:0 20px;cursor:pointer}
+button.secondaire{background:transparent;border:1.5px solid var(--jaune);color:var(--jaune)}
+button:disabled{opacity:.5;cursor:wait}
+.message{min-height:20px;font-size:14px}.ok{color:var(--vert)}.erreur{color:var(--rouge)}
+.aide{font-size:13px;color:var(--doux);margin:6px 0 0}
+table{width:100%;border-collapse:collapse;font-size:14px}th,td{text-align:left;padding:8px;border-bottom:1px solid var(--bord)}th{color:var(--doux);font-weight:600}
+.puce{display:inline-block;padding:2px 10px;border-radius:999px;font-size:12px;font-weight:700;background:#2A3566}
+.puce.active{background:#1E7D45}.puce.terminee{background:#4A5788}
+[hidden]{display:none!important}
+</style>
+</head>
+<body>
+<main>
+<h1>G-Challenge · <span>Espace administrateur</span></h1>
+
+<section id="connexion">
+<h2>Connexion</h2>
+<form id="formConnexion" class="grille">
+<label>Pseudo ou téléphone<input name="identifiant" autocomplete="username" required></label>
+<label>Mot de passe<input name="mot_de_passe" type="password" autocomplete="current-password" required></label>
+<button type="submit">Se connecter</button>
+</form>
+<p class="message" id="msgConnexion" role="status"></p>
+</section>
+
+<div id="espace" hidden>
+<section>
+<h2>Primes</h2>
+<form id="formPrimes">
+<div class="grille">
+<label>Prime de la semaine, par équipe<span class="montant"><input name="prime_semaine" type="number" min="0" step="0.01" required></span></label>
+<label>Nombre d'équipes primées chaque semaine<input name="nb_equipes_primees" type="number" min="0" max="16" step="1" required></label>
+<label>Coupe d'Afrique : équipe championne<span class="montant"><input name="coupe_championne" type="number" min="0" step="0.01" required placeholder="0"></span></label>
+<label>Coupe d'Afrique : équipe finaliste<span class="montant"><input name="coupe_finaliste" type="number" min="0" step="0.01" required placeholder="0"></span></label>
+</div>
+<p class="aide">Montants par équipe, partagés entre ses pilotes qui ont couru, versés par M-PESA quand le pays le permet. Ils valent pour les championnats créés ensuite ; ceux de la Coupe d'Afrique en cours sont mis à jour tout de suite.</p>
+<p><button type="submit">Enregistrer les primes</button></p>
+<p class="message" id="msgPrimes" role="status"></p>
+</form>
+</section>
+
+<section>
+<h2>Créer un championnat national (Tournoi Sponsor)</h2>
+<form id="formChampionnat">
+<div class="grille">
+<label>Pays<select name="pays" id="choixPays"></select></label>
+<label>Nom<input name="nom" required value="Championnat RDC · Saison 1"></label>
+<label>Sponsor<input name="sponsor" required placeholder="Nom du sponsor"></label>
+<label>Lundi de départ (qualifications)<input name="premier_lundi" type="date" required></label>
+</div>
+<p class="aide">Semaine 1 : qualifications (16 équipes retenues), puis 4 semaines de championnat. Choisissez le circuit de chaque semaine :</p>
+<div class="grille" id="choixCircuits"></div>
+<p class="aide erreur" id="sansCircuit" hidden>Aucun circuit déclaré : renseignez l'arrivée des circuits dans <code>db/circuits.json</code> (position de la ligne d'arrivée dans Unreal), puis redéployez. Le serveur les déclare au démarrage.</p>
+<p><button type="submit" id="boutonChampionnat">Créer le championnat</button></p>
+<p class="message" id="msgChampionnat" role="status"></p>
+</form>
+</section>
+
+<section>
+<h2>Championnats et Coupe d'Afrique</h2>
+<table><thead><tr><th>Compétition</th><th>Sponsor</th><th>Départ</th><th>Semaine ouverte</th><th>État</th></tr></thead><tbody id="listeCompetitions"></tbody></table>
+</section>
+
+<section>
+<h2>Primes à verser à la main ou échouées</h2>
+<table><thead><tr><th>Pilote</th><th>Équipe</th><th>Téléphone</th><th>Montant</th><th>État</th><th></th></tr></thead><tbody id="listePrimes"></tbody></table>
+<p class="aide">« À verser à la main » : le pays du pilote n'a pas encore de versement automatique. « Échouée » : M-PESA a refusé, vous pouvez relancer.</p>
+</section>
+<p><button class="secondaire" id="boutonDeconnexion" type="button">Se déconnecter</button></p>
+</div>
+</main>
+<script src="admin.js"></script>
+</body>
+</html>
