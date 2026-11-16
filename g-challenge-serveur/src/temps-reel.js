@@ -3,6 +3,7 @@
 // (plus simple depuis Unreal), puis rejoint les salons de ses duels.
 import { Server } from 'socket.io';
 import { lireJeton } from './auth.js';
+import { installerSalons } from './salons.js';
 
 let io = null;
 
@@ -21,6 +22,7 @@ export function demarrerTempsReel(serveurHttp) {
     socket.on('suivre_duel', (duelId) => {
       if (typeof duelId === 'string') socket.join(`duel:${duelId}`);
     });
+    installerSalons(io, socket);
   });
   return io;
 }

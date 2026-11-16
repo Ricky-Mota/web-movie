@@ -241,6 +241,8 @@ html{scroll-behavior:smooth}
 .duel-resultats li,.duel-podium li{display:flex;align-items:center;gap:10px;justify-content:space-between;padding:8px 12px;border-radius:12px;background:rgba(255,255,255,.06);font-size:14px}
 .duel-podium .rang{font:900 16px Inter,sans-serif;color:#FFC814;flex:0 0 34px}.duel-podium b{flex:1}.duel-podium .place1{background:rgba(255,200,20,.18);border:1px solid #FFC814}
 @media (max-width:640px){.bande-radio{padding:0 6px;font-size:10px;max-width:96px}.mode-duel{margin-top:5px;padding:5px 10px}.mode-duel span{display:none}.mode-duel b{font-size:13px}.duel-qui{font-size:18px}.duel-config,.duel-tour{gap:6px}.duel-config input,.duel-config select{height:32px}.jeu-duel .tournoi-sous{display:none}}
+.duel-code{margin:0;text-align:center;font:900 40px Inter,sans-serif;letter-spacing:8px;color:#FFC814}.duel-distance{width:100%;justify-content:center}.duel-ligne{display:flex;align-items:center;gap:10px;font:700 14px Inter,sans-serif}.duel-ligne select{flex:1;height:38px;border-radius:10px;border:1px solid rgba(255,255,255,.2);background:#0B1022;color:#F5F3EA;padding:0 10px}.jeu-lancer[disabled]{opacity:.55;cursor:wait}
+@media (max-width:640px){.duel-code{font-size:28px}}
 </style>
 </head>
 <body>
@@ -318,7 +320,7 @@ html{scroll-behavior:smooth}
 <span class="mode-badge">16 équipes · 8 pays</span>
 </button>
 </div>
-<button type="button" class="mode-duel" id="boutonDuel"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8" cy="8" r="3"/><circle cx="16" cy="8" r="3"/><path d="M2 20a6 6 0 0 1 12 0M10 20a6 6 0 0 1 12 0"/></svg><b>Affrontement entre amis</b><span>2 ou 3 joueurs · même téléphone · mêmes voitures</span></button>
+<button type="button" class="mode-duel" id="boutonDuel"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8" cy="8" r="3"/><circle cx="16" cy="8" r="3"/><path d="M2 20a6 6 0 0 1 12 0M10 20a6 6 0 0 1 12 0"/></svg><b>Affrontement entre amis</b><span>2 ou 3 joueurs · même téléphone · voitures équilibrées</span></button>
 </div>
 <div class="jeu-panneau jeu-tournoi" id="panneauTournoi" hidden>
 <div class="tournoi-tete"><button type="button" class="tournoi-retour" data-retour-modes aria-label="Retour aux compétitions">‹</button><div><p class="tournoi-titre" id="tournoiTitre"></p><p class="tournoi-sous" id="tournoiSous"></p></div><span class="tournoi-chrono" id="tournoiChrono"></span></div>
@@ -418,7 +420,7 @@ html{scroll-behavior:smooth}
 <div class="jeu-actions"><button type="button" class="jeu-bouton" id="boutonRejouer">Rejouer</button><button type="button" class="jeu-lien" id="boutonSuivante">Étape suivante</button><button type="button" class="jeu-lien" id="boutonFinClassement" hidden>Classement du jour</button><button type="button" class="jeu-lien" id="boutonAutreEtape">Toutes les étapes</button><a class="jeu-lien" href="#beta">Rejoindre la bêta</a></div>
 </div>
 <div class="jeu-panneau jeu-duel" id="panneauDuel" hidden>
-<div class="tournoi-tete"><button type="button" class="tournoi-retour" id="retourDuel" aria-label="Retour">‹</button><div><p class="tournoi-titre">Affrontement entre amis</p><p class="tournoi-sous">Chacun court à son tour sur la même étape. Tout le monde a les mêmes performances de voiture : seul le pilotage compte.</p></div></div>
+<div class="tournoi-tete"><button type="button" class="tournoi-retour" id="retourDuel" aria-label="Retour">‹</button><div><p class="tournoi-titre">Affrontement entre amis</p><p class="tournoi-sous">Chacun court à son tour sur la même étape. Voitures équilibrées : au plus 2 % d'écart avec le Ketch, le pilotage fait la différence.</p></div></div>
 <div id="corpsDuel"></div>
 </div>
 <button type="button" class="jeu-son" id="boutonSon" aria-pressed="false" aria-label="Couper le son"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9h4l5-4v14l-5-4H4z" fill="currentColor"/><path class="onde" d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12"/><path class="barre" d="M16 9l6 6M22 9l-6 6" style="display:none"/></svg></button>
@@ -1209,11 +1211,11 @@ html{scroll-behavior:smooth}
       var gC = c.createGain(); gC.gain.value = 0.9;
       son.oscA.connect(mix); son.oscB.connect(mix); son.oscC.connect(gC); gC.connect(mix);
       var sat = c.createWaveShaper(), courbe = new Float32Array(1024);
-      for (var i = 0; i < 1024; i++) { var xx = i / 512 - 1; courbe[i] = Math.tanh(2.6 * xx); }
+      for (var i = 0; i < 1024; i++) { var xx = i / 512 - 1; courbe[i] = Math.tanh(1.7 * xx); }
       sat.curve = courbe;
-      son.filtre = c.createBiquadFilter(); son.filtre.type = 'lowpass'; son.filtre.Q.value = 2.5;
+      son.filtre = c.createBiquadFilter(); son.filtre.type = 'lowpass'; son.filtre.Q.value = 0.7;
       son.pulsation = c.createGain(); son.pulsation.gain.value = 0.75;
-      son.lfo = c.createOscillator(); son.lfo.type = 'square';
+      son.lfo = c.createOscillator(); son.lfo.type = 'triangle';
       var lfoProf = c.createGain(); lfoProf.gain.value = 0.25; son.lfo.connect(lfoProf); lfoProf.connect(son.pulsation.gain);
       son.moteur = c.createGain(); son.moteur.gain.value = 0;
       mix.connect(sat); sat.connect(son.filtre); son.filtre.connect(son.pulsation); son.pulsation.connect(son.moteur); son.moteur.connect(son.general);
@@ -1227,7 +1229,7 @@ html{scroll-behavior:smooth}
       son.bruit = buf;
       // Crissement des pneus (bruit filtré, joué en continu, volume piloté).
       son.crissSrc = c.createBufferSource(); son.crissSrc.buffer = buf; son.crissSrc.loop = true;
-      var fC = c.createBiquadFilter(); fC.type = 'bandpass'; fC.frequency.value = 2200; fC.Q.value = 6;
+      var fC = c.createBiquadFilter(); fC.type = 'bandpass'; fC.frequency.value = 1300; fC.Q.value = 1.6;
       son.gCriss = c.createGain(); son.gCriss.gain.value = 0;
       son.crissSrc.connect(fC); fC.connect(son.gCriss); son.gCriss.connect(son.general); son.crissSrc.start();
       // Ambiance (foule, ville, vent du fleuve) : bruit filtré en boucle.
@@ -1265,7 +1267,7 @@ html{scroll-behavior:smooth}
       rapport = i;
       if (va <= RAPPORTS[i] || i === RAPPORTS.length - 1) { r = (va - RAPPORTS[i - 1]) / (RAPPORTS[i] - RAPPORTS[i - 1]); break; }
     }
-    if (rapport > rapportAvant && etat === 'course' && !voiture.electrique) { coupure = 0.12; sonBruit(900, 'bandpass', 0.12, 0.25); }
+    if (rapport > rapportAvant && etat === 'course' && !voiture.electrique) { coupure = 0.12; sonBruit(450, 'lowpass', 0.1, 0.12); }
     rapportAvant = rapport;
     if (coupure > 0) coupure -= dt;
     var regime = va < 0.5 ? 0.12 : 0.28 + 0.72 * Math.max(0, Math.min(1, r));
@@ -1282,18 +1284,18 @@ html{scroll-behavior:smooth}
     var tours = 900 + regime * 5600;                    // tours/minute
     var freq = tours / 60 * 2 * voiture.son.hauteur;    // 4 cylindres : 2 explosions par tour (plus aigu pour les sportives)
     son.oscA.frequency.setTargetAtTime(freq, t, 0.03);
-    son.oscB.frequency.setTargetAtTime(freq * 1.012, t, 0.03);
+    son.oscB.frequency.setTargetAtTime(freq * 1.006, t, 0.03);
     son.oscC.frequency.setTargetAtTime(freq / 2, t, 0.03);
     son.lfo.frequency.setTargetAtTime(freq / 2, t, 0.03);
-    son.filtre.frequency.setTargetAtTime(Math.max(200, 380 + regime * 2100 + (turboActif ? 500 : 0) + voiture.son.filtre), t, 0.05);
+    son.filtre.frequency.setTargetAtTime(Math.max(180, 320 + regime * 1500 + (turboActif ? 350 : 0) + voiture.son.filtre * 0.7), t, 0.05);
     var vol = enCourse ? (0.13 + 0.12 * regime) * (coupure > 0 ? 0.35 : 1) * (appuye('frein') ? 0.7 : 1) * (voiture.v8 ? 1.35 : 1) : 0;
     son.moteur.gain.setTargetAtTime(vol, t, 0.04);
-    son.sifflet.frequency.setTargetAtTime(1800 + regime * 2600, t, 0.1);
-    son.gSifflet.gain.setTargetAtTime(turboActif && enCourse ? 0.018 : 0, t, 0.15);
+    son.sifflet.frequency.setTargetAtTime(1400 + regime * 1600, t, 0.1);
+    son.gSifflet.gain.setTargetAtTime(turboActif && enCourse ? 0.01 : 0, t, 0.15);
     }
     var dir = (appuye('droite') ? 1 : 0) - (appuye('gauche') ? 1 : 0);
     var crisse = etat === 'course' && v > 22 && ((dir && Math.abs(segmentA(z).courbe) > 2) || (dir && zoneGlissante(E, z)) || (appuye('frein') && v > 25));
-    son.gCriss.gain.setTargetAtTime(crisse ? 0.05 : 0, t, 0.08);
+    son.gCriss.gain.setTargetAtTime(crisse ? 0.025 : 0, t, 0.08);
     var amb = enCourse || etat === 'fin' ? { marche: [700, 0.07], rondpoint: [500, 0.05], boulevard: [400, 0.04], poidslourds: [180, 0.05], corniche: [300, 0.05], gombe: [450, 0.05], matonge: [600, 0.06], limete: [2600, 0.11] }[E.id] || [400, 0.05] : [300, 0];
     son.fAmb.frequency.setTargetAtTime(amb[0], t, 0.3); son.gAmb.gain.setTargetAtTime(amb[1], t, 0.5);
   }
@@ -1411,7 +1413,7 @@ html{scroll-behavior:smooth}
       return { d: d, nom: d.nom, m: d.m, habilete: d.habilete, z: grille[i][0], x: grille[i][1], cibleX: grille[i][1], v: 0,
         turboT: 5 + i * 2.5, turboDuree: 0, contact: -9, arrive: false, tempsArrivee: 0 };
     });
-    if (modeJeu === 'duel') rivaux = [];
+    if (entreAmis()) rivaux = [];
     police = [];
     if (E.police) for (var ip = 0; ip < E.police.nb; ip++) police.push({ z: -E.police.retard - ip * 45, x: E.voies[ip % E.voies.length], v: 0, arrets: 0, mode: 'chasse', t: 0, blocages: 0, dernier: 0 });
     arriere = false; tempsArret = 0; bipArriere = 0; grace = 0; points = 0; gagnes = 0; perdus = 0; chocs = { piéton: 0, véhicule: 0, obstacle: 0, trou: 0, police: 0 }; bulles = []; flashScore = 0;
@@ -1517,8 +1519,8 @@ html{scroll-behavior:smooth}
   }
   function secousse(fort) {
     v *= fort ? perf().robuste : 0.75 + (perf().robuste - 0.35) * 0.5; choc = fort ? 0.45 : 0.25;
-    if (fort) { sonBruit(420, 'lowpass', 0.35, 0.9); sonNote(70, 0, 0.25, 0.4, 'sine'); if (!mouvementReduit) emettre(22, VX, 300, 'etincelle'); }
-    else sonBruit(180, 'lowpass', 0.2, 0.7);
+    if (fort) { sonBruit(260, 'lowpass', 0.3, 0.5); sonNote(70, 0, 0.25, 0.35, 'sine'); if (!mouvementReduit) emettre(22, VX, 300, 'etincelle'); }
+    else sonBruit(150, 'lowpass', 0.2, 0.45);
     if (navigator.vibrate) { try { navigator.vibrate(fort ? 60 : 30); } catch (e) {} }
   }
 
@@ -1538,6 +1540,7 @@ html{scroll-behavior:smooth}
     if (etat !== 'course') return;
     temps += dt;
     // Trajet pour l'anti-triche du serveur : 20 positions par seconde, comme le jeu Unreal.
+    if (modeJeu === 'direct') envoyerPosition();
     while (temps >= prochainPoint && trajet.length < 36000) {
       trajet.push([Math.round(z * 100), Math.round(x * E.demi * 100), 0, 0, 0, 0]);
       prochainPoint += 0.05;
@@ -1547,7 +1550,7 @@ html{scroll-behavior:smooth}
 
     var avantTurbo = turboActif;
     turboActif = appuye('turbo') && energie > 0.02 && !appuye('frein');
-    if (turboActif && !avantTurbo) sonBruit(700, 'bandpass', 0.5, 0.45, 2400);
+    if (turboActif && !avantTurbo) sonBruit(500, 'bandpass', 0.45, 0.25, 1400);
     energie = turboActif ? Math.max(0, energie - 0.38 * dt) : Math.min(1, energie + 0.11 * dt);
 
     var plafond = (turboActif ? E.vTurbo : E.vMax) * perf().vitesse * (raccourci ? 0.8 : 1);
@@ -1726,7 +1729,7 @@ html{scroll-behavior:smooth}
         rv.contact = temps;
         var sens = rv.x >= x ? 1 : -1;
         rv.x += sens * 0.5 / E.demi * 2; x -= sens * 0.35 / E.demi * 2; rv.cibleX = rv.x;
-        v *= 0.9; rv.v *= 0.88; choc = 0.2; sonBruit(320, 'lowpass', 0.18, 0.5);
+        v *= 0.9; rv.v *= 0.88; choc = 0.2; sonBruit(220, 'lowpass', 0.18, 0.3);
         annoncer('Contact avec ' + rv.nom + ' !');
       }
       if (!rv.arrive && rv.z >= E.longueur) { rv.arrive = true; rv.tempsArrivee = temps; }
@@ -1758,8 +1761,24 @@ html{scroll-behavior:smooth}
   // Le fantôme s'adapte à la voiture : avec une sportive, il roule plus vite.
   // Compétition équitable : en tournoi et en affrontement, toutes les voitures ont les performances
   // du Ketch (la voiture choisie ne change que l'apparence). Seul le pilotage fait la différence.
-  function competitionEquitable() { return modeJeu === 'sponsor' || modeJeu === 'international' || modeJeu === 'duel'; }
-  function perf() { return competitionEquitable() ? VOITURES.ketch : voiture; }
+  function competitionEquitable() { return modeJeu === 'sponsor' || modeJeu === 'international' || entreAmis(); }
+  function entreAmis() { return modeJeu === 'duel' || modeJeu === 'direct'; }
+  // En compétition, une voiture garde au plus 2 % de sa différence avec le Ketch
+  // (ex. Turbo GT : vitesse 1,15 en entraînement, 1,02 en tournoi). Le pilotage reste décisif.
+  var AVANTAGE_MAX = 0.02, perfCache = {};
+  function perf() {
+    if (!competitionEquitable()) return voiture;
+    var id = voiture.nom;
+    if (!perfCache[id]) {
+      var k = VOITURES.ketch, p = {};
+      ['vitesse', 'accel', 'direction', 'fantome'].forEach(function (c) {
+        p[c] = k[c] * (1 + Math.max(-AVANTAGE_MAX, Math.min(AVANTAGE_MAX, voiture[c] / k[c] - 1)));
+      });
+      p.robuste = k.robuste + Math.max(-0.02, Math.min(0.02, voiture.robuste - k.robuste));
+      perfCache[id] = p;
+    }
+    return perfCache[id];
+  }
   function vFantome() { return E.vFantome * perf().fantome * 1.13 * reglageNiveau().fantome; } // +13 % depuis le retrait des obstacles fixes
   function tempsFantome() {
     var vf = vFantome(), tA = vf / 9, dA = 0.5 * 9 * tA * tA;
@@ -1784,13 +1803,13 @@ html{scroll-behavior:smooth}
     if (ecart > 0 && !mouvementReduit) emettre(160, VX, -10, 'confetti');
     direct('Commentateur', voiture.nom + ' termine ' + E.nom + ' en ' + chrono(temps) + ' : ' + total.toLocaleString('fr-FR') + ' points' + (place === 1 ? ', victoire !' : ', ' + rangTexte(place) + ' place.'));
 
-    var gainG = modeJeu === 'duel' ? 0 : pieces + 5 * etoiles + (defiEnCours ? 15 : 0);
+    var gainG = entreAmis() ? 0 : pieces + 5 * etoiles + (defiEnCours ? 15 : 0);
     var rangDefi = defiEnCours ? enregistrerEssaiDefi(total, temps) : 0;
     ecrirePorteMonnaie(lirePorteMonnaie() + gainG);
     var avantOuvertes = ORDRE_VOITURES.filter(function (id) { return debloquee(VOITURES[id]); });
-    var rec = lireRecord(E.id) || {}, nouveau = !defiEnCours && modeJeu !== 'duel' && (!rec.score || total > rec.score);
-    var nouveauTemps = !defiEnCours && modeJeu !== 'duel' && (!rec.temps || temps < rec.temps);
-    if (!defiEnCours && modeJeu !== 'duel') ecrireRecord(E.id, { score: Math.max(total, rec.score || 0), temps: Math.min(temps, rec.temps || 1e9), gagne: !!rec.gagne || ecart > 0, etoiles: Math.max(etoiles, rec.etoiles || 0) });
+    var rec = lireRecord(E.id) || {}, nouveau = !defiEnCours && !entreAmis() && (!rec.score || total > rec.score);
+    var nouveauTemps = !defiEnCours && !entreAmis() && (!rec.temps || temps < rec.temps);
+    if (!defiEnCours && !entreAmis()) ecrireRecord(E.id, { score: Math.max(total, rec.score || 0), temps: Math.min(temps, rec.temps || 1e9), gagne: !!rec.gagne || ecart > 0, etoiles: Math.max(etoiles, rec.etoiles || 0) });
     [523, 659, 784, 1047].forEach(function (f, j) { sonNote(f, j * 0.12, 0.3, 0.2); });
 
     document.getElementById('finEtape').textContent = 'Étape ' + E.numero + ' · ' + E.nom + ' · ' + voiture.nom + ' · niveau ' + NOMS_NIVEAUX[niveauActif()] + ' · ' + chrono(temps);
@@ -1830,6 +1849,7 @@ html{scroll-behavior:smooth}
     }
     majVoitures();
     if (modeJeu === 'duel' && duel) { finTourDuel(total); return; }
+    if (modeJeu === 'direct' && salon) { finDirect(total); return; }
     panneauFin.hidden = false;
     majRecords();
     var bt = document.getElementById('boutonRejouer'); if (bt) bt.focus({ preventScroll: true });
@@ -2767,7 +2787,7 @@ html{scroll-behavior:smooth}
     });
     trafic.forEach(function (t) { if (t.z > vue.camZ + 1) poser(t.z, t.x, function (sx, sy, s) { vehicule(t, sx, sy, s); }); });
     pietons.forEach(function (p) { poser(p.z, p.x, function (sx, sy, s) { passant(sx, sy, s, p.def.habit, p.parti && !p.ecarte); }); });
-    if (modeJeu !== 'duel' && zFantome > vue.camZ + 1) poser(zFantome, E.xFantome, function (sx, sy, s) { ketch(sx, sy, s * 0.95, true); });
+    if (!entreAmis() && zFantome > vue.camZ + 1) poser(zFantome, E.xFantome, function (sx, sy, s) { ketch(sx, sy, s * 0.95, true); });
     fantomesAmis().forEach(function (f) {
       if (f.z > vue.camZ + 1) poser(f.z, f.x, function (sx, sy, s) {
         ketch(sx, sy, s * 0.95, true);
@@ -2798,7 +2818,7 @@ html{scroll-behavior:smooth}
     boite(16, 14, 282, 62, 14);
     ctx.fillStyle = '#FFC814'; ctx.font = '700 11px Inter, sans-serif';
     ctx.fillText('ÉTAPE ' + E.numero + ' / ' + ORDRE.length + ' · ' + String(E.longueur / 1000).replace('.', ',') + ' KM · ' + (v < -0.2 ? 'R · ' : '') + Math.round(Math.abs(v) * 3.6) + ' KM/H', 32, 38);
-    ctx.fillStyle = '#FFFFFF'; ctx.font = '700 16px Inter, sans-serif'; ctx.fillText((defiEnCours ? 'Défi · ' : modeJeu === 'duel' && duel && duel.joueurs[duel.resultats.length] ? duel.joueurs[duel.resultats.length].nom + ' · ' : modeJeu === 'sponsor' ? 'Tournoi · ' : modeJeu === 'international' ? 'International · ' : '') + E.nom, 32, 60);
+    ctx.fillStyle = '#FFFFFF'; ctx.font = '700 16px Inter, sans-serif'; ctx.fillText((defiEnCours ? 'Défi · ' : modeJeu === 'duel' && duel && duel.joueurs[duel.resultats.length] ? duel.joueurs[duel.resultats.length].nom + ' · ' : modeJeu === 'direct' ? 'En direct · ' : modeJeu === 'sponsor' ? 'Tournoi · ' : modeJeu === 'international' ? 'International · ' : '') + E.nom, 32, 60);
 
     boite(356, 14, 132, 44, 12);
     ctx.textAlign = 'center'; ctx.fillStyle = '#FFFFFF'; ctx.font = '800 24px "Bricolage Grotesque", Inter, sans-serif';
@@ -2814,7 +2834,7 @@ html{scroll-behavior:smooth}
     ctx.fillStyle = '#FFC814'; rect(640, 28, 140 * Math.min(1, z / E.longueur), 8, 4); ctx.fill();
     // En affrontement, la barre suit le fantôme de l'ami en tête (rien pour le premier joueur).
     var amisHud = fantomesAmis().sort(function (a2, b2) { return b2.z - a2.z; });
-    var repere = modeJeu === 'duel' ? amisHud[0] : { nom: 'FANTÔME', z: zFantome, couleur: '#7FD8FF' };
+    var repere = entreAmis() ? amisHud[0] : { nom: 'FANTÔME', z: zFantome, couleur: '#7FD8FF' };
     if (repere) {
       ctx.fillStyle = repere.couleur; ctx.fillText(repere.nom.toUpperCase().slice(0, 10), 562, 58);
       ctx.fillStyle = '#2A3566'; rect(640, 50, 140, 8, 4); ctx.fill();
@@ -2936,7 +2956,7 @@ html{scroll-behavior:smooth}
     if (son.ctx) {
       son.oscA.type = voiture.electrique ? 'sine' : 'sawtooth';
       son.oscB.type = voiture.electrique ? 'sine' : 'sawtooth';
-      son.lfo.type = voiture.electrique ? 'sine' : 'square';
+      son.lfo.type = voiture.electrique ? 'sine' : 'triangle';
     }
     musiqueArreter(); musiqueDemarrer();
     panneauDebut.hidden = true; panneauFin.hidden = true; panneauModes.hidden = true; panneauTournoi.hidden = true; panneauCompte.hidden = true; panneauDuel.hidden = true;
@@ -3270,6 +3290,7 @@ html{scroll-behavior:smooth}
   // Les joueurs suivants voient les fantômes de ceux qui ont déjà couru, avec leur nom.
   var COULEURS_AMIS = ['#7FD8FF', '#FF9A3D', '#B07CFF'];
   function fantomesAmis() {
+    if (modeJeu === 'direct') return fantomesDirect();
     if (modeJeu !== 'duel' || !duel || etat === 'accueil') return [];
     return duel.resultats.map(function (r, k) {
       var pts = r.trajet, f = temps / 0.05, i = Math.min(pts.length - 2, Math.max(0, Math.floor(f))), a = pts[i], b = pts[i + 1] || a, u = Math.min(1, f - i);
@@ -3291,7 +3312,9 @@ html{scroll-behavior:smooth}
       '<div class="duel-nombre" role="group" aria-label="Nombre de joueurs"><button type="button" data-nb="2" aria-pressed="' + (nbJoueursDuel === 2) + '">2 joueurs</button><button type="button" data-nb="3" aria-pressed="' + (nbJoueursDuel === 3) + '">3 joueurs</button></div>' +
       [0, 1, 2].map(function (k) { return '<label' + (k >= nbJoueursDuel ? ' hidden' : '') + ' data-joueur="' + k + '"><span style="color:' + COULEURS_AMIS[k] + '">Joueur ' + (k + 1) + '</span><input id="nomDuel' + k + '" maxlength="14" value="' + echapper(noms[k] || '') + '" placeholder="Prénom"></label>'; }).join('') +
       '<label><span>Étape</span><select id="etapeDuel">' + options + '</select></label>' +
-      '<button type="button" class="jeu-lancer" id="commencerDuel"><svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M7 4.5v15l12-7.5z"/></svg><span>Commencer l\'affrontement</span><small>Chacun son tour, sur ce téléphone</small></button></div>');
+      '<button type="button" class="jeu-lancer" id="commencerDuel"><svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M7 4.5v15l12-7.5z"/></svg><span>Commencer l\'affrontement</span><small>Chacun son tour, sur ce téléphone</small></button>' +
+      '<button type="button" class="jeu-bouton duel-distance" id="boutonDistance">À distance : chacun sur son téléphone, en même temps</button></div>');
+    document.getElementById('boutonDistance').addEventListener('click', configDirect);
     Array.prototype.forEach.call(corpsDuel.querySelectorAll('[data-nb]'), function (b) {
       b.addEventListener('click', function () { nbJoueursDuel = +b.getAttribute('data-nb'); var gardes = [0, 1, 2].map(function (k) { return document.getElementById('nomDuel' + k).value; }); configDuel(); gardes.forEach(function (v, k) { document.getElementById('nomDuel' + k).value = v; }); });
     });
@@ -3311,7 +3334,7 @@ html{scroll-behavior:smooth}
     montrerDuel('<div class="duel-tour"><p class="duel-qui">Au tour de <b style="color:' + COULEURS_AMIS[k] + '">' + echapper(j.nom) + '</b></p>' +
       '<p class="tournoi-sous">Joueur ' + (k + 1) + ' sur ' + duel.joueurs.length + ' · ' + echapper(E2.nom) + ' · ' + (k ? 'les fantômes des joueurs précédents roulent avec vous' : 'les autres verront votre fantôme') + '. Passez-lui le téléphone !</p>' +
       (k ? '<ol class="duel-resultats">' + listeResultats() + '</ol>' : '') +
-      '<button type="button" class="jeu-lancer" id="partirDuel"><svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M7 4.5v15l12-7.5z"/></svg><span>C\'est parti, ' + echapper(j.nom) + ' !</span><small>Mêmes voitures, même trafic</small></button></div>');
+      '<button type="button" class="jeu-lancer" id="partirDuel"><svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M7 4.5v15l12-7.5z"/></svg><span>C\'est parti, ' + echapper(j.nom) + ' !</span><small>Voitures équilibrées, même trafic</small></button></div>');
     document.getElementById('partirDuel').addEventListener('click', function () { lancer(duel.etape); });
   }
   function finTourDuel(score) {
@@ -3330,6 +3353,120 @@ html{scroll-behavior:smooth}
     document.getElementById('changerDuel').addEventListener('click', configDuel);
     corpsDuel.querySelector('[data-retour-modes]').addEventListener('click', function () { modeJeu = 'entrainement'; duel = null; panneauDuel.hidden = true; panneauModes.hidden = false; musiqueArreter(); });
   }
+  // ---------- Affrontement à distance : 2 ou 3 amis, chacun sur son téléphone, EN MÊME TEMPS ----------
+  // Passe par le serveur (Socket.IO) : salon avec un code de 5 caractères, départ commun,
+  // chacun voit les autres rouler en direct (fantômes avec leur pseudo).
+  var salon = null, socketJeu = null, autresDirect = {}, prochainEnvoi = 0, attenteArrivee = false, surPodium = false;
+  function chargerSocket() {
+    if (window.io) return Promise.resolve();
+    return new Promise(function (ok, ko) {
+      var sc = document.createElement('script'); sc.src = SERVEUR + '/socket.io/socket.io.js';
+      sc.onload = ok; sc.onerror = function () { ko(new Error('Serveur injoignable.')); }; document.head.appendChild(sc);
+    });
+  }
+  function connecterDirect() {
+    if (socketJeu && socketJeu.connected) return Promise.resolve(socketJeu);
+    return chargerSocket().then(function () {
+      return new Promise(function (ok, ko) {
+        socketJeu = window.io(SERVEUR, { auth: { token: session.jeton }, transports: ['websocket', 'polling'] });
+        socketJeu.once('connect', function () { ok(socketJeu); });
+        socketJeu.once('connect_error', function () { ko(new Error('Connexion impossible : reconnectez-vous à votre compte.')); });
+        socketJeu.on('salon:etat', function (e) { salon = e; if (etat === 'accueil' && !panneauDuel.hidden && !surPodium) ecranSalon(); });
+        socketJeu.on('salon:pos', function (p) { autresDirect[p.id] = { z: p.z, x: p.x, v: p.v, recu: performance.now() }; });
+        socketJeu.on('salon:depart', function (d) {
+          modeJeu = 'direct'; autresDirect = {}; attenteArrivee = false; surPodium = false; prochainEnvoi = 0;
+          direct('Commentateur', 'Départ en direct sur ' + (ETAPES[d.etape] || E).nom + ' : ' + salon.joueurs.map(function (j) { return j.pseudo; }).join(', ') + ' !');
+          setTimeout(function () { lancer(ETAPES[d.etape] ? d.etape : ORDRE[0]); }, d.dans);
+        });
+        socketJeu.on('salon:resultats', resultatsDirect);
+        socketJeu.on('disconnect', function () { if (salon && etat !== 'course') { salon = null; if (!panneauDuel.hidden) configDirect('Connexion perdue avec le serveur.'); } });
+      });
+    });
+  }
+  function demander(ev, d) { return new Promise(function (ok) { socketJeu.emit(ev, d || {}, ok); }); }
+  function couleurDe(id) { var k = salon ? salon.joueurs.map(function (j) { return j.id; }).indexOf(id) : 0; return COULEURS_AMIS[Math.max(0, k) % 3]; }
+  function fantomesDirect() {
+    if (!salon || etat === 'accueil') return [];
+    var maintenant = performance.now(), moi = session && session.joueur && session.joueur.id;
+    return salon.joueurs.filter(function (j) { return j.id !== moi && autresDirect[j.id]; }).map(function (j) {
+      var a = autresDirect[j.id], dt = Math.min(0.5, (maintenant - a.recu) / 1000);
+      return { nom: j.pseudo, couleur: couleurDe(j.id), z: Math.min(E.longueur + 60, a.z + a.v * dt), x: a.x };
+    });
+  }
+  function envoyerPosition() {
+    if (!socketJeu || etat !== 'course' || temps < prochainEnvoi) return;
+    prochainEnvoi = temps + 0.1;
+    socketJeu.volatile.emit('salon:position', { z: Math.round(z * 10) / 10, x: Math.round(x * 1000) / 1000, v: Math.round(v * 10) / 10 });
+  }
+  function optionsEtapes(choisie) {
+    return ORDRE.map(function (id) { var e = ETAPES[id]; return '<option value="' + id + '"' + (choisie === id ? ' selected' : '') + '>' + e.numero + ' · ' + echapper(e.nom) + ' (' + NOMS_NIVEAUX[e.niveau] + ')</option>'; }).join('');
+  }
+  function configDirect(erreur) {
+    modeJeu = 'direct'; quitterDefi();
+    if (!SERVEUR) {
+      montrerDuel('<div class="duel-tour"><p class="duel-qui">À distance</p><p class="tournoi-sous">Chaque ami joue sur son propre téléphone, en même temps, et voit les autres rouler en direct. Ce mode s\'ouvrira dès la mise en ligne du serveur G-Challenge.</p><div class="jeu-actions"><button type="button" class="jeu-lien" id="retourLocal">Jouer sur ce téléphone</button></div></div>');
+      document.getElementById('retourLocal').addEventListener('click', configDuel); return;
+    }
+    if (!session) {
+      montrerDuel('<div class="duel-tour"><p class="duel-qui">À distance</p><p class="tournoi-sous">Chaque joueur doit avoir un compte G-Challenge (gratuit) pour rejoindre un salon.</p><div class="jeu-actions"><button type="button" class="jeu-bouton" id="allerCompte">Se connecter ou s\'inscrire</button><button type="button" class="jeu-lien" id="retourLocal">Jouer sur ce téléphone</button></div></div>');
+      document.getElementById('allerCompte').addEventListener('click', function () { panneauDuel.hidden = true; ouvrirCompte(); });
+      document.getElementById('retourLocal').addEventListener('click', configDuel); return;
+    }
+    montrerDuel('<div class="duel-config"><p class="tournoi-sous" style="margin:0">Créez un salon et envoyez le code à vos amis, ou entrez le code reçu. 2 ou 3 joueurs, gratuit.</p>' +
+      (erreur ? '<p class="fin-envoi erreur" role="alert">' + echapper(erreur) + '</p>' : '') +
+      '<label><span>Étape</span><select id="etapeDirect">' + optionsEtapes(etapeChoisie) + '</select></label>' +
+      '<button type="button" class="jeu-lancer" id="creerSalon"><svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M11 5h2v6h6v2h-6v6h-2v-6H5v-2h6z"/></svg><span>Créer un salon</span><small>Vous recevrez un code à partager</small></button>' +
+      '<label><span>Code reçu</span><input id="codeSalon" maxlength="5" autocapitalize="characters" placeholder="ABCDE" style="text-transform:uppercase;letter-spacing:4px"></label>' +
+      '<div class="jeu-actions"><button type="button" class="jeu-bouton" id="rejoindreSalon">Rejoindre</button><button type="button" class="jeu-lien" id="retourLocal">Jouer sur ce téléphone</button></div></div>');
+    corpsDuel.addEventListener('keydown', function (e) { e.stopPropagation(); });
+    function essayer(ev, donnees) {
+      connecterDirect().then(function () { return demander(ev, donnees); })
+        .then(function (rep) { if (rep && rep.erreur) configDirect(rep.erreur); })
+        .catch(function (e) { configDirect(e.message); });
+    }
+    document.getElementById('creerSalon').addEventListener('click', function () { essayer('salon:creer', { etape: document.getElementById('etapeDirect').value }); });
+    document.getElementById('rejoindreSalon').addEventListener('click', function () { essayer('salon:rejoindre', { code: document.getElementById('codeSalon').value }); });
+    document.getElementById('retourLocal').addEventListener('click', function () { quitterSalon(); configDuel(); });
+  }
+  function quitterSalon() { if (socketJeu && salon) socketJeu.emit('salon:quitter', {}, function () {}); salon = null; }
+  function ecranSalon() {
+    if (!salon) return configDirect();
+    var moi = session.joueur.id, hote = salon.hote === moi, e2 = ETAPES[salon.etape] || ETAPES[ORDRE[0]];
+    var joueurs = salon.joueurs.map(function (j) { return '<li><b style="color:' + couleurDe(j.id) + '">' + echapper(j.pseudo) + (j.id === moi ? ' (vous)' : '') + '</b><span>' + (j.id === salon.hote ? 'hôte' : 'prêt') + (attenteArrivee ? ' · ' + (j.arrive ? 'arrivé ' + chrono(j.temps_ms / 1000) : 'en course…') : '') + '</span></li>'; }).join('');
+    if (attenteArrivee) {
+      montrerDuel('<div class="duel-tour"><p class="duel-qui">Arrivé ! En attente des autres…</p><ol class="duel-resultats">' + joueurs + '</ol></div>'); return;
+    }
+    montrerDuel('<div class="duel-tour"><p class="tournoi-sous" style="margin:0">Code du salon, à envoyer à vos amis :</p><p class="duel-code">' + salon.code + '</p>' +
+      '<ol class="duel-resultats">' + joueurs + '</ol>' +
+      (hote ? '<label class="duel-ligne"><span>Étape</span><select id="etapeSalon">' + optionsEtapes(salon.etape) + '</select></label>' +
+        '<button type="button" class="jeu-lancer" id="lancerSalon"' + (salon.joueurs.length < 2 ? ' disabled' : '') + '><svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M7 4.5v15l12-7.5z"/></svg><span>' + (salon.joueurs.length < 2 ? 'En attente d\'un ami…' : 'Lancer la course') + '</span><small>' + echapper(e2.nom) + ' · ' + salon.joueurs.length + ' / 3 joueurs</small></button>'
+        : '<p class="tournoi-sous">Étape : <b>' + echapper(e2.nom) + '</b>. L\'hôte lance la course.</p>') +
+      '<div class="jeu-actions"><button type="button" class="jeu-lien" id="quitterSalon">Quitter le salon</button></div></div>');
+    if (hote) {
+      document.getElementById('etapeSalon').addEventListener('change', function (ev) { demander('salon:etape', { etape: ev.target.value }); });
+      document.getElementById('lancerSalon').addEventListener('click', function () { demander('salon:lancer').then(function (rep) { if (rep && rep.erreur) direct('Salon', rep.erreur, 'commentateur'); }); });
+    }
+    document.getElementById('quitterSalon').addEventListener('click', function () { quitterSalon(); configDirect(); });
+  }
+  function finDirect(total) {
+    attenteArrivee = true;
+    demander('salon:arrivee', { temps_ms: Math.round(temps * 1000), score: total });
+    direct('Commentateur', (session.joueur.pseudo || 'Vous') + ' franchit la ligne en ' + chrono(temps) + ' !');
+    ecranSalon();
+  }
+  function resultatsDirect(r) {
+    attenteArrivee = false;
+    var moi = session.joueur.id, premier = r.classement[0];
+    if (premier) direct('Commentateur', premier.pseudo + ' remporte la course en direct sur ' + ((ETAPES[r.etape] || E).nom) + ' !');
+    if (premier && premier.id === moi && !mouvementReduit) emettre(160, VX, -10, 'confetti');
+    if (etat === 'course') return; // encore en route (délai maximal dépassé) : on verra le salon à l'arrivée
+    surPodium = true;
+    montrerDuel('<div class="duel-tour"><p class="duel-qui">\uD83C\uDFC6 <b style="color:' + couleurDe(premier.id) + '">' + echapper(premier.pseudo) + '</b> gagne !</p>' +
+      '<ol class="duel-podium">' + r.classement.map(function (j, i) { return '<li class="place' + (i + 1) + '"><span class="rang">' + rangTexte(i + 1) + '</span><b style="color:' + couleurDe(j.id) + '">' + echapper(j.pseudo) + (j.id === moi ? ' (vous)' : '') + '</b><span>' + (j.temps_ms ? chrono(j.temps_ms / 1000) + (i && premier.temps_ms ? ' (+' + secondes((j.temps_ms - premier.temps_ms) / 1000) + ')' : '') : 'abandon') + '</span></li>'; }).join('') + '</ol>' +
+      '<div class="jeu-actions"><button type="button" class="jeu-bouton" id="revancheDirect">Revanche</button></div></div>');
+    document.getElementById('revancheDirect').addEventListener('click', function () { surPodium = false; ecranSalon(); });
+  }
+
   var boutonDuel = document.getElementById('boutonDuel');
   if (boutonDuel) boutonDuel.addEventListener('click', function () { nbJoueursDuel = 2; configDuel(); });
   document.getElementById('retourDuel').addEventListener('click', function () { modeJeu = 'entrainement'; duel = null; panneauDuel.hidden = true; panneauModes.hidden = false; });
