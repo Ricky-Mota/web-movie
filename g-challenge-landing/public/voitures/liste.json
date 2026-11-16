@@ -2,5 +2,14 @@
   "voitures": [
     "ketch"
   ],
+  "decor": [
+    "decor-palmier",
+    "decor-lampadaire",
+    "decor-abribus",
+    "decor-etal",
+    "decor-conteneur",
+    "decor-pirogue",
+    "decor-panneau"
+  ],
   "vues": 5
 }

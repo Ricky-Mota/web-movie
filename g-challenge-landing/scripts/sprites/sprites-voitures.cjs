@@ -20,7 +20,9 @@ const SORTIE = path.join(RACINE, 'public', 'voitures');
 const THREE = path.join(__dirname, 'node_modules', 'three');
 const IDS = ['ketch', 'zigzag', 'mbote', 'blinde', 'kingt', 'fleuve', 'turbo', 'leopard',
   // Trafic : les véhicules que l'on double sur la route.
-  'trafic-voiture', 'trafic-bus', 'trafic-camion', 'trafic-fula', 'trafic-moto', 'trafic-police'];
+  'trafic-voiture', 'trafic-bus', 'trafic-camion', 'trafic-fula', 'trafic-moto', 'trafic-police',
+  // Décor : photographié de face, une seule vue.
+  'decor-palmier', 'decor-lampadaire', 'decor-abribus', 'decor-etal', 'decor-conteneur', 'decor-pirogue', 'decor-panneau'];
 const VUES = [-14, -7, 0, 7, 14]; // angle de la voiture vue de derrière, en degrés
 
 const PAGE = `<!doctype html><html><body style="margin:0;background:transparent">
@@ -33,7 +35,7 @@ const rendu = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDr
 rendu.setSize(L, Hh); rendu.setClearColor(0x000000, 0); rendu.outputColorSpace = THREE.SRGBColorSpace;
 rendu.toneMapping = THREE.ACESFilmicToneMapping;
 document.body.appendChild(rendu.domElement);
-window.photographier = async (url, rotation, vues, longueur) => {
+window.photographier = async (url, rotation, vues, longueur, decor) => {
   const scene = new THREE.Scene();
   scene.add(new THREE.HemisphereLight(0xffffff, 0x445066, 1.6));
   const soleil = new THREE.DirectionalLight(0xfff1dd, 2.2); soleil.position.set(3, 6, -4); scene.add(soleil);
@@ -42,7 +44,7 @@ window.photographier = async (url, rotation, vues, longueur) => {
   const voiture = gltf.scene;
   // Centrer, poser au sol et ramener à 4 m de long.
   let boite = new THREE.Box3().setFromObject(voiture), taille = boite.getSize(new THREE.Vector3());
-  voiture.scale.setScalar(longueur / Math.max(taille.x, taille.z));
+  voiture.scale.setScalar(decor ? 4 / Math.max(taille.x, taille.y, taille.z) : longueur / Math.max(taille.x, taille.z));
   boite = new THREE.Box3().setFromObject(voiture); const centre = boite.getCenter(new THREE.Vector3());
   voiture.position.sub(new THREE.Vector3(centre.x, boite.min.y, centre.z));
   const pivot = new THREE.Group(); pivot.add(voiture); scene.add(pivot);
@@ -50,7 +52,8 @@ window.photographier = async (url, rotation, vues, longueur) => {
   const toiles = [];
   for (const a of vues) {
     pivot.rotation.y = THREE.MathUtils.degToRad(rotation + a);
-    camera.position.set(0, 2.1, -8.2); camera.lookAt(0, 0.75, 0);
+    if (decor) { camera.position.set(0, 2.2, 10.5); camera.lookAt(0, 1.8, 0); } // décor vu de face, depuis la route
+    else { camera.position.set(0, 2.1, -8.2); camera.lookAt(0, 0.75, 0); }
     rendu.render(scene, camera);
     const t = document.createElement('canvas'); t.width = L; t.height = Hh;
     t.getContext('2d').drawImage(rendu.domElement, 0, 0); toiles.push(t);
@@ -102,13 +105,14 @@ function servir(req, res) {
   for (const id of presents) {
     const rotation = (reglages[id] && reglages[id].rotation) || 0;
     try {
+      const decor = id.indexOf('decor-') === 0;
       const longueur = { 'trafic-bus': 10, 'trafic-camion': 9, 'trafic-fula': 9, 'trafic-moto': 2 }[id] || 4.3;
-      const images = await page.evaluate(([u, r, v, l]) => window.photographier(u, r, v, l), ['/modeles/' + id + '.glb', rotation, VUES, longueur]);
+      const images = await page.evaluate(([u, r, v, l, dc]) => window.photographier(u, r, v, l, dc), ['/modeles/' + id + '.glb', rotation, decor ? [0] : VUES, longueur, decor]);
       images.forEach((d, k) => fs.writeFileSync(path.join(SORTIE, id + '-' + k + '.png'), Buffer.from(d.split(',')[1], 'base64')));
       faits.push(id); console.log('OK ' + id + ' : ' + images.length + ' vues');
     } catch (e) { console.error('Échec ' + id + ' : ' + e.message); }
   }
-  fs.writeFileSync(path.join(SORTIE, 'liste.json'), JSON.stringify({ voitures: faits, vues: VUES.length }, null, 2) + '\n');
+  fs.writeFileSync(path.join(SORTIE, 'liste.json'), JSON.stringify({ voitures: faits.filter((i) => i.indexOf('decor-') !== 0), decor: faits.filter((i) => i.indexOf('decor-') === 0), vues: VUES.length }, null, 2) + '\n');
   await nav.close(); srv.close();
   console.log('Images écrites dans ' + SORTIE + '. Relancez ensuite : python3 scripts/assembler.py');
 })();

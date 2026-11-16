@@ -660,6 +660,27 @@ html{scroll-behavior:smooth}
   var PLACES = [800, 400, 150, 0];
   function rangTexte(n) { return n === 1 ? '1er' : n + 'e'; }
 
+  // ---------- Sponsors (panneaux publicitaires) ----------
+  // Maquettes texte, sans logo : à remplacer par les visuels officiels fournis par chaque marque
+  // (fichiers public/pubs/<id>.png, format 2:1, listés dans public/pubs/liste.json).
+  var PUBLICITES = [
+    { id: 'vodacom', nom: 'VODACOM', ligne: 'Payez avec M-PESA', fond: ['#E60000', '#A80000'], texte: '#FFFFFF', accent: '#FFFFFF' },
+    { id: 'bralima', nom: 'BRALIMA', ligne: 'Coca-Cola · bien fraîche', fond: ['#C8102E', '#7E0B1A'], texte: '#FFFFFF', accent: '#FFD23F' },
+    { id: 'canal', nom: 'CANAL+', ligne: 'CANALBOX · internet fibre', fond: ['#1E1E1E', '#000000'], texte: '#FFFFFF', accent: '#FFFFFF' },
+    { id: 'rawbank', nom: 'RAWBANK', ligne: 'Votre banque à Kinshasa', fond: ['#0A2A5E', '#06183A'], texte: '#FFFFFF', accent: '#E3B341' },
+    { id: 'bracongo', nom: 'BRACONGO', ligne: 'Brasseries du Congo', fond: ['#0E6B3A', '#08462A'], texte: '#FFFFFF', accent: '#FFD23F' },
+    { id: 'folucco', nom: 'FOLUCCO', ligne: '', fond: ['#F2A900', '#C98600'], texte: '#1A1A1A', accent: '#1A1A1A' },
+    { id: 'gchallenge', nom: 'G-CHALLENGE', ligne: 'La Course des Ketch · bêta', fond: ['#0E1630', '#070B1E'], texte: '#FFFFFF', accent: '#FFC814' }
+  ];
+  var AFFICHES = {};
+  (function chargerAffiches() {
+    if (!window.fetch) return;
+    fetch('pubs/liste.json', { cache: 'no-cache' }).then(function (r) { return r.ok ? r.json() : null; }).then(function (l) {
+      (l && l.affiches || []).forEach(function (id) { var img = new Image(); img.onload = function () { AFFICHES[id] = img; }; img.src = 'pubs/' + id + '.png'; });
+    }).catch(function () {});
+  })();
+  var ZONE_PANNEAU = [0.068, 0.083, 0.863, 0.536]; // position de la face blanche du panneau 3D (fractions de l'image)
+
   // ---------- Barème des points ----------
   var POINTS = {
     piéton: 400, véhicule: 200, obstacle: 100, trou: 50, police: 300, // retirés à chaque choc ou arrestation
@@ -938,15 +959,14 @@ html{scroll-behavior:smooth}
       });
     }
     if (E.industrie) for (var pz0 = 60; pz0 < E.longueur + 300; pz0 += 140) E.decor.push({ z: pz0, x: (pz0 % 280 ? 1 : -1) * (1 + 7 / E.demi), type: 'pylone' });
-    var pubs = { rondpoint: ['ROND-POINT VICTOIRE', 'KIN LA BELLE', 'G-CHALLENGE'], marche: ['MARCHÉ CENTRAL', 'PAGNES · WAX', 'G-CHALLENGE'],
-      poidslourds: ['ATTENTION CAMIONS', 'G-CHALLENGE', 'ROULEZ PRUDEMMENT'], corniche: ['LE FLEUVE CONGO', 'G-CHALLENGE · BÊTA', 'CORNICHE'],
-      boulevard: ['LA COURSE DES KETCH', 'KIN LA BELLE', 'G-CHALLENGE · BÊTA', 'KINSHASA 2026'],
-      gombe: ['GOMBE CENTRE', 'G-CHALLENGE', 'CONTRÔLES RENFORCÉS'], matonge: ['MATONGE BY NIGHT', 'RUMBA LIVE', 'G-CHALLENGE · BÊTA'],
-      limete: ['LIMETE 12E RUE', 'KIN EXPRESS', 'G-CHALLENGE'] }[E.id] || ['G-CHALLENGE'];
-    for (var pz = 250, n2 = 0; pz < E.longueur; pz += 330, n2++) {
+    // Panneaux publicitaires : les sponsors défilent le long de la route, des deux côtés.
+    for (var pz = 180, n2 = 0; pz < E.longueur; pz += 200, n2++) {
       var cotePub = E.eau === 1 ? -1 : (n2 % 2 ? 1 : -1);
-      if (!zoneRaccourci(E, pz, cotePub)) E.decor.push({ z: pz, x: cotePub * (1 + 2.2 / E.demi), type: 'pub', texte: pubs[n2 % pubs.length] });
+      if (!zoneRaccourci(E, pz, cotePub)) E.decor.push({ z: pz, x: cotePub * (1 + 1.4 / E.demi), type: 'pub', sponsor: PUBLICITES[(n2 + E.numero) % PUBLICITES.length] });
     }
+    // Arches publicitaires au-dessus de la route : les sponsors bien en face du joueur.
+    E.arches = [];
+    for (var az2 = 120, na = 0; az2 < E.longueur - 150; az2 += 300, na++) E.arches.push({ z: az2, sponsor: PUBLICITES[(na * 3 + E.numero) % PUBLICITES.length] });
     if (E.id === 'boulevard' || E.id === 'rondpoint') [200, 900, 1300].forEach(function (az, j) { E.decor.push({ z: az, x: (j % 2 ? -1 : 1) * (1 + 1.3 / E.demi), type: 'abribus' }); });
     if (E.marche) for (var fz = 120; fz < E.longueur; fz += 160) E.decor.push({ z: fz, x: 0, type: 'fanions' });
     (E.monuments || []).forEach(function (m) { E.decor.push({ z: m.z, x: m.cote * (1 + 3.5 / E.demi), type: 'monument' }); });
@@ -1144,8 +1164,10 @@ html{scroll-behavior:smooth}
     bonus = E.bonus.map(function (b) { return { z: b.z, x: b.x, type: b.type, pris: false }; });
     particules = []; bonusPts = 0; frolés = 0; pieces = 0; sirene = 0; eclair = 0; prochainEclair = 6;
     prochainBarrage = 0;
-    var deux = E.voies.length > 2 ? [E.voies[1], E.voies[2]] : [E.voies[0], E.voies[1]];
-    var grille = [[9, x], [9, x === deux[0] ? deux[1] : deux[0]], [0, x === deux[0] ? deux[1] : deux[0]]];
+    // Grille de départ : les rivaux partent dans les autres voies, jamais juste devant vous.
+    var autres = E.voies.filter(function (vx) { return Math.abs(vx - x) * E.demi > 2.2; });
+    if (!autres.length) autres = [E.voies[0]];
+    var grille = [[10, autres[0]], [4, autres[1 % autres.length]], [-3, autres[2 % autres.length]]];
     rivaux = RIVAUX.map(function (d, i) {
       return { d: d, nom: d.nom, m: d.m, habilete: d.habilete, z: grille[i][0], x: grille[i][1], cibleX: grille[i][1], v: 0,
         turboT: 5 + i * 2.5, turboDuree: 0, contact: -9, arrive: false, tempsArrivee: 0 };
@@ -1775,7 +1797,18 @@ html{scroll-behavior:smooth}
 
   // ---------- Sprites (tournés vers la caméra, échelle s = 1 à 4 m) ----------
   var HABITS = ['#D92D20', '#1E5FD6', '#7A3E6A', '#1E7D45', '#B54708', '#2A6B9B'];
+  // Décor modélisé en 3D (Hyper3D) : dessiné à la place du dessin d'origine quand l'image existe.
+  function spriteDecor(id, sx, sy, s, taille, parLargeur, retourne) {
+    var vues = SPRITES['decor-' + id];
+    if (!vues) return false;
+    var img = vues[0], w, h;
+    if (parLargeur) { w = taille * s; h = w * img.height / img.width; } else { h = taille * s; w = h * img.width / img.height; }
+    if (retourne) { ctx.save(); ctx.translate(sx, 0); ctx.scale(-1, 1); ctx.drawImage(img, -w / 2, sy - h, w, h); ctx.restore(); }
+    else ctx.drawImage(img, sx - w / 2, sy - h, w, h);
+    return true;
+  }
   function palmier(sx, sy, s) {
+    if (spriteDecor('palmier', sx, sy, s, 440)) return;
     ctx.save(); ctx.translate(sx, sy); ctx.scale(s, s);
     ctx.fillStyle = '#5A3B22'; ctx.fillRect(-6, -330, 12, 330);
     ctx.strokeStyle = '#2F7D4A'; ctx.lineWidth = 16; ctx.lineCap = 'round';
@@ -1788,6 +1821,7 @@ html{scroll-behavior:smooth}
   }
   function lampadaire(sx, sy, s, cote) {
     lumiere(sx - cote * 110 * s, sy - 600 * s, 260 * s, '255,214,140');
+    if (spriteDecor('lampadaire', sx + (cote > 0 ? -1 : 1) * 70 * s, sy, s, 640, false, cote > 0)) return;
     ctx.save(); ctx.translate(sx, sy); ctx.scale(s, s);
     ctx.fillStyle = '#4A505C'; ctx.fillRect(-4, -620, 8, 620);
     ctx.fillRect(Math.min(0, -cote * 90), -620, 90, 7);
@@ -1805,18 +1839,41 @@ html{scroll-behavior:smooth}
     if (variante % 2 === 0) { ctx.fillStyle = HABITS[(variante + 2) % HABITS.length]; rect(-20, -204, 40, 14, 7); ctx.fill(); }
     ctx.restore();
   }
-  function pub(sx, sy, s, texte) {
-    lumiere(sx, sy - 455 * s, 230 * s, '255,200,20');
+  // Affiche d'un sponsor dans la zone (x, y, l, h) en unités du panneau.
+  function affiche(sp, x0, y0, l, h) {
+    var img = AFFICHES[sp.id];
+    if (img) { ctx.drawImage(img, x0, y0, l, h); return; }
+    var g = ctx.createLinearGradient(0, y0, 0, y0 + h); g.addColorStop(0, sp.fond[0]); g.addColorStop(1, sp.fond[1]);
+    ctx.fillStyle = g; ctx.fillRect(x0, y0, l, h);
+    ctx.fillStyle = sp.accent; ctx.fillRect(x0, y0 + h - h * 0.06, l, h * 0.06);
+    ctx.textAlign = 'center'; ctx.fillStyle = sp.texte;
+    ctx.font = '900 ' + Math.round(h * (sp.ligne ? 0.34 : 0.42)) + 'px "Bricolage Grotesque", Inter, sans-serif';
+    ctx.fillText(sp.nom, x0 + l / 2, y0 + h * (sp.ligne ? 0.5 : 0.62), l * 0.92);
+    if (sp.ligne) {
+      ctx.fillStyle = sp.accent; ctx.font = '800 ' + Math.round(h * 0.15) + 'px Inter, sans-serif';
+      ctx.fillText(sp.ligne, x0 + l / 2, y0 + h * 0.78, l * 0.9);
+    }
+  }
+  function pub(sx, sy, s, sp) {
+    lumiere(sx, sy - 470 * s, 260 * s, '255,236,190');
+    var modele = SPRITES['decor-panneau'];
+    if (modele) {
+      // Panneau 3D (Hyper3D) avec l'affiche posée sur sa face blanche.
+      var img = modele[0], h = 500 * s, w = h * img.width / img.height, z = ZONE_PANNEAU;
+      ctx.drawImage(img, sx - w / 2, sy - h, w, h);
+      ctx.save(); ctx.translate(sx - w / 2 + z[0] * w, sy - h + z[1] * h); ctx.scale(z[2] * w / 400, z[3] * h / 200);
+      affiche(sp, 0, 0, 400, 200); ctx.restore();
+      return;
+    }
     ctx.save(); ctx.translate(sx, sy); ctx.scale(s, s);
-    ctx.fillStyle = '#4A505C'; ctx.fillRect(-60, -360, 10, 360); ctx.fillRect(50, -360, 10, 360);
-    ctx.fillStyle = '#0E1630'; rect(-190, -560, 380, 210, 10); ctx.fill();
-    ctx.fillStyle = '#FFC814'; ctx.fillRect(-180, -550, 360, 10);
-    ctx.fillStyle = '#FFFFFF'; ctx.font = '800 38px "Bricolage Grotesque", Inter, sans-serif'; ctx.textAlign = 'center';
-    var mots = texte.split(' '), l1 = mots.slice(0, Math.ceil(mots.length / 2)).join(' '), l2 = mots.slice(Math.ceil(mots.length / 2)).join(' ');
-    ctx.fillText(l1, 0, l2 ? -470 : -440); if (l2) { ctx.fillStyle = '#FFC814'; ctx.fillText(l2, 0, -420); }
+    ctx.fillStyle = '#4A505C'; ctx.fillRect(-90, -350, 14, 350); ctx.fillRect(76, -350, 14, 350);
+    ctx.fillStyle = '#2B2F38'; rect(-250, -600, 500, 260, 8); ctx.fill();
+    affiche(sp, -240, -590, 480, 240);
+    ctx.fillStyle = '#2B2F38'; ctx.fillRect(-120, -618, 10, 20); ctx.fillRect(110, -618, 10, 20);
     ctx.restore();
   }
   function abribus(sx, sy, s) {
+    if (spriteDecor('abribus', sx, sy, s, 360)) return;
     ctx.save(); ctx.translate(sx, sy); ctx.scale(s, s);
     ctx.fillStyle = 'rgba(160,210,240,.45)'; ctx.fillRect(-160, -250, 320, 230);
     ctx.fillStyle = '#4A505C'; ctx.fillRect(-170, -270, 340, 20); ctx.fillRect(-170, -250, 10, 250); ctx.fillRect(160, -250, 10, 250);
@@ -1856,6 +1913,7 @@ html{scroll-behavior:smooth}
     ctx.stroke(); ctx.restore();
   }
   function pirogue(sx, sy, s, v2) {
+    if (spriteDecor('pirogue', sx, sy + 10 * s, s, 560, true, v2 % 2 === 1)) return;
     ctx.save(); ctx.translate(sx, sy); ctx.scale(s, s);
     ctx.fillStyle = ['#7A4A2A', '#5A3B22', '#8A5A2B'][v2 % 3];
     ctx.beginPath(); ctx.moveTo(-260, -40); ctx.quadraticCurveTo(0, 30, 260, -40); ctx.lineTo(220, -10); ctx.quadraticCurveTo(0, 40, -220, -10); ctx.fill();
@@ -1864,6 +1922,7 @@ html{scroll-behavior:smooth}
     ctx.restore();
   }
   function etalDecor(sx, sy, s, variante) {
+    if (spriteDecor('etal', sx, sy, s, 320, false, variante % 2 === 1)) return;
     var toiles = ['#D92D20', '#FFC814', '#1E5FD6', '#1E7D45', '#F08A3C'];
     var biens = [['#D92D20', '#E5322D'], ['#FFC814', '#E8B100'], ['#7A3E6A', '#1E5FD6'], ['#1E7D45', '#5F9A5A'], ['#F08A3C', '#C2410C']];
     ctx.save(); ctx.translate(sx, sy); ctx.scale(s, s);
@@ -2025,6 +2084,17 @@ html{scroll-behavior:smooth}
     }
     ctx.restore();
   }
+  function archePub(e, sy, s, sp) {
+    var p = e.p, c = p.c, w = p.w, haut = 380 * s, bh = Math.max(4, 95 * s);
+    lumiere(c, sy - haut + bh / 2, w * 0.9, '255,236,190');
+    ctx.save();
+    ctx.fillStyle = '#5A606C';
+    ctx.fillRect(c - w * 1.04 - 7 * s, sy - haut, 14 * s, haut); ctx.fillRect(c + w * 1.04 - 7 * s, sy - haut, 14 * s, haut);
+    ctx.fillStyle = '#3A3F4A'; ctx.fillRect(c - w * 1.06, sy - haut - 6 * s, w * 2.12, 10 * s);
+    ctx.translate(c - w * 0.98, sy - haut + 6 * s); ctx.scale(w * 1.96 / 800, bh / 100);
+    affiche(sp, 0, 0, 800, 100);
+    ctx.restore();
+  }
   function arche(e, sy, s) {
     var p = e.p, c = p.c, w = p.w;
     ctx.save();
@@ -2050,15 +2120,19 @@ html{scroll-behavior:smooth}
       if (!l || !Array.isArray(l.voitures)) return;
       l.voitures.forEach(function (id) {
         if (!VOITURES[id] && id.indexOf('trafic-') !== 0) return;
-        var vues = [], prets = 0, n = l.vues || 5;
-        for (var k = 0; k < n; k++) {
-          var img = new Image();
-          img.onload = function () { if (++prets === n) SPRITES[id] = vues; };
-          img.src = 'voitures/' + id + '-' + k + '.png';
-          vues.push(img);
-        }
+        chargerVues(id, l.vues || 5);
       });
+      (l.decor || []).forEach(function (id) { if (id !== 'decor-conteneur') chargerVues(id, 1); });
     }).catch(function () {});
+    function chargerVues(id, n) {
+      var vues = [], prets = 0;
+      for (var k = 0; k < n; k++) {
+        var img = new Image();
+        img.onload = function () { if (++prets === n) SPRITES[id] = vues; };
+        img.src = 'voitures/' + id + '-' + k + '.png';
+        vues.push(img);
+      }
+    }
   })();
   function spriteVoiture(id, cx, by, s, penche, turbo, largeur) {
     var vues = SPRITES[id];
@@ -2375,7 +2449,7 @@ html{scroll-behavior:smooth}
       var f = { palmier: function (sx, sy, s) { palmier(sx, sy, s); },
         lampadaire: function (sx, sy, s) { lampadaire(sx, sy, s, d.cote); },
         passant: function (sx, sy, s) { passant(sx, sy, s, d.v, false); },
-        pub: function (sx, sy, s) { pub(sx, sy, s, d.texte); },
+        pub: function (sx, sy, s) { pub(sx, sy, s, d.sponsor); },
         abribus: function (sx, sy, s) { abribus(sx, sy, s); },
         monument: function (sx, sy, s) { monument(sx, sy, s); },
         conteneur: function (sx, sy, s) { conteneur(sx, sy, s, d.v); },
@@ -2406,6 +2480,7 @@ html{scroll-behavior:smooth}
     pietons.forEach(function (p) { poser(p.z, p.x, function (sx, sy, s) { passant(sx, sy, s, p.def.habit, p.parti && !p.ecarte); }); });
     if (zFantome > vue.camZ + 1) poser(zFantome, E.xFantome, function (sx, sy, s) { ketch(sx, sy, s * 0.95, true); });
     poser(E.longueur, 0, function (sx, sy, s, e) { arche(e, sy, s); });
+    E.arches.forEach(function (a) { if (a.z > vue.camZ + 3 && a.z < fin) poser(a.z, 0, function (sx, sy, s, e) { archePub(e, sy, s, a.sponsor); }); });
 
     objets.sort(function (a, b) { return b.zz - a.zz; });
     objets.forEach(function (o) {

@@ -62,6 +62,9 @@ Chaque voiture a son propre son de moteur : plus aigu pour les sportives, plus g
 
 - **Voitures 3D** : des modèles GLB (créés par exemple avec Hyper3D Rodin) déposés dans `modeles/` deviennent des images de voiture grâce à `scripts/sprites/sprites-voitures.cjs` ; la démo les affiche à la place du dessin. Mode d'emploi et descriptions à coller dans Hyper3D : `modeles/README.md`.
 
+- **Décor 3D** (Hyper3D Rodin) : palmiers, lampadaires, abribus, étals du marché, pirogues et structure des panneaux publicitaires sont des modèles 3D photoréalistes, transformés en images par le même script que les voitures. Le conteneur, généré debout, garde son dessin d'origine.
+- **Sponsors** : panneaux le long de la route (tous les 200 m) et arches au-dessus de la route (tous les 300 m). Liste dans `PUBLICITES` (`src/jeu.js`) : Vodacom (M-PESA), Bralima (Coca-Cola), Canal+ (CANALBOX), Rawbank, Bracongo, Folucco et G-Challenge. Ce sont des **maquettes texte, sans logo** : avant toute mise en ligne publique, obtenez l'accord écrit de chaque marque (contrat de sponsoring), puis déposez son visuel officiel en `public/pubs/<id>.png` (format 2:1, par exemple 1600 × 800) et ajoutez son id dans `public/pubs/liste.json` (`{ "affiches": ["vodacom"] }`) : la démo l'affiche à la place de la maquette.
+
 ### Les commandes
 
 | Action | Clavier | Téléphone |

@@ -24,7 +24,11 @@ Déposez ici les modèles 3D des voitures, au format **GLB**, avec ces noms exac
 | `trafic-moto.glb` | Moto-taxi | Small 125cc motorcycle taxi with rider wearing a yellow helmet and colourful shirt, photorealistic, realistic proportions, PBR materials, game-ready |
 | `trafic-police.glb` | Police | White police patrol sedan with dark blue side band, roof light bar, generic "POLICE" text, no real force logos, photorealistic, realistic proportions, PBR materials, game-ready |
 
-Les taxis du trafic reprennent automatiquement le modèle `ketch.glb`. Les gyrophares de la police continuent de clignoter par-dessus le modèle.
+Les taxis du trafic reprennent automatiquement le modèle `ketch.glb`.
+
+### Le décor (déjà créé)
+
+`decor-palmier.glb`, `decor-lampadaire.glb`, `decor-abribus.glb`, `decor-etal.glb`, `decor-conteneur.glb`, `decor-pirogue.glb`, `decor-panneau.glb` : photographiés de face (une vue). Le conteneur a été généré debout ; il n'est pas utilisé par la démo. La face blanche du panneau reçoit les affiches des sponsors (position réglée par `ZONE_PANNEAU` dans `src/jeu.js`). Les gyrophares de la police continuent de clignoter par-dessus le modèle.
 
 Voitures réalistes mais sans marque : pas de logo, de calandre ni de nom de constructeur réels (les marques exigent une licence payante pour un jeu commercial). Dans Hyper3D, choisissez la meilleure qualité proposée.
 
