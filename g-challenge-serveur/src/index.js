@@ -36,6 +36,7 @@ const minuterieTournois = setInterval(() => traiterTournois().catch((e) => conso
 
 serveur.listen(config.port, () => {
   console.log(`G-Challenge en ligne sur le port ${config.port}`);
+  if ((process.env.SMS_FOURNISSEUR || 'simulation') === 'simulation') console.log('SMS : mode simulation (codes écrits dans ce journal). Réglez SMS_FOURNISSEUR pour envoyer de vrais SMS.');
   if (config.fournisseurForce) console.log(`Paiements : fournisseur forcé "${config.fournisseurForce}" (aucun argent réel).`);
 });
 

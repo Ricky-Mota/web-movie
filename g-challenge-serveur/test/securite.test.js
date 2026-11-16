@@ -10,6 +10,7 @@ const jwt = (await import('jsonwebtoken')).default;
 const { pool, requete } = await import('../src/db.js');
 const { migrer } = await import('../src/migrations.js');
 const { creerApp } = await import('../src/app.js');
+const { _derniersCodes } = await import('../src/sms/index.js');
 
 let serveur, base;
 before(async () => {
@@ -95,4 +96,30 @@ test('anti-abus : corps trop gros refusé, trop de requêtes freinées', async (
   await new Promise((r) => petit.close(r));
   assert.deepEqual(statuts.slice(0, 5), [200, 200, 200, 200, 200]);
   assert.equal(statuts[6], 429);
+});
+
+test('vérification du numéro par SMS : code, essais limités, envoi freiné', async () => {
+  const j = await inscrire('Verif');
+  assert.equal((await api('GET', '/joueurs/moi', { jeton: j.jeton })).json.telephone_verifie, false);
+  const envoi = await api('POST', '/joueurs/telephone/code', { jeton: j.jeton });
+  assert.equal(envoi.statut, 200, JSON.stringify(envoi.json));
+  assert.match(envoi.json.telephone_masque, /•••/);
+  const code = _derniersCodes.get(j.telephone).match(/\d{6}/)[0];
+  assert.equal((await api('POST', '/joueurs/telephone/code', { jeton: j.jeton })).statut, 429); // une minute d'attente
+  const faux = code === '000000' ? '111111' : '000000';
+  const r1 = await api('POST', '/joueurs/telephone/verifier', { jeton: j.jeton, corps: { code: faux } });
+  assert.equal(r1.json.erreur.code, 'code_faux');
+  const { rows: [en] } = await requete('SELECT code_hash FROM gchallenge.codes_sms ORDER BY id DESC LIMIT 1');
+  assert.ok(!en.code_hash.includes(code)); // jamais en clair
+  assert.equal((await api('POST', '/joueurs/telephone/verifier', { jeton: j.jeton, corps: { code } })).statut, 200);
+  assert.equal((await api('GET', '/joueurs/moi', { jeton: j.jeton })).json.telephone_verifie, true);
+  assert.equal((await api('POST', '/joueurs/telephone/verifier', { jeton: j.jeton, corps: { code } })).statut, 400);
+
+  // 5 essais au plus, même avec le bon code ensuite.
+  const k = await inscrire('Devin');
+  await api('POST', '/joueurs/telephone/code', { jeton: k.jeton });
+  const bon = _derniersCodes.get(k.telephone).match(/\d{6}/)[0];
+  const mauvais = bon === '123456' ? '654321' : '123456';
+  for (let i = 0; i < 5; i++) await api('POST', '/joueurs/telephone/verifier', { jeton: k.jeton, corps: { code: mauvais } });
+  assert.equal((await api('POST', '/joueurs/telephone/verifier', { jeton: k.jeton, corps: { code: bon } })).json.erreur.code, 'trop_essais');
 });

@@ -30,16 +30,28 @@ Tests automatiques : 39 sur 39, dont `test/securite.test.js` (jeton falsifié, a
 
 1. **Le jeu tourne sur le téléphone du joueur** : un expert peut toujours fabriquer une course « juste sous la limite ».
    La parade est humaine : valider chaque prime, regarder les courses à moins de 5 % du minimum (signe ⚠ dans l'espace admin).
-2. **Numéros de téléphone non vérifiés** (pas de code SMS) : une personne peut créer plusieurs comptes.
-   À ajouter avant de gros montants : code SMS à l'inscription, ou vérification du nom du titulaire M-Pesa avant le premier versement.
-3. **Duels avec mise d'argent** : juridiquement proche des jeux d'argent en RDC. Ne pas les ouvrir sans avis juridique
-   et autorisation (Loterie nationale / ministère). Les tournois financés par un sponsor sont moins exposés.
+2. **Numéros de téléphone** : vérification par code SMS ajoutée (6 chiffres, 10 minutes, 5 essais, 1 envoi par minute et 5 par jour,
+   code stocké seulement sous forme d'empreinte). **Une prime ne peut pas être validée si le numéro du pilote n'est pas vérifié.**
+   Reste à brancher un vrai fournisseur de SMS (voir plus bas) : en mode `simulation`, le code est écrit dans le journal Render.
+3. **Duels avec mise d'argent : FERMÉS dans tous les pays** (migration 008). Les duels gratuits restent ouverts.
+   Réouverture pays par pays, après avis juridique et autorisation : `PUT /admin/pays/CD` avec `mises_autorisees: true`.
 4. **Compte administrateur** : un seul mot de passe le protège. Utilisez un mot de passe long et unique ; la double authentification est à prévoir.
 5. **M-Pesa** : les clés Vodacom donneront accès à de l'argent réel. Elles vont uniquement dans les variables d'environnement Render, jamais dans le code ni par message.
 6. **Inscriptions bêta** : les robots sont freinés (champ piège, délai), mais sans limite par IP. Sur Cloudflare, ajoutez une règle « Rate limiting » gratuite sur `/api/inscription-beta`.
 7. **Offre gratuite** Render/Neon : pas de sauvegarde automatique longue. Exportez la base chaque semaine pendant les tournois.
 
-## 3. Règles d'or
+## 3. Brancher les vrais SMS
+
+Dans Render > votre service > Environment, changez `SMS_FOURNISSEUR`, puis ajoutez les clés du fournisseur choisi :
+
+| Fournisseur | `SMS_FOURNISSEUR` | Variables à ajouter | Pour commencer |
+|---|---|---|---|
+| Twilio | `twilio` | `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_FROM` (numéro Twilio) | crédit d'essai à l'inscription ; en essai, il n'envoie qu'aux numéros que vous avez vérifiés chez Twilio |
+| Africa's Talking | `africastalking` | `AT_USERNAME`, `AT_API_KEY`, `AT_EXPEDITEUR` (facultatif) | `AT_USERNAME=sandbox` : simulateur gratuit ; vérifier la couverture RDC avant la production |
+
+Les clés ne vont **que** dans Render. Ne les envoyez ni par message ni par capture.
+
+## 4. Règles d'or
 
 - Ne jamais coller de secret (mot de passe Neon, clé M-Pesa, `JWT_SECRET`) dans une discussion, un e-mail ou une capture.
 - `FOURNISSEUR_FORCE=simulation` tant que M-Pesa n'est pas testé sur le sandbox.

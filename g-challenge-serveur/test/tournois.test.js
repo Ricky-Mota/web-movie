@@ -96,6 +96,8 @@ test('préparation : administrateur, circuit, 5 équipes en RDC et 2 en Zambie',
   assert.equal((await api('PUT', `/admin/circuits/${code}`, { jeton: J.admin.jeton, corps })).statut, 200);
   for (const nom of ['Gombe', 'Lemba', 'Matete', 'Ngiri', 'Kasa']) E[nom] = await equipe(nom);
   for (const nom of ['Lusaka', 'Ndola']) E[nom] = await equipe(nom, 'ZM');
+  // Les pilotes ont vérifié leur numéro par SMS.
+  await requete(`UPDATE gchallenge.joueurs SET telephone_verifie_le = now()`);
 });
 
 test('championnat national : contrôles à la création', async () => {
@@ -139,6 +141,12 @@ test('semaine 1 : qualifications, les 4 meilleures équipes complètes sont rete
   assert.ok(primes.every((p) => p.statut === 'a_valider'));
   const pirate = (await api('POST', `/admin/primes/${primes[0].id}/valider`, { jeton: E.Gombe.pilotes[0].jeton })).statut;
   assert.ok(pirate === 401 || pirate === 403);
+  // Numéro non vérifié par SMS : la prime ne peut pas être validée.
+  const g2 = primes.find((p) => p.pseudo === 'Gombe2');
+  await requete(`UPDATE gchallenge.joueurs SET telephone_verifie_le = NULL WHERE pseudo = 'Gombe2'`);
+  const nonVerifie = await api('POST', `/admin/primes/${g2.id}/valider`, { jeton: J.admin.jeton });
+  assert.equal(nonVerifie.json.erreur.code, 'telephone_non_verifie');
+  await requete(`UPDATE gchallenge.joueurs SET telephone_verifie_le = now() WHERE pseudo = 'Gombe2'`);
   for (const p of primes) assert.equal((await api('POST', `/admin/primes/${p.id}/valider`, { jeton: J.admin.jeton })).statut, 200);
   assert.equal((await api('POST', `/admin/primes/${primes[0].id}/valider`, { jeton: J.admin.jeton })).statut, 409);
   const apres = (await api('GET', '/admin/primes', { jeton: J.admin.jeton })).json.filter((p) => p.equipe === 'Gombe');

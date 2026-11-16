@@ -25,3 +25,7 @@ services:
       # Aucun argent réel tant que M-Pesa n'est pas branché : retirez cette ligne au lancement.
       - key: FOURNISSEUR_FORCE
         value: simulation
+      # Codes SMS : "simulation" écrit les codes dans le journal Render (essais).
+      # Pour de vrais SMS : twilio ou africastalking, avec leurs clés ajoutées dans Render (voir SECURITE.md).
+      - key: SMS_FOURNISSEUR
+        value: simulation

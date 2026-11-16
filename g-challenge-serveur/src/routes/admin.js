@@ -192,7 +192,7 @@ routesAdmin.get('/tournois', asynchrone(async (_req, res) => {
 routesAdmin.get('/primes', asynchrone(async (req, res) => {
   const statut = req.query.statut ? valider(z.enum(['a_valider', 'en_attente', 'reussi', 'echoue', 'a_verser_manuellement', 'refusee']), req.query.statut) : null;
   const { rows } = await requete(
-    `SELECT pr.*, j.pseudo, j.telephone, j.bloque, e.nom AS equipe FROM primes pr JOIN joueurs j ON j.id = pr.joueur_id
+    `SELECT pr.*, j.pseudo, j.telephone, j.bloque, j.telephone_verifie_le IS NOT NULL AS telephone_verifie, e.nom AS equipe FROM primes pr JOIN joueurs j ON j.id = pr.joueur_id
        JOIN equipes e ON e.id = pr.equipe_id
       WHERE ($1::text IS NULL OR pr.statut = $1) ORDER BY pr.cree_le DESC LIMIT 500`, [statut]);
   res.json(rows);
@@ -222,7 +222,7 @@ routesAdmin.get('/joueurs/:id/courses', asynchrone(async (req, res) => {
 routesAdmin.get('/joueurs', asynchrone(async (req, res) => {
   const q = valider(z.object({ q: z.string().trim().min(2).max(30) }), req.query);
   const { rows } = await requete(
-    `SELECT id, pseudo, telephone, pays_code, role, bloque, bloque_motif, cree_le FROM joueurs
+    `SELECT id, pseudo, telephone, pays_code, role, bloque, bloque_motif, telephone_verifie_le IS NOT NULL AS telephone_verifie, cree_le FROM joueurs
       WHERE pseudo ILIKE $1 OR ($2::text <> '' AND telephone LIKE '%' || $2 || '%') ORDER BY pseudo LIMIT 50`,
     ['%' + q.q.replace(/[\\%_]/g, '\\$&') + '%', q.q.replace(/\D/g, '')]);
   res.json(rows);

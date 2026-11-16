@@ -4,6 +4,7 @@ import { requete } from '../db.js';
 import { valider, refus, conflit, ErreurApi, introuvable } from '../erreurs.js';
 import { hacherMotDePasse, comparerSansFuite, creerJeton, connecte } from '../auth.js';
 import { asynchrone } from './outils.js';
+import { envoyerCode, verifierCode } from '../domaine/verification.js';
 
 export const routesJoueurs = Router();
 
@@ -15,7 +16,8 @@ const schemaInscription = z.object({
 });
 
 function publicJoueur(j) {
-  return { id: j.id, pseudo: j.pseudo, telephone: j.telephone, pays: j.pays_code, role: j.role, cree_le: j.cree_le };
+  return { id: j.id, pseudo: j.pseudo, telephone: j.telephone, pays: j.pays_code, role: j.role, cree_le: j.cree_le,
+    telephone_verifie: !!j.telephone_verifie_le };
 }
 
 routesJoueurs.post('/inscription', asynchrone(async (req, res) => {
@@ -57,4 +59,13 @@ routesJoueurs.get('/moi', connecte, asynchrone(async (req, res) => {
   if (!j) throw introuvable('Joueur introuvable.');
   const { rows: [p] } = await requete('SELECT * FROM pays WHERE code = $1', [j.pays_code]);
   res.json({ ...publicJoueur(j), devise: p.devise, mises_autorisees: p.mises_autorisees, langue: p.langue });
+}));
+
+// Vérification du numéro par SMS (obligatoire pour recevoir une prime).
+routesJoueurs.post('/telephone/code', connecte, asynchrone(async (req, res) => {
+  res.json(await envoyerCode(req.joueur.id));
+}));
+routesJoueurs.post('/telephone/verifier', connecte, asynchrone(async (req, res) => {
+  const { code } = valider(z.object({ code: z.string().trim().max(10) }), req.body ?? {});
+  res.json(await verifierCode(req.joueur.id, code));
 }));

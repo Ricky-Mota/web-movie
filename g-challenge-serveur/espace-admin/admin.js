@@ -105,7 +105,7 @@
       var liste = $('listeAValider'); liste.textContent = '';
       primes.forEach(function (p) {
         var tr = document.createElement('tr');
-        cellule(tr, p.pseudo); cellule(tr, p.equipe); cellule(tr, p.rang + 'e'); cellule(tr, dollars(p.montant_centimes) + ' ' + p.devise);
+        cellule(tr, p.pseudo + (p.telephone_verifie ? ' ✔' : ' (numéro non vérifié)')); cellule(tr, p.equipe); cellule(tr, p.rang + 'e'); cellule(tr, dollars(p.montant_centimes) + ' ' + p.devise);
         var td = cellule(tr, '');
         bouton(td, 'Courses', true, function () { return voirCourses(p.joueur_id, p.pseudo); });
         bouton(td, 'Valider', false, function () { return api('POST', '/admin/primes/' + p.id + '/valider').then(chargerAValider); });
@@ -135,7 +135,7 @@
       var liste = $('listeJoueurs'); liste.textContent = '';
       joueurs.forEach(function (j) {
         var tr = document.createElement('tr');
-        cellule(tr, j.pseudo); cellule(tr, '+' + j.telephone); cellule(tr, j.pays_code); cellule(tr, j.bloque ? 'bloqué (' + (j.bloque_motif || '') + ')' : (j.role === 'admin' ? 'admin' : 'actif'));
+        cellule(tr, j.pseudo); cellule(tr, '+' + j.telephone); cellule(tr, j.pays_code); cellule(tr, (j.bloque ? 'bloqué (' + (j.bloque_motif || '') + ')' : (j.role === 'admin' ? 'admin' : 'actif')) + (j.telephone_verifie ? ' · n° vérifié' : ' · n° non vérifié'));
         var td = cellule(tr, '');
         bouton(td, 'Courses', true, function () { return voirCourses(j.id, j.pseudo); });
         if (j.role !== 'admin') bouton(td, j.bloque ? 'Débloquer' : 'Bloquer', !j.bloque, function () {

@@ -134,6 +134,13 @@ export async function relancerPrime(primeId) {
 
 /** L'administrateur accepte (envoi M-Pesa) ou refuse (triche, erreur) une prime en attente de validation. */
 export async function deciderPrime(primeId, adminId, accepter, motif = null) {
+  if (accepter) {
+    const { rows: [v] } = await requete(
+      'SELECT j.telephone_verifie_le FROM primes pr JOIN joueurs j ON j.id = pr.joueur_id WHERE pr.id = $1', [primeId]);
+    if (v && !v.telephone_verifie_le) {
+      throw conflit('telephone_non_verifie', 'Numéro du pilote non vérifié par SMS : demandez-lui de le vérifier dans « Mon compte », puis validez.');
+    }
+  }
   const { rows: [p] } = await requete(
     `UPDATE primes SET statut = $3, decide_par = $2, decide_le = now(), motif_refus = $4, maj_le = now()
       WHERE id = $1 AND statut = 'a_valider' RETURNING *`,

@@ -95,6 +95,14 @@ test("l'administrateur crée le circuit", async () => {
   assert.equal((await api('PUT', `/admin/circuits/${code}`, { jeton: J.bea.jeton, corps })).statut, 403);
 });
 
+test('mises fermées par défaut (pas d\'avis juridique) ; l\'administrateur les rouvre pour la RDC', async () => {
+  const ferme = await api('POST', '/duels', { jeton: J.bea.jeton, corps: { circuit: CIRCUIT_TEST.code, taille: 1, mise_centimes: 500 } });
+  assert.equal(ferme.json.erreur.code, 'mises_interdites_pays');
+  const r = await api('PUT', '/admin/pays/CD', { jeton: J.ali.jeton, corps: {
+    nom: 'République démocratique du Congo', devise: 'USD', mises_autorisees: true, fournisseur: 'mpesa_rdc', langue: 'fr', indicatif: '243' } });
+  assert.equal(r.statut, 200, JSON.stringify(r.json));
+});
+
 test('équipes : code d\'invitation, ajout par pseudo, équipe pleine', async () => {
   const a = await api('POST', '/equipes', { jeton: J.ali.jeton, corps: { nom: 'Les Ketch de Gombe', taille_max: 2 } });
   assert.equal(a.statut, 201);

@@ -244,6 +244,7 @@ html{scroll-behavior:smooth}
 .duel-code{margin:0;text-align:center;font:900 40px Inter,sans-serif;letter-spacing:8px;color:#FFC814}.duel-distance{width:100%;justify-content:center}.duel-ligne{display:flex;align-items:center;gap:10px;font:700 14px Inter,sans-serif}.duel-ligne select{flex:1;height:38px;border-radius:10px;border:1px solid rgba(255,255,255,.2);background:#0B1022;color:#F5F3EA;padding:0 10px}.jeu-lancer[disabled]{opacity:.55;cursor:wait}
 @media (max-width:640px){.duel-code{font-size:28px}}
 .duel-whatsapp{background:#25D366!important;color:#06240F!important;text-decoration:none}
+.verif{display:flex;flex-direction:column;gap:6px;padding:8px 10px;border-radius:12px;border:1px dashed rgba(255,200,20,.5);background:rgba(255,200,20,.06)}.verif-ok{color:#7BE0A0;font-weight:700}
 </style>
 </head>
 <body>
@@ -401,6 +402,12 @@ html{scroll-behavior:smooth}
 <div class="tournoi-bloc" id="blocProfil" hidden>
 <p class="tournoi-epreuve" id="profilNom"></p>
 <p class="tournoi-note" id="profilDetail"></p>
+<div class="verif" id="blocVerif" hidden>
+<p class="compte-titre" id="verifEtat">Numéro non vérifié : vérifiez-le pour recevoir les primes M-PESA.</p>
+<button type="button" class="jeu-bouton" id="boutonCode">Recevoir le code par SMS</button>
+<form id="formCode" class="compte-ligne" hidden><input id="champCode" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="Code à 6 chiffres" required aria-label="Code reçu par SMS"><button type="submit" class="jeu-bouton">Vérifier</button></form>
+<p class="compte-message" id="messageVerif" role="status"></p>
+</div>
 <p class="compte-titre">Mes équipes (4 pilotes pour les tournois)</p>
 <div id="listeEquipes"></div>
 <form id="formCreerEquipe" class="compte-ligne"><input id="champNomEquipe" maxlength="40" placeholder="Nom de la nouvelle équipe" required aria-label="Nom de la nouvelle équipe"><button type="submit" class="jeu-bouton">Créer</button></form>
@@ -3555,8 +3562,46 @@ html{scroll-behavior:smooth}
     if (session) {
       document.getElementById('profilNom').textContent = session.joueur.pseudo;
       document.getElementById('profilDetail').textContent = 'Pays : ' + session.joueur.pays + ' · vos courses de la démo sont envoyées au serveur et vérifiées par l\'anti-triche.';
+      majVerif();
     }
   }
+  // Vérification du numéro par SMS : obligatoire pour recevoir une prime M-PESA.
+  function majVerif() {
+    var bloc = document.getElementById('blocVerif');
+    if (!bloc || !session) return;
+    bloc.hidden = false;
+    var ok = !!session.joueur.telephone_verifie;
+    var etat = document.getElementById('verifEtat');
+    etat.textContent = ok ? '\u2714 Numéro vérifié : vous pouvez recevoir les primes M-PESA.' : 'Numéro non vérifié : vérifiez-le pour recevoir les primes M-PESA.';
+    etat.className = 'compte-titre' + (ok ? ' verif-ok' : '');
+    document.getElementById('boutonCode').hidden = ok;
+    if (ok) document.getElementById('formCode').hidden = true;
+  }
+  function rafraichirMoi() {
+    if (!session) return;
+    apiJeu('GET', '/joueurs/moi').then(function (moi) {
+      session.joueur.telephone_verifie = moi.telephone_verifie;
+      try { localStorage.setItem('ketch-session', JSON.stringify(session)); } catch (e) {}
+      majVerif();
+    }).catch(function () {});
+  }
+  document.getElementById('boutonCode').addEventListener('click', function () {
+    var b = this; b.disabled = true;
+    apiJeu('POST', '/joueurs/telephone/code').then(function (r) {
+      msg('messageVerif', 'Code envoyé par SMS au ' + r.telephone_masque + '. Il est valable 10 minutes.', true);
+      document.getElementById('formCode').hidden = false; document.getElementById('champCode').focus();
+    }).catch(function (e) { msg('messageVerif', e.message, false); }).then(function () { setTimeout(function () { b.disabled = false; }, 60000); });
+  });
+  document.getElementById('formCode').addEventListener('submit', function (e) {
+    e.preventDefault();
+    var code = document.getElementById('champCode').value.replace(/\D/g, '');
+    apiJeu('POST', '/joueurs/telephone/verifier', { code: code }).then(function () {
+      session.joueur.telephone_verifie = true;
+      try { localStorage.setItem('ketch-session', JSON.stringify(session)); } catch (e2) {}
+      msg('messageVerif', 'Merci ! Votre numéro est vérifié.', true); majVerif();
+    }).catch(function (err) { msg('messageVerif', err.message, false); });
+  });
+  document.getElementById('formCode').addEventListener('keydown', function (e) { e.stopPropagation(); });
   function choisirOnglet(o) {
     ongletCompte = o;
     Array.prototype.forEach.call(document.querySelectorAll('[data-onglet]'), function (b) { b.setAttribute('aria-selected', b.getAttribute('data-onglet') === o ? 'true' : 'false'); });
@@ -3581,7 +3626,7 @@ html{scroll-behavior:smooth}
   }
   function ouvrirCompte() {
     [panneauModes, panneauDebut, panneauFin, panneauClassement, panneauTournoi].forEach(function (p) { p.hidden = true; });
-    panneauCompte.hidden = false; majCompte();
+    panneauCompte.hidden = false; majCompte(); rafraichirMoi();
     var sel = document.getElementById('champPaysCompte');
     if (!sel.options.length) {
       apiJeu('GET', '/pays').then(function (pays) {
