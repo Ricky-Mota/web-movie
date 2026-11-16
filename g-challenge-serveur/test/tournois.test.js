@@ -1,5 +1,5 @@
-// Tournoi Sponsor (qualifications, sélection, éliminations, primes M-Pesa) et Tournoi international,
-// de bout en bout contre une vraie base PostgreSQL (vidée à chaque lancement).
+// Championnat national par équipes (Tournoi Sponsor) et Coupe d'Afrique, de bout en bout
+// contre une vraie base PostgreSQL (vidée à chaque lancement).
 process.env.DATABASE_URL = process.env.TEST_DATABASE_URL || 'postgresql://gc:gc@localhost:5432/gchallenge_test';
 process.env.JWT_SECRET = 'cle-de-test-cle-de-test-cle-de-test-0123456789';
 process.env.FOURNISSEUR_FORCE = 'simulation';
@@ -39,10 +39,26 @@ async function api(methode, chemin, { jeton, corps } = {}) {
   return { statut: r.status, json: await r.json() };
 }
 
-async function inscrire(pseudo, telephone, pays = 'CD') {
+let numeroTel = 0;
+async function inscrire(pseudo, pays = 'CD') {
+  numeroTel += 1;
+  const indicatif = { CD: '24381', ZM: '26097', SA: '96650', GH: '23324' }[pays];
+  const telephone = indicatif + String(numeroTel).padStart(7, '0');
   const r = await api('POST', '/joueurs/inscription', { corps: { pseudo, telephone, pays, mot_de_passe: 'motdepasse123' } });
   assert.equal(r.statut, 201, JSON.stringify(r.json));
   return { ...r.json.joueur, jeton: r.json.jeton };
+}
+
+/** Une équipe de 3 pilotes : le premier est le capitaine. */
+async function equipe(nom, pays = 'CD') {
+  const pilotes = [];
+  for (let i = 1; i <= 3; i++) pilotes.push(await inscrire(`${nom}${i}`, pays));
+  const e = await api('POST', '/equipes', { jeton: pilotes[0].jeton, corps: { nom, taille_max: 3 } });
+  assert.equal(e.statut, 201);
+  for (const p of pilotes.slice(1)) {
+    assert.equal((await api('POST', `/equipes/${e.json.id}/membres`, { jeton: pilotes[0].jeton, corps: { pseudo: p.pseudo } })).statut, 201);
+  }
+  return { id: e.json.id, nom, pilotes };
 }
 
 async function courir(joueur, tempsMs) {
@@ -51,148 +67,170 @@ async function courir(joueur, tempsMs) {
   assert.equal(r.json.valide, true, JSON.stringify(r.json));
 }
 
-/** Lundi de la semaine en cours, à Kinshasa (UTC+1). */
-function lundiCourant(decalageSemaines = 0) {
-  const kin = new Date(Date.now() + 3600 * 1000);
-  const jour = (kin.getUTCDay() + 6) % 7; // 0 = lundi
-  const lundi = new Date(Date.UTC(kin.getUTCFullYear(), kin.getUTCMonth(), kin.getUTCDate() - jour + 7 * decalageSemaines));
-  return lundi.toISOString().slice(0, 10);
+/** Toute l'équipe court (ou seulement les `n` premiers pilotes). */
+async function courirEquipe(eq, tempsMs, n = 3) {
+  for (const p of eq.pilotes.slice(0, n)) await courir(p, tempsMs);
 }
 
-/** Ouvre la semaine `numero` maintenant (pour le test), après les courses déjà envoyées. */
-async function ouvrirSemaine(saisonId, numero) {
-  await requete(
-    `UPDATE gchallenge.semaines_sponsor SET debut = now(), fin = now() + interval '1 day' WHERE saison_id = $1 AND numero = $2`,
-    [saisonId, numero]);
+function lundiCourant(decalageSemaines = 0) {
+  const kin = new Date(Date.now() + 3600 * 1000);
+  const jour = (kin.getUTCDay() + 6) % 7;
+  return new Date(Date.UTC(kin.getUTCFullYear(), kin.getUTCMonth(), kin.getUTCDate() - jour + 7 * decalageSemaines)).toISOString().slice(0, 10);
+}
+
+/** Ouvre une semaine (ou un tour) maintenant, pour le test, après les courses déjà envoyées. */
+async function ouvrir(table, colonneId, id, colonneNumero, numero) {
+  await requete(`UPDATE gchallenge.${table} SET debut = now(), fin = now() + interval '1 day' WHERE ${colonneId} = $1 AND ${colonneNumero} = $2`, [id, numero]);
   await new Promise((r) => setTimeout(r, 20));
 }
 
 const J = {};
-let saison;
+const E = {};
+let champCD, champZM, coupe;
 
-test('préparation : administrateur, circuit et joueurs de plusieurs pays', async () => {
-  J.admin = await inscrire('Admin', '243819999999');
+test('préparation : administrateur, circuit, 5 équipes en RDC et 2 en Zambie', async () => {
+  J.admin = await inscrire('Admin');
   await requete(`UPDATE gchallenge.joueurs SET role = 'admin' WHERE id = $1`, [J.admin.id]);
   J.admin.jeton = (await api('POST', '/joueurs/connexion', { corps: { identifiant: 'Admin', mot_de_passe: 'motdepasse123' } })).json.jeton;
   const { code, ...corps } = CIRCUIT_TEST;
   assert.equal((await api('PUT', `/admin/circuits/${code}`, { jeton: J.admin.jeton, corps })).statut, 200);
-  J.ali = await inscrire('Ali', '243810000001');
-  J.bea = await inscrire('Bea', '243810000002');
-  J.chris = await inscrire('Chris', '243810000003');
-  J.dido = await inscrire('Dido', '243810000004');
-  J.eli = await inscrire('Eli', '243810000005');
-  J.zola = await inscrire('Zola', '260970000001', 'ZM');
-  J.sami = await inscrire('Sami', '966500000001', 'SA');
-  J.kofi = await inscrire('Kofi', '233240000001', 'GH'); // nouveau pays du Tournoi international
-  const pays = (await api('GET', '/pays')).json;
-  assert.equal(pays.find((p) => p.code === 'SA').continent, 'AS');
-  assert.equal(pays.find((p) => p.code === 'CD').primes_autorisees, true);
+  for (const nom of ['Gombe', 'Lemba', 'Matete', 'Ngiri', 'Kasa']) E[nom] = await equipe(nom);
+  for (const nom of ['Lusaka', 'Ndola']) E[nom] = await equipe(nom, 'ZM');
 });
 
-test("création d'une saison : contrôles", async () => {
-  const corps = { nom: 'Saison test', sponsor: 'Vodacom', premier_lundi: lundiCourant(), nb_qualifies: 4,
-    eliminations: [2, 1], primes_centimes: [1000, 500], prime_champion_centimes: 2000, circuits: Array(3).fill(CIRCUIT_TEST.code) };
-  const pasAdmin = await api('POST', '/admin/tournois/sponsor', { jeton: J.ali.jeton, corps });
-  assert.equal(pasAdmin.statut, 403);
-  const mauvaiseSomme = await api('POST', '/admin/tournois/sponsor', { jeton: J.admin.jeton, corps: { ...corps, eliminations: [2, 2] } });
-  assert.equal(mauvaiseSomme.json.erreur.code, 'eliminations_incoherentes');
-  const mardi = new Date(corps.premier_lundi + 'T12:00:00Z'); mardi.setUTCDate(mardi.getUTCDate() + 1);
-  const pasLundi = await api('POST', '/admin/tournois/sponsor', { jeton: J.admin.jeton, corps: { ...corps, premier_lundi: mardi.toISOString().slice(0, 10) } });
-  assert.equal(pasLundi.json.erreur.code, 'pas_un_lundi');
-  const r = await api('POST', '/admin/tournois/sponsor', { jeton: J.admin.jeton, corps });
+test('championnat national : contrôles à la création', async () => {
+  const corps = { pays: 'cd', nom: 'Championnat RDC', sponsor: 'Vodacom', premier_lundi: lundiCourant(),
+    nb_equipes: 4, nb_qualifies: 2, circuits: Array(3).fill(CIRCUIT_TEST.code) };
+  assert.equal((await api('POST', '/admin/tournois/championnats', { jeton: E.Gombe.pilotes[0].jeton, corps })).statut, 403);
+  const uneSemaine = await api('POST', '/admin/tournois/championnats', { jeton: J.admin.jeton, corps: { ...corps, circuits: [CIRCUIT_TEST.code] } });
+  assert.equal(uneSemaine.statut, 400);
+  const trop = await api('POST', '/admin/tournois/championnats', { jeton: J.admin.jeton, corps: { ...corps, nb_qualifies: 5 } });
+  assert.equal(trop.json.erreur.code, 'qualifies');
+  const r = await api('POST', '/admin/tournois/championnats', { jeton: J.admin.jeton, corps });
   assert.equal(r.statut, 201, JSON.stringify(r.json));
-  saison = r.json;
-  const etat = (await api('GET', '/tournois/sponsor')).json;
-  assert.equal(etat.semaines.length, 3);
-  assert.equal(etat.semaine_courante, 1);
+  champCD = r.json;
+  const etat = (await api('GET', '/tournois/championnats/cd')).json;
+  assert.deepEqual([etat.semaines.length, etat.semaine_courante, etat.taille_equipe, etat.primes_centimes], [3, 1, 3, [2000, 2000, 2000, 2000]]);
 });
 
-test('semaine 1 : qualifications ouvertes, les 4 meilleurs temps sont sélectionnés', async () => {
-  await courir(J.zola, 29000);
-  await courir(J.ali, 30000);
-  await courir(J.ali, 35000); // seul le meilleur temps compte
-  await courir(J.bea, 31000);
-  await courir(J.chris, 32000);
-  await courir(J.dido, 33000);
-  await courir(J.eli, 34000);
-  const prov = (await api('GET', `/tournois/sponsor/${saison.id}/semaines/1`)).json;
-  assert.equal(prov.definitif, false);
-  assert.deepEqual(prov.classement.map((l) => l.pseudo), ['Zola', 'Ali', 'Bea', 'Chris', 'Dido', 'Eli']);
+test('semaine 1 : qualifications, les 4 meilleures équipes complètes sont retenues, 20 $ chacune', async () => {
+  await courirEquipe(E.Gombe, 30000);
+  await courirEquipe(E.Lemba, 31000);
+  await courirEquipe(E.Matete, 32000);
+  await courirEquipe(E.Ngiri, 33000);
+  await courirEquipe(E.Kasa, 29000, 2); // la plus rapide, mais incomplète (2 pilotes sur 3)
+  const prov = (await api('GET', `/tournois/championnats/${champCD.id}/semaines/1`)).json;
+  assert.deepEqual(prov.classement.map((l) => l.nom), ['Gombe', 'Lemba', 'Matete', 'Ngiri', 'Kasa']);
+  assert.deepEqual([prov.classement[0].temps_ms, prov.classement[4].temps_ms, prov.classement[4].nb_pilotes], [90000, null, 2]);
 
-  const tot = await api('POST', `/admin/tournois/sponsor/${saison.id}/semaines/2/cloturer`, { jeton: J.admin.jeton });
-  assert.equal(tot.json.erreur.code, 'semaine_precedente');
-  const r = await api('POST', `/admin/tournois/sponsor/${saison.id}/semaines/1/cloturer`, { jeton: J.admin.jeton });
+  const r = await api('POST', `/admin/tournois/championnats/${champCD.id}/semaines/1/cloturer`, { jeton: J.admin.jeton });
   assert.equal(r.statut, 200, JSON.stringify(r.json));
-  assert.deepEqual([r.json.classes, r.json.elimines, r.json.primes], [6, 2, 2]);
-  const encore = await api('POST', `/admin/tournois/sponsor/${saison.id}/semaines/1/cloturer`, { jeton: J.admin.jeton });
-  assert.equal(encore.statut, 409);
-
+  assert.equal(r.json.primes, 12); // 4 équipes × 3 pilotes
+  assert.equal((await api('POST', `/admin/tournois/championnats/${champCD.id}/semaines/1/cloturer`, { jeton: J.admin.jeton })).statut, 409);
   await attendrePrimes();
-  const etat = (await api('GET', '/tournois/sponsor')).json;
-  assert.deepEqual(etat.en_lice.map((j) => j.pseudo), ['Zola', 'Ali', 'Bea', 'Chris']);
-  const primes = (await api('GET', '/admin/primes', { jeton: J.admin.jeton })).json;
-  const prime = (pseudo) => primes.find((p) => p.pseudo === pseudo && p.numero === 1);
-  // Zambie : pas de versement automatique → l'administrateur verse à la main.
-  assert.equal(prime('Zola').statut, 'a_verser_manuellement');
-  assert.equal(prime('Zola').montant_centimes, 1000);
-  // RDC : versement M-Pesa automatique (ici, le fournisseur de simulation).
-  assert.equal(prime('Ali').statut, 'reussi');
-  assert.equal(prime('Ali').montant_centimes, 500);
+
+  const etat = (await api('GET', '/tournois/championnats/CD')).json;
+  assert.deepEqual(etat.classement.map((e) => e.nom), ['Gombe', 'Lemba', 'Matete', 'Ngiri']);
+  const primes = (await api('GET', '/admin/primes', { jeton: J.admin.jeton })).json.filter((p) => p.equipe === 'Gombe');
+  assert.equal(primes.reduce((s, p) => s + p.montant_centimes, 0), 2000);
+  // Le capitaine reçoit le reste de la division : 668 + 666 + 666.
+  assert.equal(primes.find((p) => p.pseudo === 'Gombe1').montant_centimes, 668);
+  assert.ok(primes.every((p) => p.statut === 'reussi'));
 });
 
-test('semaine 2 : seuls les sélectionnés comptent, les 2 derniers sont éliminés', async () => {
-  await ouvrirSemaine(saison.id, 2);
-  await courir(J.bea, 30000);
-  await courir(J.chris, 30500);
-  await courir(J.ali, 31000);
-  await courir(J.dido, 29800); // plus rapide que Bea, mais éliminé en qualifications : ne compte pas
-  // Zola ne court pas : classé derrière ceux qui ont couru.
-  const prov = (await api('GET', `/tournois/sponsor/${saison.id}/semaines/2`)).json;
-  assert.deepEqual(prov.classement.map((l) => l.pseudo), ['Bea', 'Chris', 'Ali', 'Zola']);
-  const r = await api('POST', `/admin/tournois/sponsor/${saison.id}/semaines/2/cloturer`, { jeton: J.admin.jeton });
-  assert.deepEqual([r.json.elimines, r.json.saison_terminee], [2, false]);
-  const etat = (await api('GET', '/tournois/sponsor')).json;
-  assert.deepEqual(etat.en_lice.map((j) => j.pseudo), ['Bea', 'Chris']);
-  assert.deepEqual(etat.elimines.filter((j) => j.elimine_semaine === 2).map((j) => j.pseudo).sort(), ['Ali', 'Zola']);
-  const fige = (await api('GET', `/tournois/sponsor/${saison.id}/semaines/2`)).json;
-  assert.equal(fige.definitif, true);
-  assert.equal(fige.classement[3].temps_ms, null);
+test('semaines 2 et 3 : points, départage au temps cumulé, 2 équipes qualifiées', async () => {
+  await ouvrir('championnat_semaines', 'championnat_id', champCD.id, 'numero', 2);
+  await courirEquipe(E.Lemba, 30000);   // 90 000 : 1re → 25 pts
+  await courirEquipe(E.Gombe, 31000);   // 93 000 : 2e → 20 pts
+  await courirEquipe(E.Matete, 32000);  // 3e → 16 pts
+  await courirEquipe(E.Ngiri, 29500, 2); // incomplète : 0 pt
+  await courirEquipe(E.Kasa, 29000);    // pas retenue : ne compte pas
+  const s2 = (await api('GET', `/tournois/championnats/${champCD.id}/semaines/2`)).json;
+  assert.deepEqual(s2.classement.map((l) => l.nom), ['Lemba', 'Gombe', 'Matete', 'Ngiri']);
+  await api('POST', `/admin/tournois/championnats/${champCD.id}/semaines/2/cloturer`, { jeton: J.admin.jeton });
+
+  await ouvrir('championnat_semaines', 'championnat_id', champCD.id, 'numero', 3);
+  await courirEquipe(E.Gombe, 29500);   // 88 500 : 1re → 25 pts (total 45, temps cumulé 181 500)
+  await courirEquipe(E.Lemba, 31000);   // 93 000 : 2e → 20 pts (total 45, temps cumulé 183 000)
+  await courirEquipe(E.Matete, 32000);
+  await courirEquipe(E.Ngiri, 33000);
+  const r = await api('POST', `/admin/tournois/championnats/${champCD.id}/semaines/3/cloturer`, { jeton: J.admin.jeton });
+  assert.equal(r.json.termine, true);
+  const etat = (await api('GET', '/tournois/championnats/CD')).json;
+  assert.equal(etat.statut, 'terminee');
+  assert.deepEqual(etat.classement.map((e) => [e.nom, e.points, e.qualifiee]),
+    [['Gombe', 45, true], ['Lemba', 45, true], ['Matete', 32, false], ['Ngiri', 13, false]]);
 });
 
-test('semaine 3 (finale) : un champion, sa prime et la saison terminée', async () => {
-  await ouvrirSemaine(saison.id, 3);
-  await courir(J.chris, 29000);
-  await courir(J.bea, 29500);
-  const r = await api('POST', `/admin/tournois/sponsor/${saison.id}/semaines/3/cloturer`, { jeton: J.admin.jeton });
-  assert.equal(r.json.saison_terminee, true);
+test('championnat de Zambie : primes à verser à la main (pas de versement automatique dans ce pays)', async () => {
+  const r = await api('POST', '/admin/tournois/championnats', { jeton: J.admin.jeton, corps: {
+    pays: 'ZM', nom: 'Championnat Zambie', sponsor: 'Sponsor ZM', premier_lundi: lundiCourant(), nb_equipes: 2,
+    circuits: [CIRCUIT_TEST.code, CIRCUIT_TEST.code] } });
+  champZM = r.json;
+  await courirEquipe(E.Lusaka, 30000);
+  await courirEquipe(E.Ndola, 31000);
+  await api('POST', `/admin/tournois/championnats/${champZM.id}/semaines/1/cloturer`, { jeton: J.admin.jeton });
+  await ouvrir('championnat_semaines', 'championnat_id', champZM.id, 'numero', 2);
+  await courirEquipe(E.Ndola, 30000);
+  await courirEquipe(E.Lusaka, 31000);
+  await api('POST', `/admin/tournois/championnats/${champZM.id}/semaines/2/cloturer`, { jeton: J.admin.jeton });
+  const etat = (await api('GET', '/tournois/championnats/ZM')).json;
+  assert.deepEqual(etat.classement.map((e) => [e.nom, e.qualifiee]), [['Ndola', true], ['Lusaka', true]]);
+  const primes = (await api('GET', '/admin/primes?statut=a_verser_manuellement', { jeton: J.admin.jeton })).json;
+  assert.ok(primes.length >= 6 && primes.every((p) => ['Lusaka', 'Ndola'].includes(p.equipe)));
+});
+
+test("Coupe d'Afrique : tableau croisé, élimination directe, championne et primes", async () => {
+  const mauvais = await api('POST', '/admin/tournois/coupes', { jeton: J.admin.jeton, corps: {
+    nom: 'Coupe', sponsor: 'Rawbank', premier_lundi: lundiCourant(), championnats: [champCD.id, champZM.id], circuits: [CIRCUIT_TEST.code] } });
+  assert.equal(mauvais.json.erreur.code, 'circuits_tours');
+  const r = await api('POST', '/admin/tournois/coupes', { jeton: J.admin.jeton, corps: {
+    nom: "Coupe d'Afrique test", sponsor: 'Rawbank', premier_lundi: lundiCourant(), championnats: [champCD.id, champZM.id],
+    circuits: [CIRCUIT_TEST.code, CIRCUIT_TEST.code], primes_centimes: [5000, 2500] } });
+  assert.equal(r.statut, 201, JSON.stringify(r.json));
+  coupe = r.json;
+  let etat = (await api('GET', '/tournois/coupe')).json;
+  assert.deepEqual(etat.tours.map((t) => t.nom), ['Demi-finales', 'Finale']);
+  // 1er de RDC contre 2e de Zambie, 1er de Zambie contre 2e de RDC.
+  assert.deepEqual(etat.tours[0].matchs.map((m) => [m.equipe_a, m.equipe_b]), [['Gombe', 'Lusaka'], ['Ndola', 'Lemba']]);
+
+  await ouvrir('coupe_tours', 'coupe_id', coupe.id, 'tour', 1);
+  await courirEquipe(E.Gombe, 30000);
+  await courirEquipe(E.Lusaka, 31000);
+  await courirEquipe(E.Lemba, 32000); // Ndola ne court pas : Lemba passe
+  await api('POST', `/admin/tournois/coupes/${coupe.id}/tours/1/cloturer`, { jeton: J.admin.jeton });
+  etat = (await api('GET', '/tournois/coupe')).json;
+  assert.deepEqual(etat.tours[1].matchs.map((m) => [m.equipe_a, m.equipe_b]), [['Gombe', 'Lemba']]);
+
+  await ouvrir('coupe_tours', 'coupe_id', coupe.id, 'tour', 2);
+  await courirEquipe(E.Gombe, 31000);
+  await courirEquipe(E.Lemba, 30000);
+  const fin = await api('POST', `/admin/tournois/coupes/${coupe.id}/tours/2/cloturer`, { jeton: J.admin.jeton });
+  assert.equal(fin.json.termine, true);
   await attendrePrimes();
-  const etat = (await api('GET', '/tournois/sponsor')).json;
-  assert.deepEqual([etat.statut, etat.champion], ['terminee', 'Chris']);
-  const primes = (await api('GET', '/admin/primes', { jeton: J.admin.jeton })).json;
-  const champion = primes.find((p) => p.numero === 0);
-  assert.deepEqual([champion.pseudo, champion.montant_centimes, champion.statut], ['Chris', 2000, 'reussi']);
-  // Versées automatiquement : Ali (S1), Bea et Chris (S2), Chris et Bea (finale), et le champion.
-  assert.equal(primes.filter((p) => p.statut === 'reussi').length, 6);
+  etat = (await api('GET', '/tournois/coupe')).json;
+  assert.deepEqual([etat.statut, etat.championne], ['terminee', 'Lemba']);
+  const primes = (await api('GET', '/admin/primes', { jeton: J.admin.jeton })).json.filter((p) => p.origine === 'coupe');
+  const total = (eq) => primes.filter((p) => p.equipe === eq).reduce((s, p) => s + p.montant_centimes, 0);
+  assert.deepEqual([total('Lemba'), total('Gombe')], [5000, 2500]);
 });
 
 test('clôture automatique des semaines finies', async () => {
-  const r = await api('POST', '/admin/tournois/sponsor', { jeton: J.admin.jeton, corps: {
-    nom: 'Saison passée', sponsor: 'Rawbank', premier_lundi: lundiCourant(-3), nb_qualifies: 2, eliminations: [1],
-    primes_centimes: [100], circuits: [CIRCUIT_TEST.code, CIRCUIT_TEST.code] } });
+  const r = await api('POST', '/admin/tournois/championnats', { jeton: J.admin.jeton, corps: {
+    pays: 'CD', nom: 'Championnat passé', sponsor: 'Bralima', premier_lundi: lundiCourant(-4), nb_equipes: 2,
+    circuits: [CIRCUIT_TEST.code, CIRCUIT_TEST.code] } });
   assert.equal(r.statut, 201);
   await traiterTournois();
-  const { rows } = await requete('SELECT statut FROM gchallenge.saisons_sponsor WHERE id = $1', [r.json.id]);
+  const { rows } = await requete('SELECT statut FROM gchallenge.championnats WHERE id = $1', [r.json.id]);
   assert.equal(rows[0].statut, 'terminee');
 });
 
-test('Tournoi international : classement continental et meilleurs par pays (Afrique seulement)', async () => {
-  await courir(J.sami, 25000); // Arabie saoudite : hors du continent
-  await courir(J.kofi, 28000);
+test('classement continental des pilotes : Afrique seulement', async () => {
+  const sami = await inscrire('Sami', 'SA');
+  const kofi = await inscrire('Kofi', 'GH');
+  await courir(sami, 29000);
+  await courir(kofi, 29100);
   const r = (await api('GET', `/tournois/international/${CIRCUIT_TEST.code}`)).json;
   assert.ok(!r.continental.some((l) => l.pseudo === 'Sami'));
-  assert.equal(r.continental[0].pseudo, 'Kofi');
-  assert.ok(r.continental.some((l) => l.pseudo === 'Kofi' && l.pays_code === 'GH'));
-  const cd = r.qualifies_par_pays.find((p) => p.code === 'CD');
-  assert.equal(cd.joueurs.length, 3);
-  assert.ok(r.qualifies_par_pays.some((p) => p.code === 'GH') && r.qualifies_par_pays.some((p) => p.code === 'ZM'));
+  assert.ok(r.meilleurs_par_pays.some((p) => p.code === 'GH'));
 });

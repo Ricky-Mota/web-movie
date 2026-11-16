@@ -115,23 +115,49 @@ Ils couvrent le calcul des gains, l'anti-triche et un parcours complet : inscrip
 
 ---
 
-## 3. Mettre en ligne gratuitement
+## 3. Mettre en ligne gratuitement (Neon + Render, environ 20 minutes)
 
-### a) La base de données : Supabase
+### a) La base de données : Neon (gratuit, sans limite de durée)
 
-1. Créez un projet sur [supabase.com](https://supabase.com) (offre gratuite).
-2. Allez dans **Project Settings**, puis **Database**, puis **Connection string**, et copiez l'adresse en mode **Session**.
-3. Elle devient `DATABASE_URL`, avec `DATABASE_SSL=true`.
+1. Créez un compte sur [neon.tech](https://neon.tech) (avec votre compte GitHub ou Google), puis **Create project** : nom `g-challenge`, version PostgreSQL 17, région **Europe (Frankfurt)**, la plus proche de Kinshasa.
+2. Sur le tableau de bord, cliquez sur **Connect**. **Désactivez « Connection pooling »** : le serveur a besoin d'une connexion directe. Copiez l'adresse, qui commence par `postgresql://` et se termine par `?sslmode=require`.
+3. Gardez cette adresse pour vous : elle donne accès à toute la base. C'est votre `DATABASE_URL`.
 
-Les tables sont créées dans un schéma à part, `gchallenge`, que l'API publique de Supabase n'expose pas. Seul votre serveur y a accès.
+L'offre gratuite de Neon (0,5 Go) suffit largement pour la bêta. La base s'endort sans visite et se réveille en une seconde. Les tables sont créées automatiquement au premier démarrage du serveur, dans le schéma `gchallenge`.
 
-### b) Le serveur : Render (ou Railway, Fly.io)
+Si vous libérez plus tard un projet Supabase, la même adresse de type « Session » fonctionne aussi : rien d'autre à changer.
 
-1. Sur [render.com](https://render.com), créez un **Web Service** depuis ce dépôt GitHub.
-2. **Root Directory** : `g-challenge-serveur`. **Build Command** : `npm install`. **Start Command** : `npm start`.
-3. Dans **Environment**, ajoutez les variables du fichier `.env.example`.
+### b) Le serveur : Render (gratuit)
 
-L'offre gratuite de Render met le serveur en veille après 15 minutes sans visite, et le premier appel suivant prend environ 30 secondes. C'est suffisant pour les tests. Pour le lancement public, prévoyez l'offre payante d'entrée de gamme, autour de 7 $ par mois.
+1. Créez un compte sur [render.com](https://render.com) avec votre compte GitHub, et autorisez l'accès au dépôt **web-movie**.
+2. **New**, puis **Blueprint**, puis choisissez le dépôt : le fichier `render.yaml` (à la racine) crée le service `g-challenge-serveur` tout seul.
+3. Render demande deux valeurs :
+   - `DATABASE_URL` : l'adresse Neon de l'étape a) ;
+   - `URL_PUBLIQUE` : l'adresse que Render donne au service, par exemple `https://g-challenge-serveur.onrender.com` (vous pourrez la corriger après le premier déploiement).
+4. **Apply**. Après 2 à 3 minutes, ouvrez `https://<votre-service>.onrender.com/sante` : la page doit afficher `{"ok":true}`.
+
+`JWT_SECRET` est créé au hasard par Render, et `FOURNISSEUR_FORCE=simulation` garantit qu'aucun argent réel ne bouge tant que M-Pesa n'est pas branché.
+
+### c) Garder le serveur éveillé (gratuit)
+
+L'offre gratuite de Render endort le serveur après 15 minutes sans visite. Les clôtures du dimanche minuit et les primes M-Pesa seraient alors retardées jusqu'à la visite suivante.
+
+1. Créez un compte gratuit sur [cron-job.org](https://cron-job.org).
+2. **Create cronjob** : adresse `https://<votre-service>.onrender.com/sante`, **toutes les 10 minutes**.
+
+À chaque visite, le serveur rattrape aussi les clôtures en retard. Un seul service tourne ainsi 24 h/24, dans la limite des 750 heures gratuites par mois.
+
+### d) Devenir administrateur
+
+Inscrivez-vous depuis le jeu ou avec l'API (`POST /joueurs/inscription`). Puis, dans Neon, ouvrez **SQL Editor** et exécutez :
+
+```sql
+UPDATE gchallenge.joueurs SET role = 'admin' WHERE pseudo = 'VotrePseudo';
+```
+
+Reconnectez-vous : votre nouveau jeton donne accès aux routes `/admin`.
+
+Pour le lancement public, avec de l'argent réel, prévoyez l'offre Render d'entrée de gamme (environ 7 $ par mois, sans mise en veille).
 
 ---
 
@@ -167,9 +193,10 @@ Après l'inscription ou la connexion, gardez le `jeton` reçu et envoyez-le dans
 | POST | `/duels/:id/payer` | Le capitaine paie la mise (demande M-Pesa sur son téléphone) |
 | POST | `/duels/:id/depart` | Le joueur appuie sur « Courir » (un seul départ par duel) |
 | GET | `/duels/:id/fantome-adverse` | Trajet de l'équipe adverse, pour courir contre son fantôme |
-| GET | `/tournois/sponsor` | Tournoi Sponsor : saison en cours, semaines, circuit de la semaine, joueurs en lice, éliminés, primes |
-| GET | `/tournois/sponsor/:saison/semaines/:n` | Classement de la semaine n (provisoire, puis définitif après la clôture) |
-| GET | `/tournois/international/:circuit?par_pays=3` | Tournoi international : classement continental (Afrique) et meilleurs de chaque pays |
+| GET | `/tournois/championnats/:pays` | Championnat national (ex. `CD`) : semaines, circuit de la semaine, classement des équipes, qualifiées |
+| GET | `/tournois/championnats/:id/semaines/:n` | Classement des équipes de la semaine n (provisoire, puis définitif) |
+| GET | `/tournois/coupe` | Coupe d'Afrique : tableau des huitièmes à la finale, temps, championne |
+| GET | `/tournois/international/:circuit?par_pays=3` | Classement continental des pilotes (Afrique) et meilleurs de chaque pays |
 
 Les montants sont **en centimes** : `1000` = 10,00 $. En 1 contre 1, `equipe_id` est facultatif, le serveur crée une équipe d'un joueur.
 
@@ -220,26 +247,25 @@ Pour les appels HTTP, le plugin gratuit **VaRest** (sur Fab) est le plus simple 
 
 ---
 
-## 4 bis. Les tournois
+## 4 bis. Les tournois (par équipes de 3)
 
-### Tournoi Sponsor (hebdomadaire)
+### Championnat national (Tournoi Sponsor), un par pays
 
-| Semaine | Qui court | À la fin de la semaine (dimanche minuit, heure de Kinshasa) |
+| Semaine | Qui court | À la clôture (dimanche minuit, heure de Kinshasa) |
 | --- | --- | --- |
-| 1 · qualifications | tout le monde, sur le circuit de la semaine | les **18 meilleurs temps** sont sélectionnés |
-| 2 | les 18 sélectionnés | les 6 derniers sont éliminés → 12 |
-| 3 | les 12 | 4 éliminés → 8 |
-| 4 | les 8 | 4 éliminés → 4 |
-| 5 · finale | les 4 | le premier est **champion** |
+| 1 · qualifications | toutes les équipes du pays (pays du capitaine) | les **16 meilleures équipes** sont retenues |
+| 2 à 5 · championnat | les 16 équipes | points selon le classement de la semaine : 25, 20, 16, 13, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1 |
+| fin du championnat | — | les **2 premières** (points, puis temps cumulé) vont à la **Coupe d'Afrique** |
 
-- Chaque semaine, les **3 meilleurs** reçoivent une prime payée par le sponsor (50 $, 30 $, 20 $ par défaut), plus une prime pour le champion. Tout est réglable par saison.
-- Les primes sont versées **automatiquement par M-Pesa** quand le pays du joueur le permet (colonne `primes_autorisees`, aujourd'hui la RDC) et dans la même devise. Sinon, la prime est notée « à verser manuellement ».
-- Le joueur n'a **rien à miser** : c'est le sponsor qui paie. Seul compte le meilleur temps **valide** (anti-triche) d'une course d'entraînement envoyée pendant la semaine, sur le circuit de la semaine. Un sélectionné qui ne court pas une semaine est classé derrière ceux qui ont couru.
-- La clôture est automatique (le serveur vérifie chaque minute). L'administrateur peut aussi clôturer tout de suite.
+- **Temps d'une équipe** : somme des meilleurs temps de ses **3 pilotes** sur le circuit de la semaine (courses d'entraînement valides, vérifiées par l'anti-triche). Une équipe incomplète est classée derrière et ne marque pas de point. Un pilote ne compte que pour une seule équipe retenue.
+- **Primes** : chaque semaine (qualifications comprises), les **4 meilleures équipes reçoivent 20 $ chacune**, payés par le sponsor et **partagés entre les pilotes qui ont couru** (le capitaine reçoit les centimes restants). Versement **automatique par M-Pesa** quand le pays du pilote le permet (aujourd'hui la RDC), sinon « à verser manuellement ».
+- **Aucune mise** des joueurs : le sponsor paie. Nombre d'équipes, taille, primes, barème de points et nombre de semaines se règlent pour chaque championnat.
 
-### Tournoi international
+### Coupe d'Afrique
 
-Les joueurs de tous les pays d'Afrique pris en charge (RDC, Congo-Brazzaville, Angola, Zambie, Zimbabwe, Afrique du Sud, Cameroun, Côte d'Ivoire, Sénégal, Nigeria, Ghana, Kenya, Tanzanie, Mozambique, Rwanda) courent sur le même circuit. `/tournois/international/:circuit` donne le **classement continental** et les **meilleurs de chaque pays** : ce sont les qualifiés nationaux pour la phase continentale, qui désigne le champion d'Afrique. Hors d'Afrique (Arabie saoudite), les joueurs ne figurent pas dans ce classement.
+Les 2 qualifiées de **8 pays** forment **16 équipes** : **huitièmes, quarts, demi-finales, finale**, un tour par semaine. Au premier tour, le 1er d'un pays affronte le 2e du pays voisin dans le tableau. Dans chaque match, l'équipe au plus petit temps passe ; si une équipe est incomplète, l'autre passe. Primes facultatives pour la championne et la finaliste.
+
+`/tournois/international/:circuit` donne aussi un **classement continental des pilotes** (individuel), réservé aux pays d'Afrique.
 
 ## 5. Administration
 
@@ -260,12 +286,14 @@ curl -X PUT http://localhost:3000/admin/pays/ZM -H "Authorization: Bearer <jeton
 
 ---
 
-### Administrer le Tournoi Sponsor
+### Administrer les tournois
 
 | Méthode | Adresse | Rôle |
 | --- | --- | --- |
-| POST | `/admin/tournois/sponsor` | Créer une saison `{ nom, sponsor, premier_lundi, circuits[], nb_qualifies?, eliminations?, primes_centimes?, prime_champion_centimes?, devise? }` (un circuit par semaine ; la somme des éliminations doit laisser un seul champion) |
-| POST | `/admin/tournois/sponsor/:saison/semaines/:n/cloturer` | Clôturer une semaine tout de suite |
+| POST | `/admin/tournois/championnats` | Créer un championnat `{ pays, nom, sponsor, premier_lundi, circuits[] (qualifications puis une par semaine), nb_equipes? (16), taille_equipe? (3), nb_qualifies? (2), primes_centimes? ([2000,2000,2000,2000]), points? }` |
+| POST | `/admin/tournois/championnats/:id/semaines/:n/cloturer` | Clôturer une semaine tout de suite |
+| POST | `/admin/tournois/coupes` | Créer la Coupe d'Afrique `{ nom, sponsor, premier_lundi, championnats[] (8 terminés), circuits[] (un par tour : 4 pour 16 équipes), primes_centimes? ([championne, finaliste]) }` |
+| POST | `/admin/tournois/coupes/:id/tours/:t/cloturer` | Clôturer un tour tout de suite |
 | GET | `/admin/primes?statut=a_verser_manuellement` | Primes à verser à la main, échouées, réussies… |
 | POST | `/admin/primes/:id/relancer` | Relancer une prime M-Pesa échouée |
 

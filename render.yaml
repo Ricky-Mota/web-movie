@@ -1,0 +1,27 @@
+# Mise en ligne du serveur G-Challenge sur Render (offre gratuite).
+# Render > New > Blueprint > choisir ce dépôt : ce fichier crée le service tout seul.
+# Il reste à coller DATABASE_URL (base Neon) et URL_PUBLIQUE dans l'écran qui s'affiche.
+services:
+  - type: web
+    name: g-challenge-serveur
+    runtime: node
+    plan: free
+    region: frankfurt
+    rootDir: g-challenge-serveur
+    buildCommand: npm ci --omit=dev
+    startCommand: npm start
+    healthCheckPath: /sante
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: DATABASE_URL
+        sync: false
+      - key: DATABASE_SSL
+        value: "true"
+      - key: JWT_SECRET
+        generateValue: true
+      - key: URL_PUBLIQUE
+        sync: false
+      # Aucun argent réel tant que M-Pesa n'est pas branché : retirez cette ligne au lancement.
+      - key: FOURNISSEUR_FORCE
+        value: simulation

@@ -12,14 +12,17 @@ import { routesAdmin } from './routes/admin.js';
 import { routesTournois } from './routes/tournois.js';
 import { asynchrone } from './routes/outils.js';
 
-export function creerApp({ limiteConnexions = 20 } = {}) {
+export function creerApp({ limiteConnexions = 20, apresSante = null } = {}) {
   const app = express();
   app.set('trust proxy', 1); // derrière l'hébergeur (Render, Railway...)
   app.use(helmet());
   app.use(express.json({ limit: '3mb' })); // un trajet de 30 min tient en ~2 Mo
 
+  // Appelée toutes les 10 minutes par un service de réveil gratuit (cron-job.org) :
+  // garde le serveur gratuit éveillé et rattrape les clôtures de tournois en retard.
   app.get('/sante', asynchrone(async (_req, res) => {
     await requete('SELECT 1');
+    if (apresSante) apresSante();
     res.json({ ok: true });
   }));
   // Taux de commission actuel : à afficher au joueur avant qu'il lance un défi.

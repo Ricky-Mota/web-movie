@@ -2361,11 +2361,11 @@
   var panneauModes = document.getElementById('panneauModes'), panneauTournoi = document.getElementById('panneauTournoi');
   var EPOQUE_SAISONS = Date.UTC(2026, 10, 16); // lundi 16 novembre 2026 : début du premier cycle de 5 semaines
   var CALENDRIER = [
-    ['Semaine 1', 'Qualifications ouvertes à tous', '18 sélectionnés'],
-    ['Semaine 2', 'Les 18 sélectionnés', '6 éliminés → 12'],
-    ['Semaine 3', 'Les 12 en lice', '4 éliminés → 8'],
-    ['Semaine 4', 'Les 8 en lice', '4 éliminés → 4'],
-    ['Semaine 5', 'Finale à 4', 'Champion de la saison']
+    ['Semaine 1', 'Qualifications : toutes les équipes du pays', '16 équipes retenues'],
+    ['Semaine 2', 'Championnat : 1re journée', 'points 25, 20, 16…'],
+    ['Semaine 3', 'Championnat : 2e journée', 'points'],
+    ['Semaine 4', 'Championnat : 3e journée', 'points'],
+    ['Semaine 5', 'Championnat : dernière journée', '2 qualifiées → Coupe d\'Afrique']
   ];
   var PAYS_AFRIQUE = [['CD', 'RDC', '\uD83C\uDDE8\uD83C\uDDE9'], ['CG', 'Congo-Brazzaville', '\uD83C\uDDE8\uD83C\uDDEC'], ['AO', 'Angola', '\uD83C\uDDE6\uD83C\uDDF4'],
     ['ZM', 'Zambie', '\uD83C\uDDFF\uD83C\uDDF2'], ['ZW', 'Zimbabwe', '\uD83C\uDDFF\uD83C\uDDFC'], ['ZA', 'Afrique du Sud', '\uD83C\uDDFF\uD83C\uDDE6'],
@@ -2399,24 +2399,26 @@
     var texte = document.getElementById('boutonTournoiTexte'), sousBouton = document.getElementById('boutonTournoiSous'), paysBloc = document.getElementById('tournoiPays');
     if (mode === 'sponsor') {
       titre.textContent = 'Tournoi Sponsor · semaine ' + st.numero + ' / 5';
-      sous.textContent = 'Les 18 meilleurs de la semaine sont sélectionnés, puis éliminations chaque dimanche à minuit (heure de Kinshasa).';
+      sous.textContent = 'Championnat national par équipes de 3 pilotes. Temps de l\'équipe : la somme des temps de ses 3 pilotes. Clôture chaque dimanche à minuit (heure de Kinshasa).';
       etapes.innerHTML = CALENDRIER.map(function (c, i) { return ligne(c[0], c[1], c[2], i + 1 === st.numero); }).join('') +
-        ligne('Primes', 'Les 3 meilleurs de chaque semaine, payés par le sponsor', 'via M-PESA', false);
+        ligne('Primes', 'Chaque semaine, les 4 meilleures équipes', '20 $ chacune · M-PESA', false);
       epreuve.textContent = "Épreuve de la semaine : Étape " + E2.numero + ' · ' + E2.nom;
-      texte.textContent = st.numero === 1 ? 'Jouer ma qualification' : "S'entraîner sur l'épreuve";
-      sousBouton.textContent = st.numero === 1 ? 'Seul votre meilleur temps compte' : 'Semaine réservée aux joueurs en lice';
-      note.textContent = 'Démo : votre temps reste sur cet appareil. Dans le jeu en ligne, chaque course est vérifiée par le serveur (anti-triche) et les primes sont versées automatiquement par M-PESA aux gagnants dont le pays le permet. Aucune mise : les primes sont payées par le sponsor.';
+      texte.textContent = st.numero === 1 ? 'Jouer ma qualification' : 'Courir pour mon équipe';
+      sousBouton.textContent = st.numero === 1 ? 'Votre meilleur temps compte pour votre équipe' : 'Réservé aux 16 équipes retenues';
+      note.textContent = 'Démo : vous courez seul et votre temps reste sur cet appareil. Dans le jeu en ligne, votre temps s\'ajoute à ceux de vos 2 coéquipiers, chaque course est vérifiée par le serveur (anti-triche) et les 20 $ sont partagés entre les pilotes de l\'équipe, versés automatiquement par M-PESA. Aucune mise : le sponsor paie.';
       paysBloc.hidden = true;
     } else {
       titre.textContent = 'Tournoi international · Champion d\'Afrique';
-      sous.textContent = PAYS_AFRIQUE.length + ' pays · les 3 meilleurs de chaque pays se qualifient pour la phase continentale.';
-      etapes.innerHTML = ligne('Phase 1', 'Qualifications nationales sur l\'épreuve continentale', 'Top 3 par pays', true) +
-        ligne('Phase 2', 'Phase continentale : groupes de pays', 'Les meilleurs avancent', false) +
-        ligne('Phase 3', 'Finale continentale', "Champion d'Afrique", false) +
+      sous.textContent = 'Coupe d\'Afrique : les 2 premières équipes des championnats de 8 pays, soit 16 équipes, à élimination directe. Un tour par semaine.';
+      etapes.innerHTML = ligne('Avant', 'Championnats nationaux (Tournoi Sponsor)', '2 qualifiées par pays', true) +
+        ligne('Tour 1', 'Huitièmes de finale : 1er d\'un pays contre 2e d\'un autre', '16 → 8', false) +
+        ligne('Tour 2', 'Quarts de finale', '8 → 4', false) +
+        ligne('Tour 3', 'Demi-finales', '4 → 2', false) +
+        ligne('Tour 4', 'Finale', "Champion d'Afrique", false) +
         '<p class="tournoi-note">' + PAYS_AFRIQUE.map(function (p) { return p[2] + ' ' + echapper(p[1]); }).join(' · ') + '</p>';
       epreuve.textContent = 'Épreuve continentale : Étape ' + E2.numero + ' · ' + E2.nom;
-      texte.textContent = 'Jouer ma qualification nationale'; sousBouton.textContent = 'Représentez votre pays';
-      note.textContent = 'Démo : votre temps reste sur cet appareil. Dans le jeu en ligne, le serveur établit le classement continental et les qualifiés de chaque pays.';
+      texte.textContent = "S'entraîner sur l'épreuve continentale"; sousBouton.textContent = 'Représentez votre pays';
+      note.textContent = 'Démo : votre temps reste sur cet appareil. Dans le jeu en ligne, chaque match oppose deux équipes de 3 pilotes : le plus petit temps total passe au tour suivant.';
       paysBloc.hidden = false;
       var choix = document.getElementById('choixPays'), sauve = null;
       try { sauve = localStorage.getItem('ketch-pays'); } catch (e) {}

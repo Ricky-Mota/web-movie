@@ -10,7 +10,19 @@ import { traiterTournois, attendrePrimes } from './domaine/tournois.js';
 const appliquees = await migrer();
 if (appliquees.length) console.log(`Migrations appliquées : ${appliquees.join(', ')}`);
 
-const serveur = createServer(creerApp());
+// Clôtures en retard (semaines de championnat, tours de coupe, duels) : au démarrage, chaque minute,
+// et à chaque visite de /sante (au plus une fois par minute). Utile avec l'offre gratuite de Render,
+// qui endort le serveur après 15 minutes sans visite.
+let dernierRattrapage = 0;
+function rattraper() {
+  if (Date.now() - dernierRattrapage < 60_000) return;
+  dernierRattrapage = Date.now();
+  traiterDelais().catch((e) => console.error('Délais :', e));
+  traiterTournois().catch((e) => console.error('Tournois :', e));
+}
+rattraper();
+
+const serveur = createServer(creerApp({ apresSante: rattraper }));
 demarrerTempsReel(serveur);
 
 // Chaque minute : duels sans adversaire annulés (et remboursés), duels trop longs clôturés.

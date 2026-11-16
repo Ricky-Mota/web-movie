@@ -1,17 +1,21 @@
--- Tournois : le Tournoi Sponsor hebdomadaire (18 sélectionnés, éliminations, primes M-Pesa)
--- et le Tournoi international (pays africains, champion continental).
+-- Tournois par équipes :
+--   * Championnat national (« Tournoi Sponsor ») : un par pays. Semaine 1 : qualifications ouvertes,
+--     les 16 meilleures équipes (de 3 pilotes) sont retenues. Puis plusieurs semaines de championnat :
+--     chaque semaine une course, des points selon le classement. Chaque semaine, les 4 meilleures équipes
+--     reçoivent 20 $ chacune (payés par le sponsor, partagés entre les pilotes qui ont couru).
+--     À la fin, les 2 premières du pays sont qualifiées pour la Coupe d'Afrique.
+--   * Coupe d'Afrique : les qualifiés de 8 pays (16 équipes), à élimination directe :
+--     huitièmes, quarts, demi-finales, finale. Un tour par semaine.
+-- Temps d'une équipe : somme des meilleurs temps de ses 3 meilleurs pilotes (courses valides hors duels,
+-- envoyées pendant la semaine, sur le circuit de la semaine). Une équipe incomplète est classée derrière.
 SET search_path TO gchallenge;
 
--- Continent de chaque pays : le Tournoi international est réservé à l'Afrique.
--- primes_autorisees : les primes de tournoi (payées par le sponsor, sans mise du joueur)
--- peuvent être versées automatiquement dans ce pays. Sinon, elles sont versées à la main.
+-- Continent de chaque pays, et pays où les primes peuvent être versées automatiquement.
 ALTER TABLE pays ADD COLUMN continent text NOT NULL DEFAULT 'AF';
 ALTER TABLE pays ADD COLUMN primes_autorisees boolean NOT NULL DEFAULT false;
 UPDATE pays SET continent = 'AS' WHERE code = 'SA';
 UPDATE pays SET primes_autorisees = true WHERE code = 'CD';
 
--- Autres pays africains pour le Tournoi international (jeu gratuit, sans mises,
--- primes versées à la main tant qu'aucun fournisseur de paiement n'est branché).
 INSERT INTO pays (code, nom, devise, mises_autorisees, fournisseur, langue, indicatif, continent) VALUES
   ('CG', 'Congo-Brazzaville', 'XAF', false, NULL, 'fr', '242', 'AF'),
   ('AO', 'Angola',            'AOA', false, NULL, 'pt', '244', 'AF'),
@@ -26,64 +30,103 @@ INSERT INTO pays (code, nom, devise, mises_autorisees, fournisseur, langue, indi
   ('RW', 'Rwanda',            'RWF', false, NULL, 'fr', '250', 'AF')
 ON CONFLICT (code) DO NOTHING;
 
--- Une saison du Tournoi Sponsor.
--- Semaine 1 : qualifications ouvertes à tous ; les nb_qualifies meilleurs temps sont sélectionnés.
--- Semaines suivantes : seuls les sélectionnés encore en lice courent ; à la fin de la semaine k+1,
--- les eliminations[k] derniers sont éliminés. La dernière semaine désigne le champion.
--- Chaque semaine, les meilleurs reçoivent primes_centimes[1..n] (1er, 2e, 3e...) via M-Pesa.
-CREATE TABLE saisons_sponsor (
+-- ---------- Championnat national ----------
+CREATE TABLE championnats (
   id                     uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  pays_code              char(2)     NOT NULL REFERENCES pays(code),
   nom                    text        NOT NULL,
   sponsor                text        NOT NULL,
   premier_lundi          date        NOT NULL,
-  nb_qualifies           int         NOT NULL DEFAULT 18 CHECK (nb_qualifies BETWEEN 2 AND 200),
-  eliminations           int[]       NOT NULL DEFAULT '{6,4,4,3}',
-  primes_centimes        bigint[]    NOT NULL DEFAULT '{5000,3000,2000}',
-  prime_champion_centimes bigint     NOT NULL DEFAULT 0 CHECK (prime_champion_centimes >= 0),
+  nb_equipes             int         NOT NULL DEFAULT 16 CHECK (nb_equipes BETWEEN 2 AND 64),
+  taille_equipe          int         NOT NULL DEFAULT 3 CHECK (taille_equipe BETWEEN 1 AND 5),
+  nb_qualifies           int         NOT NULL DEFAULT 2 CHECK (nb_qualifies >= 1),
+  circuits               text[]      NOT NULL,       -- semaine 1 = qualifications, puis championnat
+  primes_centimes        bigint[]    NOT NULL DEFAULT '{2000,2000,2000,2000}', -- par équipe, 1re à 4e
+  points                 int[]       NOT NULL DEFAULT '{25,20,16,13,11,10,9,8,7,6,5,4,3,2,1}',
   devise                 char(3)     NOT NULL DEFAULT 'USD',
-  circuits               text[]      NOT NULL,       -- code du circuit de chaque semaine
   statut                 text        NOT NULL DEFAULT 'active' CHECK (statut IN ('active', 'terminee', 'annulee')),
-  champion_id            uuid        REFERENCES joueurs(id),
   cree_le                timestamptz NOT NULL DEFAULT now()
 );
 
-CREATE TABLE semaines_sponsor (
-  saison_id              uuid        NOT NULL REFERENCES saisons_sponsor(id) ON DELETE CASCADE,
+CREATE TABLE championnat_semaines (
+  championnat_id         uuid        NOT NULL REFERENCES championnats(id) ON DELETE CASCADE,
   numero                 int         NOT NULL,
   debut                  timestamptz NOT NULL,
   fin                    timestamptz NOT NULL,
   circuit_id             uuid        NOT NULL REFERENCES circuits(id),
   cloturee_le            timestamptz,
-  PRIMARY KEY (saison_id, numero)
+  PRIMARY KEY (championnat_id, numero)
 );
-CREATE INDEX semaines_a_cloturer ON semaines_sponsor (fin) WHERE cloturee_le IS NULL;
 
--- Les joueurs sélectionnés à la fin de la semaine 1.
-CREATE TABLE saison_joueurs (
-  saison_id              uuid        NOT NULL REFERENCES saisons_sponsor(id) ON DELETE CASCADE,
-  joueur_id              uuid        NOT NULL REFERENCES joueurs(id),
+-- Les équipes retenues après les qualifications, et leur classement du championnat.
+CREATE TABLE championnat_equipes (
+  championnat_id         uuid        NOT NULL REFERENCES championnats(id) ON DELETE CASCADE,
+  equipe_id              uuid        NOT NULL REFERENCES equipes(id),
   rang_qualification     int         NOT NULL,
-  elimine_semaine        int,                        -- NULL : encore en lice
-  PRIMARY KEY (saison_id, joueur_id)
+  points                 int         NOT NULL DEFAULT 0,
+  temps_cumule_ms        bigint      NOT NULL DEFAULT 0,  -- départage à égalité de points
+  rang_final             int,
+  qualifiee              boolean     NOT NULL DEFAULT false, -- pour la Coupe d'Afrique
+  PRIMARY KEY (championnat_id, equipe_id)
 );
 
--- Classement figé de chaque semaine clôturée.
-CREATE TABLE resultats_semaine (
-  saison_id              uuid        NOT NULL,
+CREATE TABLE championnat_resultats (
+  championnat_id         uuid        NOT NULL,
   numero                 int         NOT NULL,
-  joueur_id              uuid        NOT NULL REFERENCES joueurs(id),
-  temps_ms               int,                        -- NULL : n'a pas couru cette semaine
+  equipe_id              uuid        NOT NULL REFERENCES equipes(id),
+  temps_ms               int,                        -- NULL : équipe incomplète cette semaine
+  nb_pilotes             int         NOT NULL,       -- pilotes qui ont couru (au plus taille_equipe comptés)
   rang                   int         NOT NULL,
-  elimine                boolean     NOT NULL DEFAULT false,
-  PRIMARY KEY (saison_id, numero, joueur_id),
-  FOREIGN KEY (saison_id, numero) REFERENCES semaines_sponsor (saison_id, numero) ON DELETE CASCADE
+  points                 int         NOT NULL DEFAULT 0,
+  PRIMARY KEY (championnat_id, numero, equipe_id),
+  FOREIGN KEY (championnat_id, numero) REFERENCES championnat_semaines (championnat_id, numero) ON DELETE CASCADE
 );
 
--- Primes versées aux meilleurs de chaque semaine (et au champion). Journal d'audit.
+-- ---------- Coupe d'Afrique ----------
+CREATE TABLE coupes (
+  id                     uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  nom                    text        NOT NULL,
+  sponsor                text        NOT NULL,
+  premier_lundi          date        NOT NULL,
+  circuits               text[]      NOT NULL,       -- un par tour : huitièmes, quarts, demies, finale
+  taille_equipe          int         NOT NULL DEFAULT 3,
+  primes_centimes        bigint[]    NOT NULL DEFAULT '{}', -- par équipe : vainqueur, finaliste
+  devise                 char(3)     NOT NULL DEFAULT 'USD',
+  statut                 text        NOT NULL DEFAULT 'active' CHECK (statut IN ('active', 'terminee', 'annulee')),
+  championne_id          uuid        REFERENCES equipes(id),
+  cree_le                timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE TABLE coupe_tours (
+  coupe_id               uuid        NOT NULL REFERENCES coupes(id) ON DELETE CASCADE,
+  tour                   int         NOT NULL,       -- 1 = premier tour (huitièmes avec 16 équipes)
+  debut                  timestamptz NOT NULL,
+  fin                    timestamptz NOT NULL,
+  circuit_id             uuid        NOT NULL REFERENCES circuits(id),
+  cloture_le             timestamptz,
+  PRIMARY KEY (coupe_id, tour)
+);
+
+CREATE TABLE coupe_matchs (
+  coupe_id               uuid        NOT NULL REFERENCES coupes(id) ON DELETE CASCADE,
+  tour                   int         NOT NULL,
+  position               int         NOT NULL,       -- 1..n dans le tour ; le vainqueur va au match ceil(n/2) du tour suivant
+  equipe_a_id            uuid        REFERENCES equipes(id),
+  equipe_b_id            uuid        REFERENCES equipes(id),
+  temps_a_ms             int,
+  temps_b_ms             int,
+  gagnante_id            uuid        REFERENCES equipes(id),
+  PRIMARY KEY (coupe_id, tour, position)
+);
+
+-- ---------- Primes ----------
+-- Une ligne par pilote payé (la prime d'une équipe est partagée entre ses pilotes qui ont couru).
 CREATE TABLE primes (
   id                     uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  saison_id              uuid        NOT NULL REFERENCES saisons_sponsor(id),
-  numero                 int         NOT NULL,       -- semaine ; 0 = prime du champion
+  origine                text        NOT NULL CHECK (origine IN ('championnat', 'coupe')),
+  competition_id         uuid        NOT NULL,       -- championnat ou coupe
+  numero                 int         NOT NULL,       -- semaine du championnat, ou tour de la coupe
+  equipe_id              uuid        NOT NULL REFERENCES equipes(id),
   joueur_id              uuid        NOT NULL REFERENCES joueurs(id),
   rang                   int         NOT NULL,
   montant_centimes       bigint      NOT NULL CHECK (montant_centimes > 0),
@@ -95,5 +138,5 @@ CREATE TABLE primes (
   details                jsonb,
   cree_le                timestamptz NOT NULL DEFAULT now(),
   maj_le                 timestamptz NOT NULL DEFAULT now(),
-  UNIQUE (saison_id, numero, rang)
+  UNIQUE (origine, competition_id, numero, joueur_id)
 );

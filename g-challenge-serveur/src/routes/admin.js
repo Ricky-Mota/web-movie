@@ -5,7 +5,7 @@ import { valider, introuvable, conflit } from '../erreurs.js';
 import { connecte, admin } from '../auth.js';
 import { executerPaiement, resumePaiement } from '../domaine/duels.js';
 import { schemaCircuit, enregistrerCircuit } from '../domaine/circuits.js';
-import { creerSaison, cloturerSemaine, relancerPrime } from '../domaine/tournois.js';
+import { creerChampionnat, cloturerSemaineChampionnat, creerCoupe, cloturerTourCoupe, relancerPrime } from '../domaine/tournois.js';
 import { asynchrone } from './outils.js';
 
 export const routesAdmin = Router();
@@ -75,39 +75,62 @@ routesAdmin.post('/paiements/:id/relancer', asynchrone(async (req, res) => {
   res.json(resumePaiement(maj));
 }));
 
-// ---------- Tournoi Sponsor ----------
-// Créer une saison : un circuit par semaine (qualifications + semaines à éliminations).
-// Par défaut : 18 sélectionnés, éliminations 6, 4, 4, 3 (18 → 12 → 8 → 4 → champion),
-// primes hebdomadaires 50 $, 30 $, 20 $ aux trois premiers (montants en centimes).
-const schemaSaison = z.object({
+// ---------- Tournois par équipes ----------
+const date = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
+
+// Championnat national (Tournoi Sponsor) d'un pays : semaine 1 = qualifications, puis championnat.
+// Par défaut : 16 équipes de 3, 4 × 20 $ par semaine, 2 qualifiées pour la Coupe d'Afrique.
+const schemaChampionnat = z.object({
+  pays: z.string().length(2).transform((s) => s.toUpperCase()),
   nom: z.string().min(2).max(80),
   sponsor: z.string().min(2).max(60),
-  premier_lundi: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-  nb_qualifies: z.number().int().min(2).max(200).default(18),
-  eliminations: z.array(z.number().int().min(1)).min(1).max(20).default([6, 4, 4, 3]),
-  primes_centimes: z.array(z.number().int().min(0)).max(20).default([5000, 3000, 2000]),
-  prime_champion_centimes: z.number().int().min(0).default(0),
-  devise: z.string().length(3).default('USD'),
+  premier_lundi: date,
   circuits: z.array(z.string().min(1)).min(2).max(21),
+  nb_equipes: z.number().int().min(2).max(64).default(16),
+  taille_equipe: z.number().int().min(1).max(5).default(3),
+  nb_qualifies: z.number().int().min(1).max(8).default(2),
+  primes_centimes: z.array(z.number().int().min(0)).max(20).default([2000, 2000, 2000, 2000]),
+  points: z.array(z.number().int().min(0)).min(1).max(64).default([25, 20, 16, 13, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1]),
+  devise: z.string().length(3).default('USD'),
 });
-routesAdmin.post('/tournois/sponsor', asynchrone(async (req, res) => {
-  res.status(201).json(await creerSaison(valider(schemaSaison, req.body)));
+routesAdmin.post('/tournois/championnats', asynchrone(async (req, res) => {
+  res.status(201).json(await creerChampionnat(valider(schemaChampionnat, req.body)));
+}));
+routesAdmin.post('/tournois/championnats/:id/semaines/:numero/cloturer', asynchrone(async (req, res) => {
+  const numero = valider(z.coerce.number().int().min(1).max(60), req.params.numero);
+  const r = await cloturerSemaineChampionnat(req.params.id, numero, { forcer: true });
+  if (!r) throw conflit('deja_cloturee', 'Cette semaine est déjà clôturée.');
+  res.json({ classees: r.classees, primes: r.primes.length, termine: r.termine });
 }));
 
-// Clôturer une semaine tout de suite (sinon c'est automatique le dimanche à minuit, heure de Kinshasa).
-routesAdmin.post('/tournois/sponsor/:saison/semaines/:numero/cloturer', asynchrone(async (req, res) => {
-  const numero = valider(z.coerce.number().int().min(1).max(60), req.params.numero);
-  const r = await cloturerSemaine(req.params.saison, numero, { forcer: true });
-  if (!r) throw conflit('deja_cloturee', 'Cette semaine est déjà clôturée.');
-  res.json({ classes: r.classes, elimines: r.elimines, primes: r.primes.length, saison_terminee: r.termine });
+// Coupe d'Afrique, à partir des championnats nationaux terminés (8 pays → 16 équipes → huitièmes).
+const schemaCoupe = z.object({
+  nom: z.string().min(2).max(80),
+  sponsor: z.string().min(2).max(60),
+  premier_lundi: date,
+  championnats: z.array(z.string().uuid()).min(2).max(16),
+  circuits: z.array(z.string().min(1)).min(1).max(5),
+  taille_equipe: z.number().int().min(1).max(5).default(3),
+  primes_centimes: z.array(z.number().int().min(0)).max(2).default([]),
+  devise: z.string().length(3).default('USD'),
+});
+routesAdmin.post('/tournois/coupes', asynchrone(async (req, res) => {
+  res.status(201).json(await creerCoupe(valider(schemaCoupe, req.body)));
+}));
+routesAdmin.post('/tournois/coupes/:id/tours/:tour/cloturer', asynchrone(async (req, res) => {
+  const tour = valider(z.coerce.number().int().min(1).max(5), req.params.tour);
+  const r = await cloturerTourCoupe(req.params.id, tour, { forcer: true });
+  if (!r) throw conflit('deja_cloture', 'Ce tour est déjà clôturé.');
+  res.json({ matchs: r.matchs, primes: r.primes.length, termine: r.termine });
 }));
 
 // Primes : liste, et relance d'une prime M-Pesa échouée.
 routesAdmin.get('/primes', asynchrone(async (req, res) => {
   const statut = req.query.statut ? valider(z.enum(['en_attente', 'reussi', 'echoue', 'a_verser_manuellement']), req.query.statut) : null;
   const { rows } = await requete(
-    `SELECT pr.*, j.pseudo, j.telephone FROM primes pr JOIN joueurs j ON j.id = pr.joueur_id
-      WHERE ($1::text IS NULL OR pr.statut = $1) ORDER BY pr.cree_le DESC LIMIT 200`, [statut]);
+    `SELECT pr.*, j.pseudo, j.telephone, e.nom AS equipe FROM primes pr JOIN joueurs j ON j.id = pr.joueur_id
+       JOIN equipes e ON e.id = pr.equipe_id
+      WHERE ($1::text IS NULL OR pr.statut = $1) ORDER BY pr.cree_le DESC LIMIT 500`, [statut]);
   res.json(rows);
 }));
 routesAdmin.post('/primes/:id/relancer', asynchrone(async (req, res) => {
