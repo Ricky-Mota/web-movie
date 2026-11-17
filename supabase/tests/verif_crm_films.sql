@@ -1,6 +1,6 @@
 grant select, insert, update, delete on all tables in schema public to anon, authenticated;
-grant update (nom_affiche, pays, langue, consentement_marketing, consentement_le) on public.profils to authenticated;
-revoke update on public.profils from authenticated; grant update (nom_affiche, pays, langue, consentement_marketing, consentement_le) on public.profils to authenticated;
+grant update (nom_affiche, pays, telephone, langue, consentement_marketing, consentement_le) on public.profils to authenticated;
+revoke update on public.profils from authenticated; grant update (nom_affiche, pays, telephone, langue, consentement_marketing, consentement_le) on public.profils to authenticated;
 insert into auth.users(id,email) values ('00000000-0000-0000-0000-00000000000a','admin@x.fr'),('00000000-0000-0000-0000-00000000000b','bob@x.fr'),('00000000-0000-0000-0000-00000000000c','eve@x.fr');
 update profils set role='admin' where email='admin@x.fr';
 insert into films(slug,titre,statut) values ('pub','Publié','publie'),('brou','Brouillon','brouillon');
@@ -36,3 +36,4 @@ reset role; set role authenticated; set request.jwt.claim.sub='00000000-0000-000
 \echo '-- admin vue crm:'
 select email, formule_actuelle, nb_films_vus from vue_crm_abonnes order by email;
 insert into campagnes(nom,canal,contenu) values ('Relance','email','Nouveau film !'); select nom from campagnes;
+insert into abonnements(utilisateur_id,formule,fournisseur_paiement,telephone_paiement,reference_externe) values ('00000000-0000-0000-0000-00000000000c','mensuel','mpesa','+243000','TX1'); select formule,fournisseur_paiement,devise from abonnements;

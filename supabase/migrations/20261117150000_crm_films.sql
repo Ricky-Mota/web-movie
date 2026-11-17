@@ -32,6 +32,7 @@ create table public.profils (
   email                  text not null,
   nom_affiche            text,
   pays                   text,                 -- code ISO, ex. 'FR', 'CD'
+  telephone              text,                 -- format international, ex. '+243...' (Mobile Money, SMS, WhatsApp)
   langue                 text not null default 'fr',
   role                   text not null default 'abonne'
                          check (role in ('abonne', 'admin')),
@@ -128,9 +129,12 @@ create table public.abonnements (
   debut_le              timestamptz not null default now(),
   fin_le                timestamptz,
   prix_centimes         integer not null default 0 check (prix_centimes >= 0),
-  devise                text not null default 'EUR',
-  fournisseur_paiement  text,                  -- ex. 'stripe', 'mobile_money'
-  reference_externe     text unique,           -- id chez le fournisseur de paiement
+  devise                text not null default 'USD',   -- ex. 'USD', 'CDF', 'EUR'
+  fournisseur_paiement  text
+                        check (fournisseur_paiement in
+                               ('mpesa', 'orange_money', 'airtel_money', 'stripe', 'manuel')),
+  telephone_paiement    text,                  -- numéro Mobile Money débité
+  reference_externe     text unique,           -- id de transaction chez le fournisseur
   cree_le               timestamptz not null default now(),
   mis_a_jour_le         timestamptz not null default now(),
   check (fin_le is null or fin_le > debut_le)
@@ -267,7 +271,7 @@ create policy "profils_modif_soi" on public.profils
 
 -- Un abonné ne peut modifier QUE ces colonnes (pas son rôle, pas son email).
 revoke update on public.profils from authenticated, anon;
-grant update (nom_affiche, pays, langue, consentement_marketing, consentement_le)
+grant update (nom_affiche, pays, telephone, langue, consentement_marketing, consentement_le)
   on public.profils to authenticated;
 
 -- FILMS : catalogue publié visible par tous (même non connectés) ;
