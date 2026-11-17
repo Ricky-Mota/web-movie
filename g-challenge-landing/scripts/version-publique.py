@@ -14,7 +14,7 @@ shutil.copytree(src, dist)
 (dist / '_redirects').unlink(missing_ok=True)  # pas de fonction d'inscription dans cette version
 
 page = (dist / 'index.html').read_text(encoding='utf8')
-if not SANS_SPONSORS:
+if not SANS_SPONSORS and 'aucun partenariat officiel' not in page:
     a = '<span>© 2026 G-Challenge RDC · Kinshasa</span>'
     assert page.count(a) == 1
     page = page.replace(a, a + '\n<span style="flex-basis: 100%; font-size: 12px">Les marques affichées dans le jeu (panneaux, bande en direct) sont des exemples d\'emplacements publicitaires : aucun partenariat officiel n\'est conclu à ce jour.</span>')

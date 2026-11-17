@@ -201,3 +201,19 @@ Tant que `APPS_SCRIPT_URL` n'est pas réglé, le formulaire répond poliment « 
 ## Si le script Apps Script change
 
 Après chaque modification de `Code.gs`, faites **Déployer**, **Gérer les déploiements**, puis **Modifier** et **Nouvelle version**. L'URL reste la même.
+
+## Mise en ligne sur Cloudflare Workers (relié à GitHub)
+
+Le fichier `wrangler.jsonc` publie le dossier `public/` et l'inscription bêta (`worker/index.js`).
+Dans Cloudflare > Workers & Pages, sur le Worker relié au dépôt `Ricky-Mota/web-movie` :
+
+| Réglage | Valeur |
+|---|---|
+| Nom du Worker | `g-challenge` (doit être identique au `name` de `wrangler.jsonc`) |
+| Branche de production | `claude/bold-wozniak-m9a0ok` (ou `main` une fois la pull request fusionnée) |
+| Root directory | `g-challenge-landing` |
+| Build command | (vide) |
+| Deploy command | `npx wrangler deploy` |
+| Variable secrète | `APPS_SCRIPT_URL` = adresse /exec du script Google Sheets (inscriptions bêta) |
+
+Adresse obtenue : `https://g-challenge.<sous-domaine>.workers.dev`.
