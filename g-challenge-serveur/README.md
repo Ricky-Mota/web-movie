@@ -380,3 +380,9 @@ g-challenge-serveur/
 - API : `GET /tournois/invitations`, `POST /tournois/invitations/:id/repondre {accepter}`,
   `GET /joueurs/notifications`, `POST /joueurs/notifications/lues`, `POST /admin/tournois/championnats/:id/inviter`.
 
+## Devenir administrateur sans SQL
+
+Dans Render > service > Environment, ajoutez `ADMIN_PSEUDOS` = votre pseudo (plusieurs : séparés par des virgules),
+puis redémarrez. Au démarrage, ces comptes passent administrateurs ; l'espace d'administration est à
+`https://<votre-serveur>.onrender.com/espace-admin/`.
+

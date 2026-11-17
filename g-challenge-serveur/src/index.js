@@ -1,6 +1,6 @@
 import { createServer } from 'node:http';
 import { config } from './config.js';
-import { pool } from './db.js';
+import { pool, requete } from './db.js';
 import { migrer } from './migrations.js';
 import { creerApp } from './app.js';
 import { demarrerTempsReel } from './temps-reel.js';
@@ -10,6 +10,13 @@ import { declarerCircuitsDuFichier } from './domaine/circuits.js';
 
 const appliquees = await migrer();
 if (appliquees.length) console.log(`Migrations appliquées : ${appliquees.join(', ')}`);
+// ADMIN_PSEUDOS (réglage Render) : pseudos à passer administrateurs au démarrage, séparés par des virgules.
+// Plus simple qu'une commande SQL : seul celui qui gère les réglages du serveur peut le faire.
+const admins = (process.env.ADMIN_PSEUDOS || '').split(',').map((p) => p.trim().toLowerCase()).filter(Boolean);
+if (admins.length) {
+  const { rows } = await requete(`UPDATE joueurs SET role = 'admin' WHERE lower(pseudo) = ANY($1) AND role <> 'admin' RETURNING pseudo`, [admins]);
+  if (rows.length) console.log(`Administrateurs ajoutés : ${rows.map((r) => r.pseudo).join(', ')}`);
+}
 const circuits = await declarerCircuitsDuFichier();
 console.log(`Circuits déclarés : ${circuits.enregistres.join(', ') || 'aucun'}` +
   (circuits.ignores.length ? ` (arrivée à compléter dans db/circuits.json : ${circuits.ignores.join(', ')})` : ''));
