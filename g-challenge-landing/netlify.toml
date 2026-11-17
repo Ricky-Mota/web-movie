@@ -7,3 +7,9 @@
   directory = "netlify/functions"
 
 # En-têtes de sécurité : voir public/_headers (lu par Netlify et par Cloudflare Pages).
+
+# L'adresse publique de l'inscription bêta (même adresse que sur Cloudflare).
+[[redirects]]
+  from = "/api/inscription-beta"
+  to = "/.netlify/functions/inscription-beta"
+  status = 200

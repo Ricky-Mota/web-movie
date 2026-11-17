@@ -193,7 +193,7 @@ Tant que `APPS_SCRIPT_URL` n'est pas réglé, le formulaire répond poliment « 
 | `src/jeu.js` | La démo jouable (inséré dans la page par `scripts/assembler.py`) |
 | `public/og.png` | L'image affichée quand le lien est partagé sur WhatsApp ou Facebook. Si le site n'est pas à l'adresse g-challenge.motaricky243.workers.dev, changez l'adresse de `og:image` dans `index.html` |
 | `netlify/functions/inscription-beta.mjs` | Vérifie l'inscription et l'envoie au Google Sheet |
-| `public/_redirects` | Netlify : relie l'adresse `/api/inscription-beta` à la fonction |
+| `netlify.toml` ([[redirects]]) | Netlify : relie l'adresse `/api/inscription-beta` à la fonction (Cloudflare : `worker/index.js`) |
 | `functions/api/inscription-beta.js` | Cloudflare Pages : la même fonction |
 | `apps-script/Code.gs` | Écrit dans le Google Sheet, sans doublon |
 | `netlify.toml` | Configuration du site Netlify |
