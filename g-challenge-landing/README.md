@@ -155,7 +155,7 @@ Cette adresse sert de clé : rangez-la uniquement dans Netlify (étape 2). Ne la
 1. Créez un compte gratuit sur [dash.cloudflare.com](https://dash.cloudflare.com).
 2. **Workers & Pages**, puis **Create**, onglet **Pages**, puis **Connect to Git**. Autorisez GitHub et choisissez le dépôt `web-movie`.
 3. Réglages du projet :
-   - Project name : `course-des-ketch` (adresse : `course-des-ketch.pages.dev`)
+   - Project name : `g-challenge` (adresse : `g-challenge.pages.dev`)
    - Production branch : `main` (une fois la pull request fusionnée), ou la branche de travail en attendant
    - Framework preset : **None** ; Build command : vide ; Build output directory : `public`
    - **Root directory** (dans « Advanced ») : `g-challenge-landing`
@@ -191,7 +191,7 @@ Tant que `APPS_SCRIPT_URL` n'est pas réglé, le formulaire répond poliment « 
 | --- | --- |
 | `public/index.html` | La landing page : une seule page, sans dépendance |
 | `src/jeu.js` | La démo jouable (inséré dans la page par `scripts/assembler.py`) |
-| `public/og.png` | L'image affichée quand le lien est partagé sur WhatsApp ou Facebook. Si le site n'est pas à l'adresse course-des-ketch.pages.dev, changez l'adresse de `og:image` dans `index.html` |
+| `public/og.png` | L'image affichée quand le lien est partagé sur WhatsApp ou Facebook. Si le site n'est pas à l'adresse g-challenge.pages.dev, changez l'adresse de `og:image` dans `index.html` |
 | `netlify/functions/inscription-beta.mjs` | Vérifie l'inscription et l'envoie au Google Sheet |
 | `public/_redirects` | Netlify : relie l'adresse `/api/inscription-beta` à la fonction |
 | `functions/api/inscription-beta.js` | Cloudflare Pages : la même fonction |
