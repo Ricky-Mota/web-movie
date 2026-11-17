@@ -1,0 +1,7 @@
+{
+  "name": "sprites-voitures",
+  "private": true,
+  "description": "Transforme les modèles 3D (GLB, par exemple créés avec Hyper3D Rodin) en images de voiture pour la démo.",
+  "scripts": { "sprites": "node sprites-voitures.cjs" },
+  "dependencies": { "three": "0.160.0" }
+}

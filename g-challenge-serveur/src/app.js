@@ -1,0 +1,89 @@
+import express from 'express';
+import helmet from 'helmet';
+import rateLimit from 'express-rate-limit';
+import { requete } from './db.js';
+import { ErreurApi } from './erreurs.js';
+import { routesJoueurs } from './routes/joueurs.js';
+import { routesEquipes } from './routes/equipes.js';
+import { routesCircuits } from './routes/circuits.js';
+import { routesCourses } from './routes/courses.js';
+import { routesDuels } from './routes/duels.js';
+import { routesAdmin } from './routes/admin.js';
+import { routesTournois } from './routes/tournois.js';
+import { asynchrone } from './routes/outils.js';
+
+export function creerApp({ limiteConnexions = 20, limiteGlobale = 300, limiteCourses = 30, apresSante = null } = {}) {
+  const app = express();
+  app.set('trust proxy', 1); // derrière l'hébergeur (Render, Railway...)
+  app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
+  // CORS : la démo web (landing page, sur une autre adresse) appelle l'API avec un jeton, sans cookie.
+  // CORS_ORIGINES : adresses autorisées séparées par des virgules (par défaut : toutes).
+  const origines = (process.env.CORS_ORIGINES || '*').split(',').map((o) => o.trim()).filter(Boolean);
+  app.use((req, res, next) => {
+    const origine = req.headers.origin;
+    if (origine && (origines.includes('*') || origines.includes(origine))) {
+      res.setHeader('Access-Control-Allow-Origin', origines.includes('*') ? '*' : origine);
+      res.setHeader('Vary', 'Origin');
+      res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+      res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+      res.setHeader('Access-Control-Max-Age', '86400');
+    }
+    if (req.method === 'OPTIONS') return res.sendStatus(204);
+    next();
+  });
+  // Anti-abus : au plus `limiteGlobale` requêtes par minute et par adresse IP, et `limiteCourses` envois de course.
+  const parMinute = (limit) => rateLimit({ windowMs: 60 * 1000, limit, standardHeaders: 'draft-7', legacyHeaders: false,
+    handler: (_req, res) => res.status(429).json({ erreur: { code: 'trop_de_requetes', message: 'Trop de demandes, patientez une minute.' } }) });
+  app.use(parMinute(limiteGlobale));
+  app.post('/courses', parMinute(limiteCourses));
+  // Seul l'envoi d'une course peut être gros (un trajet de 30 min tient en ~2 Mo) ; tout le reste : 100 Ko au plus.
+  app.use('/courses', express.json({ limit: '3mb' }));
+  app.use(express.json({ limit: '100kb' }));
+  // Espace administrateur : primes, championnats, coupe, primes à verser (page + script, même adresse que l'API).
+  app.use('/espace-admin', express.static(new URL('../espace-admin/', import.meta.url).pathname, { index: 'index.html' }));
+
+  // Appelée toutes les 10 minutes par un service de réveil gratuit (cron-job.org) :
+  // garde le serveur gratuit éveillé et rattrape les clôtures de tournois en retard.
+  app.get('/sante', asynchrone(async (_req, res) => {
+    await requete('SELECT 1');
+    if (apresSante) apresSante();
+    res.json({ ok: true });
+  }));
+  // Taux de commission actuel : à afficher au joueur avant qu'il lance un défi.
+  app.get('/parametres', asynchrone(async (_req, res) => {
+    const { rows: [p] } = await requete('SELECT commission_bp, maj_le FROM parametres');
+    res.json({ commission_pourcent: p.commission_bp / 100, maj_le: p.maj_le });
+  }));
+  app.get('/pays', asynchrone(async (_req, res) => {
+    const { rows } = await requete('SELECT code, nom, devise, mises_autorisees, primes_autorisees, continent, langue, indicatif FROM pays ORDER BY nom');
+    res.json(rows);
+  }));
+
+  // Freine les essais de mots de passe en rafale.
+  const limiteAuth = rateLimit({ windowMs: 15 * 60 * 1000, limit: limiteConnexions, standardHeaders: 'draft-7', legacyHeaders: false,
+    handler: (_req, res) => res.status(429).json({ erreur: { code: 'trop_de_tentatives', message: 'Trop de tentatives : réessayez dans 15 minutes.' } }) });
+  app.use('/joueurs/connexion', limiteAuth);
+  app.use('/joueurs/inscription', limiteAuth);
+
+  app.use('/joueurs', routesJoueurs);
+  app.use('/equipes', routesEquipes);
+  app.use('/circuits', routesCircuits);
+  app.use('/courses', routesCourses);
+  app.use('/duels', routesDuels);
+  app.use('/tournois', routesTournois);
+  app.use('/admin', routesAdmin);
+
+  app.use((_req, _res, next) => next(new ErreurApi(404, 'route_inconnue', 'Adresse inconnue.')));
+
+  // Toutes les erreurs ont la même forme : { erreur: { code, message } }.
+  // eslint-disable-next-line no-unused-vars
+  app.use((err, _req, res, _next) => {
+    if (err instanceof ErreurApi) return res.status(err.statut).json({ erreur: { code: err.code, message: err.message } });
+    if (err.type === 'entity.parse.failed') return res.status(400).json({ erreur: { code: 'json_invalide', message: 'Corps JSON invalide.' } });
+    if (err.type === 'entity.too.large') return res.status(413).json({ erreur: { code: 'trop_gros', message: 'Envoi trop volumineux.' } });
+    if (err.code === '22P02') return res.status(400).json({ erreur: { code: 'identifiant_invalide', message: 'Identifiant invalide.' } });
+    console.error(err);
+    res.status(500).json({ erreur: { code: 'erreur_serveur', message: 'Erreur interne. Réessayez plus tard.' } });
+  });
+  return app;
+}

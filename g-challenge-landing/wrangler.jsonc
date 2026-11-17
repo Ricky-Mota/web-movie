@@ -1,0 +1,20 @@
+// Publication de G-Challenge sur Cloudflare Workers (offre gratuite).
+// Dans Cloudflare : Workers & Pages > Create > Import a repository > Ricky-Mota/web-movie,
+//   nom du Worker : g-challenge · branche : claude/bold-wozniak-m9a0ok · Root directory : g-challenge-landing
+//   Build command : (vide) · Deploy command : npx wrangler deploy
+// Adresse obtenue : https://g-challenge.<votre-sous-domaine>.workers.dev
+// Inscriptions bêta : ajoutez la variable secrète APPS_SCRIPT_URL dans Settings > Variables and Secrets.
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "g-challenge",
+  "main": "worker/index.js",
+  "compatibility_date": "2025-09-01",
+  "assets": {
+    "directory": "./public",
+    "binding": "ASSETS",
+    "not_found_handling": "404-page",
+    // L'API d'inscription passe par le Worker, tout le reste est servi tel quel (page, images, icônes).
+    "run_worker_first": ["/api/*"]
+  },
+  "observability": { "enabled": true }
+}

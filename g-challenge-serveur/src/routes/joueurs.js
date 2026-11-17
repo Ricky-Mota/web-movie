@@ -1,0 +1,93 @@
+import { Router } from 'express';
+import { z } from 'zod';
+import { requete } from '../db.js';
+import { valider, refus, conflit, ErreurApi, introuvable } from '../erreurs.js';
+import { hacherMotDePasse, comparerSansFuite, creerJeton, connecte } from '../auth.js';
+import { asynchrone } from './outils.js';
+import { envoyerCode, verifierCode } from '../domaine/verification.js';
+import { mesNotifications, marquerLues } from '../domaine/invitations.js';
+
+export const routesJoueurs = Router();
+
+const schemaInscription = z.object({
+  pseudo: z.string().trim().min(3).max(20).regex(/^[\p{L}\p{N}_.-]+$/u, 'lettres, chiffres, _ . - uniquement'),
+  telephone: z.string().trim().transform((t) => t.replace(/[\s+()-]/g, '')).pipe(z.string().regex(/^\d{9,15}$/, 'numéro international, ex. 243812345678')),
+  pays: z.string().length(2).transform((p) => p.toUpperCase()),
+  mot_de_passe: z.string().min(8).max(100),
+});
+
+// ADMIN_PSEUDOS (réglage du serveur) : ces comptes deviennent administrateurs à l'inscription ou à la connexion.
+async function promouvoirSiAdmin(j) {
+  const admins = (process.env.ADMIN_PSEUDOS || '').split(',').map((p) => p.trim().toLowerCase()).filter(Boolean);
+  if (j.role === 'admin' || !admins.includes(String(j.pseudo).toLowerCase())) return j;
+  const { rows: [maj] } = await requete(`UPDATE joueurs SET role = 'admin' WHERE id = $1 RETURNING *`, [j.id]);
+  console.log(`Administrateur ajouté : ${maj.pseudo}`);
+  return maj;
+}
+
+function publicJoueur(j) {
+  return { id: j.id, pseudo: j.pseudo, telephone: j.telephone, pays: j.pays_code, role: j.role, cree_le: j.cree_le,
+    telephone_verifie: !!j.telephone_verifie_le };
+}
+
+routesJoueurs.post('/inscription', asynchrone(async (req, res) => {
+  const d = valider(schemaInscription, req.body);
+  const { rows: [pays] } = await requete('SELECT * FROM pays WHERE code = $1', [d.pays]);
+  if (!pays) throw refus('pays_inconnu', 'Pays non pris en charge pour le moment.');
+  if (!d.telephone.startsWith(pays.indicatif)) {
+    throw refus('telephone_pays', `Le numéro doit commencer par l'indicatif ${pays.indicatif} (${pays.nom}).`);
+  }
+  try {
+    const { rows: [cree] } = await requete(
+      `INSERT INTO joueurs (pseudo, telephone, pays_code, mot_de_passe_hash) VALUES ($1, $2, $3, $4) RETURNING *`,
+      [d.pseudo, d.telephone, d.pays, await hacherMotDePasse(d.mot_de_passe)]);
+    const j = await promouvoirSiAdmin(cree);
+    res.status(201).json({ jeton: creerJeton(j), joueur: publicJoueur(j) });
+  } catch (e) {
+    if (e.code === '23505') throw conflit('deja_inscrit', 'Ce pseudo ou ce numéro est déjà utilisé.');
+    throw e;
+  }
+}));
+
+const schemaConnexion = z.object({
+  identifiant: z.string().trim().min(3), // pseudo ou numéro de téléphone
+  mot_de_passe: z.string().min(1).max(100),
+});
+
+routesJoueurs.post('/connexion', asynchrone(async (req, res) => {
+  const d = valider(schemaConnexion, req.body);
+  const tel = d.identifiant.replace(/[\s+()-]/g, '');
+  const { rows: [trouve] } = await requete(
+    'SELECT * FROM joueurs WHERE lower(pseudo) = lower($1) OR telephone = $2', [d.identifiant, tel]);
+  let j = trouve;
+  const bon = await comparerSansFuite(d.mot_de_passe, j?.mot_de_passe_hash);
+  if (!j || !bon) throw new ErreurApi(401, 'identifiants_invalides', 'Pseudo, numéro ou mot de passe incorrect.');
+  if (j.bloque) throw new ErreurApi(403, 'compte_bloque', 'Ce compte est bloqué. Contactez G-Challenge.');
+  j = await promouvoirSiAdmin(j);
+  res.json({ jeton: creerJeton(j), joueur: publicJoueur(j) });
+}));
+
+routesJoueurs.get('/moi', connecte, asynchrone(async (req, res) => {
+  const { rows: [j] } = await requete('SELECT * FROM joueurs WHERE id = $1', [req.joueur.id]);
+  if (!j) throw introuvable('Joueur introuvable.');
+  const { rows: [p] } = await requete('SELECT * FROM pays WHERE code = $1', [j.pays_code]);
+  res.json({ ...publicJoueur(j), devise: p.devise, mises_autorisees: p.mises_autorisees, langue: p.langue });
+}));
+
+// Vérification du numéro par SMS (obligatoire pour recevoir une prime).
+routesJoueurs.post('/telephone/code', connecte, asynchrone(async (req, res) => {
+  res.json(await envoyerCode(req.joueur.id));
+}));
+routesJoueurs.post('/telephone/verifier', connecte, asynchrone(async (req, res) => {
+  const { code } = valider(z.object({ code: z.string().trim().max(10) }), req.body ?? {});
+  res.json(await verifierCode(req.joueur.id, code));
+}));
+
+// Boîte de réception : invitations, confirmations, rappels.
+routesJoueurs.get('/notifications', connecte, asynchrone(async (req, res) => {
+  res.json(await mesNotifications(req.joueur.id));
+}));
+routesJoueurs.post('/notifications/lues', connecte, asynchrone(async (req, res) => {
+  await marquerLues(req.joueur.id);
+  res.json({ ok: true });
+}));
