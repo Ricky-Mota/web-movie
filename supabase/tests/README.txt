@@ -1,0 +1,2 @@
+-- Vérification locale (Postgres 16 nu) : simule auth.users / auth.uid() de Supabase.
+-- Ordre : psql -f 00_stub_supabase.sql -f ../migrations/20261117150000_crm_films.sql -f verif_crm_films.sql
