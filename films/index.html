@@ -1,0 +1,739 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Yǐng · Courts films chinois en VOSTFR</title>
+<meta name="description" content="Courts films et mini-séries chinoises sous-titrés en français. Premiers épisodes gratuits, inscription en 30 secondes.">
+<meta property="og:title" content="Yǐng · Courts films chinois en VOSTFR">
+<meta property="og:description" content="Romance, historique, fantastique : des épisodes de 2 minutes, sous-titrés en français.">
+<meta name="theme-color" content="#0e0b0a">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23c8102e'/%3E%3Ctext x='32' y='45' font-size='38' text-anchor='middle' fill='%23f3d58a' font-family='serif'%3E影%3C/text%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,800&family=Inter:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@700&display=swap&text=%E5%BD%B1%E7%8E%89%E5%B0%86%E9%87%91%E8%8C%B6%E7%81%AF%E4%BB%87%E4%BB%99%E5%A2%A8">
+<style>
+:root {
+  --bg: #0e0b0a; --bg-2: #161110; --surface: #1d1715; --line: #352a26;
+  --ink: #f6efe9; --muted: #b5a69c; --faint: #7d6f66;
+  --red: #c8102e; --red-hi: #e0283f; --gold: #e2b04a; --gold-soft: #f3d58a;
+  --ok: #4cc08a;
+  --f-display: "Fraunces", Georgia, "Times New Roman", serif;
+  --f-body: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --f-han: "Noto Serif SC", "Songti SC", "SimSun", serif;
+  --r: 14px;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html { scroll-behavior: smooth; scroll-padding-top: 72px; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } *, *::before, *::after { animation: none !important; transition: none !important; } }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.6 var(--f-body); -webkit-font-smoothing: antialiased; overflow-x: hidden; }
+h1, h2, h3 { font-family: var(--f-display); line-height: 1.1; margin: 0; text-wrap: balance; letter-spacing: -0.01em; }
+h2 { font-size: clamp(1.6rem, 3.6vw, 2.4rem); font-weight: 800; }
+h3 { font-size: 1.1rem; font-weight: 600; }
+p { margin: 0; }
+a { color: var(--gold-soft); }
+button, input, select, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 3px solid var(--gold); outline-offset: 3px; border-radius: 8px; }
+.wrap { max-width: 1200px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left)); padding-right: max(16px, env(safe-area-inset-right)); }
+.eyebrow { font-size: 13px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--gold); }
+.lead { color: var(--muted); font-size: 1.08rem; max-width: 60ch; }
+section.block { padding-block: clamp(56px, 8vw, 96px); }
+.sec-head { display: flex; justify-content: space-between; align-items: end; gap: 16px; flex-wrap: wrap; margin-bottom: 24px; }
+.sec-head > div { display: grid; gap: 8px; }
+
+/* Boutons */
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 10px; min-height: 48px; padding: 12px 22px; border-radius: 999px; border: 1px solid transparent; font-weight: 600; text-decoration: none; white-space: nowrap; transition: transform .15s, background .15s; }
+.btn:active { transform: scale(.97); }
+.btn-red { background: var(--red); color: #fff; }
+.btn-red:hover { background: var(--red-hi); }
+.btn-glass { background: rgba(255,255,255,.12); color: #fff; border-color: rgba(255,255,255,.22); backdrop-filter: blur(6px); }
+.btn-glass:hover { background: rgba(255,255,255,.2); }
+.btn-ghost { background: transparent; border-color: var(--line); color: var(--ink); }
+.btn-ghost:hover { border-color: var(--muted); }
+.btn-sm { min-height: 38px; padding: 8px 16px; font-size: 14px; }
+.btn svg { width: 18px; height: 18px; flex: none; }
+
+/* Barre du haut */
+.top { position: fixed; inset: 0 0 auto; z-index: 20; transition: background .2s, border-color .2s; border-bottom: 1px solid transparent; padding-top: env(safe-area-inset-top); }
+.top.solid { background: rgba(14,11,10,.92); backdrop-filter: blur(10px); border-color: var(--line); }
+.top .wrap { display: flex; align-items: center; gap: 20px; height: 64px; }
+.logo { display: flex; align-items: center; gap: 10px; text-decoration: none; color: var(--ink); font-family: var(--f-display); font-weight: 800; font-size: 1.35rem; }
+.logo i { font-style: normal; display: grid; place-items: center; width: 36px; height: 36px; border-radius: 10px; background: var(--red); color: var(--gold-soft); font-family: var(--f-han); font-size: 22px; }
+.top nav { display: flex; gap: 4px; margin-left: auto; }
+.top nav a { color: var(--muted); text-decoration: none; font-weight: 500; font-size: 15px; padding: 8px 12px; border-radius: 8px; }
+.top nav a:hover { color: var(--ink); }
+@media (max-width: 760px) { .top nav { display: none; } .top .btn { margin-left: auto; } }
+
+/* Héros */
+.hero { position: relative; min-height: min(92vh, 820px); display: grid; align-items: end; isolation: isolate; overflow: hidden; }
+.hero-media { position: absolute; inset: 0; z-index: -2; background: radial-gradient(120% 90% at 70% 20%, #7a1022 0%, #2a0a10 55%, var(--bg) 100%); }
+.hero-media video { width: 100%; height: 100%; object-fit: cover; opacity: .75; }
+.hero-han { position: absolute; right: 4vw; top: 50%; translate: 0 -55%; z-index: -1; font-family: var(--f-han); font-size: clamp(180px, 34vw, 460px); line-height: 1; color: rgba(243,213,138,.12); pointer-events: none; user-select: none; }
+.hero::after { content: ""; position: absolute; inset: 0; z-index: -1; background: linear-gradient(to top, var(--bg) 0%, rgba(14,11,10,.75) 35%, rgba(14,11,10,.15) 70%, rgba(14,11,10,.55) 100%), linear-gradient(to right, rgba(14,11,10,.85) 0%, rgba(14,11,10,0) 65%); }
+.hero .wrap { width: 100%; padding-block: 120px 56px; display: grid; gap: 18px; justify-items: start; }
+.hero h1 { font-size: clamp(2.4rem, 7vw, 5rem); font-weight: 800; max-width: 14ch; }
+.hero .meta { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; color: var(--muted); font-size: 14px; }
+.tag { display: inline-flex; align-items: center; padding: 3px 10px; border-radius: 999px; font-size: 12.5px; font-weight: 600; background: rgba(255,255,255,.1); color: var(--ink); }
+.tag.gold { background: var(--gold); color: #2a1a02; }
+.tag.red { background: var(--red); color: #fff; }
+.hero p.syn { max-width: 52ch; color: #e8ddd5; font-size: 1.05rem; }
+.hero-cta { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 6px; }
+.hero-proof { display: flex; gap: 28px; flex-wrap: wrap; margin-top: 18px; color: var(--muted); font-size: 14px; }
+.hero-proof b { display: block; font-family: var(--f-display); font-size: 1.6rem; color: var(--ink); }
+.sound { position: absolute; right: max(16px, env(safe-area-inset-right)); bottom: 24px; width: 44px; height: 44px; border-radius: 50%; border: 1px solid rgba(255,255,255,.3); background: rgba(0,0,0,.35); color: #fff; display: grid; place-items: center; }
+.sound svg { width: 20px; height: 20px; }
+
+/* Rangées de films */
+.row-wrap { position: relative; }
+.row { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(160px, 200px); gap: 14px; overflow-x: auto; scroll-snap-type: x mandatory; padding-bottom: 10px; scrollbar-width: thin; scrollbar-color: var(--line) transparent; }
+.row > * { scroll-snap-align: start; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(165px, 1fr)); gap: 18px 14px; }
+.poster { all: unset; cursor: pointer; display: grid; gap: 10px; min-width: 0; }
+.poster .art { position: relative; aspect-ratio: 2 / 3; border-radius: 12px; overflow: hidden; display: grid; place-items: center; box-shadow: 0 10px 30px rgba(0,0,0,.35); transition: transform .2s, box-shadow .2s; }
+.poster:hover .art, .poster:focus-visible .art { transform: translateY(-4px); box-shadow: 0 16px 40px rgba(0,0,0,.5), 0 0 0 2px var(--gold); }
+.poster:focus-visible { outline: none; }
+.poster .art .han { font-family: var(--f-han); font-size: 92px; color: rgba(243,213,138,.9); text-shadow: 0 4px 24px rgba(0,0,0,.4); line-height: 1; translate: 0 -14%; }
+.poster .art .t { position: absolute; left: 12px; right: 12px; bottom: 12px; font-family: var(--f-display); font-weight: 800; font-size: 1.05rem; line-height: 1.15; text-shadow: 0 2px 8px rgba(0,0,0,.6); }
+.poster .art .badges { position: absolute; top: 10px; left: 10px; display: flex; gap: 6px; }
+.poster .art .play { position: absolute; inset: 0; display: grid; place-items: center; background: rgba(0,0,0,.35); opacity: 0; transition: opacity .2s; }
+.poster:hover .play, .poster:focus-visible .play { opacity: 1; }
+.poster .art .play span { width: 56px; height: 56px; border-radius: 50%; background: rgba(255,255,255,.92); display: grid; place-items: center; }
+.poster .art .play span::after { content: ""; border-left: 18px solid var(--red); border-top: 11px solid transparent; border-bottom: 11px solid transparent; margin-left: 5px; }
+.poster .art .bar { position: absolute; left: 0; right: 0; bottom: 0; height: 4px; background: rgba(255,255,255,.2); }
+.poster .art .bar i { display: block; height: 100%; background: var(--red); }
+.poster .info { font-size: 13.5px; color: var(--muted); display: flex; gap: 6px; flex-wrap: wrap; }
+.poster .info b { color: var(--ink); font-weight: 600; }
+
+.filters { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.chip { border: 1px solid var(--line); background: var(--bg-2); color: var(--muted); padding: 8px 16px; border-radius: 999px; font-size: 14px; font-weight: 500; min-height: 40px; }
+.chip[aria-pressed="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.search { position: relative; flex: 1 1 220px; max-width: 320px; }
+.search input { width: 100%; min-height: 40px; padding: 8px 14px 8px 38px; border-radius: 999px; border: 1px solid var(--line); background: var(--bg-2); }
+.search svg { position: absolute; left: 12px; top: 50%; translate: 0 -50%; width: 18px; height: 18px; color: var(--faint); }
+.empty { color: var(--muted); padding: 32px 0; }
+
+/* Comment ça marche */
+.steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }
+.step { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 24px; display: grid; gap: 10px; align-content: start; }
+.step .n { font-family: var(--f-display); font-weight: 800; font-size: 2.2rem; color: var(--gold); line-height: 1; }
+.step p { color: var(--muted); }
+.alt { background: var(--bg-2); border-block: 1px solid var(--line); }
+
+/* Offres */
+.plans { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 16px; align-items: stretch; }
+.plan { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 26px; display: grid; gap: 14px; align-content: start; position: relative; }
+.plan.feat { border-color: var(--gold); box-shadow: 0 0 0 1px var(--gold), 0 20px 50px rgba(226,176,74,.12); }
+.plan .ribbon { position: absolute; top: -12px; left: 24px; }
+.plan .price { font-family: var(--f-display); font-weight: 800; font-size: 2.4rem; line-height: 1; }
+.plan .price small { font-family: var(--f-body); font-weight: 500; font-size: 15px; color: var(--muted); }
+.plan ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.plan li { display: flex; gap: 10px; align-items: start; color: #e8ddd5; }
+.plan li::before { content: ""; flex: none; width: 18px; height: 18px; margin-top: 3px; border-radius: 50%; background: var(--red) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3.5'%3E%3Cpath d='M5 12l5 5 9-10'/%3E%3C/svg%3E") center / 11px no-repeat; }
+.plan .btn { margin-top: auto; }
+.pay { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 20px; align-items: center; color: var(--muted); font-size: 14px; }
+.pay span.tag { background: var(--surface); border: 1px solid var(--line); color: var(--muted); }
+
+/* Inscription */
+.signup { display: grid; grid-template-columns: 1fr 1.1fr; gap: clamp(24px, 5vw, 64px); align-items: start; }
+.signup > * { min-width: 0; }
+@media (max-width: 860px) { .signup { grid-template-columns: 1fr; } }
+.perks { list-style: none; padding: 0; margin: 24px 0 0; display: grid; gap: 14px; }
+.perks li { display: flex; gap: 14px; align-items: start; }
+.perks li span.ic { flex: none; width: 40px; height: 40px; border-radius: 10px; background: rgba(200,16,46,.16); color: var(--red-hi); display: grid; place-items: center; }
+.perks li span.ic svg { width: 20px; height: 20px; }
+.perks li p { color: var(--muted); font-size: 15px; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 18px; padding: clamp(20px, 4vw, 32px); }
+form .fields { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+form .full { grid-column: 1 / -1; }
+@media (max-width: 520px) { form .fields { grid-template-columns: 1fr; } }
+label.f { display: grid; gap: 6px; font-size: 14px; font-weight: 600; }
+label.f span.opt { font-weight: 400; color: var(--faint); }
+input.in, select.in { width: 100%; min-height: 48px; padding: 10px 14px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); font-size: 16px; }
+input.in:focus, select.in:focus { border-color: var(--gold); outline: none; box-shadow: 0 0 0 3px rgba(226,176,74,.2); }
+input.in[aria-invalid="true"] { border-color: var(--red-hi); }
+fieldset { border: 0; padding: 0; margin: 0; }
+legend { font-size: 14px; font-weight: 600; margin-bottom: 8px; }
+.tastes { display: flex; flex-wrap: wrap; gap: 8px; }
+.tastes label { display: inline-flex; }
+.tastes input { position: absolute; opacity: 0; pointer-events: none; }
+.tastes span { border: 1px solid var(--line); padding: 8px 14px; border-radius: 999px; font-size: 14px; color: var(--muted); cursor: pointer; user-select: none; }
+.tastes input:checked + span { background: rgba(226,176,74,.16); border-color: var(--gold); color: var(--gold-soft); }
+.tastes input:focus-visible + span { outline: 3px solid var(--gold); outline-offset: 2px; }
+.consent { display: flex; gap: 10px; align-items: start; font-size: 14px; color: var(--muted); }
+.consent input { width: 20px; height: 20px; margin-top: 2px; accent-color: var(--red); flex: none; }
+.err { color: #ff8a98; font-size: 14px; min-height: 1.2em; }
+.form-foot { display: grid; gap: 10px; margin-top: 18px; }
+.form-foot .btn { width: 100%; }
+.small { font-size: 13px; color: var(--faint); }
+.done { text-align: center; display: grid; gap: 12px; justify-items: center; padding: 20px 0; }
+.done .ok { width: 64px; height: 64px; border-radius: 50%; background: rgba(76,192,138,.15); color: var(--ok); display: grid; place-items: center; }
+.done .ok svg { width: 32px; height: 32px; }
+
+/* FAQ */
+.faq { display: grid; gap: 10px; max-width: 820px; }
+.faq details { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; }
+.faq summary { cursor: pointer; padding: 18px 20px; font-weight: 600; list-style: none; display: flex; justify-content: space-between; gap: 16px; }
+.faq summary::-webkit-details-marker { display: none; }
+.faq summary::after { content: "+"; font-size: 1.4rem; line-height: 1; color: var(--gold); transition: rotate .2s; }
+.faq details[open] summary::after { rotate: 45deg; }
+.faq details p { padding: 0 20px 18px; color: var(--muted); }
+
+footer { border-top: 1px solid var(--line); padding-block: 36px calc(36px + env(safe-area-inset-bottom)); color: var(--faint); font-size: 14px; }
+footer .wrap { display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; align-items: center; }
+footer nav { display: flex; gap: 18px; flex-wrap: wrap; }
+footer a { color: var(--muted); text-decoration: none; }
+
+/* Lecteur */
+dialog.player { width: min(1100px, 100vw); max-width: 100vw; max-height: 100dvh; margin: auto; padding: 0; border: 0; border-radius: 18px; background: var(--bg-2); color: var(--ink); box-shadow: 0 40px 120px rgba(0,0,0,.7); overflow: hidden; }
+dialog.player::backdrop { background: rgba(5,4,4,.85); backdrop-filter: blur(4px); }
+@media (max-width: 760px) { dialog.player { border-radius: 0; height: 100dvh; width: 100vw; } }
+.pl { display: grid; grid-template-columns: minmax(0, 1fr) 320px; height: min(86vh, 680px); }
+@media (max-width: 760px) { .pl { grid-template-columns: 1fr; grid-template-rows: auto 1fr; height: 100dvh; } }
+.stage { position: relative; background: #000; display: grid; place-items: center; min-height: 0; }
+@media (max-width: 760px) { .stage { height: min(58dvh, 120vw); } .side { overflow: hidden; } }
+.stage { overflow: hidden; }
+.stage video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; background: #000; }
+.stage .x { position: absolute; top: calc(10px + env(safe-area-inset-top)); right: 10px; z-index: 3; width: 44px; height: 44px; border-radius: 50%; border: 0; background: rgba(0,0,0,.55); color: #fff; display: grid; place-items: center; }
+.stage .x svg { width: 22px; height: 22px; }
+.lock { position: absolute; inset: 0; z-index: 2; display: grid; place-items: center; text-align: center; padding: 24px; background: radial-gradient(80% 80% at 50% 40%, rgba(122,16,34,.85), rgba(10,6,6,.96)); }
+.lock > div { display: grid; gap: 14px; justify-items: center; max-width: 380px; }
+.lock .han { font-family: var(--f-han); font-size: 64px; color: var(--gold-soft); line-height: 1; }
+.lock .btns { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+.next-up { position: absolute; right: 16px; bottom: 64px; z-index: 2; background: rgba(14,11,10,.92); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; display: flex; gap: 12px; align-items: center; font-size: 14px; }
+.side { display: grid; grid-template-rows: auto 1fr; min-height: 0; border-left: 1px solid var(--line); }
+@media (max-width: 760px) { .side { border-left: 0; border-top: 1px solid var(--line); } }
+.side header { padding: 18px 18px 12px; display: grid; gap: 8px; border-bottom: 1px solid var(--line); }
+.side header h3 { font-size: 1.3rem; font-weight: 800; }
+.side header p { color: var(--muted); font-size: 14px; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.eps { list-style: none; margin: 0; padding: 8px; overflow-y: auto; display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; align-content: start; }
+.eps button { width: 100%; aspect-ratio: 1; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); font-weight: 600; font-size: 15px; position: relative; display: grid; place-items: center; }
+.eps button:hover { border-color: var(--muted); }
+.eps button[aria-current="true"] { background: var(--red); border-color: var(--red); color: #fff; }
+.eps button.seen:not([aria-current="true"]) { color: var(--faint); }
+.eps button.locked { color: var(--faint); }
+.eps button.locked::after { content: ""; position: absolute; top: 4px; right: 4px; width: 9px; height: 9px; background: currentColor; -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M6 10V8a6 6 0 1 1 12 0v2h1v12H5V10zm2 0h8V8a4 4 0 1 0-8 0z'/%3E%3C/svg%3E") center / contain no-repeat; mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M6 10V8a6 6 0 1 1 12 0v2h1v12H5V10zm2 0h8V8a4 4 0 1 0-8 0z'/%3E%3C/svg%3E") center / contain no-repeat; }
+.eps .free { grid-column: 1 / -1; font-size: 12.5px; color: var(--muted); padding: 4px 2px 0; }
+
+.toast { position: fixed; left: 50%; bottom: calc(24px + env(safe-area-inset-bottom)); translate: -50% 0; z-index: 60; background: var(--ink); color: var(--bg); padding: 12px 18px; border-radius: 12px; font-weight: 600; font-size: 15px; box-shadow: 0 10px 30px rgba(0,0,0,.4); max-width: calc(100vw - 32px); }
+.wa { position: fixed; right: max(16px, env(safe-area-inset-right)); bottom: calc(16px + env(safe-area-inset-bottom)); z-index: 15; width: 56px; height: 56px; border-radius: 50%; background: #25d366; color: #fff; display: grid; place-items: center; box-shadow: 0 10px 30px rgba(0,0,0,.4); }
+.wa svg { width: 28px; height: 28px; }
+@media (max-width: 760px) { .side header p { -webkit-line-clamp: 2; } }
+</style>
+</head>
+<body>
+
+<header class="top" id="top">
+  <div class="wrap">
+    <a class="logo" href="#accueil" aria-label="Accueil"><i aria-hidden="true">影</i><span data-brand>Yǐng</span></a>
+    <nav aria-label="Navigation principale">
+      <a href="#catalogue">Catalogue</a>
+      <a href="#comment">Comment ça marche</a>
+      <a href="#offres">Offres</a>
+      <a href="#faq">FAQ</a>
+    </nav>
+    <a class="btn btn-red btn-sm" href="#inscription">S'inscrire gratuitement</a>
+  </div>
+</header>
+
+<main id="accueil">
+  <!-- Héros : bande-annonce en fond, film à la une -->
+  <section class="hero" aria-labelledby="hero-title">
+    <div class="hero-media" aria-hidden="true">
+      <video id="hero-video" muted loop playsinline preload="metadata"></video>
+    </div>
+    <div class="hero-han" id="hero-han" aria-hidden="true">玉</div>
+    <div class="wrap">
+      <p class="eyebrow">À la une cette semaine</p>
+      <h1 id="hero-title">La Fiancée de jade</h1>
+      <div class="meta" id="hero-meta"></div>
+      <p class="syn" id="hero-syn"></p>
+      <div class="hero-cta">
+        <button class="btn btn-red" id="hero-play" type="button">
+          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 4.5v15a1 1 0 0 0 1.5.86l12.5-7.5a1 1 0 0 0 0-1.72L8.5 3.64A1 1 0 0 0 7 4.5z"/></svg>
+          Regarder l'épisode 1
+        </button>
+        <button class="btn btn-glass" id="hero-trailer" type="button">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M10 9l5 3-5 3z" fill="currentColor"/></svg>
+          Bande-annonce
+        </button>
+      </div>
+      <div class="hero-proof">
+        <div><b id="proof-films">8</b>films et mini-séries</div>
+        <div><b>2–3 min</b>par épisode</div>
+        <div><b>VOSTFR</b>sous-titres français</div>
+      </div>
+    </div>
+    <button class="sound" id="hero-sound" type="button" aria-label="Activer le son" aria-pressed="false" hidden>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 9v6h4l5 4V5L8 9z" fill="currentColor"/><path d="M17 9l4 6M21 9l-4 6"/></svg>
+    </button>
+  </section>
+
+  <!-- Continuer à regarder (affiché seulement s'il y a une progression enregistrée) -->
+  <section class="wrap" id="continuer" hidden aria-labelledby="continuer-title" style="padding-top:24px">
+    <div class="sec-head"><div><h2 id="continuer-title" style="font-size:1.4rem">Reprendre où vous en étiez</h2></div></div>
+    <div class="row" id="continuer-row"></div>
+  </section>
+
+  <!-- Catalogue -->
+  <section class="block" id="catalogue" aria-labelledby="cat-title">
+    <div class="wrap">
+      <div class="sec-head">
+        <div>
+          <p class="eyebrow">Catalogue</p>
+          <h2 id="cat-title">Que voulez-vous regarder ce soir ?</h2>
+        </div>
+      </div>
+      <div class="filters" role="toolbar" aria-label="Filtrer par genre" id="filters" style="margin-bottom:24px"></div>
+      <div class="grid" id="grid"></div>
+      <p class="empty" id="empty" hidden>Aucun film ne correspond. Essayez un autre mot ou un autre genre.</p>
+    </div>
+  </section>
+
+  <!-- Comment ça marche -->
+  <section class="block alt" id="comment" aria-labelledby="how-title">
+    <div class="wrap">
+      <div class="sec-head"><div><p class="eyebrow">Comment ça marche</p><h2 id="how-title">Une histoire complète dans la pause déjeuner</h2></div></div>
+      <div class="steps">
+        <div class="step"><span class="n">1</span><h3>Choisissez une histoire</h3><p>Romance, intrigues de palais, vengeance, fantastique : chaque film est découpé en épisodes de deux à trois minutes.</p></div>
+        <div class="step"><span class="n">2</span><h3>Regardez le début gratuitement</h3><p id="how-free">Le premier épisode est ouvert à tous. Inscrivez-vous en 30 secondes pour débloquer les suivants.</p></div>
+        <div class="step"><span class="n">3</span><h3>Continuez quand vous voulez</h3><p>Le site retient où vous vous êtes arrêté. Un pass à petit prix ouvre tout le catalogue, payable par mobile money.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Offres -->
+  <section class="block" id="offres" aria-labelledby="plans-title">
+    <div class="wrap">
+      <div class="sec-head"><div><p class="eyebrow">Offres</p><h2 id="plans-title">Commencez gratuitement, payez seulement si vous accrochez</h2></div></div>
+      <div class="plans" id="plans"></div>
+      <div class="pay" id="pay"><span>Moyens de paiement prévus :</span></div>
+    </div>
+  </section>
+
+  <!-- Inscription -->
+  <section class="block alt" id="inscription" aria-labelledby="signup-title">
+    <div class="wrap signup">
+      <div>
+        <p class="eyebrow">Inscription gratuite</p>
+        <h2 id="signup-title" style="margin-top:8px">Débloquez les épisodes suivants</h2>
+        <p class="lead" style="margin-top:14px">Laissez un e-mail ou un numéro WhatsApp. Pas de carte bancaire, pas de mot de passe à retenir.</p>
+        <ul class="perks">
+          <li><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M10 9l5 3-5 3z" fill="currentColor"/></svg></span><div><h3>Plus d'épisodes offerts</h3><p id="perk-eps">Les 3 premiers épisodes de chaque film, immédiatement.</p></div></li>
+          <li><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg></span><div><h3>Les sorties en premier</h3><p>Un message quand un nouveau film arrive dans vos genres préférés.</p></div></li>
+          <li><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></span><div><h3>Vos données restent chez nous</h3><p>Aucune revente. Désinscription en un clic à tout moment.</p></div></li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <form id="signup" name="inscription" method="POST" data-netlify="true" netlify-honeypot="site_web" novalidate>
+          <input type="hidden" name="form-name" value="inscription">
+          <p hidden><label>Ne pas remplir : <input name="site_web"></label></p>
+          <div id="form-body">
+            <div class="fields">
+              <label class="f full">Prénom
+                <input class="in" name="prenom" autocomplete="given-name" required maxlength="80">
+              </label>
+              <label class="f">E-mail <span class="opt">ou WhatsApp</span>
+                <input class="in" name="email" type="email" autocomplete="email" inputmode="email" maxlength="200">
+              </label>
+              <label class="f">WhatsApp <span class="opt">ou e-mail</span>
+                <input class="in" name="whatsapp" type="tel" autocomplete="tel" inputmode="tel" placeholder="+243 …" maxlength="40">
+              </label>
+              <label class="f full">Pays
+                <select class="in" name="pays" autocomplete="country">
+                  <option value="CD">RD Congo</option><option value="CG">Congo-Brazzaville</option><option value="CM">Cameroun</option>
+                  <option value="CI">Côte d'Ivoire</option><option value="SN">Sénégal</option><option value="GA">Gabon</option>
+                  <option value="BJ">Bénin</option><option value="TG">Togo</option><option value="BF">Burkina Faso</option>
+                  <option value="ML">Mali</option><option value="GN">Guinée</option><option value="MA">Maroc</option>
+                  <option value="FR">France</option><option value="BE">Belgique</option><option value="CA">Canada</option>
+                  <option value="CH">Suisse</option><option value="ZZ">Autre</option>
+                </select>
+              </label>
+              <fieldset class="full">
+                <legend>Vos genres préférés <span class="small">(facultatif)</span></legend>
+                <div class="tastes" id="tastes"></div>
+              </fieldset>
+              <label class="consent full">
+                <input type="checkbox" name="consentement" value="oui" required>
+                <span>J'accepte de recevoir les nouveautés par e-mail ou WhatsApp. Je peux me désinscrire à tout moment.</span>
+              </label>
+            </div>
+            <div class="form-foot">
+              <p class="err" id="form-err" role="alert"></p>
+              <button class="btn btn-red" type="submit" id="submit">Débloquer les épisodes</button>
+              <p class="small" id="mode-note"></p>
+            </div>
+          </div>
+          <div class="done" id="form-done" hidden tabindex="-1">
+            <span class="ok"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" aria-hidden="true"><path d="M5 12l5 5 9-10"/></svg></span>
+            <h3 style="font-size:1.4rem">Bienvenue, <span id="done-name"></span> !</h3>
+            <p class="lead" id="done-text">Vos épisodes sont débloqués.</p>
+            <a class="btn btn-red" href="#catalogue">Retour au catalogue</a>
+          </div>
+        </form>
+      </div>
+    </div>
+  </section>
+
+  <!-- FAQ -->
+  <section class="block" id="faq" aria-labelledby="faq-title">
+    <div class="wrap">
+      <div class="sec-head"><div><p class="eyebrow">Questions fréquentes</p><h2 id="faq-title">Bon à savoir</h2></div></div>
+      <div class="faq">
+        <details><summary>C'est quoi, une mini-série chinoise ?</summary><p>Un format venu de Chine : une histoire complète racontée en épisodes très courts, de deux à trois minutes, pensés pour le téléphone. Beaucoup de rebondissements, peu de temps morts.</p></details>
+        <details><summary>Les films sont-ils en français ?</summary><p>Ils sont en version originale (mandarin) avec des sous-titres français.</p></details>
+        <details><summary>Faut-il une carte bancaire pour s'inscrire ?</summary><p>Non. L'inscription est gratuite et ne demande qu'un e-mail ou un numéro WhatsApp. Les pass se paient par mobile money.</p></details>
+        <details><summary>Est-ce que ça marche avec une petite connexion ?</summary><p>Oui. Les épisodes sont courts et légers, et la vidéo s'adapte au téléphone.</p></details>
+        <details><summary>Comment me désinscrire ?</summary><p>Répondez « STOP » à n'importe quel message, ou écrivez-nous. Vos données sont supprimées.</p></details>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <span>© <span id="year"></span> <span data-brand>Yǐng</span>. Courts films chinois en VOSTFR.</span>
+    <nav aria-label="Pied de page"><a href="#catalogue">Catalogue</a><a href="#offres">Offres</a><a href="#inscription">Inscription</a><a href="#faq">FAQ</a></nav>
+  </div>
+</footer>
+
+<a class="wa" id="wa" hidden target="_blank" rel="noopener" aria-label="Nous écrire sur WhatsApp">
+  <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2zm0 18.2a8.2 8.2 0 0 1-4.2-1.1l-.3-.2-3 .8.8-2.9-.2-.3A8.2 8.2 0 1 1 12 20.2zm4.5-6.1c-.2-.1-1.5-.7-1.7-.8s-.4-.1-.6.1-.7.8-.8 1-.3.2-.5.1a6.7 6.7 0 0 1-3.3-2.9c-.2-.4.2-.4.7-1.3.1-.2 0-.3 0-.4l-.8-1.8c-.2-.5-.4-.4-.6-.4h-.5a1 1 0 0 0-.7.3 3 3 0 0 0-.9 2.2 5.2 5.2 0 0 0 1.1 2.7 11.8 11.8 0 0 0 4.5 4c1.7.7 2.3.8 3.2.6a2.7 2.7 0 0 0 1.8-1.2 2.2 2.2 0 0 0 .1-1.3c0-.1-.2-.2-.5-.3z"/></svg>
+</a>
+
+<!-- Lecteur vidéo -->
+<dialog class="player" id="player" aria-labelledby="pl-title">
+  <div class="pl">
+    <div class="stage">
+      <video id="pl-video" controls playsinline preload="metadata"></video>
+      <div class="lock" id="pl-lock" hidden>
+        <div>
+          <span class="han" id="lock-han" aria-hidden="true">玉</span>
+          <h3 id="lock-title" style="font-size:1.4rem">La suite vous attend</h3>
+          <p class="lead" id="lock-text"></p>
+          <div class="btns" id="lock-btns"></div>
+        </div>
+      </div>
+      <div class="next-up" id="next-up" hidden>
+        <span id="next-text">Épisode suivant dans 5 s</span>
+        <button class="btn btn-red btn-sm" id="next-go" type="button">Lire</button>
+        <button class="btn btn-ghost btn-sm" id="next-cancel" type="button">Annuler</button>
+      </div>
+      <button class="x" id="pl-close" type="button" aria-label="Fermer le lecteur">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+    </div>
+    <aside class="side">
+      <header>
+        <div class="meta" id="pl-meta" style="display:flex;gap:8px;flex-wrap:wrap"></div>
+        <h3 id="pl-title">Titre</h3>
+        <p id="pl-syn"></p>
+      </header>
+      <ul class="eps" id="pl-eps" aria-label="Épisodes"></ul>
+    </aside>
+  </div>
+</dialog>
+
+<div class="toast" id="toast" role="status" hidden></div>
+
+<script src="config.js"></script>
+<script>
+(() => {
+  "use strict";
+  const C = window.YING_CONFIG;
+  const $ = (s, el = document) => el.querySelector(s);
+  const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  // Petit stockage local (peut être indisponible en navigation privée).
+  const store = {
+    get(k, d) { try { const v = localStorage.getItem("ying_" + k); return v == null ? d : JSON.parse(v); } catch { return d; } },
+    set(k, v) { try { localStorage.setItem("ying_" + k, JSON.stringify(v)); } catch {} }
+  };
+  let membre = store.get("membre", null);
+  const progres = store.get("progres", {});
+  const vus = store.get("vus", {});
+  const limite = () => (membre ? C.episodesAvecCompte : C.episodesSansCompte);
+  const films = C.films;
+  const parId = Object.fromEntries(films.map((f) => [f.id, f]));
+  const genres = [...new Set(films.map((f) => f.genre))];
+
+  document.querySelectorAll("[data-brand]").forEach((n) => (n.textContent = C.marque));
+  $("#year").textContent = new Date().getFullYear();
+  $("#proof-films").textContent = films.length;
+  $("#how-free").textContent = `${C.episodesSansCompte === 1 ? "Le premier épisode est ouvert" : `Les ${C.episodesSansCompte} premiers épisodes sont ouverts`} à tous. Inscrivez-vous en 30 secondes pour débloquer les suivants.`;
+  $("#perk-eps").textContent = `Les ${C.episodesAvecCompte} premiers épisodes de chaque film, immédiatement.`;
+  if (C.whatsapp) { const wa = $("#wa"); wa.href = "https://wa.me/" + encodeURIComponent(C.whatsapp); wa.hidden = false; }
+
+  const toast = (msg) => { const t = $("#toast"); t.textContent = msg; t.hidden = false; clearTimeout(toast.t); toast.t = setTimeout(() => (t.hidden = true), 3200); };
+
+  // Barre du haut opaque après défilement
+  const top = $("#top");
+  const onScroll = () => top.classList.toggle("solid", scrollY > 40);
+  addEventListener("scroll", onScroll, { passive: true }); onScroll();
+
+  // ---------- Héros ----------
+  const une = films.find((f) => f.vedette) || films[0];
+  $("#hero-title").textContent = une.titre;
+  $("#hero-han").textContent = une.hanzi;
+  $("#hero-syn").textContent = une.synopsis;
+  $("#hero-meta").innerHTML = metaHTML(une);
+  const hv = $("#hero-video");
+  const heroSrc = une.bandeAnnonce || C.bandeAnnonce;
+  if (heroSrc && !reduceMotion) {
+    hv.src = heroSrc;
+    hv.play().then(() => { $("#hero-sound").hidden = false; }).catch(() => {});
+  }
+  $("#hero-sound").addEventListener("click", (e) => {
+    hv.muted = !hv.muted;
+    e.currentTarget.setAttribute("aria-pressed", String(!hv.muted));
+    e.currentTarget.setAttribute("aria-label", hv.muted ? "Activer le son" : "Couper le son");
+  });
+  $("#hero-play").addEventListener("click", () => ouvrir(une.id, 1));
+  $("#hero-trailer").addEventListener("click", () => ouvrir(une.id, 0));
+
+  function metaHTML(f) {
+    return [
+      f.nouveau ? '<span class="tag red">Nouveau</span>' : "",
+      `<span class="tag">${esc(f.genre)}</span>`,
+      `<span>${f.annee}</span>`, "<span>·</span>",
+      `<span>${f.episodes} épisodes</span>`, "<span>·</span>",
+      `<span>${f.minutes} min / épisode</span>`,
+      '<span class="tag gold">VOSTFR</span>'
+    ].join("");
+  }
+
+  // ---------- Affiches ----------
+  function affiche(f, opts = {}) {
+    const p = progres[f.id];
+    const pct = p ? Math.round((p.ep / f.episodes) * 100) : 0;
+    const label = opts.reprendre && p ? `Reprendre ${f.titre}, épisode ${p.ep}` : `${f.titre}, ${f.genre}, ${f.episodes} épisodes`;
+    return `<button class="poster" type="button" data-film="${esc(f.id)}" aria-label="${esc(label)}">
+      <span class="art" style="background:linear-gradient(160deg, ${esc(f.couleurs[0])} 0%, ${esc(f.couleurs[1])} 85%)">
+        <span class="badges">${f.nouveau ? '<span class="tag red">Nouveau</span>' : ""}</span>
+        <span class="han" aria-hidden="true">${esc(f.hanzi)}</span>
+        <span class="t">${esc(f.titre)}</span>
+        <span class="play" aria-hidden="true"><span></span></span>
+        ${p ? `<span class="bar"><i style="width:${pct}%"></i></span>` : ""}
+      </span>
+      <span class="info">${opts.reprendre && p ? `<b>Épisode ${p.ep}</b> sur ${f.episodes}` : `<b>${esc(f.genre)}</b> · ${f.episodes} ép.`}</span>
+    </button>`;
+  }
+
+  let filtreGenre = "Tous", recherche = "";
+  const filtersEl = $("#filters");
+  filtersEl.innerHTML = ["Tous", ...genres].map((g) => `<button class="chip" type="button" aria-pressed="${g === "Tous"}" data-g="${esc(g)}">${esc(g)}</button>`).join("") +
+    `<label class="search"><span class="sr" hidden>Rechercher</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg><input type="search" id="q" placeholder="Rechercher un titre…" aria-label="Rechercher un titre"></label>`;
+  filtersEl.addEventListener("click", (e) => {
+    const b = e.target.closest("[data-g]"); if (!b) return;
+    filtreGenre = b.dataset.g;
+    filtersEl.querySelectorAll("[data-g]").forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
+    rendreGrille();
+  });
+  $("#q").addEventListener("input", (e) => { recherche = e.target.value.trim().toLowerCase(); rendreGrille(); });
+
+  const norm = (s) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+  function rendreGrille() {
+    const q = norm(recherche);
+    const liste = films.filter((f) => (filtreGenre === "Tous" || f.genre === filtreGenre) && (!q || norm(f.titre + " " + f.synopsis).includes(q)));
+    $("#grid").innerHTML = liste.map((f) => affiche(f)).join("");
+    $("#empty").hidden = liste.length > 0;
+  }
+  function rendreContinuer() {
+    const ids = Object.keys(progres).filter((id) => parId[id]).sort((a, b) => progres[b].at - progres[a].at);
+    $("#continuer").hidden = ids.length === 0;
+    $("#continuer-row").innerHTML = ids.map((id) => affiche(parId[id], { reprendre: true })).join("");
+  }
+  rendreGrille(); rendreContinuer();
+  document.addEventListener("click", (e) => {
+    const b = e.target.closest(".poster[data-film]"); if (!b) return;
+    const p = progres[b.dataset.film];
+    ouvrir(b.dataset.film, p ? p.ep : 1);
+  });
+
+  // ---------- Offres ----------
+  $("#plans").innerHTML = C.offres.map((o) => `<div class="plan${o.vedette ? " feat" : ""}">
+    ${o.vedette ? '<span class="tag gold ribbon">Le plus choisi</span>' : ""}
+    <h3>${esc(o.nom)}</h3>
+    <div class="price">${esc(o.prix)} ${o.periode ? `<small>${esc(o.periode)}</small>` : ""}</div>
+    <p class="muted" style="color:var(--muted)">${esc(o.detail)}</p>
+    <ul>${o.points.map((p) => `<li>${esc(p)}</li>`).join("")}</ul>
+    <a class="btn ${o.vedette ? "btn-red" : "btn-ghost"}" href="#inscription">${o.prix === "Gratuit" ? "Commencer gratuitement" : "Je suis intéressé"}</a>
+  </div>`).join("");
+  $("#pay").insertAdjacentHTML("beforeend", C.paiements.map((p) => `<span class="tag">${esc(p)}</span>`).join(""));
+
+  // ---------- Lecteur ----------
+  const dlg = $("#player"), vid = $("#pl-video"), lock = $("#pl-lock"), nextUp = $("#next-up");
+  let courant = null, ep = 1, compteur = null;
+
+  function ouvrir(id, n) {
+    courant = parId[id]; if (!courant) return;
+    $("#pl-title").textContent = courant.titre;
+    $("#pl-syn").textContent = courant.synopsis;
+    $("#pl-meta").innerHTML = `<span class="tag">${esc(courant.genre)}</span><span class="tag gold">VOSTFR</span>`;
+    $("#lock-han").textContent = courant.hanzi;
+    hv.pause();
+    if (!dlg.open) dlg.showModal();
+    lire(n);
+  }
+
+  function rendreEpisodes() {
+    const lim = limite();
+    const v = vus[courant.id] || [];
+    let html = courant.bandeAnnonce ? `<li style="grid-column:1/-1"><button type="button" data-ep="0" style="aspect-ratio:auto;width:100%;padding:10px" aria-current="${ep === 0}">▶ Bande-annonce</button></li>` : "";
+    for (let i = 1; i <= courant.episodes; i++) {
+      const locked = i > lim;
+      html += `<li><button type="button" data-ep="${i}" class="${locked ? "locked" : ""} ${v.includes(i) ? "seen" : ""}" aria-current="${i === ep}" aria-label="Épisode ${i}${locked ? ", verrouillé" : ""}${v.includes(i) ? ", déjà vu" : ""}">${i}</button></li>`;
+    }
+    html += `<li class="free">${membre ? `${lim} épisodes inclus avec votre inscription.` : `Épisode${lim > 1 ? "s" : ""} 1${lim > 1 ? "–" + lim : ""} gratuit${lim > 1 ? "s" : ""}. Inscription gratuite : jusqu'à ${C.episodesAvecCompte}.`}</li>`;
+    $("#pl-eps").innerHTML = html;
+  }
+  $("#pl-eps").addEventListener("click", (e) => { const b = e.target.closest("[data-ep]"); if (b) lire(+b.dataset.ep); });
+
+  function lire(n) {
+    annulerSuivant();
+    ep = n;
+    rendreEpisodes();
+    const cur = $(`#pl-eps [data-ep="${n}"]`); if (cur) cur.scrollIntoView({ block: "nearest" });
+    if (n > limite()) { verrouiller(); return; }
+    lock.hidden = true;
+    const src = n === 0 ? (courant.bandeAnnonce || C.bandeAnnonce) : courant.video.replace("{n}", n);
+    if (vid.getAttribute("src") !== src) vid.src = src;
+    else vid.currentTime = 0;
+    const p = progres[courant.id];
+    if (n > 0 && p && p.ep === n && p.t > 3) vid.currentTime = p.t;
+    vid.play().catch(() => {});
+  }
+
+  function verrouiller() {
+    vid.pause();
+    lock.hidden = false;
+    const btns = $("#lock-btns");
+    if (!membre) {
+      $("#lock-title").textContent = "La suite vous attend";
+      $("#lock-text").textContent = `Inscrivez-vous gratuitement pour regarder jusqu'à l'épisode ${C.episodesAvecCompte}. Il suffit d'un e-mail ou d'un numéro WhatsApp.`;
+      btns.innerHTML = '<a class="btn btn-red" href="#inscription" data-close>S\'inscrire gratuitement</a>';
+    } else {
+      $("#lock-title").textContent = "Envie de connaître la fin ?";
+      $("#lock-text").textContent = "Les épisodes suivants sont inclus dans le Pass. Le paiement par mobile money arrive très bientôt : nous vous préviendrons dès qu'il est ouvert.";
+      btns.innerHTML = '<a class="btn btn-red" href="#offres" data-close>Voir les offres</a>';
+    }
+    btns.insertAdjacentHTML("beforeend", '<button class="btn btn-ghost" type="button" data-back>Revoir le début</button>');
+  }
+  $("#lock-btns").addEventListener("click", (e) => {
+    if (e.target.closest("[data-close]")) dlg.close();
+    if (e.target.closest("[data-back]")) lire(1);
+  });
+
+  // Mémoriser la progression
+  let dernierSave = 0;
+  vid.addEventListener("timeupdate", () => {
+    if (!courant || ep === 0) return;
+    const now = Date.now(); if (now - dernierSave < 2000) return; dernierSave = now;
+    progres[courant.id] = { ep, t: vid.currentTime, at: now }; store.set("progres", progres);
+  });
+  vid.addEventListener("ended", () => {
+    if (!courant || ep === 0) return;
+    const v = vus[courant.id] || (vus[courant.id] = []);
+    if (!v.includes(ep)) v.push(ep);
+    store.set("vus", vus);
+    if (ep < courant.episodes) {
+      progres[courant.id] = { ep: ep + 1, t: 0, at: Date.now() }; store.set("progres", progres);
+      if (ep + 1 > limite()) { lire(ep + 1); return; } // épisode suivant verrouillé : proposer l'inscription tout de suite
+      rendreEpisodes();
+      proposerSuivant();
+    }
+  });
+  function proposerSuivant() {
+    let s = 5;
+    nextUp.hidden = false;
+    const maj = () => ($("#next-text").textContent = `Épisode ${ep + 1} dans ${s} s`);
+    maj();
+    compteur = setInterval(() => { s--; if (s <= 0) { lire(ep + 1); } else maj(); }, 1000);
+  }
+  function annulerSuivant() { clearInterval(compteur); compteur = null; nextUp.hidden = true; }
+  $("#next-go").addEventListener("click", () => lire(ep + 1));
+  $("#next-cancel").addEventListener("click", annulerSuivant);
+
+  $("#pl-close").addEventListener("click", () => dlg.close());
+  dlg.addEventListener("click", (e) => { if (e.target === dlg) dlg.close(); });
+  dlg.addEventListener("close", () => {
+    annulerSuivant(); vid.pause();
+    rendreContinuer(); rendreGrille();
+    if (!reduceMotion && hv.src) hv.play().catch(() => {});
+  });
+
+  // ---------- Inscription ----------
+  $("#tastes").innerHTML = genres.map((g) => `<label><input type="checkbox" name="genres" value="${esc(g)}"><span>${esc(g)}</span></label>`).join("");
+  const form = $("#signup"), err = $("#form-err"), btn = $("#submit");
+  const mode = C.supabaseUrl && C.supabaseKey ? "supabase" : location.protocol.startsWith("http") && location.hostname !== "localhost" && location.hostname !== "127.0.0.1" ? "netlify" : "demo";
+  $("#mode-note").textContent = mode === "demo" ? "Mode démonstration : l'inscription est seulement enregistrée sur cet appareil." : "En vous inscrivant, vous acceptez nos conditions d'utilisation.";
+
+  if (membre) montrerMerci(membre.prenom, true);
+
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    err.textContent = "";
+    const fd = new FormData(form);
+    const d = {
+      prenom: (fd.get("prenom") || "").trim(),
+      email: (fd.get("email") || "").trim().toLowerCase(),
+      whatsapp: (fd.get("whatsapp") || "").replace(/[^\d+]/g, ""),
+      pays: fd.get("pays"),
+      genres: fd.getAll("genres"),
+      consentement: fd.get("consentement") === "oui"
+    };
+    form.querySelectorAll("[aria-invalid]").forEach((n) => n.removeAttribute("aria-invalid"));
+    const bad = (name, msg) => { const n = form.elements[name]; if (n.setAttribute) n.setAttribute("aria-invalid", "true"); err.textContent = msg; n.focus(); };
+    if (d.prenom.length < 2) return bad("prenom", "Indiquez votre prénom.");
+    if (!d.email && !d.whatsapp) return bad("email", "Indiquez un e-mail ou un numéro WhatsApp.");
+    if (d.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(d.email)) return bad("email", "Cet e-mail ne semble pas valide.");
+    if (d.whatsapp && d.whatsapp.replace(/\D/g, "").length < 8) return bad("whatsapp", "Ce numéro semble trop court.");
+    if (!d.consentement) return bad("consentement", "Cochez la case pour recevoir vos accès.");
+    if (fd.get("site_web")) return; // robot
+
+    btn.disabled = true; btn.textContent = "Envoi…";
+    try {
+      if (mode === "supabase") {
+        const res = await fetch(C.supabaseUrl.replace(/\/$/, "") + "/rest/v1/rpc/inscrire_spectateur", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", apikey: C.supabaseKey },
+          body: JSON.stringify({ p_prenom: d.prenom, p_email: d.email || null, p_whatsapp: d.whatsapp || null, p_pays: d.pays, p_genres: d.genres, p_source: "landing" })
+        });
+        if (!res.ok) throw new Error("supabase " + res.status);
+      } else if (mode === "netlify") {
+        const body = new URLSearchParams();
+        for (const [k, v] of fd.entries()) body.append(k, v);
+        const res = await fetch("/", { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body });
+        if (!res.ok) throw new Error("netlify " + res.status);
+      }
+      membre = { prenom: d.prenom, at: Date.now() };
+      store.set("membre", membre);
+      montrerMerci(d.prenom, false);
+      rendreGrille();
+    } catch (x) {
+      console.warn(x);
+      err.textContent = "L'envoi n'a pas abouti. Vérifiez votre connexion et réessayez.";
+    } finally {
+      btn.disabled = false; btn.textContent = "Débloquer les épisodes";
+    }
+  });
+
+  function montrerMerci(prenom, deja) {
+    $("#form-body").hidden = true;
+    const done = $("#form-done");
+    done.hidden = false;
+    $("#done-name").textContent = prenom;
+    $("#done-text").textContent = deja
+      ? `Vous êtes inscrit. Les ${C.episodesAvecCompte} premiers épisodes de chaque film sont ouverts.`
+      : `C'est fait. Les ${C.episodesAvecCompte} premiers épisodes de chaque film sont débloqués. Bon visionnage !`;
+    if (!deja) { done.focus(); toast("Épisodes débloqués"); }
+  }
+})();
+</script>
+</body>
+</html>
