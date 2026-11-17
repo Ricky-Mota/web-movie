@@ -1,0 +1,14 @@
+// Publication de G-Challenge sur Cloudflare Workers, quand le Worker construit la racine du dépôt (Root directory = /).
+// Même contenu que g-challenge-landing/wrangler.jsonc, avec les chemins vus depuis la racine.
+{
+  "name": "g-challenge",
+  "main": "g-challenge-landing/worker/index.js",
+  "compatibility_date": "2025-09-01",
+  "assets": {
+    "directory": "./g-challenge-landing/public",
+    "binding": "ASSETS",
+    "not_found_handling": "404-page",
+    "run_worker_first": ["/api/*"]
+  },
+  "observability": { "enabled": true }
+}
