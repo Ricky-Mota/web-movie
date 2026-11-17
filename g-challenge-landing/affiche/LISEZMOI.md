@@ -4,5 +4,5 @@
 - `Affiche-Course-des-Ketch.png` : la même affiche en image, pour WhatsApp ou Facebook.
 - `affiche.html` : la source, à modifier puis à réimprimer.
 
-Le QR code ouvre `https://course-des-ketch.pages.dev/?utm_source=affiche` : les inscriptions venues de l'affiche apparaissent dans le CRM sous le canal « Affiche ».
+Le QR code ouvre `https://g-challenge.motaricky243.workers.dev/?utm_source=affiche` : les inscriptions venues de l'affiche apparaissent dans le CRM sous le canal « Affiche ».
 Si le site a une autre adresse, il faut refaire le QR code et le texte de l'adresse avant d'imprimer.
