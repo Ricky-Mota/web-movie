@@ -5,6 +5,7 @@ import { valider, refus, conflit, ErreurApi, introuvable } from '../erreurs.js';
 import { hacherMotDePasse, comparerSansFuite, creerJeton, connecte } from '../auth.js';
 import { asynchrone } from './outils.js';
 import { envoyerCode, verifierCode } from '../domaine/verification.js';
+import { mesNotifications, marquerLues } from '../domaine/invitations.js';
 
 export const routesJoueurs = Router();
 
@@ -68,4 +69,13 @@ routesJoueurs.post('/telephone/code', connecte, asynchrone(async (req, res) => {
 routesJoueurs.post('/telephone/verifier', connecte, asynchrone(async (req, res) => {
   const { code } = valider(z.object({ code: z.string().trim().max(10) }), req.body ?? {});
   res.json(await verifierCode(req.joueur.id, code));
+}));
+
+// Boîte de réception : invitations, confirmations, rappels.
+routesJoueurs.get('/notifications', connecte, asynchrone(async (req, res) => {
+  res.json(await mesNotifications(req.joueur.id));
+}));
+routesJoueurs.post('/notifications/lues', connecte, asynchrone(async (req, res) => {
+  await marquerLues(req.joueur.id);
+  res.json({ ok: true });
 }));

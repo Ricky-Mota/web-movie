@@ -2819,6 +2819,7 @@
     if (boutonCompte) {
       boutonCompte.hidden = !SERVEUR;
       boutonCompte.textContent = session ? session.joueur.pseudo : 'Mon compte';
+      if (session && typeof majPastille === 'function') majPastille();
       boutonCompte.classList.toggle('connecte', !!session);
     }
     document.getElementById('blocAcces').hidden = !!session;
@@ -2898,7 +2899,66 @@
         sel.value = 'CD';
       }).catch(function () {});
     }
-    if (session) chargerEquipes();
+    if (session) { chargerEquipes(); chargerInvitations(); }
+  }
+  // ---------- Invitations au Tournoi Sponsor et messages ----------
+  // Les joueurs réguliers sont invités automatiquement par le serveur. Ici, ils acceptent ou refusent,
+  // voient le programme (jours et heures de Kinshasa) et lisent leurs messages (invitation, confirmation, rappels).
+  var nonLues = 0;
+  function majPastille() {
+    if (!boutonCompte || !session) return;
+    boutonCompte.textContent = session.joueur.pseudo;
+    if (nonLues > 0) { var pa = document.createElement('span'); pa.className = 'pastille'; pa.textContent = nonLues > 9 ? '9+' : String(nonLues); pa.setAttribute('aria-label', nonLues + ' nouveau(x) message(s)'); boutonCompte.appendChild(pa); }
+  }
+  function verifierMessages() {
+    if (!SERVEUR || !session) return;
+    apiJeu('GET', '/joueurs/notifications').then(function (r) { nonLues = r.non_lues; majPastille(); }).catch(function () {});
+  }
+  function chargerInvitations() {
+    var bloc = document.getElementById('blocInvitations'), liste = document.getElementById('listeInvitations');
+    apiJeu('GET', '/tournois/invitations').then(function (invs) {
+      liste.textContent = '';
+      bloc.hidden = !invs.length;
+      invs.forEach(function (i) {
+        var d = document.createElement('div'); d.className = 'invitation';
+        var prog = i.programme.map(function (s) { return '<li>' + echapper(s.nom) + ' : du ' + echapper(s.debut_texte) + ' au ' + echapper(s.fin_texte) + ' · ' + echapper(s.circuit_nom) + '</li>'; }).join('');
+        d.innerHTML = '<span><b>' + echapper(i.nom) + '</b> · sponsor ' + echapper(i.sponsor) + '</span>' +
+          (i.statut === 'envoyee' ? '<span>Vous faites partie des joueurs réguliers : vous êtes invité. Programme (heure de Kinshasa) :</span>' : '') +
+          (i.statut === 'acceptee' ? '<span class="etat ok">\u2714 Inscrit. Rappel la veille de chaque épreuve.</span>' : '') +
+          (i.statut === 'refusee' ? '<span class="etat non">Invitation refusée. Vous pouvez encore changer d\'avis.</span>' : '') +
+          '<ol>' + prog + '</ol><div class="actions"></div>';
+        var actions = d.querySelector('.actions');
+        function bouton(texte, classe, accepter) {
+          var b = document.createElement('button'); b.type = 'button'; b.className = classe; b.textContent = texte;
+          b.addEventListener('click', function () {
+            b.disabled = true;
+            apiJeu('POST', '/tournois/invitations/' + i.id + '/repondre', { accepter: accepter })
+              .then(function () { chargerInvitations(); chargerMessages(); direct('G-Challenge', accepter ? 'Inscription confirmée au ' + i.nom + ' : programme envoyé dans vos messages.' : 'Invitation refusée.', 'commentateur'); })
+              .catch(function (e) { b.disabled = false; msg('messageEquipe', e.message, false); });
+          });
+          actions.appendChild(b);
+        }
+        if (i.statut !== 'acceptee') bouton('Accepter l\'invitation', 'jeu-bouton', true);
+        if (i.statut === 'envoyee') bouton('Refuser', 'jeu-lien', false);
+        liste.appendChild(d);
+      });
+    }).catch(function () { bloc.hidden = true; });
+    chargerMessages();
+  }
+  function chargerMessages() {
+    var bloc = document.getElementById('blocMessages'), liste = document.getElementById('listeMessages');
+    apiJeu('GET', '/joueurs/notifications').then(function (r) {
+      bloc.hidden = !r.notifications.length;
+      document.getElementById('messagesNb').textContent = r.non_lues ? '(' + r.non_lues + ' nouveau' + (r.non_lues > 1 ? 'x' : '') + ')' : '';
+      liste.textContent = '';
+      r.notifications.slice(0, 10).forEach(function (n) {
+        var li = document.createElement('li'); if (!n.lue_le) li.className = 'nouveau';
+        var b = document.createElement('b'); b.textContent = n.titre; li.appendChild(b); li.appendChild(document.createTextNode(n.texte));
+        liste.appendChild(li);
+      });
+      // Ouvrir « Mon compte » vaut lecture.
+      if (r.non_lues) apiJeu('POST', '/joueurs/notifications/lues').then(function () { nonLues = 0; majPastille(); }).catch(function () {});
+    }).catch(function () { bloc.hidden = true; });
   }
   if (boutonCompte) boutonCompte.addEventListener('click', ouvrirCompte);
   document.getElementById('retourCompte').addEventListener('click', function () { panneauCompte.hidden = true; panneauModes.hidden = false; });
@@ -2937,6 +2997,8 @@
     document.getElementById(id).addEventListener('keydown', function (e) { e.stopPropagation(); }); // les touches ne pilotent pas la voiture
   });
   majCompte();
+  verifierMessages();
+  setInterval(verifierMessages, 5 * 60 * 1000);
 
   // Tournois réels (serveur en ligne) : remplace le calendrier de démonstration.
   var etapeTournoiServeur = null;

@@ -39,6 +39,9 @@
         f.coupe_championne.value = (t.reglages.coupe_prime_championne_centimes / 100).toFixed(2);
         f.coupe_finaliste.value = (t.reglages.coupe_prime_finaliste_centimes / 100).toFixed(2);
         f.validation_primes.checked = !!t.reglages.validation_primes;
+        f.invitation_jours_actifs.value = t.reglages.invitation_jours_actifs;
+        f.invitation_periode_jours.value = t.reglages.invitation_periode_jours;
+        f.invitations_sms.checked = !!t.reglages.invitations_sms;
 
         var sel = $('choixPays');
         if (!sel.options.length) {
@@ -65,17 +68,28 @@
           var tr = document.createElement('tr');
           cellule(tr, c.nom + ' (' + c.pays_code + ')'); cellule(tr, c.sponsor); cellule(tr, c.premier_lundi.slice(0, 10));
           cellule(tr, c.semaine_ouverte ? c.semaine_ouverte + ' / ' + c.semaines : '—');
+          var iv = c.invitations || { envoyee: 0, acceptee: 0, refusee: 0 };
+          var ti = cellule(tr, iv.acceptee + ' inscrits · ' + iv.envoyee + ' en attente · ' + iv.refusee + ' refus ');
+          if (c.statut === 'active') {
+            var bi = document.createElement('button'); bi.type = 'button'; bi.className = 'secondaire'; bi.textContent = 'Inviter maintenant'; bi.style.marginTop = '6px';
+            bi.addEventListener('click', function () {
+              bi.disabled = true;
+              api('POST', '/admin/tournois/championnats/' + c.id + '/inviter').then(function (r) { alert(r.nouvelles + ' nouvelle(s) invitation(s) envoyée(s).'); return charger(); })
+                .catch(function (err) { alert(err.message); bi.disabled = false; });
+            });
+            ti.appendChild(bi);
+          }
           var e = cellule(tr, ''); var p = document.createElement('span'); p.className = 'puce ' + c.statut; p.textContent = c.statut; e.appendChild(p);
           corps.appendChild(tr);
         });
         t.coupes.forEach(function (c) {
           var tr = document.createElement('tr');
           cellule(tr, c.nom + (c.championne ? ' · championne : ' + c.championne : '')); cellule(tr, c.sponsor); cellule(tr, c.premier_lundi.slice(0, 10));
-          cellule(tr, 'primes ' + (c.primes_centimes || []).map(dollars).join(' / '));
+          cellule(tr, 'primes ' + (c.primes_centimes || []).map(dollars).join(' / ')); cellule(tr, '—');
           var e = cellule(tr, ''); var p = document.createElement('span'); p.className = 'puce ' + c.statut; p.textContent = c.statut; e.appendChild(p);
           corps.appendChild(tr);
         });
-        if (!t.championnats.length && !t.coupes.length) { var tr = document.createElement('tr'); cellule(tr, 'Aucune compétition pour le moment.').colSpan = 5; corps.appendChild(tr); }
+        if (!t.championnats.length && !t.coupes.length) { var tr = document.createElement('tr'); cellule(tr, 'Aucune compétition pour le moment.').colSpan = 6; corps.appendChild(tr); }
 
         var liste = $('listePrimes'); liste.textContent = '';
         primes.forEach(function (p) {
@@ -173,6 +187,8 @@
       prime_semaine_centimes: centimes(f.prime_semaine.value), nb_equipes_primees: parseInt(f.nb_equipes_primees.value, 10) || 0,
       coupe_prime_championne_centimes: centimes(f.coupe_championne.value), coupe_prime_finaliste_centimes: centimes(f.coupe_finaliste.value),
       validation_primes: f.validation_primes.checked,
+      invitation_jours_actifs: parseInt(f.invitation_jours_actifs.value, 10), invitation_periode_jours: parseInt(f.invitation_periode_jours.value, 10),
+      invitations_sms: f.invitations_sms.checked,
     }).then(function (r) {
       dire('msgPrimes', 'Enregistré : ' + r.nb_equipes_primees + ' × ' + dollars(r.prime_semaine_centimes) + ' par semaine ; Coupe d\'Afrique : ' +
         dollars(r.coupe_prime_championne_centimes) + ' (championne), ' + dollars(r.coupe_prime_finaliste_centimes) + ' (finaliste).', true);

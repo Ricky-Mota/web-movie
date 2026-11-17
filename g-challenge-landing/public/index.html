@@ -251,6 +251,15 @@ html{scroll-behavior:smooth}
 @media (max-width:640px){.duel-code{font-size:28px}}
 .duel-whatsapp{background:#25D366!important;color:#06240F!important;text-decoration:none}
 .verif{display:flex;flex-direction:column;gap:6px;padding:8px 10px;border-radius:12px;border:1px dashed rgba(255,200,20,.5);background:rgba(255,200,20,.06)}.verif-ok{color:#7BE0A0;font-weight:700}
+.compte-bouton .pastille{display:inline-grid;place-items:center;min-width:18px;height:18px;margin-left:6px;padding:0 5px;border-radius:999px;background:#E5484D;color:#FFFFFF;font:800 11px Inter,sans-serif}
+.invitation{display:flex;flex-direction:column;gap:6px;padding:10px 12px;border-radius:12px;border:1.5px solid #FFC814;background:rgba(255,200,20,.08)}
+.invitation b{color:#FFC814}.invitation .actions{display:flex;gap:8px;flex-wrap:wrap}
+.invitation ol{margin:0;padding-left:18px;font-size:12px;color:#C9CFE3}.invitation .etat{font-size:12px;font-weight:700}
+.invitation .etat.ok{color:#7BE0A0}.invitation .etat.non{color:#9EA7C6}
+.messages-liste{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px;max-height:180px;overflow:auto}
+.messages-liste li{padding:8px 10px;border-radius:10px;background:rgba(255,255,255,.05);font-size:12px;color:#C9CFE3}
+.messages-liste li b{display:block;color:#F5F3EA;font-size:13px}.messages-liste li.nouveau{border-left:3px solid #FFC814}
+.messages-nb{color:#FFC814}
 </style>
 </head>
 <body>
@@ -413,6 +422,14 @@ html{scroll-behavior:smooth}
 <button type="button" class="jeu-bouton" id="boutonCode">Recevoir le code par SMS</button>
 <form id="formCode" class="compte-ligne" hidden><input id="champCode" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="Code à 6 chiffres" required aria-label="Code reçu par SMS"><button type="submit" class="jeu-bouton">Vérifier</button></form>
 <p class="compte-message" id="messageVerif" role="status"></p>
+</div>
+<div class="invitations" id="blocInvitations" hidden>
+<p class="compte-titre">Invitations au Tournoi Sponsor</p>
+<div id="listeInvitations"></div>
+</div>
+<div class="messages" id="blocMessages" hidden>
+<p class="compte-titre">Messages <span class="messages-nb" id="messagesNb"></span></p>
+<ul class="messages-liste" id="listeMessages"></ul>
 </div>
 <p class="compte-titre">Mes équipes (4 pilotes pour les tournois)</p>
 <div id="listeEquipes"></div>
@@ -3562,6 +3579,7 @@ html{scroll-behavior:smooth}
     if (boutonCompte) {
       boutonCompte.hidden = !SERVEUR;
       boutonCompte.textContent = session ? session.joueur.pseudo : 'Mon compte';
+      if (session && typeof majPastille === 'function') majPastille();
       boutonCompte.classList.toggle('connecte', !!session);
     }
     document.getElementById('blocAcces').hidden = !!session;
@@ -3641,7 +3659,66 @@ html{scroll-behavior:smooth}
         sel.value = 'CD';
       }).catch(function () {});
     }
-    if (session) chargerEquipes();
+    if (session) { chargerEquipes(); chargerInvitations(); }
+  }
+  // ---------- Invitations au Tournoi Sponsor et messages ----------
+  // Les joueurs réguliers sont invités automatiquement par le serveur. Ici, ils acceptent ou refusent,
+  // voient le programme (jours et heures de Kinshasa) et lisent leurs messages (invitation, confirmation, rappels).
+  var nonLues = 0;
+  function majPastille() {
+    if (!boutonCompte || !session) return;
+    boutonCompte.textContent = session.joueur.pseudo;
+    if (nonLues > 0) { var pa = document.createElement('span'); pa.className = 'pastille'; pa.textContent = nonLues > 9 ? '9+' : String(nonLues); pa.setAttribute('aria-label', nonLues + ' nouveau(x) message(s)'); boutonCompte.appendChild(pa); }
+  }
+  function verifierMessages() {
+    if (!SERVEUR || !session) return;
+    apiJeu('GET', '/joueurs/notifications').then(function (r) { nonLues = r.non_lues; majPastille(); }).catch(function () {});
+  }
+  function chargerInvitations() {
+    var bloc = document.getElementById('blocInvitations'), liste = document.getElementById('listeInvitations');
+    apiJeu('GET', '/tournois/invitations').then(function (invs) {
+      liste.textContent = '';
+      bloc.hidden = !invs.length;
+      invs.forEach(function (i) {
+        var d = document.createElement('div'); d.className = 'invitation';
+        var prog = i.programme.map(function (s) { return '<li>' + echapper(s.nom) + ' : du ' + echapper(s.debut_texte) + ' au ' + echapper(s.fin_texte) + ' · ' + echapper(s.circuit_nom) + '</li>'; }).join('');
+        d.innerHTML = '<span><b>' + echapper(i.nom) + '</b> · sponsor ' + echapper(i.sponsor) + '</span>' +
+          (i.statut === 'envoyee' ? '<span>Vous faites partie des joueurs réguliers : vous êtes invité. Programme (heure de Kinshasa) :</span>' : '') +
+          (i.statut === 'acceptee' ? '<span class="etat ok">\u2714 Inscrit. Rappel la veille de chaque épreuve.</span>' : '') +
+          (i.statut === 'refusee' ? '<span class="etat non">Invitation refusée. Vous pouvez encore changer d\'avis.</span>' : '') +
+          '<ol>' + prog + '</ol><div class="actions"></div>';
+        var actions = d.querySelector('.actions');
+        function bouton(texte, classe, accepter) {
+          var b = document.createElement('button'); b.type = 'button'; b.className = classe; b.textContent = texte;
+          b.addEventListener('click', function () {
+            b.disabled = true;
+            apiJeu('POST', '/tournois/invitations/' + i.id + '/repondre', { accepter: accepter })
+              .then(function () { chargerInvitations(); chargerMessages(); direct('G-Challenge', accepter ? 'Inscription confirmée au ' + i.nom + ' : programme envoyé dans vos messages.' : 'Invitation refusée.', 'commentateur'); })
+              .catch(function (e) { b.disabled = false; msg('messageEquipe', e.message, false); });
+          });
+          actions.appendChild(b);
+        }
+        if (i.statut !== 'acceptee') bouton('Accepter l\'invitation', 'jeu-bouton', true);
+        if (i.statut === 'envoyee') bouton('Refuser', 'jeu-lien', false);
+        liste.appendChild(d);
+      });
+    }).catch(function () { bloc.hidden = true; });
+    chargerMessages();
+  }
+  function chargerMessages() {
+    var bloc = document.getElementById('blocMessages'), liste = document.getElementById('listeMessages');
+    apiJeu('GET', '/joueurs/notifications').then(function (r) {
+      bloc.hidden = !r.notifications.length;
+      document.getElementById('messagesNb').textContent = r.non_lues ? '(' + r.non_lues + ' nouveau' + (r.non_lues > 1 ? 'x' : '') + ')' : '';
+      liste.textContent = '';
+      r.notifications.slice(0, 10).forEach(function (n) {
+        var li = document.createElement('li'); if (!n.lue_le) li.className = 'nouveau';
+        var b = document.createElement('b'); b.textContent = n.titre; li.appendChild(b); li.appendChild(document.createTextNode(n.texte));
+        liste.appendChild(li);
+      });
+      // Ouvrir « Mon compte » vaut lecture.
+      if (r.non_lues) apiJeu('POST', '/joueurs/notifications/lues').then(function () { nonLues = 0; majPastille(); }).catch(function () {});
+    }).catch(function () { bloc.hidden = true; });
   }
   if (boutonCompte) boutonCompte.addEventListener('click', ouvrirCompte);
   document.getElementById('retourCompte').addEventListener('click', function () { panneauCompte.hidden = true; panneauModes.hidden = false; });
@@ -3680,6 +3757,8 @@ html{scroll-behavior:smooth}
     document.getElementById(id).addEventListener('keydown', function (e) { e.stopPropagation(); }); // les touches ne pilotent pas la voiture
   });
   majCompte();
+  verifierMessages();
+  setInterval(verifierMessages, 5 * 60 * 1000);
 
   // Tournois réels (serveur en ligne) : remplace le calendrier de démonstration.
   var etapeTournoiServeur = null;

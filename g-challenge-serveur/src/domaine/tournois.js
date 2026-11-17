@@ -19,6 +19,7 @@
 import { requete, transaction } from '../db.js';
 import { refus, introuvable, conflit } from '../erreurs.js';
 import { fournisseurPour, fournisseurParNom } from '../paiements/index.js';
+import { traiterInvitations } from './invitations.js';
 
 const executions = new Set();
 function lancerExecution(id) {
@@ -449,6 +450,8 @@ export async function traiterTournois() {
   for (const t of tours) {
     try { await cloturerTourCoupe(t.coupe_id, t.tour); } catch (e) { console.error('Coupe :', e.message); }
   }
+  // Invitations des joueurs réguliers (au plus une fois par heure) et rappels la veille de chaque semaine.
+  try { await traiterInvitations(); } catch (e) { console.error('Invitations :', e.message); }
 }
 
 // ---------- Classement continental des pilotes (individuel) ----------

@@ -7,6 +7,7 @@ import { executerPaiement, resumePaiement } from '../domaine/duels.js';
 import { schemaCircuit, enregistrerCircuit } from '../domaine/circuits.js';
 import { creerChampionnat, cloturerSemaineChampionnat, creerCoupe, cloturerTourCoupe, relancerPrime, deciderPrime } from '../domaine/tournois.js';
 import { asynchrone } from './outils.js';
+import { inviterReguliers, statsInvitations } from '../domaine/invitations.js';
 
 export const routesAdmin = Router();
 routesAdmin.use(connecte, admin);
@@ -114,7 +115,16 @@ routesAdmin.post('/tournois/championnats', asynchrone(async (req, res) => {
     const r = await reglagesTournois();
     d.primes_centimes = Array(r.nb_equipes_primees).fill(r.prime_semaine_centimes);
   }
-  res.status(201).json(await creerChampionnat(d));
+  const c = await creerChampionnat(d);
+  // Les joueurs réguliers du pays sont invités tout de suite (sans faire attendre la réponse).
+  inviterReguliers(c.id).catch((e) => console.error('Invitations :', e.message));
+  res.status(201).json(c);
+}));
+// Inviter maintenant les joueurs réguliers (les déjà invités ne reçoivent rien de plus).
+routesAdmin.post('/tournois/championnats/:id/inviter', asynchrone(async (req, res) => {
+  valider(z.string().uuid(), req.params.id);
+  const nouvelles = await inviterReguliers(req.params.id);
+  res.json({ nouvelles, ...(await statsInvitations(req.params.id)) });
 }));
 routesAdmin.post('/tournois/championnats/:id/semaines/:numero/cloturer', asynchrone(async (req, res) => {
   const numero = valider(z.coerce.number().int().min(1).max(60), req.params.numero);
@@ -152,7 +162,7 @@ routesAdmin.post('/tournois/coupes/:id/tours/:tour/cloturer', asynchrone(async (
 // Réglages des primes (espace administrateur) : 20 $ × 4 équipes par semaine, primes de la Coupe d'Afrique.
 async function reglagesTournois() {
   const { rows: [p] } = await requete(
-    'SELECT prime_semaine_centimes, nb_equipes_primees, coupe_prime_championne_centimes, coupe_prime_finaliste_centimes, validation_primes FROM parametres');
+    'SELECT prime_semaine_centimes, nb_equipes_primees, coupe_prime_championne_centimes, coupe_prime_finaliste_centimes, validation_primes, invitation_jours_actifs, invitation_periode_jours, invitations_sms FROM parametres');
   return p;
 }
 routesAdmin.get('/tournois/reglages', asynchrone(async (_req, res) => { res.json(await reglagesTournois()); }));
@@ -161,7 +171,15 @@ routesAdmin.put('/tournois/reglages', asynchrone(async (req, res) => {
   const d = valider(z.object({
     prime_semaine_centimes: montant, nb_equipes_primees: z.number().int().min(0).max(16),
     coupe_prime_championne_centimes: montant, coupe_prime_finaliste_centimes: montant,
-    validation_primes: z.boolean().optional() }), req.body);
+    validation_primes: z.boolean().optional(),
+    invitation_jours_actifs: z.number().int().min(1).max(60).optional(),
+    invitation_periode_jours: z.number().int().min(1).max(90).optional(),
+    invitations_sms: z.boolean().optional() }), req.body);
+  if (d.invitation_jours_actifs !== undefined || d.invitation_periode_jours !== undefined || d.invitations_sms !== undefined) {
+    await requete(`UPDATE parametres SET invitation_jours_actifs = coalesce($1, invitation_jours_actifs),
+                     invitation_periode_jours = coalesce($2, invitation_periode_jours), invitations_sms = coalesce($3, invitations_sms)`,
+      [d.invitation_jours_actifs ?? null, d.invitation_periode_jours ?? null, d.invitations_sms ?? null]);
+  }
   await requete(
     `UPDATE parametres SET prime_semaine_centimes = $1, nb_equipes_primees = $2, coupe_prime_championne_centimes = $3,
        coupe_prime_finaliste_centimes = $4, validation_primes = coalesce($6, validation_primes), maj_le = now(), maj_par = $5`,
@@ -185,6 +203,7 @@ routesAdmin.get('/tournois', asynchrone(async (_req, res) => {
   const circuits = (await requete(
     `SELECT code, nom, difficulte, longueur_m FROM circuits WHERE actif
       ORDER BY code LIKE 'W\\_%' DESC, array_position(ARRAY['facile','moyen','difficile','tres_difficile'], difficulte), longueur_m`)).rows;
+  for (const c of championnats) c.invitations = await statsInvitations(c.id);
   res.json({ championnats, coupes, circuits, reglages: await reglagesTournois() });
 }));
 

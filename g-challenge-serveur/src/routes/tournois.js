@@ -3,6 +3,8 @@ import { z } from 'zod';
 import { valider, introuvable } from '../erreurs.js';
 import { championnatEnCours, classementChampionnatSemaine, coupeEnCours, classementInternational } from '../domaine/tournois.js';
 import { asynchrone } from './outils.js';
+import { connecte } from '../auth.js';
+import { mesInvitations, repondreInvitation } from '../domaine/invitations.js';
 
 export const routesTournois = Router();
 
@@ -31,4 +33,15 @@ routesTournois.get('/coupe', asynchrone(async (_req, res) => {
 routesTournois.get('/international/:circuit', asynchrone(async (req, res) => {
   const parPays = valider(z.coerce.number().int().min(1).max(10).default(3), req.query.par_pays);
   res.json(await classementInternational(req.params.circuit, { parPays }));
+}));
+
+// Invitations au Tournoi Sponsor reçues par le joueur connecté (avec le programme : jours et heures).
+routesTournois.get('/invitations', connecte, asynchrone(async (req, res) => {
+  res.json(await mesInvitations(req.joueur.id));
+}));
+// Accepter ou refuser. Accepter envoie la confirmation avec le jour et l'heure de chaque épreuve.
+routesTournois.post('/invitations/:id/repondre', connecte, asynchrone(async (req, res) => {
+  const { accepter } = valider(z.object({ accepter: z.boolean() }), req.body ?? {});
+  valider(z.string().uuid(), req.params.id);
+  res.json(await repondreInvitation(req.joueur.id, req.params.id, accepter));
 }));

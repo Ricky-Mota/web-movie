@@ -366,3 +366,17 @@ g-challenge-serveur/
 - `JWT_SECRET` doit être long et aléatoire. Si vous le changez, tous les joueurs devront se reconnecter.
 - `FOURNISSEUR_FORCE=simulation` ne doit **jamais** rester actif en production : tous les paiements y réussissent sans argent réel.
 - Les tentatives de connexion sont limitées à 20 par quart d'heure et par adresse IP.
+
+## Invitations automatiques au Tournoi Sponsor
+
+- **Qui est invité** : les joueurs **réguliers** du pays du championnat, c'est-à-dire avec une course valide
+  au moins **3 jours différents sur les 14 derniers jours** (réglable dans l'espace administrateur, rubrique Primes).
+  Les comptes bloqués ne sont jamais invités.
+- **Quand** : dès la création du championnat, puis chaque heure pendant les qualifications pour les nouveaux réguliers
+  (bouton « Inviter maintenant » dans la liste des compétitions).
+- **Comment** : message dans le jeu (« Mon compte », avec un compteur rouge sur le bouton), en direct, et par SMS.
+- **Après acceptation** : le joueur reçoit le programme, avec le jour et l'heure (Kinshasa) du début et de la fin
+  de chaque semaine et le circuit, puis un **rappel la veille** de chaque semaine.
+- API : `GET /tournois/invitations`, `POST /tournois/invitations/:id/repondre {accepter}`,
+  `GET /joueurs/notifications`, `POST /joueurs/notifications/lues`, `POST /admin/tournois/championnats/:id/inviter`.
+

@@ -54,7 +54,14 @@ table{width:100%;border-collapse:collapse;font-size:14px}th,td{text-align:left;p
 </div>
 <label style="flex-direction:row;align-items:center;gap:8px;margin-top:10px"><input type="checkbox" name="validation_primes" style="height:auto"> Valider chaque prime à la main avant l'envoi M-Pesa (recommandé)</label>
 <p class="aide">Montants par équipe, partagés entre ses pilotes qui ont couru, versés par M-PESA quand le pays le permet. Ils valent pour les championnats créés ensuite ; ceux de la Coupe d'Afrique en cours sont mis à jour tout de suite.</p>
-<p><button type="submit">Enregistrer les primes</button></p>
+<h2 style="margin-top:18px">Invitations au Tournoi Sponsor</h2>
+<div class="grille">
+<label>Joueur régulier : jours avec une course valide, au moins<input name="invitation_jours_actifs" type="number" min="1" max="60" step="1" required></label>
+<label>… sur les derniers (jours)<input name="invitation_periode_jours" type="number" min="1" max="90" step="1" required></label>
+</div>
+<label style="flex-direction:row;align-items:center;gap:8px;margin-top:10px"><input type="checkbox" name="invitations_sms" style="height:auto"> Envoyer aussi les invitations, confirmations et rappels par SMS</label>
+<p class="aide">À la création d'un championnat, puis chaque heure pendant les qualifications, les joueurs réguliers du pays sont invités (message dans le jeu et SMS). Ceux qui acceptent reçoivent le programme (jours et heures), puis un rappel la veille de chaque semaine.</p>
+<p><button type="submit">Enregistrer les primes et les invitations</button></p>
 <p class="message" id="msgPrimes" role="status"></p>
 </form>
 </section>
@@ -81,7 +88,7 @@ table{width:100%;border-collapse:collapse;font-size:14px}th,td{text-align:left;p
 
 <section>
 <h2>Championnats et Coupe d'Afrique</h2>
-<table><thead><tr><th>Compétition</th><th>Sponsor</th><th>Départ</th><th>Semaine ouverte</th><th>État</th></tr></thead><tbody id="listeCompetitions"></tbody></table>
+<table><thead><tr><th>Compétition</th><th>Sponsor</th><th>Départ</th><th>Semaine ouverte</th><th>Invitations</th><th>État</th></tr></thead><tbody id="listeCompetitions"></tbody></table>
 </section>
 
 <section>
