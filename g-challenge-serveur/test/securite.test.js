@@ -123,3 +123,13 @@ test('vérification du numéro par SMS : code, essais limités, envoi freiné', 
   for (let i = 0; i < 5; i++) await api('POST', '/joueurs/telephone/verifier', { jeton: k.jeton, corps: { code: mauvais } });
   assert.equal((await api('POST', '/joueurs/telephone/verifier', { jeton: k.jeton, corps: { code: bon } })).json.erreur.code, 'trop_essais');
 });
+
+test('ADMIN_PSEUDOS : le compte désigné devient administrateur à l\'inscription, pas les autres', async () => {
+  process.env.ADMIN_PSEUDOS = 'Zchef, autre';
+  const a = await inscrire('ZChef');
+  assert.equal(a.role, 'admin');
+  assert.equal((await api('GET', '/admin/tournois', { jeton: a.jeton })).statut, 200);
+  const b = await inscrire('Zvisiteur');
+  assert.equal(b.role, 'joueur');
+  delete process.env.ADMIN_PSEUDOS;
+});

@@ -16,6 +16,15 @@ const schemaInscription = z.object({
   mot_de_passe: z.string().min(8).max(100),
 });
 
+// ADMIN_PSEUDOS (réglage du serveur) : ces comptes deviennent administrateurs à l'inscription ou à la connexion.
+async function promouvoirSiAdmin(j) {
+  const admins = (process.env.ADMIN_PSEUDOS || '').split(',').map((p) => p.trim().toLowerCase()).filter(Boolean);
+  if (j.role === 'admin' || !admins.includes(String(j.pseudo).toLowerCase())) return j;
+  const { rows: [maj] } = await requete(`UPDATE joueurs SET role = 'admin' WHERE id = $1 RETURNING *`, [j.id]);
+  console.log(`Administrateur ajouté : ${maj.pseudo}`);
+  return maj;
+}
+
 function publicJoueur(j) {
   return { id: j.id, pseudo: j.pseudo, telephone: j.telephone, pays: j.pays_code, role: j.role, cree_le: j.cree_le,
     telephone_verifie: !!j.telephone_verifie_le };
@@ -29,9 +38,10 @@ routesJoueurs.post('/inscription', asynchrone(async (req, res) => {
     throw refus('telephone_pays', `Le numéro doit commencer par l'indicatif ${pays.indicatif} (${pays.nom}).`);
   }
   try {
-    const { rows: [j] } = await requete(
+    const { rows: [cree] } = await requete(
       `INSERT INTO joueurs (pseudo, telephone, pays_code, mot_de_passe_hash) VALUES ($1, $2, $3, $4) RETURNING *`,
       [d.pseudo, d.telephone, d.pays, await hacherMotDePasse(d.mot_de_passe)]);
+    const j = await promouvoirSiAdmin(cree);
     res.status(201).json({ jeton: creerJeton(j), joueur: publicJoueur(j) });
   } catch (e) {
     if (e.code === '23505') throw conflit('deja_inscrit', 'Ce pseudo ou ce numéro est déjà utilisé.');
@@ -47,11 +57,13 @@ const schemaConnexion = z.object({
 routesJoueurs.post('/connexion', asynchrone(async (req, res) => {
   const d = valider(schemaConnexion, req.body);
   const tel = d.identifiant.replace(/[\s+()-]/g, '');
-  const { rows: [j] } = await requete(
+  const { rows: [trouve] } = await requete(
     'SELECT * FROM joueurs WHERE lower(pseudo) = lower($1) OR telephone = $2', [d.identifiant, tel]);
+  let j = trouve;
   const bon = await comparerSansFuite(d.mot_de_passe, j?.mot_de_passe_hash);
   if (!j || !bon) throw new ErreurApi(401, 'identifiants_invalides', 'Pseudo, numéro ou mot de passe incorrect.');
   if (j.bloque) throw new ErreurApi(403, 'compte_bloque', 'Ce compte est bloqué. Contactez G-Challenge.');
+  j = await promouvoirSiAdmin(j);
   res.json({ jeton: creerJeton(j), joueur: publicJoueur(j) });
 }));
 
