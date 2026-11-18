@@ -19,6 +19,20 @@ lecteur vidéo par épisodes, offres, inscription gratuite et FAQ. Pensée d'abo
 > Ce verrouillage est un **verrou d'interface** : il sert à convertir les visiteurs, pas à protéger les vidéos.
 > Pour réserver vraiment les épisodes payants, il faudra des liens signés côté serveur (étape CRM / paiement).
 
+## Bande d'annonces défilante (partenaires)
+
+Sous l'écran principal, une bande fait défiler les annonces de `annonces` dans `config.js` :
+
+```js
+annonces: [
+  { partenaire: "Nom du partenaire", texte: "Son message", lien: "https://son-site.exemple" }
+]
+```
+
+Le défilement s'arrête au survol et avec le bouton pause. Le bouton « Votre annonce ici » mène à la section
+« Annonceurs et partenaires », dont le bouton ouvre WhatsApp (`whatsapp`) ou l'e-mail `contactPartenaires`.
+Liste vide = bande masquée.
+
 ## Ajouter vos films
 
 Dans `config.js`, chaque film a un `video` avec `{n}` remplacé par le numéro d'épisode :

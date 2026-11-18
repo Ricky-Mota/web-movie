@@ -69,7 +69,8 @@ section.block { padding-block: clamp(56px, 8vw, 96px); }
 .top nav { display: flex; gap: 4px; margin-left: auto; }
 .top nav a { color: var(--muted); text-decoration: none; font-weight: 500; font-size: 15px; padding: 8px 12px; border-radius: 8px; }
 .top nav a:hover { color: var(--ink); }
-@media (max-width: 960px) { .top nav { display: none; } .top .btn { margin-left: auto; } }
+@media (max-width: 1100px) { .top nav { display: none; } .top .btn { margin-left: auto; } }
+.top nav a { white-space: nowrap; }
 @media (max-width: 400px) { .top .wrap { gap: 10px; } .logo { gap: 8px; font-size: 1rem !important; } .logo i { width: 32px; height: 32px; font-size: 19px; } .top .btn-sm { padding: 8px 12px; } }
 
 /* Héros */
@@ -78,16 +79,30 @@ section.block { padding-block: clamp(56px, 8vw, 96px); }
 .hero-han { display: none; position: absolute; right: 4vw; top: 50%; translate: 0 -55%; z-index: -1; font-family: var(--f-han); font-size: clamp(180px, 34vw, 460px); line-height: 1; color: rgba(243,213,138,.12); pointer-events: none; user-select: none; }
 .hero::after { content: ""; position: absolute; inset: 0; z-index: -1; background: linear-gradient(to top, var(--bg) 0%, rgba(14,11,10,.75) 35%, rgba(14,11,10,.15) 70%, rgba(14,11,10,.55) 100%), linear-gradient(to right, rgba(14,11,10,.85) 0%, rgba(14,11,10,0) 65%); }
 /* Héros : colonne de texte étroite, écran large. Sous 960px, l'écran passe au-dessus du texte. */
-.hero .wrap { width: 100%; padding-block: 96px 56px; display: grid; grid-template-columns: minmax(250px, 1fr) minmax(0, 2.4fr); gap: clamp(24px, 3vw, 48px); align-items: center; }
-.hero-text { display: grid; gap: 14px; justify-items: start; min-width: 0; }
-@media (max-width: 1180px) { .hero .wrap { grid-template-columns: minmax(230px, 1fr) minmax(0, 2fr); } }
-@media (max-width: 960px) { .hero .wrap { grid-template-columns: minmax(0, 1fr); padding-block: 80px 40px; gap: 20px; } .screen { order: -1; } .hero-text { gap: 12px; } }
+/* Héros : fiche du film (gauche) et écran + bande d'annonces (droite), alignés en haut et en bas.
+   Sous 1100px : l'écran passe en premier, la fiche dessous sur toute la largeur. */
+.hero .wrap { width: 100%; padding-block: 92px 56px; display: grid; grid-template-columns: minmax(300px, 1fr) minmax(0, 2.3fr); gap: clamp(20px, 2.4vw, 36px); align-items: stretch; }
+.hero-text { display: flex; flex-direction: column; gap: 14px; min-width: 0; padding: 24px; border-radius: 18px; background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.02)); border: 1px solid rgba(255,255,255,.1); backdrop-filter: blur(6px); }
+.hero-text .info { display: grid; gap: 14px; justify-items: start; }
+.hero-text .head { display: flex; justify-content: space-between; align-items: center; gap: 10px; width: 100%; flex-wrap: wrap; }
+.hero-text .free { font-size: 12px; font-weight: 700; color: var(--ok); background: rgba(76,192,138,.12); border: 1px solid rgba(76,192,138,.35); padding: 3px 10px; border-radius: 999px; white-space: nowrap; }
+.hero-actions { margin-top: auto; display: grid; gap: 10px; padding-top: 16px; border-top: 1px solid rgba(255,255,255,.1); }
+.hero-actions .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.hero-actions .btn { width: 100%; min-height: 46px; padding: 10px 14px; font-size: 15px; }
+@media (max-width: 1100px) {
+  .hero .wrap { grid-template-columns: minmax(0, 1fr); padding-block: 80px 40px; gap: 16px; }
+  .screen { order: -1; }
+  .hero-text { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(240px, 1fr); column-gap: 28px; align-items: end; }
+  .hero-actions { margin-top: 0; border-top: 0; padding-top: 0; }
+}
+@media (max-width: 1100px) and (min-width: 681px) { .hero-actions { min-width: 0; } .hero-actions .row2 { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 680px) { .hero-text { grid-template-columns: minmax(0, 1fr); padding: 18px; } .hero-actions { border-top: 1px solid rgba(255,255,255,.1); padding-top: 14px; } }
 .hero h1 { font-size: clamp(1.8rem, 2.8vw, 2.7rem); font-weight: 800; max-width: 16ch; }
 .hero .meta { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; color: var(--muted); font-size: 14px; }
 .tag { display: inline-flex; align-items: center; padding: 3px 10px; border-radius: 999px; font-size: 12.5px; font-weight: 600; background: rgba(255,255,255,.1); color: var(--ink); }
 .tag.gold { background: var(--gold); color: #2a1a02; }
 .tag.red { background: var(--red); color: #fff; }
-.hero p.syn { max-width: 46ch; color: #e8ddd5; font-size: .98rem; line-height: 1.55; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
+.hero p.syn { max-width: 46ch; color: #e8ddd5; font-size: .98rem; line-height: 1.55; display: -webkit-box; -webkit-line-clamp: 6; -webkit-box-orient: vertical; overflow: hidden; }
 .hero .eyebrow { font-size: 12px; }
 .hero .meta { display: grid; gap: 14px; justify-items: start; width: 100%; }
 .hero .tags { display: flex; gap: 8px; flex-wrap: wrap; }
@@ -97,11 +112,7 @@ section.block { padding-block: clamp(56px, 8vw, 96px); }
 .facts dt { font-size: 11px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--faint); }
 .facts dd { margin: 0; font-size: 14px; font-weight: 600; color: var(--ink); font-variant-numeric: tabular-nums; white-space: nowrap; }
 @media (max-width: 380px) { .facts > div { padding: 8px 10px; } }
-.hero-cta { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; width: 100%; max-width: 440px; }
-.hero-cta .btn { min-height: 46px; padding: 10px 16px; font-size: 15px; width: 100%; }
-@media (max-width: 960px) { .hero p.syn { -webkit-line-clamp: 3; max-width: 70ch; } .hero-cta { max-width: none; } }
-.hero-proof { display: flex; gap: 28px; flex-wrap: wrap; margin-top: 18px; color: var(--muted); font-size: 14px; }
-.hero-proof b { display: block; font-family: var(--f-display); font-size: 1.6rem; color: var(--ink); }
+@media (max-width: 1100px) { .hero p.syn { -webkit-line-clamp: 3; max-width: 70ch; } }
 /* Écran du héros : lecteur avec ses propres commandes */
 .screen { display: grid; gap: 12px; min-width: 0; }
 .screen-tabs { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
@@ -109,8 +120,29 @@ section.block { padding-block: clamp(56px, 8vw, 96px); }
 .screen-tabs button[aria-pressed="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
 .screen-tabs .live { margin-left: auto; font-size: 13px; color: var(--muted); display: inline-flex; align-items: center; gap: 8px; }
 .screen-tabs .live::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--red-hi); box-shadow: 0 0 0 4px rgba(224,40,63,.2); }
-.sbox { position: relative; aspect-ratio: 16 / 9; max-width: 100%; border-radius: 16px; overflow: hidden; background: #000; box-shadow: 0 30px 80px rgba(0,0,0,.55), 0 0 0 1px rgba(243,213,138,.18); outline: none; }
-.sbox:focus-visible { box-shadow: 0 30px 80px rgba(0,0,0,.55), 0 0 0 3px var(--gold); }
+.frame { border-radius: 18px; overflow: hidden; background: #000; box-shadow: 0 30px 80px rgba(0,0,0,.55), 0 0 0 1px rgba(243,213,138,.22); }
+.sbox { position: relative; aspect-ratio: 16 / 9; max-width: 100%; overflow: hidden; background: #000; outline: none; }
+.sbox:focus-visible { box-shadow: inset 0 0 0 3px var(--gold); }
+/* Bande d'annonces défilante (partenaires) */
+.ticker { display: flex; align-items: stretch; min-height: 46px; background: linear-gradient(90deg, #1a0d0b, #120a09); border-top: 1px solid rgba(243,213,138,.25); color: #f3ebe4; font-size: 14px; }
+.tk-label { flex: none; display: flex; align-items: center; gap: 8px; padding: 0 14px; background: var(--red); color: #fff; font-weight: 800; font-size: 12px; letter-spacing: .1em; text-transform: uppercase; }
+.tk-label::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: #fff; animation: blink 1.4s ease-in-out infinite; }
+@keyframes blink { 50% { opacity: .25; } }
+.tk-view { flex: 1; min-width: 0; overflow: hidden; display: flex; align-items: center; -webkit-mask: linear-gradient(90deg, transparent, #000 24px, #000 calc(100% - 24px), transparent); mask: linear-gradient(90deg, transparent, #000 24px, #000 calc(100% - 24px), transparent); }
+.tk-track { display: flex; width: max-content; animation: defile var(--tk-dur, 40s) linear infinite; }
+.ticker:hover .tk-track, .ticker:focus-within .tk-track, .ticker.paused .tk-track { animation-play-state: paused; }
+@keyframes defile { to { transform: translateX(-50%); } }
+.tk-item { display: inline-flex; align-items: center; gap: 8px; padding: 0 22px; white-space: nowrap; color: inherit; text-decoration: none; }
+.tk-item b { color: var(--gold-soft); font-weight: 700; }
+.tk-item::after { content: "◆"; color: var(--gold); font-size: 9px; margin-left: 22px; opacity: .8; }
+a.tk-item:hover span { text-decoration: underline; }
+.tk-btn { flex: none; width: 46px; border: 0; border-left: 1px solid rgba(255,255,255,.1); background: transparent; color: #f3ebe4; display: grid; place-items: center; }
+.tk-btn:hover { background: rgba(255,255,255,.08); }
+.tk-btn svg { width: 16px; height: 16px; }
+.tk-cta { flex: none; display: flex; align-items: center; padding: 0 16px; border-left: 1px solid rgba(255,255,255,.1); color: var(--gold-soft); font-weight: 700; font-size: 13px; text-decoration: none; white-space: nowrap; }
+.tk-cta:hover { background: rgba(255,255,255,.06); }
+@media (max-width: 680px) { .tk-cta { display: none; } .tk-label { padding: 0 10px; font-size: 11px; } .ticker { font-size: 13px; min-height: 42px; } }
+@media (prefers-reduced-motion: reduce) { .tk-view { overflow-x: auto; } .tk-track { animation: none; } }
 .sbox video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; background: #000; }
 .s-sub { position: absolute; left: 50%; translate: -50% 0; bottom: 84px; z-index: 3; width: max-content; max-width: 88%; text-align: center; pointer-events: none; transition: bottom .25s; }
 .s-sub span { background: rgba(0,0,0,.75); color: #fff; font-size: clamp(14px, 1.6vw, 18px); line-height: 1.45; padding: 3px 10px; border-radius: 6px; box-decoration-break: clone; -webkit-box-decoration-break: clone; }
@@ -148,10 +180,8 @@ section.block { padding-block: clamp(56px, 8vw, 96px); }
 .s-txt { font-size: 13px; font-variant-numeric: tabular-nums; padding: 0 8px; white-space: nowrap; color: #f3ebe4; }
 .s-speed { width: auto; min-width: 44px; padding: 0 8px; font-size: 13px; font-weight: 700; }
 .s-vol { width: 72px; accent-color: #fff; }
-@media (max-width: 560px) { .s-vol, .s-hide-sm { display: none; } .screen-tabs .live { display: none; } .screen-foot > span { display: none; } .s-btn { width: 36px; height: 36px; } .s-txt { padding: 0 4px; font-size: 12px; } }
+@media (max-width: 560px) { .s-vol, .s-hide-sm { display: none; } .screen-tabs .live { display: none; } .s-btn { width: 36px; height: 36px; } .s-txt { padding: 0 4px; font-size: 12px; } }
 @media (max-width: 400px) { .s-bar { padding: 22px 6px 6px; } .s-btn { width: 32px; height: 32px; } .s-btn svg { width: 19px; height: 19px; } .s-speed { min-width: 36px; padding: 0 4px; font-size: 12px; } .s-txt { font-size: 11px; padding: 0 2px; } .s-sub { bottom: 62px; } }
-.screen-foot { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; font-size: 14px; color: var(--muted); }
-.screen-foot b { color: var(--ink); font-weight: 600; }
 .linkbtn { all: unset; cursor: pointer; color: var(--gold-soft); font-weight: 600; display: inline-flex; gap: 6px; align-items: center; }
 .linkbtn:hover { text-decoration: underline; }
 .linkbtn:focus-visible { outline: 3px solid var(--gold); outline-offset: 3px; border-radius: 6px; }
@@ -211,6 +241,13 @@ section.block { padding-block: clamp(56px, 8vw, 96px); }
 .pay span.tag { background: var(--surface); border: 1px solid var(--line); color: var(--muted); }
 
 /* Inscription */
+.partners { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: clamp(24px, 4vw, 56px); align-items: center; }
+@media (max-width: 860px) { .partners { grid-template-columns: minmax(0, 1fr); } }
+.partners ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+.partners li { display: grid; grid-template-columns: 36px minmax(0, 1fr); gap: 14px; align-items: start; padding: 16px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); }
+.partners li span.n { width: 36px; height: 36px; border-radius: 10px; display: grid; place-items: center; background: rgba(226,176,74,.14); color: var(--gold); font-weight: 800; }
+.partners li p { color: var(--muted); font-size: 15px; }
+.partners .cta { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 22px; align-items: center; }
 .signup { display: grid; grid-template-columns: 1fr 1.1fr; gap: clamp(24px, 5vw, 64px); align-items: start; }
 .signup > * { min-width: 0; }
 @media (max-width: 860px) { .signup { grid-template-columns: 1fr; } }
@@ -306,6 +343,7 @@ dialog.player::backdrop { background: rgba(5,4,4,.85); backdrop-filter: blur(4px
       <a href="#catalogue">Catalogue</a>
       <a href="#comment">Comment ça marche</a>
       <a href="#offres">Offres</a>
+      <a href="#partenaires">Partenaires</a>
       <a href="#faq">FAQ</a>
     </nav>
     <a class="btn btn-red btn-sm" href="#inscription"><span class="hide-sm">S'inscrire gratuitement</span><span class="show-sm">S'inscrire</span></a>
@@ -319,20 +357,19 @@ dialog.player::backdrop { background: rgba(5,4,4,.85); backdrop-filter: blur(4px
     <div class="hero-han" id="hero-han" aria-hidden="true">玉</div>
     <div class="wrap">
       <div class="hero-text">
-      <p class="eyebrow">À la une cette semaine</p>
-      <h1 id="hero-title">La Fiancée de jade</h1>
-      <div class="meta" id="hero-meta"></div>
-      <p class="syn" id="hero-syn"></p>
-      <div class="hero-cta">
-        <button class="btn btn-red" id="hero-play" type="button">
-          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 4.5v15a1 1 0 0 0 1.5.86l12.5-7.5a1 1 0 0 0 0-1.72L8.5 3.64A1 1 0 0 0 7 4.5z"/></svg>
-          Regarder l'épisode 1
-        </button>
-        <button class="btn btn-glass" id="hero-trailer" type="button">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M10 9l5 3-5 3z" fill="currentColor"/></svg>
-          Bande-annonce
-        </button>
-      </div>
+        <div class="info">
+          <div class="head"><p class="eyebrow">À la une cette semaine</p><span class="free">Épisode 1 offert</span></div>
+          <h1 id="hero-title">La Fiancée de jade</h1>
+          <div class="meta" id="hero-meta"></div>
+          <p class="syn" id="hero-syn"></p>
+        </div>
+        <div class="hero-actions">
+          <button class="btn btn-red" id="hero-play" type="button"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 4.5v15a1 1 0 0 0 1.5.86l12.5-7.5a1 1 0 0 0 0-1.72L8.5 3.64A1 1 0 0 0 7 4.5z"/></svg>Regarder l'épisode 1</button>
+          <div class="row2">
+            <button class="btn btn-glass" id="hero-trailer" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M10 9l5 3-5 3z" fill="currentColor"/></svg>Bande-annonce</button>
+            <button class="btn btn-glass" id="s-all" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="4" width="7" height="7" rx="1.5"/><rect x="14" y="4" width="7" height="7" rx="1.5"/><rect x="3" y="13" width="7" height="7" rx="1.5"/><rect x="14" y="13" width="7" height="7" rx="1.5"/></svg>Épisodes</button>
+          </div>
+        </div>
       </div>
 
       <div class="screen" id="screen">
@@ -341,6 +378,7 @@ dialog.player::backdrop { background: rgba(5,4,4,.85); backdrop-filter: blur(4px
           <button type="button" data-src="1" aria-pressed="false">Épisode 1 · gratuit</button>
           <span class="live s-hide-sm">En ce moment</span>
         </div>
+        <div class="frame">
         <div class="sbox" id="sbox" tabindex="0" aria-label="Lecteur vidéo. Espace : lecture ou pause. Flèches : reculer ou avancer de 10 secondes. M : son. F : plein écran. C : sous-titres.">
           <video id="sv" playsinline preload="metadata" muted>
             <track kind="subtitles" srclang="fr" label="Français" src="media/sous-titres-demo.vtt" default>
@@ -375,9 +413,12 @@ dialog.player::backdrop { background: rgba(5,4,4,.85); backdrop-filter: blur(4px
             </div>
           </div>
         </div>
-        <div class="screen-foot">
-          <span>Lecture : <b id="s-now">Bande-annonce</b></span>
-          <button class="linkbtn" id="s-all" type="button">Tous les épisodes →</button>
+        <div class="ticker" id="ticker" role="region" aria-label="Annonces des partenaires">
+          <span class="tk-label">Annonces</span>
+          <div class="tk-view"><div class="tk-track" id="tk-track"></div></div>
+          <button class="tk-btn" id="tk-pause" type="button" aria-pressed="false" aria-label="Mettre en pause le défilement des annonces"><svg id="tk-i-pause" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg><svg id="tk-i-play" hidden viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 4.5v15a1 1 0 0 0 1.5.86l12.5-7.5a1 1 0 0 0 0-1.72L8.5 3.64A1 1 0 0 0 7 4.5z"/></svg></button>
+          <a class="tk-cta" href="#partenaires">Votre annonce ici</a>
+        </div>
         </div>
       </div>
     </div>
@@ -422,6 +463,26 @@ dialog.player::backdrop { background: rgba(5,4,4,.85); backdrop-filter: blur(4px
       <div class="sec-head"><div><p class="eyebrow">Offres</p><h2 id="plans-title">Commencez gratuitement, payez seulement si vous accrochez</h2></div></div>
       <div class="plans" id="plans"></div>
       <div class="pay" id="pay"><span>Moyens de paiement prévus :</span></div>
+    </div>
+  </section>
+
+  <!-- Partenaires et annonceurs -->
+  <section class="block" id="partenaires" aria-labelledby="part-title">
+    <div class="wrap partners">
+      <div>
+        <p class="eyebrow">Annonceurs et partenaires</p>
+        <h2 id="part-title" style="margin-top:8px">Votre marque sur l'écran de <span data-brand>Zboss-Entertainment</span></h2>
+        <p class="lead" style="margin-top:14px">La bande défilante sous le lecteur est vue par chaque spectateur, dès l'ouverture du site. Réservez-y vos annonces : sorties, promotions, événements.</p>
+        <div class="cta">
+          <a class="btn btn-red" id="part-cta" href="#inscription">Proposer une annonce</a>
+          <span class="small" id="part-contact"></span>
+        </div>
+      </div>
+      <ul>
+        <li><span class="n">1</span><div><h3>Bande défilante</h3><p>Votre message, votre nom et un lien, affichés en continu sous l'écran principal.</p></div></li>
+        <li><span class="n">2</span><div><h3>Mention dans les épisodes</h3><p>Une courte mention avant l'épisode 1 des films à la une.</p></div></li>
+        <li><span class="n">3</span><div><h3>Tarifs simples</h3><p>À la semaine ou au mois, payables par mobile money. Contactez-nous pour un devis.</p></div></li>
+      </ul>
     </div>
   </section>
 
@@ -508,7 +569,7 @@ dialog.player::backdrop { background: rgba(5,4,4,.85); backdrop-filter: blur(4px
 <footer>
   <div class="wrap">
     <span>© <span id="year"></span> <span data-brand>Zboss-Entertainment</span>. Courts films chinois en VOSTFR.</span>
-    <nav aria-label="Pied de page"><a href="#catalogue">Catalogue</a><a href="#offres">Offres</a><a href="#inscription">Inscription</a><a href="#faq">FAQ</a></nav>
+    <nav aria-label="Pied de page"><a href="#catalogue">Catalogue</a><a href="#offres">Offres</a><a href="#partenaires">Partenaires</a><a href="#inscription">Inscription</a><a href="#faq">FAQ</a></nav>
   </div>
 </footer>
 
@@ -601,7 +662,6 @@ dialog.player::backdrop { background: rgba(5,4,4,.85); backdrop-filter: blur(4px
   function chargerHero(n, jouer) {
     srcHero = n;
     document.querySelectorAll("#screen .screen-tabs [data-src]").forEach((b) => b.setAttribute("aria-pressed", String(+b.dataset.src === n)));
-    $("#s-now").textContent = n === 0 ? "Bande-annonce · " + une.titre : "Épisode 1 · " + une.titre;
     $("#s-end").hidden = true;
     hv.src = n === 0 ? (une.bandeAnnonce || C.bandeAnnonce) : une.video.replace("{n}", 1);
     hv.playbackRate = vitesses[vIdx];
@@ -714,7 +774,32 @@ dialog.player::backdrop { background: rgba(5,4,4,.85); backdrop-filter: blur(4px
   ["pointermove", "pointerdown", "focusin", "keydown"].forEach((e) => sbox.addEventListener(e, montrerBarre));
 
   document.querySelectorAll("#screen .screen-tabs [data-src]").forEach((b) => b.addEventListener("click", () => chargerHero(+b.dataset.src, true)));
-  $("#s-all").addEventListener("click", () => ouvrir(une.id, srcHero === 1 ? 1 : 0));
+  $("#s-all").addEventListener("click", () => ouvrir(une.id, 1));
+
+  // ---------- Bande d'annonces défilante ----------
+  const annonces = (C.annonces || []).filter((a) => a && a.texte);
+  const tk = $("#ticker"), track = $("#tk-track");
+  if (!annonces.length) tk.hidden = true;
+  else {
+    const item = (a) => {
+      const inner = (a.partenaire ? `<b>${esc(a.partenaire)}</b>` : "") + `<span>${esc(a.texte)}</span>`;
+      return /^https?:\/\/|^#/.test(a.lien || "") ? `<a class="tk-item" href="${esc(a.lien)}"${a.lien.startsWith("#") ? "" : ' target="_blank" rel="noopener sponsored"'}>${inner}</a>` : `<span class="tk-item">${inner}</span>`;
+    };
+    const une_serie = annonces.map(item).join("");
+    track.innerHTML = une_serie + `<span aria-hidden="true" style="display:contents">${une_serie}</span>`;
+    // Vitesse constante (~60 px/s) quelle que soit la longueur des annonces
+    requestAnimationFrame(() => track.style.setProperty("--tk-dur", Math.max(20, Math.round(track.scrollWidth / 2 / 60)) + "s"));
+    $("#tk-pause").addEventListener("click", (e) => {
+      const p = tk.classList.toggle("paused");
+      e.currentTarget.setAttribute("aria-pressed", String(p));
+      e.currentTarget.setAttribute("aria-label", p ? "Reprendre le défilement des annonces" : "Mettre en pause le défilement des annonces");
+      $("#tk-i-pause").hidden = p; $("#tk-i-play").hidden = !p;
+    });
+  }
+  // Contact partenaires
+  const pc = $("#part-cta");
+  if (C.whatsapp) { pc.href = "https://wa.me/" + encodeURIComponent(C.whatsapp) + "?text=" + encodeURIComponent("Bonjour, je souhaite diffuser une annonce sur " + C.marque + "."); pc.target = "_blank"; pc.rel = "noopener"; $("#part-contact").textContent = "WhatsApp : +" + C.whatsapp; }
+  else if (C.contactPartenaires) { pc.href = "mailto:" + C.contactPartenaires; $("#part-contact").textContent = C.contactPartenaires; }
   $("#hero-play").addEventListener("click", () => { hv.muted = false; chargerHero(1, true); if (innerWidth < 960) sbox.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block: "center" }); });
   $("#hero-trailer").addEventListener("click", () => { hv.muted = false; chargerHero(0, true); if (innerWidth < 960) sbox.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block: "center" }); });
 

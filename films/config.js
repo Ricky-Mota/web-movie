@@ -25,6 +25,19 @@ window.YING_CONFIG = {
   ],
   paiements: ["M-Pesa", "Airtel Money", "Orange Money", "Carte bancaire"],
 
+  // Contact affiché aux annonceurs (si pas de WhatsApp). Ex. "partenaires@exemple.com".
+  contactPartenaires: "",
+
+  // Bande d'annonces défilante sous l'écran principal. Exemples à remplacer par vos vraies annonces.
+  // « lien » est facultatif : une adresse https://… ou une ancre de la page (#offres).
+  annonces: [
+    { partenaire: "Nouveauté", texte: "« Le Thé de minuit » arrive ce vendredi : 18 épisodes de comédie.", lien: "#catalogue" },
+    { partenaire: "Offre", texte: "Pass Semaine à 1 $ : tout le catalogue pendant 7 jours.", lien: "#offres" },
+    { partenaire: "Exemple d'annonceur", texte: "Votre promotion ici, vue par chaque spectateur dès l'ouverture du site." },
+    { partenaire: "Bientôt", texte: "Paiement des pass par M-Pesa, Airtel Money et Orange Money." },
+    { partenaire: "Annonceurs", texte: "Réservez cette bande pour vos sorties, événements et promotions.", lien: "#partenaires" }
+  ],
+
   // Vidéo du héros (bande-annonce). Remplacez par l'adresse de votre vraie bande-annonce.
   bandeAnnonce: "media/bande-annonce-demo.mp4",
 
