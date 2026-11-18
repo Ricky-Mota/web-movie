@@ -3,10 +3,10 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Zboss-Entertainment · Courts films chinois en VOSTFR</title>
-<meta name="description" content="Courts films et mini-séries chinoises sous-titrés en français. Premiers épisodes gratuits, inscription en 30 secondes.">
-<meta property="og:title" content="Zboss-Entertainment · Courts films chinois en VOSTFR">
-<meta property="og:description" content="Romance, historique, fantastique : des épisodes de 2 minutes, sous-titrés en français.">
+<title>Zboss-Entertainment · Courts films chinois sous-titrés</title>
+<meta name="description" content="Courts films et mini-séries chinoises sous-titrés en français, anglais, espagnol et portugais. Premiers épisodes gratuits, inscription en 30 secondes.">
+<meta property="og:title" content="Zboss-Entertainment · Courts films chinois sous-titrés">
+<meta property="og:description" content="Romance, historique, fantastique : des épisodes de 2 minutes, sous-titrés en 4 langues.">
 <meta name="theme-color" content="#0e0b0a">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23c8102e'/%3E%3Ctext x='32' y='45' font-size='38' text-anchor='middle' fill='%23f3d58a' font-family='Georgia,serif' font-weight='bold'%3EZ%3C/text%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -177,6 +177,29 @@ a.tk-item:hover span { text-decoration: underline; }
 .s-btn svg { width: 22px; height: 22px; }
 .s-btn small { position: absolute; font-size: 9px; font-weight: 700; top: 50%; left: 50%; translate: -50% -42%; }
 .s-btn[aria-pressed="true"] { color: var(--gold-soft); }
+.s-cc-lang { position: absolute; right: 1px; bottom: 2px; font-size: 9px; font-weight: 800; letter-spacing: .02em; text-transform: uppercase; line-height: 1; background: rgba(0,0,0,.6); padding: 1px 2px; border-radius: 3px; }
+.s-menu { position: absolute; right: 10px; bottom: 64px; z-index: 6; min-width: 170px; padding: 6px; border-radius: 12px; background: rgba(16,12,14,.96); border: 1px solid rgba(255,255,255,.14); box-shadow: 0 12px 30px rgba(0,0,0,.5); }
+.s-menu p { margin: 4px 8px 6px; font-size: 12px; color: rgba(255,255,255,.6); }
+.s-menu button { display: flex; align-items: center; gap: 8px; width: 100%; padding: 8px 10px; border: 0; border-radius: 8px; background: transparent; color: #fff; font: inherit; font-size: 14px; text-align: left; cursor: pointer; }
+.s-menu button:hover, .s-menu button:focus-visible { background: rgba(255,255,255,.12); outline: none; }
+.s-menu button::before { content: ""; width: 14px; flex: none; text-align: center; }
+.s-menu button[aria-checked="true"] { color: var(--gold-soft); font-weight: 700; }
+.s-menu button[aria-checked="true"]::before { content: "✓"; }
+.s-menu .sh { display: none; }
+@media (max-width: 560px) {
+  .s-menu { display: flex; gap: 2px; left: 6px; right: 6px; bottom: 52px; min-width: 0; padding: 4px; }
+  .s-menu[hidden] { display: none; }
+  .s-menu p, .s-menu .lg { display: none; }
+  .s-menu .sh { display: inline; }
+  .s-menu button { flex: 1; justify-content: center; padding: 8px 4px; font-size: 13px; }
+  .s-menu button::before, .s-menu button[aria-checked="true"]::before { content: none; }
+  .s-menu button[aria-checked="true"] { background: rgba(255,255,255,.14); }
+}
+.pl-sub { position: absolute; left: 50%; translate: -50% 0; bottom: 64px; z-index: 2; width: max-content; max-width: 88%; text-align: center; pointer-events: none; }
+.pl-sub span { background: rgba(0,0,0,.75); color: #fff; font-size: clamp(14px, 1.8vw, 20px); line-height: 1.45; padding: 3px 10px; border-radius: 6px; box-decoration-break: clone; -webkit-box-decoration-break: clone; }
+.pl-lang { display: flex; align-items: center; gap: 8px; margin-top: 10px; font-size: 13px; color: var(--muted); }
+.pl-lang select { font: inherit; color: var(--text, #fff); background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.18); border-radius: 8px; padding: 6px 8px; }
+.pl-lang select option { color: #111; }
 .s-btn[aria-pressed="true"]::after { content: ""; position: absolute; left: 11px; right: 11px; bottom: 5px; height: 2px; border-radius: 2px; background: var(--gold); }
 .s-txt { font-size: 13px; font-variant-numeric: tabular-nums; padding: 0 8px; white-space: nowrap; color: #f3ebe4; }
 .s-speed { width: auto; min-width: 44px; padding: 0 8px; font-size: 13px; font-weight: 700; }
@@ -375,10 +398,8 @@ dialog.player::backdrop { background: rgba(5,4,4,.85); backdrop-filter: blur(4px
 
       <div class="screen" id="screen">
         <div class="frame">
-        <div class="sbox" id="sbox" tabindex="0" aria-label="Lecteur vidéo. Espace : lecture ou pause. Flèches : retour ou avance rapide de 10 secondes. S : stop. M : son. F : plein écran. C : sous-titres.">
-          <video id="sv" playsinline preload="metadata" muted>
-            <track kind="subtitles" srclang="fr" label="Français" src="media/sous-titres-demo.vtt" default>
-          </video>
+        <div class="sbox" id="sbox" tabindex="0" aria-label="Lecteur vidéo. Espace : lecture ou pause. Flèches : retour ou avance rapide de 10 secondes. S : stop. M : son. F : plein écran. C : sous-titres oui ou non.">
+          <video id="sv" playsinline preload="metadata" muted></video>
           <div class="s-sub" id="s-sub" aria-live="polite"></div>
           <div class="s-load" id="s-load" hidden></div>
           <button class="s-big" id="s-big" type="button" aria-label="Lire la vidéo"><span><svg viewBox="0 0 24 24" fill="currentColor" style="width:30px;height:30px" aria-hidden="true"><path d="M7 4.5v15a1 1 0 0 0 1.5.86l12.5-7.5a1 1 0 0 0 0-1.72L8.5 3.64A1 1 0 0 0 7 4.5z"/></svg></span></button>
@@ -392,6 +413,7 @@ dialog.player::backdrop { background: rgba(5,4,4,.85); backdrop-filter: blur(4px
               <div class="btns" id="s-end-btns"></div>
             </div>
           </div>
+          <div class="s-menu" id="s-menu" role="menu" aria-label="Langue des sous-titres" hidden></div>
           <div class="s-bar" id="s-bar">
             <input class="s-seek" id="s-seek" type="range" min="0" max="1000" step="1" value="0" aria-label="Position dans la vidéo">
             <div class="s-row">
@@ -404,7 +426,7 @@ dialog.player::backdrop { background: rgba(5,4,4,.85); backdrop-filter: blur(4px
               <span class="s-txt" id="s-time" aria-live="off">0:00 / 0:00</span>
               <span class="sp"></span>
               <button class="s-btn s-speed" id="s-speed" type="button" aria-label="Vitesse de lecture : normale">1×</button>
-              <button class="s-btn" id="s-cc" type="button" aria-label="Sous-titres français" aria-pressed="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M10.5 10.2a2.2 2.2 0 1 0 0 3.6M17 10.2a2.2 2.2 0 1 0 0 3.6"/></svg></button>
+              <button class="s-btn" id="s-cc" type="button" aria-label="Sous-titres : choisir la langue" aria-haspopup="menu" aria-expanded="false" aria-controls="s-menu" aria-pressed="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M10.5 10.2a2.2 2.2 0 1 0 0 3.6M17 10.2a2.2 2.2 0 1 0 0 3.6"/></svg><span class="s-cc-lang" id="s-cc-lang" aria-hidden="true">FR</span></button>
               <button class="s-btn s-hide-sm" id="s-pip" type="button" aria-label="Image dans l'image"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="2.5" y="4.5" width="19" height="15" rx="2"/><rect x="12" y="11" width="7" height="6" rx="1" fill="currentColor"/></svg></button>
               <button class="s-btn" id="s-full" type="button" aria-label="Plein écran"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
             </div>
@@ -554,7 +576,7 @@ dialog.player::backdrop { background: rgba(5,4,4,.85); backdrop-filter: blur(4px
       <div class="sec-head"><div><p class="eyebrow">Questions fréquentes</p><h2 id="faq-title">Bon à savoir</h2></div></div>
       <div class="faq">
         <details><summary>C'est quoi, une mini-série chinoise ?</summary><p>Un format venu de Chine : une histoire complète racontée en épisodes très courts, de deux à trois minutes, au format 16:9 comme sur YouTube. Beaucoup de rebondissements, peu de temps morts.</p></details>
-        <details><summary>Les films sont-ils en français ?</summary><p>Ils sont en version originale (mandarin) avec des sous-titres français.</p></details>
+        <details><summary>Les films sont-ils en français ?</summary><p>Ils sont en version originale (mandarin), avec des sous-titres au choix : français, anglais, espagnol ou portugais. Changez de langue avec le bouton CC du lecteur.</p></details>
         <details><summary>Faut-il une carte bancaire pour s'inscrire ?</summary><p>Non. L'inscription est gratuite et ne demande qu'un e-mail ou un numéro WhatsApp. Les pass se paient par mobile money.</p></details>
         <details><summary>Est-ce que ça marche avec une petite connexion ?</summary><p>Oui. Les épisodes sont courts et légers, et la vidéo s'adapte à tous les écrans : téléphone, tablette, ordinateur ou télévision.</p></details>
         <details><summary>Comment me désinscrire ?</summary><p>Répondez « STOP » à n'importe quel message, ou écrivez-nous. Vos données sont supprimées.</p></details>
@@ -565,7 +587,7 @@ dialog.player::backdrop { background: rgba(5,4,4,.85); backdrop-filter: blur(4px
 
 <footer>
   <div class="wrap">
-    <span>© <span id="year"></span> <span data-brand>Zboss-Entertainment</span>. Courts films chinois en VOSTFR.</span>
+    <span>© <span id="year"></span> <span data-brand>Zboss-Entertainment</span>. Courts films chinois sous-titrés.</span>
     <nav aria-label="Pied de page"><a href="#catalogue">Catalogue</a><a href="#offres">Offres</a><a href="#partenaires">Partenaires</a><a href="#inscription">Inscription</a><a href="#faq">FAQ</a></nav>
   </div>
 </footer>
@@ -579,6 +601,7 @@ dialog.player::backdrop { background: rgba(5,4,4,.85); backdrop-filter: blur(4px
   <div class="pl">
     <div class="stage">
       <video id="pl-video" controls playsinline preload="metadata"></video>
+      <div class="pl-sub" id="pl-sub" aria-live="polite"></div>
       <div class="lock" id="pl-lock" hidden>
         <div>
           <span class="han" id="lock-han" aria-hidden="true">玉</span>
@@ -601,6 +624,7 @@ dialog.player::backdrop { background: rgba(5,4,4,.85); backdrop-filter: blur(4px
         <div class="meta" id="pl-meta" style="display:flex;gap:8px;flex-wrap:wrap"></div>
         <h3 id="pl-title">Titre</h3>
         <p id="pl-syn"></p>
+        <label class="pl-lang">Sous-titres <select id="pl-lang"></select></label>
       </header>
       <ul class="eps" id="pl-eps" aria-label="Épisodes"></ul>
     </aside>
@@ -640,6 +664,61 @@ dialog.player::backdrop { background: rgba(5,4,4,.85); backdrop-filter: blur(4px
 
   const toast = (msg) => { const t = $("#toast"); t.textContent = msg; t.hidden = false; clearTimeout(toast.t); toast.t = setTimeout(() => (t.hidden = true), 3200); };
 
+  // ---------- Sous-titres en plusieurs langues ----------
+  // Fichiers .vtt ou .srt. Modèle d'adresse dans config.js : {lang} = code langue, {n} = épisode, {nn} = épisode sur 2 chiffres.
+  const langues = (C.langues && C.langues.length ? C.langues : [{ code: "fr", nom: "Français" }]);
+  const codes = langues.map((l) => l.code);
+  const nav = (navigator.language || "").slice(0, 2).toLowerCase();
+  let langue = store.get("langue", null);
+  if (langue !== "off" && !codes.includes(langue)) langue = codes.includes(C.langueParDefaut) ? C.langueParDefaut : (codes.includes(nav) ? nav : codes[0]);
+  let derniereLangue = langue === "off" ? (codes.includes(nav) ? nav : codes[0]) : langue;
+  const abonnes = [];
+  const surLangue = (fn) => abonnes.push(fn);
+  function choisirLangue(l) {
+    langue = l; if (l !== "off") derniereLangue = l;
+    store.set("langue", l);
+    abonnes.forEach((fn) => fn());
+  }
+  const modele = (m, n, l) => String(m || "").replace(/\{lang\}/g, l).replace(/\{nn\}/g, String(n).padStart(2, "0")).replace(/\{n\}/g, n);
+  const urlSousTitres = (film, n, l) => {
+    const m = n === 0 ? (film.sousTitresBandeAnnonce || C.sousTitresBandeAnnonce) : film.sousTitres;
+    return m ? modele(m, n, l) : "";
+  };
+  const enSec = (t) => { const p = t.trim().replace(",", ".").split(":").map(Number); return p.length === 3 ? p[0] * 3600 + p[1] * 60 + p[2] : p[0] * 60 + p[1]; };
+  function lireSousTitres(txt) {
+    const cues = [];
+    String(txt).replace(/\r/g, "").split(/\n{2,}/).forEach((bloc) => {
+      const l = bloc.split("\n"); const i = l.findIndex((x) => x.includes("-->")); if (i < 0) return;
+      const [a, b] = l[i].split("-->"); const texte = l.slice(i + 1).join("\n").replace(/<[^>]+>/g, "").trim();
+      if (texte) cues.push({ a: enSec(a), b: enSec(b.trim().split(/\s+/)[0]), texte });
+    });
+    return cues;
+  }
+  const cacheST = {};
+  function chargerSousTitres(url) {
+    if (!url) return Promise.resolve([]);
+    if (C.sousTitresIntegres && C.sousTitresIntegres[url]) return Promise.resolve(lireSousTitres(C.sousTitresIntegres[url]));
+    return cacheST[url] || (cacheST[url] = fetch(url).then((r) => (r.ok ? r.text() : "")).then(lireSousTitres).catch(() => { delete cacheST[url]; return []; }));
+  }
+  // Relie une vidéo à une zone d'affichage ; renvoie une fonction pour (re)charger la piste.
+  function brancherSousTitres(video, zone, adresse) {
+    let cues = [], jeton = 0, dernier = "";
+    const afficher = () => {
+      const t = video.currentTime;
+      const actifs = langue === "off" ? [] : cues.filter((c) => t >= c.a && t <= c.b);
+      const html = actifs.map((c) => c.texte.split("\n").map((x) => `<span>${esc(x)}</span>`).join("<br>")).join("<br>");
+      if (html !== dernier) { zone.innerHTML = html; dernier = html; }
+    };
+    const recharger = () => {
+      const j = ++jeton; cues = []; afficher();
+      if (langue === "off") return;
+      chargerSousTitres(adresse()).then((c) => { if (j === jeton) { cues = c; afficher(); } });
+    };
+    ["timeupdate", "seeked", "loadedmetadata"].forEach((e) => video.addEventListener(e, afficher));
+    surLangue(recharger);
+    return recharger;
+  }
+
   // Barre du haut opaque après défilement
   const top = $("#top");
   const onScroll = () => top.classList.toggle("solid", scrollY > 40);
@@ -659,7 +738,8 @@ dialog.player::backdrop { background: rgba(5,4,4,.85); backdrop-filter: blur(4px
   function chargerHero(n, jouer) {
     srcHero = n;
     $("#s-end").hidden = true;
-    hv.src = n === 0 ? (une.bandeAnnonce || C.bandeAnnonce) : une.video.replace("{n}", 1);
+    hv.src = n === 0 ? (une.bandeAnnonce || C.bandeAnnonce) : modele(une.video, 1, langue);
+    rechargerSubHero();
     hv.playbackRate = vitesses[vIdx];
     if (jouer) hv.play().catch(() => {});
   }
@@ -695,21 +775,33 @@ dialog.player::backdrop { background: rgba(5,4,4,.85); backdrop-filter: blur(4px
     else if (sbox.requestFullscreen) sbox.requestFullscreen().catch(() => {});
     else if (hv.webkitEnterFullscreen) hv.webkitEnterFullscreen();
   };
-  const piste = () => hv.textTracks && hv.textTracks[0];
-  let ccActif = true;
-  const majSub = () => {
-    const t = piste(), box = $("#s-sub");
-    const cues = t && t.activeCues ? [...t.activeCues] : [];
-    box.innerHTML = ccActif && cues.length ? cues.map((c) => `<span>${esc(c.text)}</span>`).join("<br>") : "";
+  const rechargerSubHero = brancherSousTitres(hv, $("#s-sub"), () => urlSousTitres(une, srcHero, langue));
+  const ccOnOff = () => choisirLangue(langue === "off" ? derniereLangue : "off");
+  const menu = $("#s-menu"), cc = $("#s-cc");
+  const majCC = () => {
+    cc.setAttribute("aria-pressed", String(langue !== "off"));
+    $("#s-cc-lang").textContent = langue === "off" ? "" : langue;
+    const nom = langue === "off" ? "désactivés" : (langues.find((l) => l.code === langue) || {}).nom;
+    cc.setAttribute("aria-label", "Sous-titres : " + nom + ". Choisir la langue");
+    menu.innerHTML = "<p>Sous-titres</p>" + [{ code: "off", nom: "Désactivés" }, ...langues]
+      .map((l) => `<button type="button" role="menuitemradio" data-lang="${esc(l.code)}" aria-checked="${l.code === langue}" aria-label="${esc(l.nom)}"><span class="lg">${esc(l.nom)}</span><span class="sh" aria-hidden="true">${l.code === "off" ? "Non" : esc(l.code.toUpperCase())}</span></button>`).join("");
   };
-  const ccOnOff = () => {
-    ccActif = !ccActif;
-    $("#s-cc").setAttribute("aria-pressed", String(ccActif));
-    majSub();
-  };
-  const brancherPiste = () => { const t = piste(); if (t) { t.mode = "hidden"; t.oncuechange = majSub; } };
-  brancherPiste();
-  hv.addEventListener("loadedmetadata", () => { brancherPiste(); majSub(); majTemps(); });
+  surLangue(majCC); majCC();
+  const fermerMenu = (focus) => { if (menu.hidden) return; menu.hidden = true; cc.setAttribute("aria-expanded", "false"); if (focus) cc.focus(); };
+  cc.addEventListener("click", (e) => {
+    e.stopPropagation();
+    if (!menu.hidden) return fermerMenu();
+    menu.hidden = false; cc.setAttribute("aria-expanded", "true");
+    (menu.querySelector('[aria-checked="true"]') || menu.querySelector("button")).focus();
+  });
+  menu.addEventListener("click", (e) => { const b = e.target.closest("[data-lang]"); if (!b) return; e.stopPropagation(); choisirLangue(b.dataset.lang); fermerMenu(true); });
+  menu.addEventListener("keydown", (e) => {
+    const items = [...menu.querySelectorAll("button")], i = items.indexOf(document.activeElement);
+    if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); fermerMenu(true); }
+    else if (e.key === "ArrowDown" || e.key === "ArrowUp") { e.preventDefault(); e.stopPropagation(); items[(i + (e.key === "ArrowDown" ? 1 : -1) + items.length) % items.length].focus(); }
+  });
+  document.addEventListener("click", (e) => { if (!menu.contains(e.target)) fermerMenu(); });
+  hv.addEventListener("loadedmetadata", majTemps);
   ["play", "pause", "ended"].forEach((e) => hv.addEventListener(e, () => { majPlay(); majVol(); }));
   ["timeupdate", "durationchange", "progress", "loadedmetadata"].forEach((e) => hv.addEventListener(e, majTemps));
   hv.addEventListener("volumechange", majVol);
@@ -755,7 +847,6 @@ dialog.player::backdrop { background: rgba(5,4,4,.85); backdrop-filter: blur(4px
     e.currentTarget.textContent = String(vitesses[vIdx]).replace(".", ",") + "×";
     e.currentTarget.setAttribute("aria-label", "Vitesse de lecture : " + (vitesses[vIdx] === 1 ? "normale" : String(vitesses[vIdx]).replace(".", ",") + " fois"));
   });
-  $("#s-cc").addEventListener("click", ccOnOff);
   const pip = $("#s-pip");
   if (!document.pictureInPictureEnabled) pip.hidden = true;
   pip.addEventListener("click", () => { (document.pictureInPictureElement ? document.exitPictureInPicture() : hv.requestPictureInPicture()).catch(() => {}); });
@@ -766,7 +857,7 @@ dialog.player::backdrop { background: rgba(5,4,4,.85); backdrop-filter: blur(4px
   hv.addEventListener("click", () => { if (barreCachee) { barreCachee = false; montrerBarre(); return; } basculer(); });
   hv.addEventListener("dblclick", pleinEcran);
   sbox.addEventListener("keydown", (e) => {
-    if (e.target.matches("input")) return;
+    if (e.target.matches("input") || e.target.closest("#s-menu")) return;
     const k = e.key.toLowerCase();
     if (k === " " || k === "k") { if (e.target === sbox || k === "k") { e.preventDefault(); basculer(); } }
     else if (k === "arrowleft" && e.target === sbox) { e.preventDefault(); saut(-10); }
@@ -815,7 +906,7 @@ dialog.player::backdrop { background: rgba(5,4,4,.85); backdrop-filter: blur(4px
   majPlay(); majVol();
 
   function metaHTML(f) {
-    const tags = [f.nouveau ? '<span class="tag red">Nouveau</span>' : "", `<span class="tag">${esc(f.genre)}</span>`, '<span class="tag gold">VOSTFR</span>'].join("");
+    const tags = [f.nouveau ? '<span class="tag red">Nouveau</span>' : "", `<span class="tag">${esc(f.genre)}</span>`, '<span class="tag gold">VOST · FR EN ES PT</span>'].join("");
     const faits = [
       ["Sortie", f.annee],
       ["Épisodes", f.episodes],
@@ -886,12 +977,21 @@ dialog.player::backdrop { background: rgba(5,4,4,.85); backdrop-filter: blur(4px
   // ---------- Lecteur ----------
   const dlg = $("#player"), vid = $("#pl-video"), lock = $("#pl-lock"), nextUp = $("#next-up");
   let courant = null, ep = 1, compteur = null;
+  const selLang = $("#pl-lang");
+  const rechargerSubEp = brancherSousTitres(vid, $("#pl-sub"), () => (courant ? urlSousTitres(courant, ep, langue) : ""));
+  const majSel = () => {
+    selLang.innerHTML = [...langues, { code: "off", nom: "Désactivés" }].map((l) => `<option value="${esc(l.code)}"${l.code === langue ? " selected" : ""}>${esc(l.nom)}</option>`).join("");
+    if (courant) $("#pl-vost").textContent = langue === "off" ? "VO" : "VOST " + langue.toUpperCase();
+  };
+  surLangue(majSel); majSel();
+  selLang.addEventListener("change", () => choisirLangue(selLang.value));
 
   function ouvrir(id, n) {
     courant = parId[id]; if (!courant) return;
     $("#pl-title").textContent = courant.titre;
     $("#pl-syn").textContent = courant.synopsis;
-    $("#pl-meta").innerHTML = `<span class="tag">${esc(courant.genre)}</span><span class="tag gold">VOSTFR</span>`;
+    $("#pl-meta").innerHTML = `<span class="tag">${esc(courant.genre)}</span><span class="tag gold" id="pl-vost"></span>`;
+    majSel();
     $("#lock-han").textContent = courant.hanzi;
     hv.pause();
     if (!dlg.open) dlg.showModal();
@@ -918,7 +1018,8 @@ dialog.player::backdrop { background: rgba(5,4,4,.85); backdrop-filter: blur(4px
     const cur = $(`#pl-eps [data-ep="${n}"]`); if (cur) cur.scrollIntoView({ block: "nearest" });
     if (n > limite()) { verrouiller(); return; }
     lock.hidden = true;
-    const src = n === 0 ? (courant.bandeAnnonce || C.bandeAnnonce) : courant.video.replace("{n}", n);
+    const src = n === 0 ? (courant.bandeAnnonce || C.bandeAnnonce) : modele(courant.video, n, langue);
+    rechargerSubEp();
     if (vid.getAttribute("src") !== src) vid.src = src;
     else vid.currentTime = 0;
     const p = progres[courant.id];

@@ -7,7 +7,7 @@ lecteur vidéo par épisodes, offres, inscription gratuite et FAQ. Adaptée à t
 | --- | --- |
 | `index.html` | La page. Pas besoin de la modifier pour changer le contenu. |
 | `config.js` | Nom de la marque, films, adresses des vidéos, offres, nombre d'épisodes gratuits, connexion au CRM. |
-| `media/` | Deux vidéos de démonstration (8 s, générées, sans droits) à remplacer par les vraies. |
+| `media/` | Deux vidéos de démonstration (8 s, générées, sans droits) et leurs sous-titres en 4 langues, à remplacer par les vrais. |
 
 ## Fonctionnement du lecteur
 
@@ -33,6 +33,25 @@ Le défilement s'arrête au survol et avec le bouton pause. Le bouton « Votre a
 « Annonceurs et partenaires », dont le bouton ouvre WhatsApp (`whatsapp`) ou l'e-mail `contactPartenaires`.
 Liste vide = bande masquée.
 
+## Sous-titres en 4 langues
+
+Le lecteur propose des sous-titres en **français, anglais, espagnol et portugais** (liste `langues` dans `config.js`).
+Le spectateur choisit avec le bouton **CC** de l'écran principal, ou avec le menu « Sous-titres » de la fenêtre des épisodes.
+La touche C les active ou les coupe. Au départ, le site prend la langue du téléphone si elle est dans la liste, sinon la première.
+Le choix est mémorisé sur l'appareil.
+
+Un fichier par langue et par épisode, au format `.srt` ou `.vtt`. Dans `config.js`, chaque film indique un modèle d'adresse :
+
+```js
+sousTitres: "https://votre-stockage.exemple/le-nom-vole/le-nom-vole_ep{nn}.{lang}.srt"
+```
+
+`{lang}` devient `fr`, `en`, `es` ou `pt` ; `{n}` le numéro d'épisode (1, 2…) ; `{nn}` le numéro sur 2 chiffres (01, 02…).
+Ainsi `le-nom-vole_ep01.fr.srt`, `le-nom-vole_ep01.en.srt`, etc. Les sous-titres de la bande-annonce se règlent avec
+`sousTitresBandeAnnonce`. Gardez la vidéo **sans** sous-titres incrustés, sinon ils s'ajoutent à ceux choisis.
+
+Si les fichiers sont sur un autre domaine que le site (R2, Bunny…), autorisez-y le site (réglage CORS) pour qu'il puisse les lire.
+
 ## Ajouter vos films
 
 Dans `config.js`, chaque film a un `video` avec `{n}` remplacé par le numéro d'épisode :
@@ -41,7 +60,7 @@ Dans `config.js`, chaque film a un `video` avec `{n}` remplacé par le numéro d
 video: "https://votre-stockage.exemple/fiancee-jade/ep{n}.mp4"
 ```
 
-Format des vidéos : **horizontal 16:9 (comme YouTube)**, MP4 H.264, 1280×720 (720p) ou 1920×1080, sous-titres français incrustés, 2 à 3 minutes par épisode.
+Format des vidéos : **horizontal 16:9 (comme YouTube)**, MP4 H.264, 1280×720 (720p) ou 1920×1080, sans sous-titres incrustés (ils sont ajoutés par le lecteur, voir plus haut), 2 à 3 minutes par épisode.
 Hébergement des vidéos gratuit ou presque : Cloudflare R2 (10 Go gratuits, sans frais de sortie) ou Bunny Stream (quelques centimes par Go).
 N'utilisez que des films dont vous détenez les droits de diffusion.
 
