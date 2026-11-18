@@ -49,7 +49,7 @@ insert into sous_titres(film_id,langue,fichier_chemin,par_defaut,statut) values
  ('22222222-2222-2222-2222-222222222222','fr','st/ep1/fr.vtt',true,'pret'),
  ('22222222-2222-2222-2222-222222222222','en','st/ep1/en.vtt',false,'pret'),
  ('22222222-2222-2222-2222-222222222222','es','st/ep1/es.vtt',false,'pret'),
- ('22222222-2222-2222-2222-222222222222','pt','st/ep1/pt.vtt',false,'brouillon');
+ ('22222222-2222-2222-2222-222222222222','pt-BR','st/ep1/pt-BR.vtt',false,'brouillon');
 \echo '-- 2e langue par défaut (doit échouer)'
 update sous_titres set par_defaut=true where langue='en';
 \echo '-- langue non prévue (doit échouer)'

@@ -33,7 +33,7 @@ create table public.profils (
   nom_affiche            text,
   pays                   text,                 -- code ISO, ex. 'FR', 'CD'
   telephone              text,                 -- format international, ex. '+243...' (Mobile Money, SMS, WhatsApp)
-  langue                 text not null default 'fr',  -- langue de sous-titres préférée (fr, en, es, pt)
+  langue                 text not null default 'fr',  -- langue de sous-titres préférée (fr, en, es, pt-BR)
   role                   text not null default 'abonne'
                          check (role in ('abonne', 'admin')),
   source_acquisition     text,                 -- ex. 'tiktok', 'facebook', 'bouche-a-oreille'
@@ -153,7 +153,7 @@ create trigger films_maj
 create table public.sous_titres (
   film_id         uuid not null references public.films (id) on delete cascade,
   langue          text not null
-                  check (langue in ('fr', 'en', 'es', 'pt', 'zh')),
+                  check (langue in ('fr', 'en', 'es', 'pt-BR', 'zh')),  -- codes BCP 47 (attribut srclang du lecteur)
   fichier_chemin  text not null,              -- ex. 'sous-titres/ep01/fr.vtt'
   format          text not null default 'vtt' check (format in ('vtt', 'srt')),
   par_defaut      boolean not null default false,
