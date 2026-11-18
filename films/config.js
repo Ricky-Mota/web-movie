@@ -36,6 +36,13 @@ window.YING_CONFIG = {
     { partenaire: "Exemple d'annonceur", texte: "Votre promotion ici, vue par chaque spectateur dès l'ouverture du site." },
     { partenaire: "Bientôt", texte: "Paiement des pass par M-Pesa, Airtel Money et Orange Money." },
     { partenaire: "Annonceurs", texte: "Réservez cette bande pour vos sorties, événements et promotions.", lien: "#partenaires" }
+    // Partenaires potentiels : n'activer une ligne (retirer les //) qu'après leur accord écrit
+    // sur le texte et l'usage de leur nom. Les textes ci-dessous sont à valider avec chacun.
+    // , { partenaire: "Vodacom", texte: "Texte validé par Vodacom", lien: "https://…" }
+    // , { partenaire: "Rawbank", texte: "Texte validé par Rawbank", lien: "https://…" }
+    // , { partenaire: "Bralima", texte: "Texte validé par Bralima", lien: "https://…" }
+    // , { partenaire: "Bracongo", texte: "Texte validé par Bracongo", lien: "https://…" }
+    // , { partenaire: "Folucco", texte: "Texte validé par Folucco", lien: "https://…" }
   ],
 
   // Vidéo du héros (bande-annonce). Remplacez par l'adresse de votre vraie bande-annonce.

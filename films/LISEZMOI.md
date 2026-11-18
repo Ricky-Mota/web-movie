@@ -1,7 +1,7 @@
 # Zboss-Entertainment · landing page des courts films chinois
 
 Page statique (HTML + CSS + JavaScript, sans outil de build) : héros avec bande-annonce, catalogue filtrable,
-lecteur vidéo par épisodes, offres, inscription gratuite et FAQ. Pensée d'abord pour le téléphone.
+lecteur vidéo par épisodes, offres, inscription gratuite et FAQ. Adaptée à tous les écrans.
 
 | Fichier | Rôle |
 | --- | --- |
@@ -41,7 +41,7 @@ Dans `config.js`, chaque film a un `video` avec `{n}` remplacé par le numéro d
 video: "https://votre-stockage.exemple/fiancee-jade/ep{n}.mp4"
 ```
 
-Formats conseillés : MP4 H.264, 720p, sous-titres français incrustés, 2 à 3 minutes par épisode.
+Format des vidéos : **horizontal 16:9 (comme YouTube)**, MP4 H.264, 1280×720 (720p) ou 1920×1080, sous-titres français incrustés, 2 à 3 minutes par épisode.
 Hébergement des vidéos gratuit ou presque : Cloudflare R2 (10 Go gratuits, sans frais de sortie) ou Bunny Stream (quelques centimes par Go).
 N'utilisez que des films dont vous détenez les droits de diffusion.
 
