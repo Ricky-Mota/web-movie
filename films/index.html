@@ -64,20 +64,22 @@ section.block { padding-block: clamp(56px, 8vw, 96px); }
 .logo { display: flex; align-items: center; gap: 10px; text-decoration: none; color: var(--ink); font-family: var(--f-display); font-weight: 800; font-size: 1.35rem; }
 .logo i { font-style: normal; flex: none; display: grid; place-items: center; width: 36px; height: 36px; border-radius: 10px; background: var(--red); color: var(--gold-soft); font-family: var(--f-display); font-weight: 800; font-size: 22px; }
 .logo-txt { white-space: nowrap; }
-@media (max-width: 480px) { .logo { font-size: 1.1rem; } .hide-sm { display: none; } }
+.show-sm { display: none; }
+@media (max-width: 480px) { .logo { font-size: 1.1rem; } .hide-sm { display: none; } .show-sm { display: inline; } }
 .top nav { display: flex; gap: 4px; margin-left: auto; }
 .top nav a { color: var(--muted); text-decoration: none; font-weight: 500; font-size: 15px; padding: 8px 12px; border-radius: 8px; }
 .top nav a:hover { color: var(--ink); }
 @media (max-width: 760px) { .top nav { display: none; } .top .btn { margin-left: auto; } }
 
 /* Héros */
-.hero { position: relative; min-height: min(92vh, 820px); display: grid; align-items: end; isolation: isolate; overflow: hidden; }
+.hero { position: relative; display: grid; align-items: center; isolation: isolate; overflow: hidden; }
 .hero-media { position: absolute; inset: 0; z-index: -2; background: radial-gradient(120% 90% at 70% 20%, #7a1022 0%, #2a0a10 55%, var(--bg) 100%); }
-.hero-media video { width: 100%; height: 100%; object-fit: cover; opacity: .75; }
 .hero-han { position: absolute; right: 4vw; top: 50%; translate: 0 -55%; z-index: -1; font-family: var(--f-han); font-size: clamp(180px, 34vw, 460px); line-height: 1; color: rgba(243,213,138,.12); pointer-events: none; user-select: none; }
 .hero::after { content: ""; position: absolute; inset: 0; z-index: -1; background: linear-gradient(to top, var(--bg) 0%, rgba(14,11,10,.75) 35%, rgba(14,11,10,.15) 70%, rgba(14,11,10,.55) 100%), linear-gradient(to right, rgba(14,11,10,.85) 0%, rgba(14,11,10,0) 65%); }
-.hero .wrap { width: 100%; padding-block: 120px 56px; display: grid; gap: 18px; justify-items: start; }
-.hero h1 { font-size: clamp(2.4rem, 7vw, 5rem); font-weight: 800; max-width: 14ch; }
+.hero .wrap { width: 100%; padding-block: 112px 64px; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); gap: clamp(24px, 4vw, 56px); align-items: center; }
+.hero-text { display: grid; gap: 18px; justify-items: start; min-width: 0; }
+@media (max-width: 960px) { .hero .wrap { grid-template-columns: minmax(0, 1fr); padding-block: 96px 48px; } }
+.hero h1 { font-size: clamp(2.2rem, 5vw, 4rem); font-weight: 800; max-width: 14ch; }
 .hero .meta { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; color: var(--muted); font-size: 14px; }
 .tag { display: inline-flex; align-items: center; padding: 3px 10px; border-radius: 999px; font-size: 12.5px; font-weight: 600; background: rgba(255,255,255,.1); color: var(--ink); }
 .tag.gold { background: var(--gold); color: #2a1a02; }
@@ -86,8 +88,59 @@ section.block { padding-block: clamp(56px, 8vw, 96px); }
 .hero-cta { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 6px; }
 .hero-proof { display: flex; gap: 28px; flex-wrap: wrap; margin-top: 18px; color: var(--muted); font-size: 14px; }
 .hero-proof b { display: block; font-family: var(--f-display); font-size: 1.6rem; color: var(--ink); }
-.sound { position: absolute; right: max(16px, env(safe-area-inset-right)); bottom: 24px; width: 44px; height: 44px; border-radius: 50%; border: 1px solid rgba(255,255,255,.3); background: rgba(0,0,0,.35); color: #fff; display: grid; place-items: center; }
-.sound svg { width: 20px; height: 20px; }
+/* Écran du héros : lecteur avec ses propres commandes */
+.screen { display: grid; gap: 12px; min-width: 0; }
+.screen-tabs { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.screen-tabs button { border: 1px solid rgba(255,255,255,.18); background: rgba(0,0,0,.3); color: var(--muted); padding: 7px 14px; border-radius: 999px; font-size: 14px; font-weight: 600; min-height: 38px; }
+.screen-tabs button[aria-pressed="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.screen-tabs .live { margin-left: auto; font-size: 13px; color: var(--muted); display: inline-flex; align-items: center; gap: 8px; }
+.screen-tabs .live::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--red-hi); box-shadow: 0 0 0 4px rgba(224,40,63,.2); }
+.sbox { position: relative; aspect-ratio: 16 / 9; max-width: 100%; border-radius: 16px; overflow: hidden; background: #000; box-shadow: 0 30px 80px rgba(0,0,0,.55), 0 0 0 1px rgba(243,213,138,.18); outline: none; }
+.sbox:focus-visible { box-shadow: 0 30px 80px rgba(0,0,0,.55), 0 0 0 3px var(--gold); }
+.sbox video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; background: #000; }
+.s-sub { position: absolute; left: 50%; translate: -50% 0; bottom: 84px; z-index: 3; width: max-content; max-width: 88%; text-align: center; pointer-events: none; transition: bottom .25s; }
+.s-sub span { background: rgba(0,0,0,.75); color: #fff; font-size: clamp(14px, 1.6vw, 18px); line-height: 1.45; padding: 3px 10px; border-radius: 6px; box-decoration-break: clone; -webkit-box-decoration-break: clone; }
+.sbox.playing.idle .s-sub { bottom: 18px; }
+.sbox:fullscreen .s-sub span { font-size: 28px; }
+@media (max-width: 560px) { .s-sub { bottom: 70px; } }
+.sbox:fullscreen { border-radius: 0; aspect-ratio: auto; }
+.s-big { position: absolute; inset: 0; z-index: 2; display: grid; place-items: center; background: radial-gradient(60% 60% at 50% 50%, rgba(0,0,0,.15), rgba(0,0,0,.55)); border: 0; color: #fff; transition: opacity .2s; }
+.s-big span { width: 76px; height: 76px; border-radius: 50%; background: var(--red); display: grid; place-items: center; box-shadow: 0 10px 40px rgba(200,16,46,.5); }
+.s-big svg { width: 30px; height: 30px; margin-left: 4px; }
+.sbox.playing .s-big { opacity: 0; pointer-events: none; }
+.s-unmute { position: absolute; top: 12px; left: 12px; z-index: 3; display: inline-flex; gap: 8px; align-items: center; border: 0; border-radius: 999px; padding: 8px 14px; font-size: 14px; font-weight: 600; background: rgba(255,255,255,.92); color: #1a1210; }
+.s-unmute svg { width: 18px; height: 18px; }
+.s-end { position: absolute; inset: 0; z-index: 4; display: grid; place-items: center; text-align: center; padding: 20px; background: rgba(10,6,6,.82); }
+.s-end > div { display: grid; gap: 12px; justify-items: center; }
+.s-end .btns { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+.s-load { position: absolute; left: 50%; top: 50%; width: 44px; height: 44px; margin: -22px; border-radius: 50%; border: 3px solid rgba(255,255,255,.25); border-top-color: #fff; z-index: 2; animation: spin .8s linear infinite; }
+@keyframes spin { to { rotate: 360deg; } }
+.s-bar { position: absolute; left: 0; right: 0; bottom: 0; z-index: 3; padding: 28px 12px 10px; background: linear-gradient(to top, rgba(0,0,0,.85), rgba(0,0,0,0)); display: grid; gap: 6px; transition: opacity .25s; }
+.sbox.playing.idle .s-bar { opacity: 0; }
+.sbox.playing.idle { cursor: none; }
+.s-seek { width: 100%; height: 18px; margin: 0; background: transparent; cursor: pointer; -webkit-appearance: none; appearance: none; --p: 0%; --b: 0%; }
+.s-seek::-webkit-slider-runnable-track { height: 5px; border-radius: 5px; background: linear-gradient(to right, var(--red) var(--p), rgba(255,255,255,.45) var(--p), rgba(255,255,255,.45) var(--b), rgba(255,255,255,.2) var(--b)); }
+.s-seek::-moz-range-track { height: 5px; border-radius: 5px; background: linear-gradient(to right, var(--red) var(--p), rgba(255,255,255,.45) var(--p), rgba(255,255,255,.45) var(--b), rgba(255,255,255,.2) var(--b)); }
+.s-seek::-webkit-slider-thumb { -webkit-appearance: none; width: 15px; height: 15px; margin-top: -5px; border-radius: 50%; background: #fff; border: 0; }
+.s-seek::-moz-range-thumb { width: 15px; height: 15px; border-radius: 50%; background: #fff; border: 0; }
+.s-row { display: flex; align-items: center; gap: 2px; color: #fff; }
+.s-row .sp { flex: 1; }
+.s-btn { width: 40px; height: 40px; flex: none; border: 0; border-radius: 10px; background: transparent; color: #fff; display: grid; place-items: center; position: relative; }
+.s-btn:hover { background: rgba(255,255,255,.14); }
+.s-btn svg { width: 22px; height: 22px; }
+.s-btn small { position: absolute; font-size: 9px; font-weight: 700; top: 50%; left: 50%; translate: -50% -42%; }
+.s-btn[aria-pressed="true"] { color: var(--gold-soft); }
+.s-btn[aria-pressed="true"]::after { content: ""; position: absolute; left: 11px; right: 11px; bottom: 5px; height: 2px; border-radius: 2px; background: var(--gold); }
+.s-txt { font-size: 13px; font-variant-numeric: tabular-nums; padding: 0 8px; white-space: nowrap; color: #f3ebe4; }
+.s-speed { width: auto; min-width: 44px; padding: 0 8px; font-size: 13px; font-weight: 700; }
+.s-vol { width: 72px; accent-color: #fff; }
+@media (max-width: 560px) { .s-vol, .s-hide-sm { display: none; } .s-btn { width: 36px; height: 36px; } .s-txt { padding: 0 4px; font-size: 12px; } }
+.screen-foot { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; font-size: 14px; color: var(--muted); }
+.screen-foot b { color: var(--ink); font-weight: 600; }
+.linkbtn { all: unset; cursor: pointer; color: var(--gold-soft); font-weight: 600; display: inline-flex; gap: 6px; align-items: center; }
+.linkbtn:hover { text-decoration: underline; }
+.linkbtn:focus-visible { outline: 3px solid var(--gold); outline-offset: 3px; border-radius: 6px; }
+.kbd { font-size: 12.5px; color: var(--faint); }
 
 /* Rangées de films */
 .row-wrap { position: relative; }
@@ -237,18 +290,17 @@ dialog.player::backdrop { background: rgba(5,4,4,.85); backdrop-filter: blur(4px
       <a href="#offres">Offres</a>
       <a href="#faq">FAQ</a>
     </nav>
-    <a class="btn btn-red btn-sm" href="#inscription">S'inscrire<span class="hide-sm">&nbsp;gratuitement</span></a>
+    <a class="btn btn-red btn-sm" href="#inscription"><span class="hide-sm">S'inscrire gratuitement</span><span class="show-sm">S'inscrire</span></a>
   </div>
 </header>
 
 <main id="accueil">
-  <!-- Héros : bande-annonce en fond, film à la une -->
+  <!-- Héros : film à la une à gauche, écran de lecture à droite -->
   <section class="hero" aria-labelledby="hero-title">
-    <div class="hero-media" aria-hidden="true">
-      <video id="hero-video" muted loop playsinline preload="metadata"></video>
-    </div>
+    <div class="hero-media" aria-hidden="true"></div>
     <div class="hero-han" id="hero-han" aria-hidden="true">玉</div>
     <div class="wrap">
+      <div class="hero-text">
       <p class="eyebrow">À la une cette semaine</p>
       <h1 id="hero-title">La Fiancée de jade</h1>
       <div class="meta" id="hero-meta"></div>
@@ -268,10 +320,54 @@ dialog.player::backdrop { background: rgba(5,4,4,.85); backdrop-filter: blur(4px
         <div><b>2–3 min</b>par épisode</div>
         <div><b>VOSTFR</b>sous-titres français</div>
       </div>
+      </div>
+
+      <div class="screen" id="screen">
+        <div class="screen-tabs" role="group" aria-label="Choisir la vidéo">
+          <button type="button" data-src="0" aria-pressed="true">Bande-annonce</button>
+          <button type="button" data-src="1" aria-pressed="false">Épisode 1 · gratuit</button>
+          <span class="live s-hide-sm">En ce moment</span>
+        </div>
+        <div class="sbox" id="sbox" tabindex="0" aria-label="Lecteur vidéo. Espace : lecture ou pause. Flèches : reculer ou avancer de 10 secondes. M : son. F : plein écran. C : sous-titres.">
+          <video id="sv" playsinline preload="metadata" muted>
+            <track kind="subtitles" srclang="fr" label="Français" src="media/sous-titres-demo.vtt" default>
+          </video>
+          <div class="s-sub" id="s-sub" aria-live="polite"></div>
+          <div class="s-load" id="s-load" hidden></div>
+          <button class="s-big" id="s-big" type="button" aria-label="Lire la vidéo"><span><svg viewBox="0 0 24 24" fill="currentColor" style="width:30px;height:30px" aria-hidden="true"><path d="M7 4.5v15a1 1 0 0 0 1.5.86l12.5-7.5a1 1 0 0 0 0-1.72L8.5 3.64A1 1 0 0 0 7 4.5z"/></svg></span></button>
+          <button class="s-unmute" id="s-unmute" type="button" hidden>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 9v6h4l5 4V5L8 9z" fill="currentColor"/><path d="M17 9l4 6M21 9l-4 6"/></svg>
+            Activer le son
+          </button>
+          <div class="s-end" id="s-end" hidden>
+            <div>
+              <h3 id="s-end-title" style="font-size:1.3rem">Fin de la bande-annonce</h3>
+              <div class="btns" id="s-end-btns"></div>
+            </div>
+          </div>
+          <div class="s-bar" id="s-bar">
+            <input class="s-seek" id="s-seek" type="range" min="0" max="1000" step="1" value="0" aria-label="Position dans la vidéo">
+            <div class="s-row">
+              <button class="s-btn" id="s-play" type="button" aria-label="Lecture"><svg id="i-play" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 4.5v15a1 1 0 0 0 1.5.86l12.5-7.5a1 1 0 0 0 0-1.72L8.5 3.64A1 1 0 0 0 7 4.5z"/></svg><svg id="i-pause" hidden viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="4.5" width="4" height="15" rx="1"/><rect x="14" y="4.5" width="4" height="15" rx="1"/></svg></button>
+              <button class="s-btn" id="s-back" type="button" aria-label="Reculer de 10 secondes"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></svg><small>10</small></button>
+              <button class="s-btn" id="s-fwd" type="button" aria-label="Avancer de 10 secondes"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 4v5h-5"/></svg><small>10</small></button>
+              <button class="s-btn" id="s-mute" type="button" aria-label="Activer le son"><svg id="i-vol" hidden viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 9v6h4l5 4V5L8 9z" fill="currentColor"/><path d="M16 8.5a5 5 0 0 1 0 7M19 5.5a9 9 0 0 1 0 13"/></svg><svg id="i-muted" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 9v6h4l5 4V5L8 9z" fill="currentColor"/><path d="M17 9l4 6M21 9l-4 6"/></svg></button>
+              <input class="s-vol" id="s-vol" type="range" min="0" max="1" step="0.05" value="1" aria-label="Volume">
+              <span class="s-txt" id="s-time" aria-live="off">0:00 / 0:00</span>
+              <span class="sp"></span>
+              <button class="s-btn s-speed" id="s-speed" type="button" aria-label="Vitesse de lecture : normale">1×</button>
+              <button class="s-btn" id="s-cc" type="button" aria-label="Sous-titres français" aria-pressed="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M10.5 10.2a2.2 2.2 0 1 0 0 3.6M17 10.2a2.2 2.2 0 1 0 0 3.6"/></svg></button>
+              <button class="s-btn s-hide-sm" id="s-pip" type="button" aria-label="Image dans l'image"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="2.5" y="4.5" width="19" height="15" rx="2"/><rect x="12" y="11" width="7" height="6" rx="1" fill="currentColor"/></svg></button>
+              <button class="s-btn" id="s-full" type="button" aria-label="Plein écran"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
+            </div>
+          </div>
+        </div>
+        <div class="screen-foot">
+          <span>Lecture : <b id="s-now">Bande-annonce</b></span>
+          <button class="linkbtn" id="s-all" type="button">Tous les épisodes →</button>
+        </div>
+      </div>
     </div>
-    <button class="sound" id="hero-sound" type="button" aria-label="Activer le son" aria-pressed="false" hidden>
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 9v6h4l5 4V5L8 9z" fill="currentColor"/><path d="M17 9l4 6M21 9l-4 6"/></svg>
-    </button>
   </section>
 
   <!-- Continuer à regarder (affiché seulement s'il y a une progression enregistrée) -->
@@ -484,19 +580,134 @@ dialog.player::backdrop { background: rgba(5,4,4,.85); backdrop-filter: blur(4px
   $("#hero-han").textContent = une.hanzi;
   $("#hero-syn").textContent = une.synopsis;
   $("#hero-meta").innerHTML = metaHTML(une);
-  const hv = $("#hero-video");
-  const heroSrc = une.bandeAnnonce || C.bandeAnnonce;
-  if (heroSrc && !reduceMotion) {
-    hv.src = heroSrc;
-    hv.play().then(() => { $("#hero-sound").hidden = false; }).catch(() => {});
+  // ---------- Écran du héros ----------
+  const sbox = $("#sbox"), hv = $("#sv"), seek = $("#s-seek"), vol = $("#s-vol");
+  const fmt = (t) => { t = Math.max(0, Math.floor(t || 0)); return Math.floor(t / 60) + ":" + String(t % 60).padStart(2, "0"); };
+  const vitesses = [1, 1.25, 1.5, 2, 0.75];
+  let srcHero = 0; // 0 = bande-annonce, 1 = épisode 1
+  function chargerHero(n, jouer) {
+    srcHero = n;
+    document.querySelectorAll("#screen .screen-tabs [data-src]").forEach((b) => b.setAttribute("aria-pressed", String(+b.dataset.src === n)));
+    $("#s-now").textContent = n === 0 ? "Bande-annonce · " + une.titre : "Épisode 1 · " + une.titre;
+    $("#s-end").hidden = true;
+    hv.src = n === 0 ? (une.bandeAnnonce || C.bandeAnnonce) : une.video.replace("{n}", 1);
+    hv.playbackRate = vitesses[vIdx];
+    if (jouer) hv.play().catch(() => {});
   }
-  $("#hero-sound").addEventListener("click", (e) => {
-    hv.muted = !hv.muted;
-    e.currentTarget.setAttribute("aria-pressed", String(!hv.muted));
-    e.currentTarget.setAttribute("aria-label", hv.muted ? "Activer le son" : "Couper le son");
+  let vIdx = 0;
+  const majPlay = () => {
+    const p = !hv.paused && !hv.ended;
+    sbox.classList.toggle("playing", p);
+    $("#i-play").hidden = p; $("#i-pause").hidden = !p;
+    $("#s-play").setAttribute("aria-label", p ? "Pause" : "Lecture");
+  };
+  const majVol = () => {
+    const m = hv.muted || hv.volume === 0;
+    $("#i-vol").hidden = m; $("#i-muted").hidden = !m;
+    $("#s-mute").setAttribute("aria-label", m ? "Activer le son" : "Couper le son");
+    vol.value = hv.muted ? 0 : hv.volume;
+    $("#s-unmute").hidden = !(hv.muted && !hv.paused);
+  };
+  const majTemps = () => {
+    const d = hv.duration || 0;
+    const p = d ? (hv.currentTime / d) * 100 : 0;
+    if (!seek.matches(":active")) seek.value = Math.round(p * 10);
+    seek.style.setProperty("--p", p + "%");
+    let b = 0; try { if (hv.buffered.length) b = (hv.buffered.end(hv.buffered.length - 1) / d) * 100; } catch {}
+    seek.style.setProperty("--b", (b || p) + "%");
+    $("#s-time").textContent = fmt(hv.currentTime) + " / " + fmt(d);
+    seek.setAttribute("aria-valuetext", fmt(hv.currentTime) + " sur " + fmt(d));
+  };
+  const basculer = () => { if (hv.paused || hv.ended) hv.play().catch(() => {}); else hv.pause(); };
+  const saut = (s) => { hv.currentTime = Math.min(Math.max(0, hv.currentTime + s), hv.duration || 0); montrerBarre(); };
+  const sonOnOff = () => { hv.muted = !hv.muted; if (!hv.muted && hv.volume === 0) hv.volume = 1; };
+  const pleinEcran = () => {
+    if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+    else if (sbox.requestFullscreen) sbox.requestFullscreen().catch(() => {});
+    else if (hv.webkitEnterFullscreen) hv.webkitEnterFullscreen();
+  };
+  const piste = () => hv.textTracks && hv.textTracks[0];
+  let ccActif = true;
+  const majSub = () => {
+    const t = piste(), box = $("#s-sub");
+    const cues = t && t.activeCues ? [...t.activeCues] : [];
+    box.innerHTML = ccActif && cues.length ? cues.map((c) => `<span>${esc(c.text)}</span>`).join("<br>") : "";
+  };
+  const ccOnOff = () => {
+    ccActif = !ccActif;
+    $("#s-cc").setAttribute("aria-pressed", String(ccActif));
+    majSub();
+  };
+  const brancherPiste = () => { const t = piste(); if (t) { t.mode = "hidden"; t.oncuechange = majSub; } };
+  brancherPiste();
+  hv.addEventListener("loadedmetadata", () => { brancherPiste(); majSub(); majTemps(); });
+  ["play", "pause", "ended"].forEach((e) => hv.addEventListener(e, () => { majPlay(); majVol(); }));
+  ["timeupdate", "durationchange", "progress", "loadedmetadata"].forEach((e) => hv.addEventListener(e, majTemps));
+  hv.addEventListener("volumechange", majVol);
+  hv.addEventListener("waiting", () => ($("#s-load").hidden = false));
+  ["playing", "canplay", "pause"].forEach((e) => hv.addEventListener(e, () => ($("#s-load").hidden = true)));
+  hv.addEventListener("ended", () => {
+    const end = $("#s-end"), btns = $("#s-end-btns");
+    if (srcHero === 0) {
+      $("#s-end-title").textContent = "Envie de voir la suite ?";
+      btns.innerHTML = '<button class="btn btn-red" type="button" data-e="ep1">Regarder l\'épisode 1</button><button class="btn btn-glass" type="button" data-e="replay">Revoir</button>';
+    } else {
+      $("#s-end-title").textContent = "Fin de l'épisode 1";
+      btns.innerHTML = '<button class="btn btn-red" type="button" data-e="ep2">Épisode 2</button><button class="btn btn-glass" type="button" data-e="replay">Revoir</button>';
+    }
+    end.hidden = false;
   });
-  $("#hero-play").addEventListener("click", () => ouvrir(une.id, 1));
-  $("#hero-trailer").addEventListener("click", () => ouvrir(une.id, 0));
+  $("#s-end-btns").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-e]"); if (!b) return;
+    $("#s-end").hidden = true;
+    if (b.dataset.e === "ep1") { hv.muted = false; chargerHero(1, true); }
+    else if (b.dataset.e === "ep2") ouvrir(une.id, 2);
+    else { hv.currentTime = 0; hv.play().catch(() => {}); }
+  });
+
+  $("#s-big").addEventListener("click", () => { if (hv.muted && hv.currentTime < 0.5) hv.muted = false; hv.play().catch(() => {}); sbox.focus({ preventScroll: true }); });
+  $("#s-unmute").addEventListener("click", () => { hv.muted = false; hv.volume = hv.volume || 1; });
+  $("#s-play").addEventListener("click", basculer);
+  $("#s-back").addEventListener("click", () => saut(-10));
+  $("#s-fwd").addEventListener("click", () => saut(10));
+  $("#s-mute").addEventListener("click", sonOnOff);
+  vol.addEventListener("input", () => { hv.volume = +vol.value; hv.muted = +vol.value === 0; });
+  seek.addEventListener("input", () => { if (hv.duration) { hv.currentTime = (seek.value / 1000) * hv.duration; $("#s-end").hidden = true; } });
+  $("#s-speed").addEventListener("click", (e) => {
+    vIdx = (vIdx + 1) % vitesses.length; hv.playbackRate = vitesses[vIdx];
+    e.currentTarget.textContent = String(vitesses[vIdx]).replace(".", ",") + "×";
+    e.currentTarget.setAttribute("aria-label", "Vitesse de lecture : " + (vitesses[vIdx] === 1 ? "normale" : String(vitesses[vIdx]).replace(".", ",") + " fois"));
+  });
+  $("#s-cc").addEventListener("click", ccOnOff);
+  const pip = $("#s-pip");
+  if (!document.pictureInPictureEnabled) pip.hidden = true;
+  pip.addEventListener("click", () => { (document.pictureInPictureElement ? document.exitPictureInPicture() : hv.requestPictureInPicture()).catch(() => {}); });
+  $("#s-full").addEventListener("click", pleinEcran);
+  hv.addEventListener("click", basculer);
+  hv.addEventListener("dblclick", pleinEcran);
+  sbox.addEventListener("keydown", (e) => {
+    if (e.target.matches("input")) return;
+    const k = e.key.toLowerCase();
+    if (k === " " || k === "k") { if (e.target === sbox || k === "k") { e.preventDefault(); basculer(); } }
+    else if (k === "arrowleft" && e.target === sbox) { e.preventDefault(); saut(-10); }
+    else if (k === "arrowright" && e.target === sbox) { e.preventDefault(); saut(10); }
+    else if (k === "m") sonOnOff();
+    else if (k === "f") pleinEcran();
+    else if (k === "c") ccOnOff();
+  });
+  // Barre de commandes qui s'efface pendant la lecture
+  let idleT;
+  function montrerBarre() { sbox.classList.remove("idle"); clearTimeout(idleT); idleT = setTimeout(() => { if (!sbox.matches(":focus-within") || document.fullscreenElement) sbox.classList.add("idle"); }, 2600); }
+  ["pointermove", "pointerdown", "focusin", "keydown"].forEach((e) => sbox.addEventListener(e, montrerBarre));
+
+  document.querySelectorAll("#screen .screen-tabs [data-src]").forEach((b) => b.addEventListener("click", () => chargerHero(+b.dataset.src, true)));
+  $("#s-all").addEventListener("click", () => ouvrir(une.id, srcHero === 1 ? 1 : 0));
+  $("#hero-play").addEventListener("click", () => { hv.muted = false; chargerHero(1, true); if (innerWidth < 960) sbox.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block: "center" }); });
+  $("#hero-trailer").addEventListener("click", () => { hv.muted = false; chargerHero(0, true); if (innerWidth < 960) sbox.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block: "center" }); });
+
+  chargerHero(0, false);
+  if (!reduceMotion) hv.play().catch(() => {}); // démarre en muet, comme une bande-annonce de cinéma
+  majPlay(); majVol();
 
   function metaHTML(f) {
     return [
@@ -666,7 +877,6 @@ dialog.player::backdrop { background: rgba(5,4,4,.85); backdrop-filter: blur(4px
   dlg.addEventListener("close", () => {
     annulerSuivant(); vid.pause();
     rendreContinuer(); rendreGrille();
-    if (!reduceMotion && hv.src) hv.play().catch(() => {});
   });
 
   // ---------- Inscription ----------
