@@ -715,6 +715,12 @@ dialog.player::backdrop { background: rgba(5,4,4,.85); backdrop-filter: blur(4px
   hv.addEventListener("volumechange", majVol);
   hv.addEventListener("waiting", () => ($("#s-load").hidden = false));
   ["playing", "canplay", "pause"].forEach((e) => hv.addEventListener(e, () => ($("#s-load").hidden = true)));
+  hv.addEventListener("error", () => {
+    $("#s-load").hidden = true;
+    $("#s-end-title").textContent = "La vidéo n'a pas pu se charger. Vérifiez votre connexion.";
+    $("#s-end-btns").innerHTML = '<button class="btn btn-red" type="button" data-e="reload">Réessayer</button>';
+    $("#s-end").hidden = false;
+  });
   hv.addEventListener("ended", () => {
     const end = $("#s-end"), btns = $("#s-end-btns");
     if (srcHero === 0) {
@@ -729,7 +735,8 @@ dialog.player::backdrop { background: rgba(5,4,4,.85); backdrop-filter: blur(4px
   $("#s-end-btns").addEventListener("click", (e) => {
     const b = e.target.closest("[data-e]"); if (!b) return;
     $("#s-end").hidden = true;
-    if (b.dataset.e === "ep1") { hv.muted = false; chargerHero(1, true); }
+    if (b.dataset.e === "reload") { hv.load(); hv.play().catch(() => {}); }
+    else if (b.dataset.e === "ep1") { hv.muted = false; chargerHero(1, true); }
     else if (b.dataset.e === "ep2") ouvrir(une.id, 2);
     else { hv.currentTime = 0; hv.play().catch(() => {}); }
   });
@@ -753,7 +760,10 @@ dialog.player::backdrop { background: rgba(5,4,4,.85); backdrop-filter: blur(4px
   if (!document.pictureInPictureEnabled) pip.hidden = true;
   pip.addEventListener("click", () => { (document.pictureInPictureElement ? document.exitPictureInPicture() : hv.requestPictureInPicture()).catch(() => {}); });
   $("#s-full").addEventListener("click", pleinEcran);
-  hv.addEventListener("click", basculer);
+  // Sur téléphone, un premier appui sur la vidéo fait réapparaître les boutons au lieu de mettre en pause
+  let barreCachee = false;
+  hv.addEventListener("pointerdown", () => { barreCachee = sbox.classList.contains("idle"); }, true);
+  hv.addEventListener("click", () => { if (barreCachee) { barreCachee = false; montrerBarre(); return; } basculer(); });
   hv.addEventListener("dblclick", pleinEcran);
   sbox.addEventListener("keydown", (e) => {
     if (e.target.matches("input")) return;
