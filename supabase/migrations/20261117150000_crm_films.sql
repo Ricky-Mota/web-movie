@@ -1,7 +1,7 @@
 -- =====================================================================
 -- CRM Films courts chinois : modèle de données
--- Tables : profils, films, abonnements, visionnages, campagnes,
---          campagne_envois  (+ vue vue_crm_abonnes)
+-- Tables : profils, series, films (épisodes ou films seuls), sous_titres,
+--          abonnements, visionnages, campagnes, campagne_envois  (+ vue vue_crm_abonnes)
 -- Cible   : Supabase (Postgres 15+). Sécurité par RLS sur chaque table.
 -- NB      : cette migration n'a PAS été appliquée sur un projet Supabase.
 -- =====================================================================
@@ -33,7 +33,7 @@ create table public.profils (
   nom_affiche            text,
   pays                   text,                 -- code ISO, ex. 'FR', 'CD'
   telephone              text,                 -- format international, ex. '+243...' (Mobile Money, SMS, WhatsApp)
-  langue                 text not null default 'fr',
+  langue                 text not null default 'fr',  -- langue de sous-titres préférée (fr, en, es, pt)
   role                   text not null default 'abonne'
                          check (role in ('abonne', 'admin')),
   source_acquisition     text,                 -- ex. 'tiktok', 'facebook', 'bouche-a-oreille'
@@ -83,7 +83,28 @@ as $$
 $$;
 
 -- ---------------------------------------------------------------------
--- 2. FILMS (le catalogue)
+-- 2. SERIES (une série regroupe plusieurs épisodes)
+-- ---------------------------------------------------------------------
+create table public.series (
+  id              uuid primary key default gen_random_uuid(),
+  slug            text not null unique,
+  titre           text not null,
+  titre_original  text,
+  synopsis        text,
+  genres          text[] not null default '{}',
+  affiche_url     text,
+  statut          text not null default 'brouillon'
+                  check (statut in ('brouillon', 'publie', 'archive')),
+  cree_le         timestamptz not null default now(),
+  mis_a_jour_le   timestamptz not null default now()
+);
+
+create trigger series_maj
+  before update on public.series
+  for each row execute function public.maj_horodatage();
+
+-- ---------------------------------------------------------------------
+-- 3. FILMS (le catalogue : un film seul OU un épisode d'une série)
 -- ---------------------------------------------------------------------
 create table public.films (
   id                 uuid primary key default gen_random_uuid(),
@@ -95,7 +116,9 @@ create table public.films (
   duree_secondes     integer check (duree_secondes > 0),
   annee              smallint check (annee between 1900 and 2100),
   langue_originale   text not null default 'zh',
-  sous_titres        text[] not null default '{fr}',
+  serie_id           uuid references public.series (id) on delete cascade,  -- vide = film seul
+  saison             smallint check (saison >= 1),
+  numero_episode     smallint check (numero_episode >= 1),
   affiche_url        text,
   bande_annonce_url  text,
   video_chemin       text,                     -- chemin dans Supabase Storage (bucket privé)
@@ -105,8 +128,16 @@ create table public.films (
                      check (statut in ('brouillon', 'publie', 'archive')),
   publie_le          timestamptz,
   cree_le            timestamptz not null default now(),
-  mis_a_jour_le      timestamptz not null default now()
+  mis_a_jour_le      timestamptz not null default now(),
+  -- un épisode a forcément une série et un numéro ; un film seul n'en a pas
+  check ((serie_id is null and numero_episode is null and saison is null)
+      or (serie_id is not null and numero_episode is not null))
 );
+
+-- Pas deux épisodes avec le même numéro dans la même saison.
+create unique index films_episode_unique_idx
+  on public.films (serie_id, coalesce(saison, 1), numero_episode)
+  where serie_id is not null;
 
 create index films_publies_idx on public.films (publie_le desc) where statut = 'publie';
 
@@ -115,7 +146,34 @@ create trigger films_maj
   for each row execute function public.maj_horodatage();
 
 -- ---------------------------------------------------------------------
--- 3. ABONNEMENTS
+-- 4. SOUS-TITRES : une piste par langue et par film/épisode
+-- Fichier WebVTT (.vtt, format lu nativement par le lecteur HTML5)
+-- stocké dans Supabase Storage.
+-- ---------------------------------------------------------------------
+create table public.sous_titres (
+  film_id         uuid not null references public.films (id) on delete cascade,
+  langue          text not null
+                  check (langue in ('fr', 'en', 'es', 'pt', 'zh')),
+  fichier_chemin  text not null,              -- ex. 'sous-titres/ep01/fr.vtt'
+  format          text not null default 'vtt' check (format in ('vtt', 'srt')),
+  par_defaut      boolean not null default false,
+  statut          text not null default 'brouillon'
+                  check (statut in ('brouillon', 'pret')),
+  cree_le         timestamptz not null default now(),
+  mis_a_jour_le   timestamptz not null default now(),
+  primary key (film_id, langue)
+);
+
+-- Une seule langue « par défaut » par film.
+create unique index sous_titres_un_defaut_idx
+  on public.sous_titres (film_id) where par_defaut;
+
+create trigger sous_titres_maj
+  before update on public.sous_titres
+  for each row execute function public.maj_horodatage();
+
+-- ---------------------------------------------------------------------
+-- 5. ABONNEMENTS
 -- Historique complet : une ligne par période d'abonnement.
 -- Écrit par le serveur (webhook de paiement), lu par l'abonné.
 -- ---------------------------------------------------------------------
@@ -151,7 +209,7 @@ create trigger abonnements_maj
   for each row execute function public.maj_horodatage();
 
 -- ---------------------------------------------------------------------
--- 4. VISIONNAGES
+-- 6. VISIONNAGES
 -- Une ligne par couple (personne, film) : sert à « reprendre la lecture »
 -- et à mesurer l'engagement dans le CRM.
 -- ---------------------------------------------------------------------
@@ -171,7 +229,7 @@ create index visionnages_film_idx on public.visionnages (film_id);
 create index visionnages_recents_idx on public.visionnages (dernier_visionnage_le desc);
 
 -- ---------------------------------------------------------------------
--- 5. CAMPAGNES (marketing : email, SMS, WhatsApp, notification)
+-- 7. CAMPAGNES (marketing : email, SMS, WhatsApp, notification)
 -- ---------------------------------------------------------------------
 create table public.campagnes (
   id             uuid primary key default gen_random_uuid(),
@@ -198,7 +256,7 @@ create trigger campagnes_maj
   before update on public.campagnes
   for each row execute function public.maj_horodatage();
 
--- 5 bis. Qui a reçu quelle campagne, et a-t-il ouvert / cliqué ?
+-- 7 bis. Qui a reçu quelle campagne, et a-t-il ouvert / cliqué ?
 create table public.campagne_envois (
   campagne_id     uuid not null references public.campagnes (id) on delete cascade,
   utilisateur_id  uuid not null references public.profils (id) on delete cascade,
@@ -253,7 +311,9 @@ left join lateral (
 -- SÉCURITÉ : Row Level Security (qui peut lire / écrire quoi)
 -- =====================================================================
 alter table public.profils          enable row level security;
+alter table public.series           enable row level security;
 alter table public.films            enable row level security;
+alter table public.sous_titres      enable row level security;
 alter table public.abonnements      enable row level security;
 alter table public.visionnages      enable row level security;
 alter table public.campagnes        enable row level security;
@@ -281,6 +341,31 @@ create policy "films_lecture_publies" on public.films
   using (statut = 'publie' or (select public.est_admin()));
 
 create policy "films_gestion_admin" on public.films
+  for all to authenticated
+  using ((select public.est_admin()))
+  with check ((select public.est_admin()));
+
+-- SERIES : même règle que les films.
+create policy "series_lecture_publiees" on public.series
+  for select to anon, authenticated
+  using (statut = 'publie' or (select public.est_admin()));
+
+create policy "series_gestion_admin" on public.series
+  for all to authenticated
+  using ((select public.est_admin()))
+  with check ((select public.est_admin()));
+
+-- SOUS-TITRES : visibles si la piste est prête et le film publié.
+create policy "sous_titres_lecture" on public.sous_titres
+  for select to anon, authenticated
+  using (
+    (statut = 'pret' and exists (
+      select 1 from public.films f
+      where f.id = film_id and f.statut = 'publie'))
+    or (select public.est_admin())
+  );
+
+create policy "sous_titres_gestion_admin" on public.sous_titres
   for all to authenticated
   using ((select public.est_admin()))
   with check ((select public.est_admin()));
