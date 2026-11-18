@@ -749,7 +749,7 @@ dialog.player::backdrop { background: rgba(5,4,4,.85); backdrop-filter: blur(4px
   });
   $("#q").addEventListener("input", (e) => { recherche = e.target.value.trim().toLowerCase(); rendreGrille(); });
 
-  const norm = (s) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+  const norm = (s) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
   function rendreGrille() {
     const q = norm(recherche);
     const liste = films.filter((f) => (filtreGenre === "Tous" || f.genre === filtreGenre) && (!q || norm(f.titre + " " + f.synopsis).includes(q)));
