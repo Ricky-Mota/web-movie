@@ -1,4 +1,4 @@
-# Yǐng · landing page des courts films chinois
+# Zboss-Entertainment · landing page des courts films chinois
 
 Page statique (HTML + CSS + JavaScript, sans outil de build) : héros avec bande-annonce, catalogue filtrable,
 lecteur vidéo par épisodes, offres, inscription gratuite et FAQ. Pensée d'abord pour le téléphone.

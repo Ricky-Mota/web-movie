@@ -3,12 +3,12 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Yǐng · Courts films chinois en VOSTFR</title>
+<title>Zboss-Entertainment · Courts films chinois en VOSTFR</title>
 <meta name="description" content="Courts films et mini-séries chinoises sous-titrés en français. Premiers épisodes gratuits, inscription en 30 secondes.">
-<meta property="og:title" content="Yǐng · Courts films chinois en VOSTFR">
+<meta property="og:title" content="Zboss-Entertainment · Courts films chinois en VOSTFR">
 <meta property="og:description" content="Romance, historique, fantastique : des épisodes de 2 minutes, sous-titrés en français.">
 <meta name="theme-color" content="#0e0b0a">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23c8102e'/%3E%3Ctext x='32' y='45' font-size='38' text-anchor='middle' fill='%23f3d58a' font-family='serif'%3E影%3C/text%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23c8102e'/%3E%3Ctext x='32' y='45' font-size='38' text-anchor='middle' fill='%23f3d58a' font-family='Georgia,serif' font-weight='bold'%3EZ%3C/text%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,800&family=Inter:wght@400;500;600;700&display=swap">
@@ -62,7 +62,9 @@ section.block { padding-block: clamp(56px, 8vw, 96px); }
 .top.solid { background: rgba(14,11,10,.92); backdrop-filter: blur(10px); border-color: var(--line); }
 .top .wrap { display: flex; align-items: center; gap: 20px; height: 64px; }
 .logo { display: flex; align-items: center; gap: 10px; text-decoration: none; color: var(--ink); font-family: var(--f-display); font-weight: 800; font-size: 1.35rem; }
-.logo i { font-style: normal; display: grid; place-items: center; width: 36px; height: 36px; border-radius: 10px; background: var(--red); color: var(--gold-soft); font-family: var(--f-han); font-size: 22px; }
+.logo i { font-style: normal; flex: none; display: grid; place-items: center; width: 36px; height: 36px; border-radius: 10px; background: var(--red); color: var(--gold-soft); font-family: var(--f-display); font-weight: 800; font-size: 22px; }
+.logo-txt { white-space: nowrap; }
+@media (max-width: 480px) { .logo { font-size: 1.1rem; } .hide-sm { display: none; } }
 .top nav { display: flex; gap: 4px; margin-left: auto; }
 .top nav a { color: var(--muted); text-decoration: none; font-weight: 500; font-size: 15px; padding: 8px 12px; border-radius: 8px; }
 .top nav a:hover { color: var(--ink); }
@@ -228,14 +230,14 @@ dialog.player::backdrop { background: rgba(5,4,4,.85); backdrop-filter: blur(4px
 
 <header class="top" id="top">
   <div class="wrap">
-    <a class="logo" href="#accueil" aria-label="Accueil"><i aria-hidden="true">影</i><span data-brand>Yǐng</span></a>
+    <a class="logo" href="#accueil" aria-label="Accueil"><i aria-hidden="true">Z</i><span class="logo-txt"><span data-brand>Zboss-Entertainment</span></span></a>
     <nav aria-label="Navigation principale">
       <a href="#catalogue">Catalogue</a>
       <a href="#comment">Comment ça marche</a>
       <a href="#offres">Offres</a>
       <a href="#faq">FAQ</a>
     </nav>
-    <a class="btn btn-red btn-sm" href="#inscription">S'inscrire gratuitement</a>
+    <a class="btn btn-red btn-sm" href="#inscription">S'inscrire<span class="hide-sm">&nbsp;gratuitement</span></a>
   </div>
 </header>
 
@@ -396,7 +398,7 @@ dialog.player::backdrop { background: rgba(5,4,4,.85); backdrop-filter: blur(4px
 
 <footer>
   <div class="wrap">
-    <span>© <span id="year"></span> <span data-brand>Yǐng</span>. Courts films chinois en VOSTFR.</span>
+    <span>© <span id="year"></span> <span data-brand>Zboss-Entertainment</span>. Courts films chinois en VOSTFR.</span>
     <nav aria-label="Pied de page"><a href="#catalogue">Catalogue</a><a href="#offres">Offres</a><a href="#inscription">Inscription</a><a href="#faq">FAQ</a></nav>
   </div>
 </footer>

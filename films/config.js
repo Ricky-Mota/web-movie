@@ -1,7 +1,7 @@
-// Réglages de la landing page « Yǐng ». Tout ce qui change souvent est ici :
+// Réglages de la landing page « Zboss-Entertainment ». Tout ce qui change souvent est ici :
 // le nom, les prix, les films et les adresses des vidéos. Le reste du site n'a pas besoin d'être modifié.
 window.YING_CONFIG = {
-  marque: "Yǐng",
+  marque: "Zboss-Entertainment",
   slogan: "Les meilleurs courts films et mini-séries chinoises, sous-titrés en français.",
   whatsapp: "",               // ex. "243825565647" (sans +). Vide = bouton masqué.
 
