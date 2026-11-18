@@ -51,7 +51,7 @@ window.YING_CONFIG = {
     { code: "fr", nom: "Français" },
     { code: "en", nom: "English" },
     { code: "es", nom: "Español" },
-    { code: "pt", nom: "Português" }
+    { code: "pt", nom: "Português (Brasil)" }  // portugais du Brésil ; fichiers en .pt.srt
   ],
   langueParDefaut: "",        // ex. "fr" pour imposer le français au départ ; vide = langue du téléphone si elle est dans la liste.
 

@@ -35,7 +35,7 @@ Liste vide = bande masquée.
 
 ## Sous-titres en 4 langues
 
-Le lecteur propose des sous-titres en **français, anglais, espagnol et portugais** (liste `langues` dans `config.js`).
+Le lecteur propose des sous-titres en **français, anglais, espagnol et portugais du Brésil** (liste `langues` dans `config.js`).
 Le spectateur choisit avec le bouton **CC** de l'écran principal, ou avec le menu « Sous-titres » de la fenêtre des épisodes.
 La touche C les active ou les coupe. Au départ, le site prend la langue du téléphone si elle est dans la liste, sinon la première.
 Le choix est mémorisé sur l'appareil.
