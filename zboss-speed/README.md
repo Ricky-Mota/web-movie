@@ -8,6 +8,8 @@ Site statique (HTML, CSS, JavaScript, sans dépendance ni étape de build) pour 
 | `crm.html` | Mini CRM de l'équipe : liste des inscrits, recherche, filtres, statut, notes, export CSV |
 | `config.js` | URL et clé publique Supabase (vide = mode démo) |
 | `assets/store.js` | Enregistrement et lecture des inscrits (Supabase ou mode démo) |
+| `assets/cars.js` | Les 6 voitures du garage (dessins SVG originaux et caractéristiques) |
+| `assets/sections.js`, `assets/sections.css` | Bande-annonce animée, écran de jeu, garage et partenaires |
 | `supabase/schema.sql` | Table, règles de sécurité (RLS) et liste des administrateurs |
 | `netlify.toml` | Publication du dossier sur Netlify |
 
@@ -44,3 +46,6 @@ Ajoute `?utm_source=tiktok` (ou `discord`, `youtube`…) aux liens que tu partag
 
 - Les liens des réseaux sociaux (`data-social` dans `index.html`) pointent vers `#` : remplace-les par tes vraies pages.
 - Les visuels de la galerie sont des illustrations provisoires : remplace-les par tes captures Unreal Engine 5 (images de 1600 × 900 conseillées).
+- **Partenaires** : Vodacom, Equity BCDC, Bralima et Bracongo sont affichés en texte avec la mention « partenaire pressenti ». N'ajoute leurs logos qu'après un accord écrit de chaque marque (fichiers fournis par elles).
+- **Voitures** : les 6 modèles sont des créations originales inspirées de silhouettes et de couleurs. Ne reprends pas de logos, de noms de modèles ou de photos de constructeurs réels sans licence.
+- **Bande-annonce** : animée dans la page, avec un son synthétisé et désactivé par défaut. Quand tu auras une vraie vidéo tournée dans Unreal Engine 5 (export MP4 via Movie Render Queue), elle pourra remplacer ce bloc.

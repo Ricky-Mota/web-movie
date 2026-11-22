@@ -14,6 +14,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@600;700&family=Inter:wght@400;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="assets/styles.css">
+  <link rel="stylesheet" href="assets/sections.css">
 </head>
 <body>
 
@@ -24,9 +25,10 @@
       <span>ZBOSS<b>-SPEED</b></span>
     </a>
     <ul>
+      <li><a href="#trailer">Bande-annonce</a></li>
       <li><a href="#gameplay">Gameplay</a></li>
-      <li><a href="#features">Fonctionnalités</a></li>
-      <li><a href="#gallery">Galerie</a></li>
+      <li><a href="#garage">Garage</a></li>
+      <li><a href="#partenaires">Partenaires</a></li>
       <li><a href="#community">Communauté</a></li>
     </ul>
     <a class="btn btn-primary btn-sm" href="#beta"><span class="hide-sm">Rejoindre la&nbsp;</span>bêta</a>
@@ -114,7 +116,7 @@
     <p class="lead">Zboss-speed est une course-poursuite en monde ouvert : chaque course de rue peut tourner à la cavale. Prends des risques, fais grimper la tension, et échappe aux patrouilles qui apprennent de ta conduite.</p>
     <div class="hero-cta">
       <a class="btn btn-primary" href="#beta">Je m'inscris à la bêta</a>
-      <a class="btn btn-ghost" href="#gameplay">Découvrir le gameplay</a>
+      <a class="btn btn-ghost" href="#trailer">Voir la bande-annonce</a>
     </div>
     <div class="hero-meta">
       <div><strong>Unreal Engine 5</strong>Moteur</div>
@@ -123,6 +125,103 @@
     </div>
   </div>
 </header>
+
+<section class="trailer" id="trailer">
+  <div class="wrap">
+    <div class="reveal">
+      <div class="eyebrow">Bande-annonce</div>
+      <h2>La nuit vient de commencer</h2>
+      <p class="section-lead">30 secondes pour entrer dans l'univers de Zboss-speed. Montage provisoire, en attendant les images tournées dans Unreal Engine 5.</p>
+    </div>
+    <div class="stage reveal" id="stage" aria-label="Bande-annonce de Zboss-speed">
+      <!-- 1. Ouverture -->
+      <div class="scene" data-dur="3500">
+        <svg viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid slice" aria-hidden="true" class="zoom">
+          <rect width="1600" height="900" fill="#05060b"/>
+          <g fill="#0d0c18"><rect x="100" y="380" width="120" height="420"/><rect x="240" y="300" width="90" height="500"/><rect x="350" y="420" width="160" height="380"/><rect x="1100" y="340" width="110" height="460"/><rect x="1230" y="260" width="90" height="540"/><rect x="1340" y="400" width="160" height="400"/></g>
+          <g fill="#ffcf7a" opacity=".5"><rect x="260" y="330" width="8" height="12"/><rect x="290" y="390" width="8" height="12"/><rect x="1250" y="300" width="8" height="12"/><rect x="1270" y="420" width="8" height="12"/><rect x="130" y="440" width="8" height="12"/><rect x="1380" y="460" width="8" height="12"/></g>
+          <rect y="800" width="1600" height="100" fill="#0a0a10"/>
+        </svg>
+        <div class="title"><small>Minuit</small>La ville ne dort jamais</div>
+      </div>
+      <!-- 2. Course -->
+      <div class="scene" data-dur="4000">
+        <svg viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+          <rect width="1600" height="900" fill="#0a0b14"/>
+          <rect y="560" width="1600" height="340" fill="#121320"/>
+          <line x1="0" y1="730" x2="1600" y2="730" stroke="#ffb21f" stroke-width="8" stroke-dasharray="80 70" class="lane"/>
+          <g stroke="#fff" opacity=".18" stroke-width="3"><line x1="0" y1="600" x2="700" y2="600"/><line x1="200" y1="660" x2="1000" y2="660"/><line x1="0" y1="820" x2="600" y2="820"/></g>
+        </svg>
+        <div class="drive-in" data-car="kasai" style="position:absolute;left:28%;bottom:16%;width:44%"></div>
+        <div class="title" style="align-self:start;margin-top:12%"><small>Une course de rue</small>Tout se joue au millimètre</div>
+      </div>
+      <!-- 3. Poursuite -->
+      <div class="scene" data-dur="4000">
+        <svg viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+          <rect width="1600" height="900" fill="#07080f"/>
+          <circle cx="400" cy="480" r="360" fill="#ff2d4a" opacity=".3" class="flash-r glow"/>
+          <circle cx="760" cy="480" r="360" fill="#2d7bff" opacity=".3" class="flash-b glow"/>
+          <rect y="600" width="1600" height="300" fill="#111219"/>
+          <line x1="0" y1="760" x2="1600" y2="760" stroke="#e8ecf5" stroke-width="6" stroke-dasharray="80 70" class="lane" opacity=".6"/>
+        </svg>
+        <div class="chase" style="position:absolute;left:0;right:0;bottom:14%;height:40%">
+          <div data-car="gombe" style="position:absolute;right:6%;bottom:0;width:38%"></div>
+          <div data-police style="position:absolute;right:50%;bottom:0;width:36%"></div>
+        </div>
+        <div class="title" style="align-self:start;margin-top:12%"><small>Jusqu'à ce que</small>les sirènes s'en mêlent</div>
+      </div>
+      <!-- 4. Tension -->
+      <div class="scene" data-dur="4000">
+        <svg viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+          <rect width="1600" height="900" fill="#0a0408"/>
+          <rect width="1600" height="900" fill="#ff2d4a" opacity=".12" class="flash-r"/>
+          <rect width="1600" height="900" fill="#2d7bff" opacity=".1" class="flash-b"/>
+          <g transform="translate(1180 260)" opacity=".9"><ellipse cx="0" cy="0" rx="140" ry="40" fill="#1a1e2a"/><path d="M-260 -40 L260 -40" stroke="#444" stroke-width="10"/><polygon points="0,30 -260,700 260,700" fill="#e8f0ff" opacity=".1"/></g>
+        </svg>
+        <div><div class="title"><small>Plus tu provoques</small>plus ils s'organisent</div>
+          <div class="heat-steps"><span>Patrouille</span><span>Renforts</span><span>Barrages</span><span>Hélicoptère</span><span>Unité d'élite</span></div></div>
+      </div>
+      <!-- 5. Garage -->
+      <div class="scene" data-dur="4800">
+        <svg viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+          <rect width="1600" height="900" fill="#120e0b"/>
+          <g fill="#ffcf7a" opacity=".85"><rect x="200" y="110" width="300" height="10"/><rect x="650" y="110" width="300" height="10"/><rect x="1100" y="110" width="300" height="10"/></g>
+          <polygon points="650,120 950,120 1150,720 450,720" fill="#ffcf7a" opacity=".05"/>
+          <rect y="720" width="1600" height="180" fill="#1b1612"/>
+        </svg>
+        <div class="parade" data-parade></div>
+        <div class="title" style="align-self:start;margin-top:12%"><small>Ton garage</small>6 bolides. Des milliers de réglages.</div>
+      </div>
+      <!-- 6. Logo -->
+      <div class="scene" data-dur="3800">
+        <svg viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+          <rect width="1600" height="900" fill="#050508"/>
+          <circle cx="600" cy="450" r="420" fill="#ff2d4a" opacity=".22" class="flash-r glow"/><circle cx="1000" cy="450" r="420" fill="#2d7bff" opacity=".22" class="flash-b glow"/>
+        </svg>
+        <div><div class="logo-slam">ZBOSS<b>-SPEED</b></div><div class="title" style="font-size:2.2cqi;margin-top:1cqi">Fonce. Sème-les.</div></div>
+      </div>
+      <!-- 7. Partenaires + appel -->
+      <div class="scene" data-dur="5200">
+        <svg viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><rect width="1600" height="900" fill="#07080c"/><ellipse cx="800" cy="900" rx="700" ry="260" fill="#ff5a1f" opacity=".18" class="glow"/></svg>
+        <div>
+          <div class="title" style="font-size:2.4cqi"><small>Bêta fermée</small>Inscris-toi sur zboss-speed</div>
+          <div class="end-partners"><span>Vodacom</span><span>Equity BCDC</span><span>Bralima</span><span>Bracongo</span><span>+ ta marque</span></div>
+          <div class="end-note">Partenaires pressentis, en cours de discussion</div>
+        </div>
+      </div>
+      <button class="play-overlay" id="play" type="button" aria-label="Lancer la bande-annonce">
+        <span class="pbtn"><svg viewBox="0 0 24 24" fill="#160800"><path d="M6 4l14 8-14 8z"/></svg></span>
+        <span class="plabel">Lancer la bande-annonce</span>
+      </button>
+    </div>
+    <div class="controls">
+      <button class="btn btn-ghost btn-sm" id="t-toggle" type="button">Lecture</button>
+      <div class="progress" aria-hidden="true"><i id="t-bar"></i></div>
+      <span class="tcode" id="t-code">0:00 / 0:29</span>
+      <button class="btn btn-ghost btn-sm" id="t-sound" type="button" aria-pressed="false">Son : coupé</button>
+    </div>
+  </div>
+</section>
 
 <section class="gameplay" id="gameplay">
   <div class="wrap">
@@ -147,6 +246,85 @@
         <div><b>Niv. 4</b>Hélicoptère</div>
         <div><b>Niv. 5</b>Unité d'élite</div>
       </div>
+    </div>
+  </div>
+</section>
+
+<section id="ecran">
+  <div class="wrap">
+    <div class="reveal">
+      <div class="eyebrow">Écran de jeu</div>
+      <h2>Ce que tu vois au volant</h2>
+      <p class="section-lead">Une interface lisible en pleine vitesse : le rétroviseur montre la police, la carte signale les barrages, et la jauge de nitro décide de la suite.</p>
+    </div>
+    <div class="screen reveal" aria-label="Maquette de l'écran de jeu">
+      <svg viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+        <defs>
+          <linearGradient id="es-sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#06070d"/><stop offset="1" stop-color="#1c1230"/></linearGradient>
+          <linearGradient id="es-road" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1b1824"/><stop offset="1" stop-color="#08080c"/></linearGradient>
+          <radialGradient id="es-tail" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#ff3b1f" stop-opacity=".8"/><stop offset="1" stop-color="#ff3b1f" stop-opacity="0"/></radialGradient>
+        </defs>
+        <rect width="1600" height="900" fill="url(#es-sky)"/>
+        <!-- tunnel lights -->
+        <g fill="#ffd27a"><rect x="770" y="300" width="60" height="5" opacity=".5"/><rect x="740" y="250" width="120" height="7" opacity=".6"/><rect x="690" y="180" width="220" height="10" opacity=".7"/><rect x="600" y="70" width="400" height="16" opacity=".8"/></g>
+        <polygon points="0,0 700,330 700,470 0,900" fill="#0d0f18"/><polygon points="1600,0 900,330 900,470 1600,900" fill="#0d0f18"/>
+        <g stroke="#2d7bff" stroke-width="4" opacity=".45"><line x1="0" y1="600" x2="700" y2="440"/><line x1="1600" y1="600" x2="900" y2="440"/></g>
+        <polygon points="700,470 900,470 1600,900 0,900" fill="url(#es-road)"/>
+        <line x1="800" y1="480" x2="800" y2="900" stroke="#ffb21f" stroke-width="10" stroke-dasharray="40 50" class="lane" opacity=".8"/>
+        <!-- traffic ahead -->
+        <g transform="translate(860 500)"><rect x="-28" y="-16" width="56" height="26" rx="4" fill="#2a2f3d"/><rect x="-26" y="2" width="12" height="5" fill="#ff2d1f"/><rect x="14" y="2" width="12" height="5" fill="#ff2d1f"/></g>
+        <!-- player car rear -->
+        <g transform="translate(800 760)">
+          <ellipse cx="0" cy="96" rx="290" ry="24" fill="#000" opacity=".75"/>
+          <ellipse cx="0" cy="20" rx="320" ry="110" fill="url(#es-tail)" opacity=".45"/>
+          <path d="M-250 70 L-262 10 L-215 -28 L-120 -50 L120 -50 L215 -28 L262 10 L250 70 Z" fill="#ff5a1f" stroke="#a8300a" stroke-width="3"/>
+          <path d="M-250 40 L250 40 L250 70 L-250 70 Z" fill="#7a2408"/>
+          <path d="M-150 -50 L-110 -108 L110 -108 L150 -50 Z" fill="#c9440f"/>
+          <path d="M-128 -56 L-100 -98 L100 -98 L128 -56 Z" fill="#141c2c"/>
+          <rect x="-235" y="-46" width="470" height="12" rx="3" fill="#1a0a04"/>
+          <rect x="-238" y="-6" width="476" height="14" rx="7" fill="#ff2d1f"/>
+          <rect x="-60" y="22" width="120" height="26" rx="3" fill="#0e1118"/>
+          <text x="0" y="41" text-anchor="middle" font-family="Chakra Petch, sans-serif" font-weight="700" font-size="16" fill="#ffb21f">KASAÏ R</text>
+          <rect x="-262" y="52" width="64" height="44" rx="8" fill="#050507"/><rect x="198" y="52" width="64" height="44" rx="8" fill="#050507"/>
+          <ellipse cx="-150" cy="72" rx="16" ry="7" fill="#7fd8ff"/><ellipse cx="150" cy="72" rx="16" ry="7" fill="#7fd8ff"/>
+          <ellipse cx="-150" cy="72" rx="34" ry="13" fill="#3fd0ff" opacity=".4"/><ellipse cx="150" cy="72" rx="34" ry="13" fill="#3fd0ff" opacity=".4"/>
+        </g>
+      </svg>
+      <div class="hud">
+        <div class="box hud-wanted"><div class="lbl">Recherché</div><div class="chev"><i class="on"></i><i class="on"></i><i class="on"></i><i></i><i></i></div><b>Niveau 3 · Barrages</b></div>
+        <div class="box hud-mirror">
+          <svg viewBox="0 0 400 100" preserveAspectRatio="xMidYMid slice">
+            <rect width="400" height="100" fill="#0b0d16"/><polygon points="170,30 230,30 400,100 0,100" fill="#15151d"/>
+            <circle cx="150" cy="60" r="40" fill="#ff2d4a" opacity=".45" class="flash-r m-flash"/><circle cx="250" cy="60" r="40" fill="#2d7bff" opacity=".45" class="flash-b m-flash"/>
+            <rect x="150" y="52" width="100" height="30" rx="6" fill="#e8ecf5"/><rect x="160" y="44" width="38" height="8" fill="#ff2d4a" class="m-flash"/><rect x="202" y="44" width="38" height="8" fill="#2d7bff"/>
+            <circle cx="166" cy="70" r="6" fill="#fff"/><circle cx="234" cy="70" r="6" fill="#fff"/>
+          </svg>
+        </div>
+        <div class="box hud-race"><div class="lbl">Position</div><div class="pos">1<small>/6</small></div><div class="lbl" style="margin-top:.3em">Tour 2/3</div><div class="time" id="hud-time">01:42.37</div></div>
+        <div class="box hud-map">
+          <svg viewBox="0 0 100 100">
+            <rect width="100" height="100" fill="#0a0d16"/>
+            <g stroke="#2a3044" stroke-width="3" fill="none"><path d="M0 30 H100 M0 70 H100 M30 0 V100 M70 0 V100"/></g>
+            <path d="M50 100 V60 Q50 50 60 50 H100" stroke="#ffb21f" stroke-width="4" fill="none"/>
+            <polygon points="50,62 45,72 55,72" fill="#fff"/>
+            <circle cx="50" cy="86" r="3.5" fill="#ff2d4a" class="m-flash"/><circle cx="38" cy="70" r="3.5" fill="#2d7bff"/>
+            <rect x="80" y="44" width="10" height="12" fill="none" stroke="#ff2d4a" stroke-width="2"/>
+          </svg>
+        </div>
+        <div class="box hud-alert"><b>Barrage à 800 m</b><span>Prends la sortie 12 pour casser la ligne de vue.</span></div>
+        <div class="box hud-nitro" aria-hidden="true"><i></i></div>
+        <div class="box hud-speed">
+          <svg viewBox="0 0 100 100"><path d="M15 75 A40 40 0 1 1 85 75" stroke="#262c3a" stroke-width="7" fill="none" stroke-linecap="round"/><path id="hud-arc" d="M15 75 A40 40 0 1 1 85 75" stroke="url(#hud-g)" stroke-width="7" fill="none" stroke-linecap="round" pathLength="100" stroke-dasharray="80 100"/><defs><linearGradient id="hud-g"><stop offset="0" stop-color="#ffb21f"/><stop offset="1" stop-color="#ff2d4a"/></linearGradient></defs></svg>
+          <div class="val"><b id="hud-speed">287</b><span class="lbl">km/h</span></div>
+          <div class="gear">6e</div>
+        </div>
+      </div>
+    </div>
+    <div class="screen-caption reveal">
+      <div><b>Rétroviseur</b>Repère la police sans quitter la route des yeux.</div>
+      <div><b>Niveau de recherche</b>Cinq niveaux, de la patrouille à l'unité d'élite.</div>
+      <div><b>Mini-carte</b>Barrages et unités en direct sur ton itinéraire.</div>
+      <div><b>Nitro</b>Se recharge en prenant des risques.</div>
     </div>
   </div>
 </section>
@@ -187,6 +365,17 @@
     <div class="tech reveal" aria-label="Outils de production">
       <span>Unreal Engine 5 · Lumen & Nanite</span><span>Chaos Vehicles</span><span>Blender (modèles 3D)</span><span>Substance / Quixel (textures)</span><span>MetaSounds (moteurs)</span>
     </div>
+  </div>
+</section>
+
+<section id="garage">
+  <div class="wrap">
+    <div class="reveal">
+      <div class="eyebrow">Garage</div>
+      <h2>Choisis ton bolide</h2>
+      <p class="section-lead">Six voitures dessinées pour Zboss-speed, de la supercar au coupé classique. Chacune a sa conduite et ses réglages.</p>
+    </div>
+    <div class="garage-grid" id="garage-grid"></div>
   </div>
 </section>
 
@@ -263,6 +452,24 @@
   </div>
 </section>
 
+<section class="gallery" id="partenaires" style="background:var(--bg)">
+  <div class="wrap">
+    <div class="reveal">
+      <div class="eyebrow">Partenaires</div>
+      <h2>Ils roulent avec nous</h2>
+      <p class="section-lead">Zboss-speed se construit avec des marques qui parlent à la jeunesse : visibilité dans le jeu, sur les circuits et pendant la bêta.</p>
+    </div>
+    <div class="partners-grid">
+      <article class="partner reveal"><span class="status">Partenaire pressenti</span><div><div class="pname">Vodacom</div><div class="prole">Télécoms et connectivité</div></div></article>
+      <article class="partner reveal"><span class="status">Partenaire pressenti</span><div><div class="pname">Equity BCDC</div><div class="prole">Banque et paiements</div></div></article>
+      <article class="partner reveal"><span class="status">Partenaire pressenti</span><div><div class="pname">Bralima</div><div class="prole">Boissons</div></div></article>
+      <article class="partner reveal"><span class="status">Partenaire pressenti</span><div><div class="pname">Bracongo</div><div class="prole">Boissons</div></div></article>
+      <article class="partner open reveal"><div><div class="pname">Ta marque ici</div><div class="prole">Panneaux dans la ville, livrées de voitures, courses sponsorisées.</div></div><a class="btn btn-ghost btn-sm" href="#community">Nous contacter</a></article>
+    </div>
+    <p class="partners-note">Partenariats en cours de discussion. Les logos officiels apparaîtront après accord écrit de chaque marque.</p>
+  </div>
+</section>
+
 <section id="beta">
   <div class="wrap">
     <div class="beta-card reveal">
@@ -332,6 +539,8 @@
 
 <script src="config.js"></script>
 <script src="assets/store.js"></script>
+<script src="assets/cars.js"></script>
+<script src="assets/sections.js"></script>
 <script>
 (function () {
   document.getElementById("year").textContent = new Date().getFullYear();
