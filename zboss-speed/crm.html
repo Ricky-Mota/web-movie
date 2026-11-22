@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Zboss-speed — CRM bêta</title>
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@600;700&family=Inter:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/styles.css">
+  <style>
+    body { min-height: 100vh; }
+    .top { border-bottom: 1px solid var(--line); background: var(--bg-2); }
+    .top .wrap { display: flex; align-items: center; justify-content: space-between; height: 64px; gap: 12px; }
+    .who { color: var(--muted); font-size: 13px; display: flex; gap: 12px; align-items: center; }
+    main { padding: 32px 0 80px; }
+    h1 { font-family: var(--font-display); text-transform: uppercase; font-size: 30px; margin: 0 0 4px; }
+    .sub { color: var(--muted); margin: 0 0 24px; font-size: 14px; }
+    .kpis { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin-bottom: 24px; }
+    @media (max-width: 820px) { .kpis { grid-template-columns: repeat(2, 1fr); } }
+    .kpi { padding: 16px; border-radius: 12px; background: var(--panel); border: 1px solid var(--line); }
+    .kpi b { display: block; font-family: var(--font-display); font-size: 28px; line-height: 1.1; font-variant-numeric: tabular-nums; }
+    .kpi span { color: var(--muted); font-size: 13px; }
+    .toolbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 14px; }
+    .toolbar input, .toolbar select { padding: 10px 12px; border-radius: 10px; background: #0a0c12; color: var(--text); border: 1px solid var(--line); font: 14px var(--font-body); }
+    .toolbar input { flex: 1 1 220px; min-width: 0; }
+    .spacer { flex: 1; }
+    .table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); }
+    table { width: 100%; border-collapse: collapse; font-size: 14px; min-width: 860px; }
+    th, td { text-align: left; padding: 11px 14px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+    th { color: var(--muted); font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: .06em; background: rgba(255,255,255,.02); }
+    tr:last-child td { border-bottom: 0; }
+    td.date { color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
+    td select, td input { padding: 7px 9px; border-radius: 8px; background: #0a0c12; color: var(--text); border: 1px solid var(--line); font: 13px var(--font-body); width: 100%; }
+    .pill { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 12px; border: 1px solid var(--line); color: var(--muted); }
+    .del { background: none; border: 1px solid transparent; color: var(--muted); cursor: pointer; border-radius: 8px; padding: 6px 8px; }
+    .del:hover { color: #ff7a85; border-color: #5a2a33; }
+    .empty { padding: 40px; text-align: center; color: var(--muted); }
+    .login { max-width: 420px; margin: 10vh auto; padding: 32px; border-radius: 16px; background: var(--panel); border: 1px solid var(--line); display: grid; gap: 14px; }
+    .banner { padding: 12px 14px; border-radius: 10px; font-size: 14px; background: rgba(255,178,31,.1); border: 1px solid rgba(255,178,31,.35); color: var(--accent-2); margin-bottom: 18px; }
+    .msg { font-size: 14px; min-height: 20px; margin: 0; }
+    .msg.err { color: #ff7a85; }
+  </style>
+</head>
+<body>
+  <div class="top">
+    <div class="wrap">
+      <a class="logo" href="index.html"><span>ZBOSS<b>-SPEED</b></span> <span style="color:var(--muted);font-size:13px;letter-spacing:.1em">CRM</span></a>
+      <div class="who" id="who" hidden><span id="who-email"></span><button class="btn btn-ghost btn-sm" id="logout">Se déconnecter</button></div>
+    </div>
+  </div>
+
+  <form class="login" id="login" hidden>
+    <h1 style="font-size:24px">Espace équipe</h1>
+    <p class="sub" style="margin:0">Connecte-toi avec ton compte administrateur Supabase.</p>
+    <div class="field"><label for="l-email">E-mail</label><input id="l-email" type="email" required autocomplete="username"></div>
+    <div class="field"><label for="l-pass">Mot de passe</label><input id="l-pass" type="password" required autocomplete="current-password"></div>
+    <button class="btn btn-primary" type="submit">Se connecter</button>
+    <p class="msg" id="login-msg" role="status"></p>
+  </form>
+
+  <main id="app" hidden>
+    <div class="wrap">
+      <div class="banner" id="demo-banner" hidden>Mode démo : les données viennent de ce navigateur. Renseigne <code>config.js</code> pour brancher Supabase.</div>
+      <h1>Inscrits à la bêta</h1>
+      <p class="sub">Suis chaque pilote de l'inscription jusqu'à l'activation de sa clé.</p>
+
+      <div class="kpis" id="kpis"></div>
+
+      <div class="toolbar">
+        <input id="q" type="search" placeholder="Rechercher un pseudo, un e-mail, un pays…" aria-label="Rechercher">
+        <select id="f-status" aria-label="Filtrer par statut"><option value="">Tous les statuts</option></select>
+        <select id="f-platform" aria-label="Filtrer par plateforme"><option value="">Toutes plateformes</option><option>PC</option><option>PlayStation</option><option>Xbox</option><option>Autre</option></select>
+        <span class="spacer"></span>
+        <button class="btn btn-ghost btn-sm" id="refresh">Actualiser</button>
+        <button class="btn btn-primary btn-sm" id="export">Exporter en CSV</button>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Date</th><th>Pseudo</th><th>E-mail</th><th>Plateforme</th><th>Pays</th><th>Source</th><th style="width:140px">Statut</th><th style="width:220px">Notes</th><th></th></tr></thead>
+          <tbody id="rows"></tbody>
+        </table>
+      </div>
+      <p class="msg" id="app-msg" role="status" style="margin-top:12px"></p>
+    </div>
+  </main>
+
+<script src="config.js"></script>
+<script src="assets/store.js"></script>
+<script>
+(function () {
+  const S = window.ZbossStore;
+  const $ = id => document.getElementById(id);
+  let rows = [];
+
+  const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const fmt = d => new Date(d).toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" });
+
+  S.STATUSES.forEach(s => $("f-status").insertAdjacentHTML("beforeend", `<option value="${s}">${s[0].toUpperCase() + s.slice(1)}</option>`));
+
+  function showApp() {
+    $("login").hidden = true; $("app").hidden = false; $("who").hidden = false;
+    $("who-email").textContent = S.session().email;
+    $("demo-banner").hidden = !S.demo;
+    if (S.demo) $("logout").hidden = true;
+    load();
+  }
+  function showLogin(text) {
+    $("app").hidden = true; $("who").hidden = true; $("login").hidden = false;
+    $("login-msg").textContent = text || ""; $("login-msg").className = "msg" + (text ? " err" : "");
+  }
+
+  async function load() {
+    $("app-msg").textContent = "Chargement…"; $("app-msg").className = "msg";
+    try { rows = await S.list(); $("app-msg").textContent = ""; render(); }
+    catch (e) {
+      if (e.status === 401) { S.signOut(); return showLogin("Session expirée, reconnecte-toi."); }
+      $("app-msg").textContent = "Impossible de charger les inscrits : " + e.message; $("app-msg").className = "msg err";
+    }
+  }
+
+  function filtered() {
+    const q = $("q").value.trim().toLowerCase(), st = $("f-status").value, pf = $("f-platform").value;
+    return rows.filter(r => (!st || r.status === st) && (!pf || r.platform === pf) &&
+      (!q || [r.pseudo, r.email, r.country, r.source, r.notes].join(" ").toLowerCase().includes(q)));
+  }
+
+  function render() {
+    const week = Date.now() - 7 * 864e5;
+    const count = s => rows.filter(r => r.status === s).length;
+    $("kpis").innerHTML = [
+      [rows.length, "Inscrits"],
+      [rows.filter(r => new Date(r.created_at) > week).length, "Ces 7 derniers jours"],
+      [count("invité"), "Invités"],
+      [count("actif"), "Testeurs actifs"],
+      [rows.filter(r => r.newsletter).length, "Abonnés newsletter"],
+    ].map(([n, l]) => `<div class="kpi"><b>${n}</b><span>${l}</span></div>`).join("");
+
+    const list = filtered();
+    if (!list.length) {
+      $("rows").innerHTML = `<tr><td colspan="9" class="empty">${rows.length ? "Aucun inscrit ne correspond à ces filtres." : "Aucun inscrit pour l'instant. Partage la page de la bêta !"}</td></tr>`;
+      return;
+    }
+    $("rows").innerHTML = list.map(r => `
+      <tr data-id="${esc(r.id)}">
+        <td class="date">${fmt(r.created_at)}</td>
+        <td><strong>${esc(r.pseudo)}</strong></td>
+        <td><a href="mailto:${esc(r.email)}">${esc(r.email)}</a></td>
+        <td>${esc(r.platform || "—")}</td>
+        <td>${esc(r.country || "—")}</td>
+        <td><span class="pill">${esc(r.source || "—")}</span></td>
+        <td><select data-k="status" aria-label="Statut">${S.STATUSES.map(s => `<option${s === r.status ? " selected" : ""}>${s}</option>`).join("")}</select></td>
+        <td><input data-k="notes" value="${esc(r.notes || "")}" maxlength="2000" placeholder="Ajouter une note" aria-label="Notes"></td>
+        <td><button class="del" title="Supprimer" aria-label="Supprimer">✕</button></td>
+      </tr>`).join("");
+  }
+
+  async function patch(id, data) {
+    try { await S.update(id, data); Object.assign(rows.find(r => r.id === id) || {}, data); render(); }
+    catch (e) { $("app-msg").textContent = "Modification non enregistrée : " + e.message; $("app-msg").className = "msg err"; }
+  }
+
+  $("rows").addEventListener("change", e => {
+    const tr = e.target.closest("tr"), k = e.target.dataset.k;
+    if (tr && k) patch(tr.dataset.id, { [k]: e.target.value });
+  });
+  $("rows").addEventListener("click", async e => {
+    if (!e.target.classList.contains("del")) return;
+    const tr = e.target.closest("tr"), r = rows.find(x => x.id === tr.dataset.id);
+    if (!r || !window.confirm(`Supprimer ${r.pseudo} (${r.email}) ?`)) return;
+    try { await S.remove(r.id); rows = rows.filter(x => x !== r); render(); }
+    catch (err) { $("app-msg").textContent = "Suppression impossible : " + err.message; $("app-msg").className = "msg err"; }
+  });
+  ["q", "f-status", "f-platform"].forEach(id => $(id).addEventListener("input", render));
+  $("refresh").addEventListener("click", load);
+
+  $("export").addEventListener("click", () => {
+    const cols = ["created_at", "pseudo", "email", "platform", "country", "source", "newsletter", "status", "notes"];
+    const cell = v => {
+      let s = String(v == null ? "" : v);
+      if (/^[=+\-@\t\r]/.test(s)) s = "'" + s; // évite l'injection de formules dans Excel
+      return /[";\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+    };
+    const csv = "﻿" + [cols.join(";"), ...filtered().map(r => cols.map(c => cell(r[c])).join(";"))].join("\r\n");
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+    a.download = "zboss-speed-inscrits-" + new Date().toISOString().slice(0, 10) + ".csv";
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  });
+
+  $("login").addEventListener("submit", async e => {
+    e.preventDefault();
+    $("login-msg").textContent = "Connexion…"; $("login-msg").className = "msg";
+    try { await S.signIn($("l-email").value.trim(), $("l-pass").value); showApp(); }
+    catch (err) { showLogin(err.status === 400 ? "E-mail ou mot de passe incorrect." : "Connexion impossible : " + err.message); }
+  });
+  $("logout").addEventListener("click", () => { S.signOut(); showLogin(); });
+
+  S.session() ? showApp() : showLogin();
+})();
+</script>
+</body>
+</html>
