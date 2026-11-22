@@ -79,7 +79,7 @@
   }
   const GLOW_R = glowSprite("rgba(255,45,74,.75)", 160), GLOW_B = glowSprite("rgba(45,123,255,.75)", 160);
   const GLOW_L = glowSprite("rgba(255,200,120,.35)", 220), GLOW_T = glowSprite("rgba(255,40,20,.5)", 70);
-  const GLOW_N = glowSprite("rgba(80,210,255,.8)", 90), CONE = coneSprite();
+  const GLOW_N = glowSprite("rgba(80,210,255,.8)", 90), CONE = coneSprite(), GLOW_P = glowSprite("rgba(255,130,40,.45)", 120);
   const POLICE_SPRITE = carSprite("#eef1f6", "#151821", "police");
   const TRAFFIC_COLORS = ["#5b6476", "#7a8194", "#3f6e8c", "#8c6a3f", "#6b3f3f", "#4f7a59", "#9aa0ad"];
   const TRAFFIC_SPRITES = TRAFFIC_COLORS.map(c => carSprite(c, "#000", "traffic"));
@@ -134,6 +134,8 @@
 
   // ---------------------------------------------------------------- État du jeu
   let G = null;
+  let camMode = "chase";
+  try { camMode = localStorage.getItem("zboss_cam") || "chase"; } catch (e) { }
   const keys = {};
   const touch = { gas: 0, brake: 0, left: 0, right: 0, hand: 0, nitro: 0 };
   const HEAT_T = [0, 25, 60, 110, 180];
@@ -149,7 +151,7 @@
       t: 0, player, cops: [], traffic: [], blocks: [], skids: [], parts: [], heli: null, msgs: [],
       heatPts: 0, heat: 0, chase: false, seen: false, evade: 0, evadeNeed: 6, busted: 0,
       bounty: 0, banked: 0, dist: 0, nitro: 60, takedowns: 0, escapes: 0, nearCd: new Map(),
-      cam: { x: player.x, y: player.y, z: 1 }, over: false, paused: false, lastBlockT: 0, calmT: 0, shake: 0,
+      cam: { x: player.x, y: player.y, z: 1, a: player.a }, over: false, paused: false, lastBlockT: 0, calmT: 0, shake: 0,
       best: +(lsGet("zboss_best") || 0),
     };
     for (let k = 0; k < 34; k++) spawnTraffic(true);
@@ -442,10 +444,12 @@
     G.msgs.forEach(m => m.t -= dt); G.msgs = G.msgs.filter(m => m.t > 0);
 
     // caméra
-    const z = 1.05 - Math.min(.3, sp / p.maxSpeed * .3);
+    const z = 1.15 - Math.min(.22, sp / p.maxSpeed * .22);
     G.cam.z += (z - G.cam.z) * Math.min(1, dt * 2);
-    G.cam.x += (p.x + p.vx * .35 - G.cam.x) * Math.min(1, dt * 4);
-    G.cam.y += (p.y + p.vy * .35 - G.cam.y) * Math.min(1, dt * 4);
+    const look = camMode === "chase" ? .08 : .18;
+    G.cam.x += (p.x + p.vx * look - G.cam.x) * Math.min(1, dt * 6);
+    G.cam.y += (p.y + p.vy * look - G.cam.y) * Math.min(1, dt * 6);
+    G.cam.a += angDiff(G.cam.a, p.a) * Math.min(1, dt * 4.5);
     G.shake *= Math.exp(-6 * dt);
 
     const sirenNear = G.cops.reduce((m, c) => c.alive && c.mode === "chase" ? Math.max(m, 1 - Math.hypot(c.x - p.x, c.y - p.y) / 1400) : m, 0);
@@ -463,12 +467,20 @@
   window.addEventListener("resize", resize);
 
   function render() {
-    const p = G.player, cam = G.cam, scale = cam.z * Math.min(1.25, Math.max(.72, Math.min(VW, VH) / 720));
+    const p = G.player, cam = G.cam, scale = cam.z * Math.min(1.5, Math.max(1, Math.min(VW, VH) / 560));
     ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
     ctx.fillStyle = "#0b0c12"; ctx.fillRect(0, 0, VW, VH);
     const sx = (rand() - .5) * G.shake, sy = (rand() - .5) * G.shake;
-    ctx.setTransform(DPR * scale, 0, 0, DPR * scale, DPR * (VW / 2 - cam.x * scale + sx), DPR * (VH / 2 - cam.y * scale + sy));
-    const vw = VW / scale, vh = VH / scale, x0 = cam.x - vw / 2 - 60, y0 = cam.y - vh / 2 - 60, x1 = cam.x + vw / 2 + 60, y1 = cam.y + vh / 2 + 60;
+    let x0, y0, x1, y1;
+    if (camMode === "chase") {
+      // caméra de poursuite : la voiture reste en bas de l'écran, la route défile devant elle
+      ctx.setTransform(DPR, 0, 0, DPR, 0, 0); ctx.translate(VW / 2 + sx, VH * .68 + sy);
+      ctx.rotate(-cam.a - Math.PI / 2); ctx.scale(scale, scale); ctx.translate(-cam.x, -cam.y);
+      const r = Math.hypot(VW, VH) * .75 / scale + 60; x0 = cam.x - r; y0 = cam.y - r; x1 = cam.x + r; y1 = cam.y + r;
+    } else {
+      ctx.setTransform(DPR * scale, 0, 0, DPR * scale, DPR * (VW / 2 - cam.x * scale + sx), DPR * (VH / 2 - cam.y * scale + sy));
+      const vw = VW / scale, vh = VH / scale; x0 = cam.x - vw / 2 - 60; y0 = cam.y - vh / 2 - 60; x1 = cam.x + vw / 2 + 60; y1 = cam.y + vh / 2 + 60;
+    }
     const i0 = Math.max(0, Math.floor((x0 - R) / P)), i1 = Math.min(N - 1, Math.floor((x1 - R) / P)), j0 = Math.max(0, Math.floor((y0 - R) / P)), j1 = Math.min(N - 1, Math.floor((y1 - R) / P));
 
     // routes
@@ -507,7 +519,7 @@
       if (c.kind === "block" || !c.alive) return;
       ctx.save(); ctx.translate(c.x, c.y); ctx.rotate(c.a); ctx.drawImage(CONE, 20, -80); ctx.drawImage(GLOW_T, -60, -35); ctx.restore();
     };
-    drawLights(p); G.cops.forEach(drawLights);
+    ctx.drawImage(GLOW_P, p.x - 60, p.y - 60); drawLights(p); G.cops.forEach(drawLights);
     if (p.inp.nitro) ctx.drawImage(GLOW_N, p.x - Math.cos(p.a) * 30 - 45, p.y - Math.sin(p.a) * 30 - 45);
     G.cops.forEach(c => {
       if (!c.alive || c.mode === "leave" || (c.mode === "patrol" && c.kind === "cop")) return;
@@ -535,7 +547,7 @@
     for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) {
       const b = blockAt(i, j);
       if (b.park) { ctx.fillStyle = "#14361f"; b.details.forEach(t => { ctx.beginPath(); ctx.arc(t.x, t.y, t.r, 0, 6.283); ctx.fill(); }); continue; }
-      const k = 0.05 * b.h3, cx = b.x + B / 2, cy = b.y + B / 2, dx = (cx - cam.x) * k, dy = (cy - cam.y) * k;
+      const k = 0.05 * b.h3, cx = b.x + B / 2, cy = b.y + B / 2, dx = (cx - p.x) * k, dy = (cy - p.y) * k;
       const m = 14; // trottoir
       const bx = b.x + m, by = b.y + m, bw = B - m * 2, bh = B - m * 2;
       ctx.fillStyle = "#23252f"; ctx.fillRect(b.x, b.y, B, B);
@@ -655,6 +667,7 @@
     keys[e.code] = true;
     if ((e.code === "KeyP" || e.code === "Escape") && G && !G.over) setPause(!G.paused);
     if (e.code === "KeyM") $("mute").click();
+    if (e.code === "KeyC") $("cambtn").click();
     if (e.code === "Enter" && !$("over").hidden) $("again").click();
   });
   window.addEventListener("keyup", e => { keys[e.code] = false; });
@@ -685,6 +698,9 @@
   $("again").addEventListener("click", () => start(chosen));
   $("garage").addEventListener("click", () => show("menu"));
   $("pausebtn").addEventListener("click", () => setPause(true));
+  const camLabel = () => { $("cambtn").textContent = "Caméra : " + (camMode === "chase" ? "poursuite" : "dessus"); };
+  $("cambtn").addEventListener("click", () => { camMode = camMode === "chase" ? "top" : "chase"; lsSet("zboss_cam", camMode); camLabel(); });
+  camLabel();
   $("mute").addEventListener("click", () => { Audio.init(); const m = Audio.toggle(); $("mute").textContent = m ? "Son coupé" : "Son"; $("mute").setAttribute("aria-pressed", String(m)); });
   $("best").textContent = (+(lsGet("zboss_best") || 0)).toLocaleString("fr-FR");
   resize(); show("menu");
