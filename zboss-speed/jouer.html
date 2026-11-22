@@ -128,7 +128,7 @@
       <div class="pick" id="pick"></div>
       <div class="keys">
         <span><kbd>↑</kbd><kbd>W</kbd> accélérer</span><span><kbd>↓</kbd><kbd>S</kbd> freiner</span><span><kbd>←</kbd><kbd>→</kbd> diriger</span>
-        <span><kbd>Espace</kbd> frein à main</span><span><kbd>Maj</kbd> nitro</span><span><kbd>P</kbd> pause</span><span><kbd>M</kbd> son</span><span><kbd>C</kbd> caméra</span>
+        <span><kbd>Espace</kbd> frein à main</span><span><kbd>Maj</kbd> nitro</span><span><kbd>P</kbd> pause</span><span><kbd>M</kbd> son</span><span><kbd>C</kbd> caméra (poursuite / hélico / télé)</span>
       </div>
       <div class="row"><button class="btn btn-primary" id="go" type="button">Démarrer la course</button></div>
       <p style="margin-top:16px;font-size:13px">Record sur cet appareil : <b id="best" style="color:var(--text)">0</b></p>
@@ -153,6 +153,8 @@
 
   <script src="assets/cars.js"></script>
   <script>if (matchMedia("(pointer: coarse)").matches) document.body.classList.add("is-touch");</script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <script src="assets/game.js"></script>
+  <script src="assets/game3d.js"></script>
 </body>
 </html>

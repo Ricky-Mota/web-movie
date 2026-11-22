@@ -173,7 +173,7 @@
       if (anywhere && Math.hypot(x - p.x, y - p.y) < 250) continue;
       const a = horiz ? (dir > 0 ? 0 : Math.PI) : (dir > 0 ? Math.PI / 2 : -Math.PI / 2);
       const c = makeCar("traffic", x, y, a, { maxSpeed: 170 + rand() * 90, accel: 260, steerMax: 2, dmgMul: 1, mass: .8, grip: 9 });
-      c.horiz = horiz; c.lane = lane; c.dir = dir; c.sprite = TRAFFIC_SPRITES[(rand() * TRAFFIC_SPRITES.length) | 0];
+      c.horiz = horiz; c.lane = lane; c.dir = dir; c.tIdx = (rand() * TRAFFIC_SPRITES.length) | 0; c.sprite = TRAFFIC_SPRITES[c.tIdx]; c.bus = rand() < .22; c.taxi = !c.bus && rand() < .35; if (c.bus) c.maxSpeed *= .8;
       const sp = c.maxSpeed; c.vx = Math.cos(a) * sp; c.vy = Math.sin(a) * sp;
       G.traffic.push(c); return;
     }
@@ -651,7 +651,7 @@
       while (acc >= STEP) { if (!G.over || G.t < 1e9) update(STEP); acc -= STEP; if (G.over) { acc = 0; break; } }
       UI.hud(dt);
     }
-    render();
+    if (window.ZBOSS_3D && window.ZBOSS_3D.ok) window.ZBOSS_3D.render(G, dt); else render();
     requestAnimationFrame(loop);
   }
   function start(car) {
@@ -698,13 +698,19 @@
   $("again").addEventListener("click", () => start(chosen));
   $("garage").addEventListener("click", () => show("menu"));
   $("pausebtn").addEventListener("click", () => setPause(true));
-  const camLabel = () => { $("cambtn").textContent = "Caméra : " + (camMode === "chase" ? "poursuite" : "dessus"); };
-  $("cambtn").addEventListener("click", () => { camMode = camMode === "chase" ? "top" : "chase"; lsSet("zboss_cam", camMode); camLabel(); });
+  const camLabel = () => { $("cambtn").textContent = "Caméra : " + (window.ZBOSS_3D && window.ZBOSS_3D.ok ? window.ZBOSS_3D.camLabel() : (camMode === "chase" ? "poursuite" : "dessus")); };
+  $("cambtn").addEventListener("click", () => {
+    if (window.ZBOSS_3D && window.ZBOSS_3D.ok) window.ZBOSS_3D.cycleCam();
+    else { camMode = camMode === "chase" ? "top" : "chase"; lsSet("zboss_cam", camMode); }
+    camLabel();
+  });
+  window.ZBOSS_CAMLABEL = camLabel;
   camLabel();
   $("mute").addEventListener("click", () => { Audio.init(); const m = Audio.toggle(); $("mute").textContent = m ? "Son coupé" : "Son"; $("mute").setAttribute("aria-pressed", String(m)); });
   $("best").textContent = (+(lsGet("zboss_best") || 0)).toLocaleString("fr-FR");
   resize(); show("menu");
 
   // Accès pour les tests automatisés
+  window.ZBOSS_WORLD = { R, B, P, N, W, blocks, inter, solidAt, angDiff, rand };
   window.__zboss = { get state() { return G; }, start: () => start(chosen), spawnCop, keys, touch };
 })();
