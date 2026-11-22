@@ -1,0 +1,15 @@
+# Site Netlify dédié : Base directory = zboss-speed
+[build]
+  publish = "."
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Content-Type-Options = "nosniff"
+    X-Frame-Options = "DENY"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+
+[[headers]]
+  for = "/crm.html"
+  [headers.values]
+    X-Robots-Tag = "noindex, nofollow"
