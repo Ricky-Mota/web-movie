@@ -5,6 +5,7 @@ Site statique (HTML, CSS, JavaScript, sans dépendance ni étape de build) pour 
 | Fichier | Rôle |
 |---|---|
 | `index.html` | Landing page : héros, gameplay, fonctionnalités, galerie, formulaire bêta, réseaux sociaux |
+| `jouer.html`, `assets/game.js` | Démo jouable dans le navigateur (conduite, poursuite policière, nitro, score) |
 | `crm.html` | Mini CRM de l'équipe : liste des inscrits, recherche, filtres, statut, notes, export CSV |
 | `config.js` | URL et clé publique Supabase (vide = mode démo) |
 | `assets/store.js` | Enregistrement et lecture des inscrits (Supabase ou mode démo) |
@@ -17,6 +18,17 @@ Site statique (HTML, CSS, JavaScript, sans dépendance ni étape de build) pour 
 
 Ouvre `index.html` dans un navigateur, inscris-toi, puis ouvre `crm.html` : l'inscrit apparaît.
 En mode démo, les données restent dans ce navigateur uniquement.
+
+## Démo jouable
+
+Ouvre `jouer.html` (ou clique sur **Jouer** dans le menu du site).
+
+- **Clavier** : ↑/W accélérer, ↓/S freiner, ←/→ diriger, Espace frein à main (dérapage), Maj nitro, P pause, M son.
+- **Mobile** : boutons tactiles à l'écran (mieux en mode paysage).
+- **But du jeu** : dépasse 170 km/h devant une patrouille pour déclencher une poursuite. Ta prime grimpe avec le niveau de recherche (1 à 5 : patrouille, renforts, barrages, hélicoptère, unité d'élite). Casse la ligne de vue assez longtemps pour t'évader et encaisser la prime. Si la police t'immobilise ou si ta voiture est détruite, la prime non encaissée est perdue.
+- Les frôlements et les dérapages rechargent la nitro. Les records sont gardés sur l'appareil.
+
+Cette démo sert de prototype de gameplay pour le site. Le jeu complet reste prévu sous Unreal Engine 5.
 
 ## Brancher Supabase (gratuit)
 
