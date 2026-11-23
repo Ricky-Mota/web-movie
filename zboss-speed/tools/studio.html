@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="fr"><head><meta charset="utf-8"><title>Zboss-speed — studio des voitures</title>
+<style>html,body{margin:0;background:transparent}canvas{display:block}</style></head>
+<body>
+<!-- Outil interne : génère les rendus PNG des voitures (assets/cars/*.png).
+     Usage : tools/studio.html?car=kasai&view=34 (ou view=side / view=rear), puis capture du canvas. -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="../assets/cars.js"></script>
+<script src="../assets/cars3d.js"></script>
+<script>
+(function () {
+  const q = new URLSearchParams(location.search), id = q.get("car") || "kasai", view = q.get("view") || "34";
+  const Wpx = view === "side" ? 1260 : 1200, Hpx = view === "side" ? 450 : 760;
+  const r = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
+  r.setPixelRatio(1); r.setSize(Wpx, Hpx); r.outputEncoding = THREE.sRGBEncoding; r.toneMapping = THREE.ACESFilmicToneMapping; r.toneMappingExposure = 1.1;
+  r.shadowMap.enabled = true; r.shadowMap.type = THREE.PCFSoftShadowMap; r.setClearColor(0, 0);
+  document.body.appendChild(r.domElement);
+  ZBOSS_CARS3D.init(r);
+  const sc = new THREE.Scene();
+  const car = (ZBOSS_CARS.list.find(c => c.id === id));
+  const m = id === "police" ? ZBOSS_CARS3D.build("police") : ZBOSS_CARS3D.build(id, { color: car.color });
+  sc.add(m);
+  sc.add(new THREE.HemisphereLight("#ffffff", "#40302a", .7));
+  const key = new THREE.DirectionalLight("#fff1e0", 1.6); key.position.set(4, 8, 5); key.castShadow = true; key.shadow.mapSize.set(2048, 2048);
+  Object.assign(key.shadow.camera, { left: -4, right: 4, top: 4, bottom: -4 }); key.shadow.radius = 6; sc.add(key);
+  const rim = new THREE.DirectionalLight("#9fc4ff", .8); rim.position.set(-5, 3, -6); sc.add(rim);
+  const floor = new THREE.Mesh(new THREE.PlaneGeometry(30, 30), new THREE.ShadowMaterial({ opacity: .55 })); floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true; sc.add(floor);
+  let cam;
+  if (view === "side") { cam = new THREE.PerspectiveCamera(5.4, Wpx / Hpx, .1, 100); cam.position.set(0, .78, 22); cam.lookAt(0, .78, 0); }
+  else if (view === "rear") { cam = new THREE.PerspectiveCamera(24, Wpx / Hpx, .1, 100); cam.position.set(-10.5, 2.3, 2.6); cam.lookAt(0, .55, 0); key.intensity = 1.1; rim.position.set(6, 4, 3); rim.intensity = 1.2; }
+  else { cam = new THREE.PerspectiveCamera(24, Wpx / Hpx, .1, 100); cam.position.set(8.2, 3.1, 9.6); cam.lookAt(-.1, .5, 0); }
+  r.render(sc, cam);
+  window.done = true;
+})();
+</script>
+</body></html>

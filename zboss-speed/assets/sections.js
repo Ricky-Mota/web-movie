@@ -10,7 +10,7 @@
     const label = { vitesse: "Vitesse", accel: "Accélération", maniab: "Maniabilité", solide: "Solidité" };
     grid.innerHTML = C.list.map(c => `
       <article class="car-card reveal in" style="--glow:${c.color}40">
-        <div class="pic">${C.svg(c, { suffix: "-g" })}</div>
+        <div class="pic">${C.svg(c, { view: "34" })}</div>
         <div class="info">
           <div class="cls">${c.cls}</div>
           <h3>${c.name}</h3>

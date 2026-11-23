@@ -34,12 +34,14 @@
   renderer.shadowMap.enabled = !MOBILE;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
+  if (window.ZBOSS_CARS3D) window.ZBOSS_CARS3D.init(renderer);
   const scene = new THREE.Scene();
   const FOG = new THREE.Color("#c98a6e");
   scene.fog = new THREE.FogExp2(FOG, 0.0042);
   const camera = new THREE.PerspectiveCamera(62, 1, 0.3, 2400);
 
   // ------------------------------------------------------------ Ciel et lumière (fin d'après-midi)
+  const skyG = new THREE.Group(); scene.add(skyG);
   {
     const g = new THREE.SphereGeometry(1500, 32, 16), cols = [], pos = g.attributes.position;
     const top = new THREE.Color("#22305e"), mid = new THREE.Color("#c86a5a"), hor = new THREE.Color("#ffb070");
@@ -49,9 +51,9 @@
       cols.push(c.r, c.g, c.b);
     }
     g.setAttribute("color", new THREE.Float32BufferAttribute(cols, 3));
-    scene.add(new THREE.Mesh(g, new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.BackSide, fog: false, depthWrite: false })));
+    skyG.add(new THREE.Mesh(g, new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.BackSide, fog: false, depthWrite: false })));
     const sun = new THREE.Mesh(new THREE.CircleGeometry(60, 32), new THREE.MeshBasicMaterial({ color: "#ffd9a0", fog: false }));
-    sun.position.set(-1100, 120, -700); sun.lookAt(0, 0, 0); scene.add(sun);
+    sun.position.set(-1100, 120, -700); sun.lookAt(0, 0, 0); skyG.add(sun);
   }
   scene.add(new THREE.HemisphereLight("#ffd0b0", "#5a3a2a", 0.75));
   const sunLight = new THREE.DirectionalLight("#ffbe8a", 1.35);
@@ -107,7 +109,7 @@
   });
 
   // ------------------------------------------------------------ Sol, routes, carrefours
-  const ground = new THREE.Mesh(new THREE.PlaneGeometry(3000, 3000), new THREE.MeshStandardMaterial({ map: earthTex, roughness: 1 }));
+  const ground = new THREE.Mesh(new THREE.PlaneGeometry(W * S + 3000, W * S + 3000), new THREE.MeshStandardMaterial({ map: earthTex, roughness: 1 }));
   ground.rotation.x = -Math.PI / 2; ground.position.set(W * S / 2, -0.05, W * S / 2 + 400); ground.receiveShadow = true; scene.add(ground);
 
   const roadMat = new THREE.MeshStandardMaterial({ map: roadTex, roughness: .85 });
@@ -151,13 +153,13 @@
       for (let k = 0; k < 6; k++) palms.push({ x: bx + 6 + rnd() * (bs - 12), z: bz + 6 + rnd() * (bs - 12), h: 7 + rnd() * 5 });
       return;
     }
-    if (dc < 2.6) {
+    if (dc < 3.6) {
       // centre des affaires : tours de bureaux
-      const nT = dc < 1.2 ? 1 : 2;
+      const nT = dc < 1.6 ? 1 : 2;
       for (let k = 0; k < nT; k++) {
         const w = nT === 1 ? bs * .62 : bs * .42, d = nT === 1 ? bs * .62 : bs * .78;
         const x = nT === 1 ? bx + bs / 2 : bx + bs * (k ? .74 : .26), z = bz + bs / 2;
-        const h = (dc < 1.2 ? 95 : 45) + rnd() * 45;
+        const h = (dc < 1.6 ? 95 : dc < 2.6 ? 55 : 32) + rnd() * 45;
         towers.push({ x, z, w, d, h });
         if (rnd() < .5) boards.push({ x, z: z + d / 2 + .3, y: h * .35, w: w * .8, ry: 0, text: pick([["ZBOSS-SPEED", "Fonce. Sème-les."], ["BÊTA OUVERTE", "Inscris-toi sur le site"], ["TA MARQUE ICI", "Espace partenaire"]]) });
       }
@@ -205,7 +207,7 @@
   for (let x = 4; x < W * S; x += 14) {
     const z = (blvd * P) * S; palms.push({ x, z: z - 1.2, h: 9 + rnd() * 3 }); palms.push({ x: x + 7, z: z + R * S + 1.2, h: 9 + rnd() * 3 });
   }
-  for (let k = 0; k < 160; k++) { const b = pick(blocks); if (!b.park) palms.push({ x: (b.x + (rnd() < .5 ? 6 : B - 6)) * S, z: (b.y + 6 + rnd() * (B - 12)) * S, h: 7 + rnd() * 4 }); }
+  for (let k = 0; k < 420; k++) { const b = pick(blocks); if (!b.park) palms.push({ x: (b.x + (rnd() < .5 ? 6 : B - 6)) * S, z: (b.y + 6 + rnd() * (B - 12)) * S, h: 7 + rnd() * 4 }); }
   {
     const trunk = new THREE.CylinderGeometry(.16, .28, 1, 6); trunk.translate(0, .5, 0);
     instanced(palms, trunk, new THREE.MeshStandardMaterial({ color: "#7a5a3a", roughness: 1 }), (o, p, s) => { p.set(o.x, 0, o.z); s.set(1, o.h, 1); }, true);
@@ -227,19 +229,19 @@
   }
 
   // ------------------------------------------------------------ Le fleuve Congo (au nord)
-  const water = new THREE.Mesh(new THREE.PlaneGeometry(3000, 700, 80, 24), new THREE.MeshStandardMaterial({ color: "#5d6f72", roughness: .18, metalness: .55 }));
+  const water = new THREE.Mesh(new THREE.PlaneGeometry(W * S + 3000, 700, 120, 24), new THREE.MeshStandardMaterial({ color: "#5d6f72", roughness: .18, metalness: .55 }));
   water.rotation.x = -Math.PI / 2; water.position.set(W * S / 2, -.6, -360); scene.add(water);
   const wpos = water.geometry.attributes.position, wbase = Float32Array.from(wpos.array);
   { // quai
     const q = new THREE.Mesh(new THREE.BoxGeometry(W * S + 40, 1.2, 1.2), new THREE.MeshStandardMaterial({ color: "#b8a99a" })); q.position.set(W * S / 2, .3, -.6); q.castShadow = true; scene.add(q);
     // rive d'en face : collines et silhouette de ville
-    for (let k = 0; k < 26; k++) { const h = new THREE.Mesh(new THREE.SphereGeometry(40 + rnd() * 50, 8, 6), new THREE.MeshStandardMaterial({ color: "#3d5a3a", roughness: 1 })); h.scale.y = .35; h.position.set(-400 + k * 70 + rnd() * 30, -6, -700 - rnd() * 60); scene.add(h); }
-    for (let k = 0; k < 18; k++) { const t = new THREE.Mesh(box, new THREE.MeshStandardMaterial({ color: "#6d6a78" })); const h = 15 + rnd() * 45; t.scale.set(10 + rnd() * 10, h, 10); t.position.set(150 + k * 22 + rnd() * 10, 0, -650 - rnd() * 30); scene.add(t); }
+    for (let k = 0; k < 26; k++) { const h = new THREE.Mesh(new THREE.SphereGeometry(40 + rnd() * 50, 8, 6), new THREE.MeshStandardMaterial({ color: "#3d5a3a", roughness: 1 })); h.scale.y = .35; h.position.set(-500 + k * (W * S + 1000) / 26 + rnd() * 30, -6, -700 - rnd() * 60); scene.add(h); }
+    for (let k = 0; k < 26; k++) { const t = new THREE.Mesh(box, new THREE.MeshStandardMaterial({ color: "#6d6a78" })); const h = 15 + rnd() * 45; t.scale.set(10 + rnd() * 10, h, 10); t.position.set(W * S * .3 + k * 30 + rnd() * 10, 0, -650 - rnd() * 30); scene.add(t); }
     // collines au sud et sur les côtés
-    for (let k = 0; k < 30; k++) { const h = new THREE.Mesh(new THREE.SphereGeometry(60 + rnd() * 60, 8, 6), new THREE.MeshStandardMaterial({ color: k % 3 ? "#4a5e36" : "#7a4a2e", roughness: 1 })); h.scale.y = .3; const a = rnd() * Math.PI + Math.PI * .05; h.position.set(W * S / 2 + Math.cos(a) * (560 + rnd() * 120), -8, W * S / 2 + Math.sin(a) * (560 + rnd() * 120)); scene.add(h); }
+    for (let k = 0; k < 44; k++) { const h = new THREE.Mesh(new THREE.SphereGeometry(60 + rnd() * 60, 8, 6), new THREE.MeshStandardMaterial({ color: k % 3 ? "#4a5e36" : "#7a4a2e", roughness: 1 })); h.scale.y = .3; const a = rnd() * Math.PI + Math.PI * .05; h.position.set(W * S / 2 + Math.cos(a) * (W * S * .62 + 200 + rnd() * 160), -8, W * S / 2 + Math.sin(a) * (W * S * .62 + 200 + rnd() * 160)); scene.add(h); }
   }
   const pirogues = [];
-  for (let k = 0; k < 9; k++) {
+  for (let k = 0; k < 18; k++) {
     const g = new THREE.Group();
     const hull = new THREE.Mesh(new THREE.BoxGeometry(9, .6, 1.2), new THREE.MeshStandardMaterial({ color: "#4a2e1c" })); g.add(hull);
     const man = new THREE.Mesh(new THREE.CylinderGeometry(.25, .25, 1.5, 6), new THREE.MeshStandardMaterial({ color: pick(["#d62828", "#2a9d8f", "#fcbf49"]) })); man.position.set(2, 1, 0); g.add(man);
@@ -291,7 +293,15 @@
   function modelFor(c) {
     let m = models.get(c);
     if (!m) {
-      if (c.kind === "player") m = makeCarModel("car", c.carDef.color, { low: true, spoiler: ["kasai", "gombe", "kivu"].includes(c.carDef.id) });
+      const C3 = window.ZBOSS_CARS3D;
+      if (C3) {
+        if (c.kind === "player") m = C3.build(c.carDef.id, { color: c.carDef.color });
+        else if (c.kind === "cop" || c.kind === "block") m = C3.build("police");
+        else if (c.bus) m = C3.bus();
+        else if (c.taxi) m = C3.build("taxi");
+        else m = C3.build(["sedan", "suv", "hatch"][c.tIdx % 3], { color: TRAFFIC_COLS[c.tIdx % TRAFFIC_COLS.length], shadow: !MOBILE });
+      }
+      else if (c.kind === "player") m = makeCarModel("car", c.carDef.color, { low: true, spoiler: ["kasai", "gombe", "kivu"].includes(c.carDef.id) });
       else if (c.kind === "cop" || c.kind === "block") m = makeCarModel("police", "#f2f4f8");
       else if (c.bus) m = makeCarModel("bus");
       else m = makeCarModel("car", c.taxi ? "#f2c230" : TRAFFIC_COLS[c.tIdx % TRAFFIC_COLS.length], { taxi: c.taxi });
@@ -411,7 +421,7 @@
       const col = q.kind === "spark" ? [1, .75, .3] : q.kind === "flame" ? [.35, .8, 1] : q.kind === "fire" ? [1, .5, .15] : [.55 * a, .55 * a, .6 * a]; pCol.set(col, n * 3); n++; }
     pGeo.setDrawRange(0, n); pGeo.attributes.position.needsUpdate = true; pGeo.attributes.color.needsUpdate = true;
     updateCamera(G, dt);
-    renderer.render(scene, camera);
+    skyG.position.copy(camera.position); renderer.render(scene, camera);
   }
 
   // Vue d'attente derrière le menu : survol lent de la ville
@@ -423,7 +433,7 @@
     camera.fov = 55; camera.updateProjectionMatrix();
     camera.position.set(c + Math.cos(a) * 260, 70, c + Math.sin(a) * 260 - 120); camera.lookAt(c, 10, c - 60);
     sunLight.position.set(c - 120, 140, c - 80); sunLight.target.position.set(c, 0, c);
-    renderer.render(scene, camera);
+    skyG.position.copy(camera.position); renderer.render(scene, camera);
   }
   requestAnimationFrame(idle);
 

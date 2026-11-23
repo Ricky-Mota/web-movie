@@ -67,7 +67,13 @@
       `<circle cx="${cx}" cy="104" r="${r - 8}" fill="#1c2029"/>${spokes}<circle cx="${cx}" cy="104" r="4" fill="#cfd5e2"/>`;
   }
 
+  // Rendus 3D pré-calculés (tools/studio.html) : vue de profil « side » ou trois-quarts « 34 ».
+  // L'ancien dessin SVG reste disponible via vector() en secours.
   function svg(car, opts = {}) {
+    const view = opts.view || "side";
+    return `<img class="car-svg car-img car-${view}" src="assets/cars/${car.id}-${view}.webp" alt="${car.name}" loading="lazy" decoding="async">`;
+  }
+  function vector(car, opts = {}) {
     const r = car.wheelR || 26;
     const gid = "cg-" + car.id + (opts.suffix || "");
     return `<svg viewBox="0 0 420 150" class="car-svg" role="img" aria-label="${car.name}">
@@ -87,5 +93,5 @@
     </svg>`;
   }
 
-  window.ZBOSS_CARS = { list: CARS, svg };
+  window.ZBOSS_CARS = { list: CARS, svg, vector };
 })();

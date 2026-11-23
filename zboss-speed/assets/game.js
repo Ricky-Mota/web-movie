@@ -8,7 +8,7 @@
   const R = 150;              // largeur des routes
   const B = 330;              // taille d'un pâté de maisons
   const P = R + B;            // pas de la grille
-  const N = 14;               // pâtés par côté
+  const N = 30;               // pâtés par côté (≈ 1,5 km de ville)
   const W = N * P + R;        // taille du monde
   const CAR_R = 15;
 
@@ -17,7 +17,7 @@
   const ROOFS = ["#1b2030", "#202638", "#1a1f2b", "#262b3a", "#1e2433", "#231f2e"];
   const blocks = [];
   for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
-    const park = rand() < 0.12 && !(i === 6 && j === 6);
+    const park = rand() < 0.12 && !(i === (N >> 1) - 1 && j === (N >> 1));
     const x = i * P + R, y = j * P + R;
     const b = { i, j, x, y, w: B, h: B, park, h3: 0.6 + rand() * 1.4, roof: ROOFS[(rand() * ROOFS.length) | 0], details: [] };
     if (park) { for (let k = 0; k < 9; k++) b.details.push({ x: x + 30 + rand() * (B - 60), y: y + 30 + rand() * (B - 60), r: 12 + rand() * 14 }); }
@@ -144,7 +144,7 @@
 
   function newGame(car) {
     const st = statsFor(car);
-    const start = inter(6, 7);
+    const start = inter(N >> 1, (N >> 1) + 1);
     const player = makeCar("player", start.x, start.y - 40, -Math.PI / 2, st);
     player.sprite = carSprite(car.color, car.dark, "player"); player.carDef = car;
     G = {
@@ -154,7 +154,7 @@
       cam: { x: player.x, y: player.y, z: 1, a: player.a }, over: false, paused: false, lastBlockT: 0, calmT: 0, shake: 0,
       best: +(lsGet("zboss_best") || 0),
     };
-    for (let k = 0; k < 34; k++) spawnTraffic(true);
+    for (let k = 0; k < 44; k++) spawnTraffic(true);
     for (let k = 0; k < 2; k++) spawnCop(false);
     msg("Roule. Les patrouilles te repèrent si tu dépasses 170 km/h devant elles.", 4.5);
   }
@@ -390,7 +390,7 @@
 
     // traffic renouvelé
     G.traffic = G.traffic.filter(c => !c.dead && Math.hypot(c.x - p.x, c.y - p.y) < 2600);
-    while (G.traffic.length < 34) spawnTraffic(false);
+    while (G.traffic.length < 44) spawnTraffic(false);
 
     // frôlements
     const sp = Math.hypot(p.vx, p.vy);
@@ -590,18 +590,22 @@
 
   // ---------------------------------------------------------------- Mini-carte
   const mm = document.getElementById("minimap"), mctx = mm.getContext("2d"), MM = 180;
-  const mapBase = document.createElement("canvas"); mapBase.width = mapBase.height = MM;
+  // carte de base en haute résolution, la mini-carte n'en montre qu'une zone autour du joueur
+  const MB = 1200, MVIEW = 5200; // MVIEW : largeur de monde visible (px de simulation)
+  const mapBase = document.createElement("canvas"); mapBase.width = mapBase.height = MB;
   (function () {
-    const c = mapBase.getContext("2d"), s = MM / W; c.fillStyle = "#1b1d27"; c.fillRect(0, 0, MM, MM);
+    const c = mapBase.getContext("2d"), s = MB / W; c.fillStyle = "#2a2d3a"; c.fillRect(0, 0, MB, MB);
     blocks.forEach(b => { c.fillStyle = b.park ? "#123020" : "#0a0b10"; c.fillRect(b.x * s, b.y * s, B * s, B * s); });
   })();
   function renderMinimap() {
-    mm.width = MM; mm.height = MM; const s = MM / W, p = G.player;
-    mctx.drawImage(mapBase, 0, 0);
-    G.blocks.forEach(b => { mctx.fillStyle = "#c9ccd6"; mctx.fillRect(b.x * s - 2, b.y * s - 2, 4, 4); });
-    G.cops.forEach(c => { if (!c.alive || c.mode === "leave") return; mctx.fillStyle = c.mode === "patrol" ? "#8a93a8" : (Math.floor(G.t * 4) % 2 ? "#ff2d4a" : "#2d7bff"); mctx.beginPath(); mctx.arc(c.x * s, c.y * s, 3, 0, 6.283); mctx.fill(); });
-    if (G.heli) { mctx.strokeStyle = "rgba(220,235,255,.8)"; mctx.beginPath(); mctx.arc(G.heli.x * s, G.heli.y * s, 170 * s + 2, 0, 6.283); mctx.stroke(); }
-    mctx.save(); mctx.translate(p.x * s, p.y * s); mctx.rotate(p.a); mctx.fillStyle = "#ffb21f"; mctx.beginPath(); mctx.moveTo(6, 0); mctx.lineTo(-4, -4); mctx.lineTo(-4, 4); mctx.closePath(); mctx.fill(); mctx.restore();
+    mm.width = MM; mm.height = MM; const p = G.player, s = MM / MVIEW, ox = MM / 2 - p.x * s, oy = MM / 2 - p.y * s;
+    mctx.fillStyle = "#06070b"; mctx.fillRect(0, 0, MM, MM);
+    mctx.drawImage(mapBase, ox, oy, W * s, W * s);
+    const X = x => ox + x * s, Y = y => oy + y * s;
+    G.blocks.forEach(b => { mctx.fillStyle = "#c9ccd6"; mctx.fillRect(X(b.x) - 2, Y(b.y) - 2, 4, 4); });
+    G.cops.forEach(c => { if (!c.alive || c.mode === "leave") return; mctx.fillStyle = c.mode === "patrol" ? "#8a93a8" : (Math.floor(G.t * 4) % 2 ? "#ff2d4a" : "#2d7bff"); const x = Math.max(4, Math.min(MM - 4, X(c.x))), y = Math.max(4, Math.min(MM - 4, Y(c.y))); mctx.beginPath(); mctx.arc(x, y, 3.2, 0, 6.283); mctx.fill(); });
+    if (G.heli) { mctx.strokeStyle = "rgba(220,235,255,.8)"; mctx.beginPath(); mctx.arc(X(G.heli.x), Y(G.heli.y), 170 * s + 2, 0, 6.283); mctx.stroke(); }
+    mctx.save(); mctx.translate(MM / 2, MM / 2); mctx.rotate(p.a); mctx.fillStyle = "#ffb21f"; mctx.beginPath(); mctx.moveTo(7, 0); mctx.lineTo(-5, -5); mctx.lineTo(-5, 5); mctx.closePath(); mctx.fill(); mctx.restore();
   }
 
   // ---------------------------------------------------------------- Interface
@@ -686,7 +690,7 @@
   try { const saved = lsGet("zboss_car"); if (saved) chosen = CARS.find(c => c.id === saved) || chosen; } catch (e) { }
   const pick = $("pick");
   pick.innerHTML = CARS.map(c => `<button type="button" class="pick-car" data-id="${c.id}" aria-pressed="${c === chosen}">
-      ${window.ZBOSS_CARS.svg(c, { suffix: "-m" })}<b>${c.name}</b><small>${c.cls} · ${Math.round((560 + c.stats.vitesse * 2) * .45)} km/h</small></button>`).join("");
+      ${window.ZBOSS_CARS.svg(c, { view: "34" })}<b>${c.name}</b><small>${c.cls} · ${Math.round((560 + c.stats.vitesse * 2) * .45)} km/h</small></button>`).join("");
   pick.addEventListener("click", e => {
     const b = e.target.closest(".pick-car"); if (!b) return;
     chosen = CARS.find(c => c.id === b.dataset.id); lsSet("zboss_car", chosen.id);
