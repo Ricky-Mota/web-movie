@@ -140,22 +140,73 @@
     g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute("uv", new THREE.Float32BufferAttribute(uv, 2)); g.setIndex(idx);
     g.computeVertexNormals(); return g;
   }
+  // ---- route moderne : asphalte fin, marquages blancs nets, trottoirs surélevés avec bordures, passages piétons
+  const markTex = lanes => canvasTex(256, 512, (c, w, h) => {
+    noise(c, w, h, "#232428", .07, 9000);
+    c.fillStyle = "rgba(0,0,0,.18)"; [.22, .36, .64, .78].forEach(f => c.fillRect(w * f - 9, 0, 18, h)); // traces de roulement
+    c.fillStyle = "rgba(255,255,255,.04)"; for (let k = 0; k < 400; k++) c.fillRect(Math.random() * w, Math.random() * h, 1, 1);
+    const W8 = "rgba(244,246,250,.92)";
+    c.fillStyle = W8; c.fillRect(7, 0, 5, h); c.fillRect(w - 12, 0, 5, h);   // lignes de rive continues
+    if (lanes >= 4) {
+      c.fillRect(w / 2 - 7, 0, 4, h); c.fillRect(w / 2 + 3, 0, 4, h);          // double ligne centrale
+      c.fillRect(w * .25 - 2, 0, 4, h * .3); c.fillRect(w * .75 - 2, 0, 4, h * .3); // pointillés de voies
+    } else c.fillRect(w / 2 - 2, 0, 5, h * .3);                                 // ligne centrale pointillée
+  }, true);
+  const ROAD4 = markTex(4), ROAD2 = markTex(2);
+  [ROAD4, ROAD2].forEach(t => { t.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy()); });
+  const nodeAt = new Map(); nodes.forEach(n => nodeAt.set(n.x + "," + n.y, n));
+  function polyM(r) { const pts = []; for (let i = 0; i < r.p.length; i += 2) pts.push([r.p[i] * S, r.p[i + 1] * S]); return pts; }
+  // raccourcit une polyligne aux carrefours (pour les trottoirs)
+  function trim(pts, r) {
+    const cut = (arr, n) => { if (!n || n.nb.length < 3) return arr; let left = n.w * S * .55 + 3.5; const out = arr.slice();
+      while (out.length > 1 && left > 0) { const a = out[0], b = out[1], L = Math.hypot(b[0] - a[0], b[1] - a[1]); if (L <= left) { out.shift(); left -= L; } else { out[0] = [a[0] + (b[0] - a[0]) * left / L, a[1] + (b[1] - a[1]) * left / L]; left = 0; } }
+      return out.length > 1 ? out : []; };
+    let o = cut(pts, nodeAt.get(r.p[0] + "," + r.p[1])); if (!o.length) return o;
+    o = cut(o.reverse(), nodeAt.get(r.p[r.p.length - 2] + "," + r.p[r.p.length - 1])); return o.reverse();
+  }
+  // bande parallèle à la polyligne : décalages o0/o1 (m) et hauteurs y0/y1
+  // pr : décalage (m) d'un point de contrôle ; si ce point tombe sur une autre chaussée
+  // (voies parallèles, bretelles), le tronçon de trottoir n'est pas posé.
+  function strip(pos, idx, pts, o0, o1, y0, y1, pr) {
+    if (pts.length < 2) return; const base = pos.length / 3, ok = [];
+    for (let i = 0; i < pts.length; i++) {
+      const a = pts[Math.max(0, i - 1)], b = pts[Math.min(pts.length - 1, i + 1)], c = pts[i];
+      let tx = b[0] - a[0], tz = b[1] - a[1]; const tl = Math.hypot(tx, tz) || 1; tx /= tl; tz /= tl;
+      pos.push(c[0] - tz * o0, y0, c[1] + tx * o0, c[0] - tz * o1, y1, c[1] + tx * o1);
+      ok.push(groundAt((c[0] - tz * pr) / S, (c[1] + tx * pr) / S) !== 1);
+      if (i > 0 && ok[i] && ok[i - 1]) { const k = base + (i - 1) * 2; idx.push(k, k + 2, k + 1, k + 1, k + 2, k + 3); }
+    }
+  }
+  function geo(pos, idx) { const g = new THREE.BufferGeometry(); g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3)); g.setIndex(idx); g.computeVertexNormals(); return g; }
   {
-    const side = new THREE.Mesh(ribbon(ROADS, 4.5, .02, 6), new THREE.MeshStandardMaterial({ map: lotTex2, roughness: .95 }));
-    side.receiveShadow = true; scene.add(side);
-    const byRank = ["residential", "unclassified", "living_street", "tertiary", "secondary", "primary", "trunk", "motorway"];
-    byRank.forEach((cls, k) => {
-      const list = ROADS.filter(r => r.cls === cls); if (!list.length) return;
-      const m = new THREE.Mesh(ribbon(list, 0, .04 + k * .006, 14), new THREE.MeshStandardMaterial({ map: roadTex, roughness: .85, polygonOffset: true, polygonOffsetFactor: -1 - k, polygonOffsetUnits: -1 - k }));
+    // chaussées
+    [[ROADS.filter(r => r.w >= 150), ROAD4, 2], [ROADS.filter(r => r.w < 150), ROAD2, 1]].forEach(([list, tex, k]) => {
+      const m = new THREE.Mesh(ribbon(list, 0, .04 + k * .006, 12), new THREE.MeshStandardMaterial({ map: tex, roughness: .6, metalness: .05, polygonOffset: true, polygonOffsetFactor: -1 - k, polygonOffsetUnits: -1 - k }));
       m.receiveShadow = true; scene.add(m);
     });
-    // carrefours : disque d'asphalte propre par-dessus les rubans
+    // trottoirs (dessus en dalles) et bordures (faces verticales), coupés aux carrefours
+    const tp = [], ti = [], cp = [], ci = [];
+    ROADS.forEach(r => {
+      const pts = trim(polyM(r), r), hw = r.w * S / 2, sw = r.w >= 150 ? 4 : 3;
+      for (const sd of [1, -1]) { const pr = sd * (hw + sw * .8); strip(tp, ti, pts, sd * hw, sd * (hw + sw), .16, .16, pr); strip(cp, ci, pts, sd * hw, sd * hw, .02, .16, pr); }
+    });
+    const top = new THREE.Mesh(geo(tp, ti), new THREE.MeshStandardMaterial({ color: "#c9c3ba", roughness: .9, side: THREE.DoubleSide }));
+    top.receiveShadow = true; scene.add(top);
+    scene.add(new THREE.Mesh(geo(cp, ci), new THREE.MeshStandardMaterial({ color: "#e9e6e0", roughness: .7, side: THREE.DoubleSide })));
+    // carrefours : asphalte propre + passages piétons sur chaque branche
     const xs = nodes.filter(n => n.nb.length >= 3);
-    const disc = new THREE.CircleGeometry(1, 20); disc.rotateX(-Math.PI / 2);
-    const im = new THREE.InstancedMesh(disc, new THREE.MeshStandardMaterial({ map: asphaltTex, roughness: .85, polygonOffset: true, polygonOffsetFactor: -12, polygonOffsetUnits: -12 }), xs.length);
-    const m4 = new THREE.Matrix4();
+    const disc = new THREE.CircleGeometry(1, 24); disc.rotateX(-Math.PI / 2);
+    const im = new THREE.InstancedMesh(disc, new THREE.MeshStandardMaterial({ map: asphaltTex, roughness: .6, polygonOffset: true, polygonOffsetFactor: -12, polygonOffsetUnits: -12 }), xs.length);
+    const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), sc = new THREE.Vector3(), ps = new THREE.Vector3(), Y = new THREE.Vector3(0, 1, 0);
     xs.forEach((n, i) => { const r = n.w * S * .55; m4.makeScale(r, 1, r).setPosition(n.x * S, .09, n.y * S); im.setMatrixAt(i, m4); });
     im.receiveShadow = true; scene.add(im);
+    const zebraTex = canvasTex(64, 256, (c, w, h) => { c.fillStyle = "#26272b"; c.fillRect(0, 0, w, h); c.fillStyle = "rgba(244,246,250,.95)"; for (let y = 0; y < h; y += 32) c.fillRect(0, y + 4, w, 16); }, true);
+    const zg = new THREE.PlaneGeometry(3, 1); zg.rotateX(-Math.PI / 2);
+    const zebras = []; xs.forEach(n => n.nb.forEach(id => { const o = nodes[id], L = Math.hypot(o.x - n.x, o.y - n.y); if (L > n.w * .7 + 60) zebras.push({ n, ux: (o.x - n.x) / L, uy: (o.y - n.y) / L }); }));
+    const zm = new THREE.InstancedMesh(zg, new THREE.MeshStandardMaterial({ map: zebraTex, roughness: .6, polygonOffset: true, polygonOffsetFactor: -14, polygonOffsetUnits: -14 }), Math.max(1, zebras.length));
+    zebraTex.repeat.set(1, 2);
+    zebras.forEach((z, i) => { const d = z.n.w * S * .55 + 2; ps.set((z.n.x + z.ux * d / S) * S, .1, (z.n.y + z.uy * d / S) * S); q.setFromAxisAngle(Y, -Math.atan2(z.uy, z.ux)); sc.set(1, 1, z.n.w * S * .92); m4.compose(ps, q, sc); zm.setMatrixAt(i, m4); });
+    zm.count = zebras.length; zm.receiveShadow = true; scene.add(zm);
   }
 
   // ------------------------------------------------------------ Bâtiments réels (empreintes extrudées), regroupés par tuiles
@@ -167,6 +218,7 @@
     const TILE = 400, tiles = new Map(), col = new THREE.Color();
     const T = (tw, key) => { let t = tiles.get(key); if (!t) tiles.set(key, t = { tower: { p: [], n: [], u: [], c: [] }, house: { p: [], n: [], u: [], c: [] } }); return tw ? t.tower : t.house; };
     MAP.buildings.forEach(b => {
+      if (b[0] < 0) return; // repère dessiné à part
       const h = b[0] / 10, tw = h > 20, pts = [];
       for (let i = 1; i < b.length; i += 2) pts.push([b[i] * S, b[i + 1] * S]);
       let area = 0, cx = 0, cz = 0, x0 = 1e9, x1 = -1e9, z0 = 1e9, z1 = -1e9;
@@ -219,7 +271,7 @@
   function instanced(list, geo, mat, fn, shadow) {
     const im = new THREE.InstancedMesh(geo, mat, Math.max(1, list.length)), m = new THREE.Matrix4(), q = new THREE.Quaternion(), s = new THREE.Vector3(), p = new THREE.Vector3(), c = new THREE.Color();
     im.count = list.length;
-    list.forEach((o, i) => { const r = fn(o, p, s, c); m.compose(p, r || q, s); im.setMatrixAt(i, m); if (o.c) im.setColorAt(i, c); });
+    list.forEach((o, i) => { const r = fn(o, p, s, c); m.compose(p, r || q, s); im.setMatrixAt(i, m); if (o.c !== undefined) im.setColorAt(i, c); });
     im.castShadow = !!shadow; im.receiveShadow = true; scene.add(im); return im;
   }
 
@@ -237,7 +289,7 @@
           const ox = x + nx * (r.w / 2 + 22) * sd, oy = y + ny * (r.w / 2 + 22) * sd;
           if (groundAt(ox, oy) !== 0) continue;
           if (blvd || (!big && rnd() < .5)) palms.push({ x: ox * S, z: oy * S, h: 8 + rnd() * 4 });
-          else if (sd === 1) lamps.push({ x: ox * S, z: oy * S });
+          else if (sd === 1 || r.w >= 150) lamps.push({ x: ox * S, z: oy * S, a: Math.atan2(-ny * sd, -nx * sd) });
         }
       }
     }
@@ -253,10 +305,37 @@
     }
     const crown = new THREE.BufferGeometry(); crown.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3)); crown.computeVertexNormals();
     instanced(palms, crown, new THREE.MeshStandardMaterial({ color: "#2f6b33", side: THREE.DoubleSide, roughness: .9 }), (o, p, s) => { p.set(o.x, o.h, o.z); s.set(1, 1, 1); return new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), rnd() * 6.28); }, true);
-    const pole = new THREE.CylinderGeometry(.08, .12, 1, 5); pole.translate(0, .5, 0);
-    instanced(lamps, pole, new THREE.MeshStandardMaterial({ color: "#3a3a40" }), (o, p, s) => { p.set(o.x, 0, o.z); s.set(1, 7, 1); });
-    instanced(lamps, new THREE.SphereGeometry(.35, 8, 6), new THREE.MeshBasicMaterial({ color: "#ffd9a0" }), (o, p, s) => { p.set(o.x, 7, o.z); s.set(1, 1, 1); });
+    // lampadaires LED modernes : mât fin, crosse vers la chaussée, tête plate lumineuse
+    const Yax = new THREE.Vector3(0, 1, 0), rot = o => new THREE.Quaternion().setFromAxisAngle(Yax, -o.a);
+    const pole = new THREE.CylinderGeometry(.07, .11, 9, 8); pole.translate(0, 4.5, 0);
+    instanced(lamps, pole, new THREE.MeshStandardMaterial({ color: "#4a4e57", metalness: .6, roughness: .4 }), (o, p, s) => { p.set(o.x, 0, o.z); s.set(1, 1, 1); });
+    const arm = new THREE.BoxGeometry(2.2, .1, .1); arm.translate(1.1, 9, 0);
+    instanced(lamps, arm, new THREE.MeshStandardMaterial({ color: "#4a4e57", metalness: .6, roughness: .4 }), (o, p, s) => { p.set(o.x, 0, o.z); s.set(1, 1, 1); return rot(o); });
+    const head = new THREE.BoxGeometry(.9, .08, .32); head.translate(2.3, 8.96, 0);
+    instanced(lamps, head, new THREE.MeshBasicMaterial({ color: "#f2f6ff" }), (o, p, s) => { p.set(o.x, 0, o.z); s.set(1, 1, 1); return rot(o); });
   }
+
+  // ------------------------------------------------------------ Quartiers de remplissage (maisons basses, hors carte détaillée)
+  if (WORLD.FILL && WORLD.FILL.length) {
+    const fm = new THREE.MeshStandardMaterial({ map: wallTex(3, 2), roughness: .9 });
+    instanced(WORLD.FILL, box, fm, (o, p, s, c) => { p.set(o.x * S, 0, o.y * S); s.set(o.w * S, o.h * S, o.d * S); c.set(PAINT[o.c]); });
+    instanced(WORLD.FILL, new THREE.BoxGeometry(1, .3, 1), new THREE.MeshStandardMaterial({ roughness: .6, metalness: .4 }), (o, p, s, c) => { p.set(o.x * S, o.h * S + .15, o.y * S); s.set(o.w * S + .5, 1, o.d * S + .5); c.set(ROOF[o.c % ROOF.length]); });
+  }
+  // ------------------------------------------------------------ Repère : la tour de l'Échangeur (Limete)
+  (MAP.landmarks || []).forEach(L => {
+    if (L.type !== "echangeur") return;
+    const g = new THREE.Group(), H = L.h / 10, con = new THREE.MeshStandardMaterial({ color: "#ddd6cb", roughness: .8 });
+    const plaza = new THREE.Mesh(new THREE.CylinderGeometry(7.5, 8, .4, 24), new THREE.MeshStandardMaterial({ color: "#bdb5a8", roughness: .9 })); plaza.position.y = .2; g.add(plaza);
+    for (const [px, pz] of [[2.6, 2.6], [-2.6, 2.6], [2.6, -2.6], [-2.6, -2.6]]) {
+      const pil = new THREE.Mesh(new THREE.BoxGeometry(1.4, H, 1.4), con); pil.position.set(px, H / 2, pz); pil.castShadow = true; g.add(pil);
+    }
+    for (let y = 18; y < H - 10; y += 18) { const ring = new THREE.Mesh(new THREE.BoxGeometry(6.8, .8, 6.8), con); ring.position.y = y; g.add(ring); }
+    const cab = new THREE.Mesh(new THREE.BoxGeometry(8, 5, 8), con); cab.position.y = H + 1; cab.castShadow = true; g.add(cab);
+    const win = new THREE.Mesh(new THREE.BoxGeometry(8.1, 1.6, 8.1), new THREE.MeshStandardMaterial({ color: "#1a2a3a", metalness: .8, roughness: .15 })); win.position.y = H + 1.4; g.add(win);
+    const ant = new THREE.Mesh(new THREE.CylinderGeometry(.15, .3, 14, 6), con); ant.position.y = H + 10.5; g.add(ant);
+    const red = new THREE.Mesh(new THREE.SphereGeometry(.6, 8, 6), new THREE.MeshBasicMaterial({ color: "#ff2020" })); red.position.y = H + 17.8; g.add(red);
+    g.position.set(L.x * S, 0, L.y * S); scene.add(g);
+  });
 
   // ------------------------------------------------------------ Le fleuve Congo : tracé réel + grand plan d'eau au nord
   const waterMat = new THREE.MeshStandardMaterial({ color: "#5d6f72", roughness: .18, metalness: .55, side: THREE.DoubleSide });

@@ -1,4 +1,4 @@
-"""Prépare la carte réelle de Kinshasa (Gombe et alentours) pour Zboss-speed.
+"""Prépare la carte réelle de Kinshasa (de la Gombe à Limete et l'échangeur) pour Zboss-speed.
 
 Source : Overture Maps (transportation, buildings, base/water), données dérivées
 d'OpenStreetMap, licence ODbL : « © les contributeurs d'OpenStreetMap ».
@@ -15,7 +15,11 @@ from shapely.ops import unary_union
 from shapely import affinity
 
 SRC, OUT = sys.argv[1], sys.argv[2]
-W_, S_, E_, N_ = 15.2756, -4.3270, 15.3066, -4.2960
+W_, S_, E_, N_ = 15.2756, -4.3520, 15.3450, -4.2960
+# cœur détaillé (toutes les rues, tous les bâtiments) : la Gombe
+CORE = (15.2756, -4.3270, 15.3066, -4.2960)
+# repère : tour de l'Échangeur de Limete (position approchée)
+ECH = (15.3276, -4.3377)
 LATC = (S_ + N_) / 2
 KX = 111320 * math.cos(math.radians(LATC)) * 10  # px par degré de longitude
 KY = 110574 * 10
@@ -26,6 +30,8 @@ def proj(geom):
     return affinity.affine_transform(geom, [KX, 0, 0, -KY, -W_ * KX, N_ * KY])
 
 BBOX = box(0, 0, WPX, HPX)
+CORE_B = proj(box(*CORE))
+MAIN = {"motorway", "trunk", "primary", "secondary", "tertiary"}
 # largeur des routes (px) : élargies par rapport au réel pour la conduite à haute vitesse
 WIDTH = {"motorway": 200, "trunk": 190, "primary": 170, "secondary": 150, "tertiary": 130,
          "residential": 110, "unclassified": 110, "living_street": 100}
@@ -42,6 +48,8 @@ for f in load("kin_roads.json"):
     if p.get("subtype") != "road" or p.get("class") not in WIDTH: continue
     g = proj(shape(f["geometry"])).intersection(BBOX)
     if g.is_empty: continue
+    # hors de la Gombe : seulement les grands axes (et les rues autour de l'échangeur)
+    if p["class"] not in MAIN and not CORE_B.contains(g.centroid) and g.centroid.distance(proj(Point(*ECH))) > 4500: continue
     parts = [g] if g.geom_type == "LineString" else list(getattr(g, "geoms", []))
     nm = (p.get("names") or {}).get("primary") if isinstance(p.get("names"), dict) else None
     for part in parts:
@@ -69,6 +77,7 @@ for r in roads:
     if r["n"] and r["n"] not in name_idx: name_idx[r["n"]] = len(names); names.append(r["n"])
 print("routes", len(roads), "noeuds", len(best))
 
+main_near = unary_union([LineString(r["p"]).buffer(700) for r in roads])
 road_buf = unary_union([LineString(r["p"]).buffer(r["w"] / 2 + 25, cap_style=1) for r in roads])
 
 # ------------------------------------------------------------------ Eau (fleuve)
@@ -91,12 +100,14 @@ blds = []
 for f in load("kin_buildings.json"):
     p = f["properties"]
     g = proj(shape(f["geometry"])).buffer(0)
+    core = CORE_B.contains(g.centroid)
+    if not core and (g.area < 5000 or not main_near.contains(g.centroid)): continue
     g = g.intersection(BBOX).difference(road_buf).difference(water_u)
     if g.is_empty: continue
     polys = [g] if g.geom_type == "Polygon" else [x for x in getattr(g, "geoms", []) if x.geom_type == "Polygon"]
     for poly in polys:
         if poly.area < 3500: continue  # < 35 m²
-        poly = poly.simplify(8)
+        poly = poly.simplify(8 if core else 14)
         if poly.is_empty or poly.geom_type != "Polygon": continue
         area_m2 = poly.area / 100
         h = p.get("height") or (p.get("num_floors") and p["num_floors"] * 3.2)
@@ -108,7 +119,21 @@ for f in load("kin_buildings.json"):
             else: h = random.uniform(3.5, 8)
         pts = [round(c) for xy in list(poly.exterior.coords)[:-1] for c in xy]
         if len(pts) >= 6: blds.append([round(h * 10)] + pts)
-print("bâtiments", len(blds))
+# repère : la tour de l'Échangeur, posée sur un terrain libre au plus près de la position réelle
+ex, ey = proj(Point(*ECH)).coords[0]
+best = None
+for dx in range(-1500, 1501, 50):
+    for dy in range(-1500, 1501, 50):
+        q = Point(ex + dx, ey + dy)
+        if road_buf.distance(q) > 90 and not water_u.contains(q):
+            d = math.hypot(dx, dy)
+            if best is None or d < best[0]: best = (d, q.x, q.y)
+landmarks = []
+if best:
+    lx, ly = best[1], best[2]
+    landmarks.append({"type": "echangeur", "x": round(lx), "y": round(ly), "h": 2100})
+    blds.append([-1] + [round(c) for k in range(10) for c in (lx + 75 * math.cos(k / 10 * 6.2832), ly + 75 * math.sin(k / 10 * 6.2832))])
+print("bâtiments", len(blds), "repères", landmarks)
 
 # ------------------------------------------------------------------ Départ : boulevard du 30 Juin, vers le centre
 cx, cy = WPX / 2, HPX / 2
@@ -123,7 +148,7 @@ out = {
     "attribution": "© les contributeurs d'OpenStreetMap (ODbL), via Overture Maps",
     "cls": CLS, "names": names,
     "roads": [[CLS.index(r["c"]), r["w"], name_idx.get(r["n"], -1)] + [c for xy in r["p"] for c in xy] for r in roads],
-    "buildings": blds, "water": water, "start": start,
+    "buildings": blds, "water": water, "start": start, "landmarks": landmarks,
 }
 js = "// Carte de Kinshasa (Gombe) générée par tools/prep_kinshasa.py\n// " + out["attribution"] + "\nwindow.ZBOSS_MAP=" + json.dumps(out, separators=(",", ":"), ensure_ascii=False) + ";\n"
 open(OUT, "w").write(js)

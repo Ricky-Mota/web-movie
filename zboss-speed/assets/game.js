@@ -66,22 +66,50 @@
   }
 
   // masque de collision (1 case = C px) : 0 sol nu, 1 route, 2 bâtiment, 3 eau
+  // dessiné par tuiles (limite de taille des canvas sur mobile)
   const C = 12, MW = Math.ceil(W / C), MH = Math.ceil(H / C);
   const mask = new Uint8Array(MW * MH);
-  const MAP2D = document.createElement("canvas"); MAP2D.width = MW; MAP2D.height = MH;
   (function () {
-    const c = MAP2D.getContext("2d");
-    c.fillStyle = "#000"; c.fillRect(0, 0, MW, MH); c.save(); c.scale(1 / C, 1 / C);
-    c.fillStyle = "#0000ff"; MAP.water.forEach(rings => { c.beginPath(); rings.forEach(r => { r.forEach(([x, y], i) => i ? c.lineTo(x, y) : c.moveTo(x, y)); c.closePath(); }); c.fill("evenodd"); });
-    c.fillStyle = "#ff0000"; MAP.buildings.forEach(b => { c.beginPath(); for (let i = 1; i < b.length; i += 2) i === 1 ? c.moveTo(b[i], b[i + 1]) : c.lineTo(b[i], b[i + 1]); c.closePath(); c.fill(); });
-    c.strokeStyle = "#00ff00"; c.lineCap = c.lineJoin = "round";
-    ROADS.forEach(r => { c.lineWidth = r.w; c.beginPath(); for (let i = 0; i < r.p.length; i += 2) i ? c.lineTo(r.p[i], r.p[i + 1]) : c.moveTo(r.p[i], r.p[i + 1]); c.stroke(); });
-    c.restore();
-    const img = c.getImageData(0, 0, MW, MH), d = img.data;
-    for (let i = 0, k = 0; i < mask.length; i++, k += 4) {
-      const v = d[k + 1] > 110 ? 1 : d[k] > 127 ? 2 : d[k + 2] > 127 ? 3 : 0; mask[i] = v;
-      const col = v === 1 ? [30, 31, 40] : v === 2 ? [70, 66, 72] : v === 3 ? [28, 64, 88] : [58, 40, 30];
-      d[k] = col[0]; d[k + 1] = col[1]; d[k + 2] = col[2]; d[k + 3] = 255;
+    const TS = 2048, cv = document.createElement("canvas"); cv.width = cv.height = TS;
+    const c = cv.getContext("2d", { willReadFrequently: true });
+    for (let ty = 0; ty < MH; ty += TS) for (let tx = 0; tx < MW; tx += TS) {
+      c.setTransform(1, 0, 0, 1, 0, 0); c.fillStyle = "#000"; c.fillRect(0, 0, TS, TS);
+      c.setTransform(1 / C, 0, 0, 1 / C, -tx, -ty);
+      c.fillStyle = "#0000ff"; MAP.water.forEach(rings => { c.beginPath(); rings.forEach(r => { r.forEach(([x, y], i) => i ? c.lineTo(x, y) : c.moveTo(x, y)); c.closePath(); }); c.fill("evenodd"); });
+      c.fillStyle = "#ff0000"; MAP.buildings.forEach(b => { c.beginPath(); for (let i = 1; i < b.length; i += 2) i === 1 ? c.moveTo(b[i], b[i + 1]) : c.lineTo(b[i], b[i + 1]); c.closePath(); c.fill(); });
+      c.strokeStyle = "#00ff00"; c.lineCap = c.lineJoin = "round";
+      ROADS.forEach(r => { c.lineWidth = r.w; c.beginPath(); for (let i = 0; i < r.p.length; i += 2) i ? c.lineTo(r.p[i], r.p[i + 1]) : c.moveTo(r.p[i], r.p[i + 1]); c.stroke(); });
+      const w = Math.min(TS, MW - tx), h = Math.min(TS, MH - ty), d = c.getImageData(0, 0, w, h).data;
+      for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) { const k = (y * w + x) * 4; mask[(ty + y) * MW + tx + x] = d[k + 1] > 110 ? 1 : d[k] > 127 ? 2 : d[k + 2] > 127 ? 3 : 0; }
+    }
+  })();
+  // quartiers de remplissage : petites maisons sur les terrains nus loin des grands axes
+  // (la carte ne garde que les bâtiments proches des rues hors de la Gombe)
+  const FILL = [];
+  (function () {
+    const fr = rng(4243), M = (x, y) => (x < 0 || y < 0 || x >= W || y >= H) ? 1 : mask[(y / C | 0) * MW + (x / C | 0)];
+    const STEP = 240, CLEAR = 420;
+    for (let gy = STEP; gy < H - STEP; gy += STEP) for (let gx = STEP; gx < W - STEP; gx += STEP) {
+      const x = gx + (fr() - .5) * 60, y = gy + (fr() - .5) * 60;
+      let ok = true;
+      for (let k = 0; k < 9 && ok; k++) { const dx = (k % 3 - 1) * CLEAR, dy = ((k / 3 | 0) - 1) * CLEAR; const v = M(x + dx, y + dy); if (v === 1 || v === 3) ok = false; }
+      for (let k = 0; k < 5 && ok; k++) { const v = M(x + [0, -90, 90, 0, 0][k], y + [0, 0, 0, -90, 90][k]); if (v !== 0) ok = false; }
+      if (!ok || fr() < .12) continue;
+      const w = 110 + fr() * 70, d = 110 + fr() * 70, h = 35 + fr() * 55;
+      FILL.push({ x, y, w, d, h, c: (fr() * 12) | 0 });
+      for (let yy = y - d / 2; yy < y + d / 2; yy += C) for (let xx = x - w / 2; xx < x + w / 2; xx += C) mask[(yy / C | 0) * MW + (xx / C | 0)] = 2;
+    }
+  })();
+  // carte colorée basse résolution (mini-carte et rendu 2D de secours)
+  const C2 = 40, M2W = Math.ceil(W / C2), M2H = Math.ceil(H / C2);
+  const MAP2D = document.createElement("canvas"); MAP2D.width = M2W; MAP2D.height = M2H;
+  (function () {
+    const c = MAP2D.getContext("2d"), img = c.createImageData(M2W, M2H), d = img.data;
+    const COL = [[58, 40, 30], [30, 31, 40], [70, 66, 72], [28, 64, 88]];
+    for (let y = 0; y < M2H; y++) for (let x = 0; x < M2W; x++) {
+      let v = 0; // la route est prioritaire pour rester visible
+      for (let k = 0; k < 4; k++) { const mx = Math.min(MW - 1, ((x * C2 + (k & 1) * C2 * .5 + C2 * .25) / C) | 0), my = Math.min(MH - 1, ((y * C2 + (k >> 1) * C2 * .5 + C2 * .25) / C) | 0), m = mask[my * MW + mx]; if (m === 1) { v = 1; break; } if (k === 0) v = m; }
+      const col = COL[v], o = (y * M2W + x) * 4; d[o] = col[0]; d[o + 1] = col[1]; d[o + 2] = col[2]; d[o + 3] = 255;
     }
     c.putImageData(img, 0, 0);
   })();
@@ -187,7 +215,7 @@
         engF.frequency.setTargetAtTime(500 + speedRatio * 1500, t, .1);
         sirG.gain.setTargetAtTime(running ? sirenLevel * 0.05 : 0, t, .2);
       },
-      crash(v) { noiseBurst(Math.min(.6, v / 900), .35, 700); },
+      crash(v) { if (v > 0 && v < 1e5) noiseBurst(Math.min(.6, v / 900), .35, 700); },
       boost() { noiseBurst(.12, .5, 2500); },
       suspend() { if (ctx) ctx.suspend(); }, resume() { if (ctx) ctx.resume(); },
     };
@@ -553,7 +581,7 @@
     // carte (sol, routes, bâtiments, fleuve) à partir du masque
     {
       const ax = Math.max(0, x0), ay = Math.max(0, y0), bx = Math.min(W, x1), by = Math.min(H, y1);
-      if (bx > ax && by > ay) { ctx.imageSmoothingEnabled = false; ctx.drawImage(MAP2D, ax / C, ay / C, (bx - ax) / C, (by - ay) / C, ax, ay, bx - ax, by - ay); ctx.imageSmoothingEnabled = true; }
+      if (bx > ax && by > ay) { ctx.imageSmoothingEnabled = false; ctx.drawImage(MAP2D, ax / C2, ay / C2, (bx - ax) / C2, (by - ay) / C2, ax, ay, bx - ax, by - ay); ctx.imageSmoothingEnabled = true; }
     }
     ctx.strokeStyle = "#ff5a1f"; ctx.lineWidth = 6; ctx.strokeRect(0, 0, W, H);
 
@@ -634,7 +662,7 @@
   function renderMinimap() {
     mm.width = MM; mm.height = MM; const p = G.player, s = MM / MVIEW, ox = MM / 2 - p.x * s, oy = MM / 2 - p.y * s;
     mctx.fillStyle = "#06070b"; mctx.fillRect(0, 0, MM, MM);
-    mctx.drawImage(mapBase, ox, oy, W * s, W * s);
+    mctx.imageSmoothingEnabled = false; mctx.drawImage(MAP2D, ox, oy, W * s, H * s); mctx.imageSmoothingEnabled = true;
     const X = x => ox + x * s, Y = y => oy + y * s;
     G.blocks.forEach(b => { mctx.fillStyle = "#c9ccd6"; mctx.fillRect(X(b.x) - 2, Y(b.y) - 2, 4, 4); });
     G.cops.forEach(c => { if (!c.alive || c.mode === "leave") return; mctx.fillStyle = c.mode === "patrol" ? "#8a93a8" : (Math.floor(G.t * 4) % 2 ? "#ff2d4a" : "#2d7bff"); const x = Math.max(4, Math.min(MM - 4, X(c.x))), y = Math.max(4, Math.min(MM - 4, Y(c.y))); mctx.beginPath(); mctx.arc(x, y, 3.2, 0, 6.283); mctx.fill(); });
@@ -749,6 +777,6 @@
   resize(); show("menu");
 
   // Accès pour les tests automatisés
-  window.ZBOSS_WORLD = { W, H, C, MW, MH, mask, MAP, ROADS, nodes, nodesNear, nearestNode, solidAt, groundAt, angDiff, rand };
+  window.ZBOSS_WORLD = { W, H, C, MW, MH, mask, MAP, ROADS, FILL, nodes, nodesNear, nearestNode, solidAt, groundAt, angDiff, rand };
   window.__zboss = { get state() { return G; }, start: () => start(chosen), spawnCop, keys, touch };
 })();
