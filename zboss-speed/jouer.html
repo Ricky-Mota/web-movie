@@ -119,7 +119,7 @@
 
   <div class="hud" aria-hidden="true">
     <div class="panel p-heat"><div class="lbl">Recherché</div><div class="chev" id="h-heat"></div><span id="h-status">Calme</span></div>
-    <div class="top-btns"><button type="button" onclick="history.length > 1 ? history.back() : location.href = 'index.html'" aria-label="Retour à la page précédente">← Retour</button><button type="button" id="pausebtn">Pause</button><button type="button" id="mute" aria-pressed="false">Son</button><button type="button" id="cambtn">Caméra</button><button type="button" id="autobtn" class="walk-only" aria-pressed="false" title="Touche R">🚶 Promenade auto</button><button type="button" id="relbtn" class="walk-only">👥 Relations</button></div>
+    <div class="top-btns"><button type="button" onclick="history.length > 1 ? history.back() : location.href = 'index.html'" aria-label="Retour à la page précédente">← Retour</button><button type="button" id="pausebtn">Pause</button><button type="button" id="mute" aria-pressed="false">Son</button><button type="button" id="cambtn">Caméra</button><button type="button" id="autobtn" class="walk-only" aria-pressed="false" title="Touche R : relancer la dernière sortie">🚶 Sorties</button><button type="button" id="relbtn" class="walk-only">👥 Relations</button></div>
     <div class="panel p-life walk-only"><div class="lbl">Énergie <span id="h-energy-n">100 %</span></div><div class="bar"><i id="h-energy"></i></div></div>
     <div class="panel evade" id="h-evade" hidden><span></span><div class="bar"><i></i></div></div>
     <div class="panel p-score"><div class="lbl">Score</div><b id="h-score">0</b><div class="lbl">Prime en jeu</div><b class="bounty" id="h-bounty">0</b></div>
@@ -178,6 +178,9 @@
     .bureau-faq details{border:1px solid #262a33;border-radius:10px;padding:8px 12px;margin:6px 0;background:#181b22}.bureau-faq summary{cursor:pointer;font-weight:600}.bureau-faq p{margin:6px 0 2px;color:#c5cad4}
     .bureau-box label{display:block;font-size:13px;color:#aeb4c0;margin:8px 0}.bureau-box select,.bureau-box textarea,.bureau-box input{display:block;width:100%;box-sizing:border-box;margin-top:4px;background:#0c0e12;color:#fff;border:1px solid #2c313c;border-radius:8px;padding:9px 10px;font:inherit}
     .bureau-2{display:grid;grid-template-columns:1fr 1fr;gap:10px}@media(max-width:520px){.bureau-2{grid-template-columns:1fr}}
+    .sorties{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}@media(max-width:520px){.sorties{grid-template-columns:1fr}}
+    .sorties button{text-align:left;background:#181b22;color:#eef0f4;border:1px solid #2a2e38;border-radius:10px;padding:10px 12px;cursor:pointer;font:inherit}.sorties button:hover,.sorties button:focus-visible{border-color:#ff5a1f;outline:none}
+    .sorties b{display:block;font-size:15px}.sorties span{display:block;font-size:12.5px;color:#aeb4c0;margin-top:2px}
     .bureau-msg{min-height:1.4em;color:#7dff8a;font-size:14px}
   </style>
   <script>window.TWOLIFE_WALK = true; document.body.classList.add("walk");</script>

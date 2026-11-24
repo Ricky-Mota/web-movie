@@ -78,11 +78,11 @@
       c.setTransform(1, 0, 0, 1, 0, 0); c.fillStyle = "#000"; c.fillRect(0, 0, TS, TS);
       c.setTransform(1 / C, 0, 0, 1 / C, -tx, -ty);
       c.fillStyle = "#0000ff"; MAP.water.forEach(rings => { c.beginPath(); rings.forEach(r => { r.forEach(([x, y], i) => i ? c.lineTo(x, y) : c.moveTo(x, y)); c.closePath(); }); c.fill("evenodd"); });
-      c.fillStyle = "#ff0000"; MAP.buildings.forEach(b => { c.beginPath(); for (let i = 1; i < b.length; i += 2) i === 1 ? c.moveTo(b[i], b[i + 1]) : c.lineTo(b[i], b[i + 1]); c.closePath(); c.fill(); });
+      c.fillStyle = c.strokeStyle = "#ff0000"; c.lineWidth = C * 1.2; c.lineJoin = "miter"; MAP.buildings.forEach(b => { c.beginPath(); for (let i = 1; i < b.length; i += 2) i === 1 ? c.moveTo(b[i], b[i + 1]) : c.lineTo(b[i], b[i + 1]); c.closePath(); c.fill(); c.stroke(); }); // contour épaissi : plus de murs « fantômes » traversables
       c.strokeStyle = "#00ff00"; c.lineCap = c.lineJoin = "round";
       ROADS.forEach(r => { c.lineWidth = r.w; c.beginPath(); for (let i = 0; i < r.p.length; i += 2) i ? c.lineTo(r.p[i], r.p[i + 1]) : c.moveTo(r.p[i], r.p[i + 1]); c.stroke(); });
       const w = Math.min(TS, MW - tx), h = Math.min(TS, MH - ty), d = c.getImageData(0, 0, w, h).data;
-      for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) { const k = (y * w + x) * 4; mask[(ty + y) * MW + tx + x] = d[k + 1] > 110 ? 1 : d[k] > 127 ? 2 : d[k + 2] > 127 ? 3 : 0; }
+      for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) { const k = (y * w + x) * 4; mask[(ty + y) * MW + tx + x] = d[k + 1] > 110 ? 1 : d[k] > 70 ? 2 : d[k + 2] > 127 ? 3 : 0; }
     }
   })();
   // quartiers de remplissage : petites maisons sur les terrains nus loin des grands axes
@@ -138,13 +138,14 @@
     });
     // le côté route du showroom est v < 0 (repère local u le long de la rue, v vers l'intérieur des terres)
     const inShop = (o, x, y, m) => { const dx = x - o.x, dy = y - o.y, u = dx * o.ux + dy * o.uy, v = dx * o.nx + dy * o.ny; return Math.abs(u) < SHOP_W / 2 + m && Math.abs(v) < SHOP_D / 2 + m; };
+    const edgeD = (b, x, y) => { let m = 1e9; for (let i = 1, j = b.length - 2; i < b.length; j = i, i += 2) { const ax = b[j], ay = b[j + 1], ex = b[i] - ax, ey = b[i + 1] - ay, L2 = ex * ex + ey * ey || 1, t = Math.max(0, Math.min(1, ((x - ax) * ex + (y - ay) * ey) / L2)); m = Math.min(m, Math.hypot(x - ax - ex * t, y - ay - ey * t)); } return m; };
     const pip = (b, x, y) => { let c = false; for (let i = 1, j = b.length - 2; i < b.length; j = i, i += 2) { const xi = b[i], yi = b[i + 1], xj = b[j], yj = b[j + 1]; if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) c = !c; } return c; };
     if (SHOPS.length) {
       MAP.buildings = MAP.buildings.filter(b => {
         let hit = false; for (let i = 1; i < b.length && !hit; i += 2) if (SHOPS.some(o => inShop(o, b[i], b[i + 1], 60))) hit = true;
         if (!hit) return true;
         let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9; for (let i = 1; i < b.length; i += 2) { x0 = Math.min(x0, b[i]); x1 = Math.max(x1, b[i]); y0 = Math.min(y0, b[i + 1]); y1 = Math.max(y1, b[i + 1]); }
-        for (let y = y0; y <= y1 + C; y += C) for (let x = x0; x <= x1 + C; x += C) { const k = (y / C | 0) * MW + (x / C | 0); if (mask[k] === 2 && pip(b, x, y)) mask[k] = 0; }
+        for (let y = y0 - C * 2; y <= y1 + C * 2; y += C) for (let x = x0 - C * 2; x <= x1 + C * 2; x += C) { const k = (y / C | 0) * MW + (x / C | 0), cx = ((x / C | 0) + .5) * C, cy = ((y / C | 0) + .5) * C; if (mask[k] === 2 && (pip(b, cx, cy) || edgeD(b, cx, cy) < C * 1.3)) mask[k] = 0; }
         return false;
       });
       for (let i = FILL.length - 1; i >= 0; i--) { const f = FILL[i]; if (!SHOPS.some(o => inShop(o, f.x, f.y, 140))) continue; FILL.splice(i, 1); for (let yy = f.y - f.d / 2 - C; yy < f.y + f.d / 2 + C; yy += C) for (let xx = f.x - f.w / 2 - C; xx < f.x + f.w / 2 + C; xx += C) { const k = (yy / C | 0) * MW + (xx / C | 0); if (mask[k] === 2) mask[k] = 0; } }
@@ -185,6 +186,21 @@
     { id: "bcc", type: "etat", nom: "Banque centrale", icone: "🏦", w: 320, d: 230, h: 110, statut: "Émet l'e-makuta et surveille les banques : ouvre après le lancement." },
     { id: "hopital", type: "etat", nom: "Hôpital général", icone: "🏥", w: 360, d: 250, h: 100, statut: "Soins des personnages malades : ouvre après le lancement." },
   ];
+  // textes du guide (mode Tourisme)
+  const GUIDE = {
+    zboss: "Le bureau Zboss Sarlu, au centre-ville : on y règle les problèmes des joueurs.",
+    foot: "Le stade de quartier de la Gombe : les équipes s'affrontent ici tous les jours.",
+    basket: "Le terrain de basket : trois contre trois, ambiance garantie le soir.",
+    mairie: "L'Hôtel de ville gère Kinshasa : état civil, permis de construire, marchés publics.",
+    assemblee: "L'Assemblée nationale : les députés élus par les joueurs y voteront les lois du jeu.",
+    justice: "Le Palais de justice : c'est ici que les litiges entre joueurs seront jugés.",
+    bcc: "La Banque centrale émet l'e-makuta, la monnaie du jeu.",
+    hopital: "L'Hôpital général soigne les personnages malades. Sans soins, on peut mourir.",
+    police: "Le commissariat : la police veille sur la ville et recrute des agents.",
+    dgi: "La DGI collecte les impôts qui financent la ville.",
+    jeux: "L'aire de jeux, le lieu préféré des bébés et des enfants de 2 Life.",
+    club1: "Le Mokili Club, une des boîtes de nuit les plus animées de Kin.",
+  };
   const PLACES = [], BILLBOARDS = [], BENCHES = [];
   (function () {
     const M = (x, y) => (x < 0 || y < 0 || x >= W || y >= H) ? 3 : mask[(y / C | 0) * MW + (x / C | 0)];
@@ -217,13 +233,14 @@
       }
     });
     const inPlace = (o, x, y, m) => { const dx = x - o.x, dy = y - o.y, u = dx * o.ux + dy * o.uy, v = dx * o.nx + dy * o.ny; return Math.abs(u) < o.w / 2 + m && Math.abs(v) < o.d / 2 + m; };
+    const edgeD = (b, x, y) => { let m = 1e9; for (let i = 1, j = b.length - 2; i < b.length; j = i, i += 2) { const ax = b[j], ay = b[j + 1], ex = b[i] - ax, ey = b[i + 1] - ay, L2 = ex * ex + ey * ey || 1, t = Math.max(0, Math.min(1, ((x - ax) * ex + (y - ay) * ey) / L2)); m = Math.min(m, Math.hypot(x - ax - ex * t, y - ay - ey * t)); } return m; };
     const pip = (b, x, y) => { let c = false; for (let i = 1, j = b.length - 2; i < b.length; j = i, i += 2) { const xi = b[i], yi = b[i + 1], xj = b[j], yj = b[j + 1]; if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) c = !c; } return c; };
     if (PLACES.length) {
       MAP.buildings = MAP.buildings.filter(b => {
         let hit = false; for (let i = 1; i < b.length && !hit; i += 2) if (PLACES.some(o => inPlace(o, b[i], b[i + 1], 30))) hit = true;
         if (!hit) return true;
         let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9; for (let i = 1; i < b.length; i += 2) { x0 = Math.min(x0, b[i]); x1 = Math.max(x1, b[i]); y0 = Math.min(y0, b[i + 1]); y1 = Math.max(y1, b[i + 1]); }
-        for (let y = y0; y <= y1 + C; y += C) for (let x = x0; x <= x1 + C; x += C) { const k = (y / C | 0) * MW + (x / C | 0); if (mask[k] === 2 && pip(b, x, y)) mask[k] = 0; }
+        for (let y = y0 - C * 2; y <= y1 + C * 2; y += C) for (let x = x0 - C * 2; x <= x1 + C * 2; x += C) { const k = (y / C | 0) * MW + (x / C | 0), cx = ((x / C | 0) + .5) * C, cy = ((y / C | 0) + .5) * C; if (mask[k] === 2 && (pip(b, cx, cy) || edgeD(b, cx, cy) < C * 1.3)) mask[k] = 0; }
         return false;
       });
       for (let i = FILL.length - 1; i >= 0; i--) { const f = FILL[i]; if (!PLACES.some(o => inPlace(o, f.x, f.y, Math.max(f.w, f.d) / 2 + 20))) continue; FILL.splice(i, 1); for (let yy = f.y - f.d / 2 - C; yy < f.y + f.d / 2 + C; yy += C) for (let xx = f.x - f.w / 2 - C; xx < f.x + f.w / 2 + C; xx += C) { const k = (yy / C | 0) * MW + (xx / C | 0); if (mask[k] === 2) mask[k] = 0; } }
@@ -694,7 +711,11 @@
     if (Math.hypot(t.x - q.x, t.y - q.y) < 14) { const nx = nodes[q.to].nb.filter(m => m !== q.from); const m = nx.length ? nx[(rand() * nx.length) | 0] : q.from; q.from = q.to; q.to = m; t = pedTarget(q); }
     const da = angDiff(q.a, Math.atan2(t.y - q.y, t.x - q.x)); q.a += Math.max(-4 * dt, Math.min(4 * dt, da));
     const nx = q.x + Math.cos(q.a) * q.v * dt, ny = q.y + Math.sin(q.a) * q.v * dt;
-    if (!walkBlocked(nx, ny)) { q.x = nx; q.y = ny; } else { q.a += 1.2; }
+    if (!walkBlocked(nx, ny)) { q.x = nx; q.y = ny; }
+    else { // mur devant : glisser le long, puis se rapprocher de la chaussée
+      if (!walkBlocked(nx, q.y)) q.x = nx; else if (!walkBlocked(q.x, ny)) q.y = ny; else q.a += 1.2;
+      q.off = Math.max(4, q.off - 2);
+    }
   }
   function footStep(dt, up, down, steer, run) {
     const f = G.foot;
@@ -850,14 +871,45 @@
   const relations = { get() { try { return JSON.parse(lsGet(REL_KEY) || "[]"); } catch (e) { return []; } }, set(v) { lsSet(REL_KEY, JSON.stringify(v.slice(0, 200))); } };
   const relLevel = n => n >= 4 ? "Ami proche" : n >= 2 ? "Ami" : "Connaissance";
 
-  function autoToggle(on) {
+  // ---- sorties : promenade, tourisme, footing, match, courses, soirée, maison
+  const SORTIES = [
+    { id: "promenade", ic: "🚶", nom: "Promenade", txt: "Il marche au hasard, visite des lieux et s'assoit sur les bancs." },
+    { id: "tourisme", ic: "📸", nom: "Tourisme", txt: "Visite guidée des lieux à voir : institutions, stade, bureau Zboss Sarlu." },
+    { id: "footing", ic: "🏃", nom: "Footing", txt: "Il court d'un banc à l'autre. Bon pour la santé, mais fatigant." },
+    { id: "match", ic: "⚽", nom: "Voir un match", txt: "Il va au stade ou au terrain de basket et regarde le match depuis un banc." },
+    { id: "courses", ic: "🛒", nom: "Courses", txt: "Alimentations et magasins : il fait le tour des boutiques." },
+    { id: "soiree", ic: "🪩", nom: "Soirée", txt: "Il sort en boîte de nuit (réservé aux 18 ans et plus)." },
+    { id: "maison", ic: "🏠", nom: "Rentrer à la maison", txt: "Il rentre chez lui et se repose." },
+  ];
+  const SORTIE = id => SORTIES.find(o => o.id === id) || SORTIES[0];
+  let lastSortie = "promenade";
+  function openSorties() {
+    if (!G || !WALK || $("sortpanel")) return;
+    if (G.auto) { autoToggle(false); return; }
+    const wasPaused = G.paused; G.paused = true;
+    const d = document.createElement("div"); d.id = "sortpanel"; d.className = "bureau";
+    d.innerHTML = `<div class="bureau-box" role="dialog" aria-modal="true" aria-labelledby="sort-t"><button type="button" class="bureau-x" aria-label="Fermer">✕</button>
+      <p class="bureau-k">🚶 Sortie automatique</p><h2 id="sort-t">Où va ton personnage ?</h2>
+      <p>Il se déplace seul. S'il est fatigué, il prend un taxi. Touche une flèche pour reprendre la main.</p>
+      <div class="sorties">${SORTIES.map(o => `<button type="button" data-s="${o.id}"><b>${o.ic} ${o.nom}</b><span>${o.txt}</span></button>`).join("")}</div></div>`;
+    document.body.appendChild(d);
+    const close = () => { d.remove(); if (G) G.paused = wasPaused; };
+    d.querySelector(".bureau-x").onclick = close; d.addEventListener("click", e => { if (e.target === d) close(); });
+    d.addEventListener("keydown", e => { e.stopPropagation(); if (e.key === "Escape") close(); });
+    d.querySelectorAll("[data-s]").forEach(b => b.onclick = () => { close(); autoToggle(true, b.dataset.s); });
+    const f = d.querySelector("[data-s]"); if (f) f.focus();
+  }
+  function autoToggle(on, mode) {
     if (!G || !WALK) return;
     if (on === undefined) on = !G.auto;
     if (on) {
       if (!G.foot) { msg("Descends d'abord du taxi pour te promener seul.", 2.5); return; }
       if (G.foot.sit) standUp(true);
-      G.auto = { phase: "walk", path: null };
-      msg("Promenade automatique : ton personnage se débrouille seul. Touche une flèche pour reprendre la main.", 4, "ok");
+      mode = mode || lastSortie; lastSortie = mode;
+      G.auto = { phase: "walk", path: null, mode, seen: [] };
+      if (mode === "tourisme") G.auto.tour = tourPlan();
+      const S = SORTIE(mode);
+      msg(S.ic + " " + S.nom + " : ton personnage se débrouille seul. Touche une flèche pour reprendre la main.", 4, "ok");
     } else if (G.auto) {
       const ride = G.auto.phase === "ride";
       G.auto = null; if (ride) { G.player.inp.gas = 0; G.player.inp.brake = 1; }
@@ -865,8 +917,40 @@
     }
     const b = $("autobtn"); if (b) b.setAttribute("aria-pressed", G.auto ? "true" : "false");
   }
+  // circuit touristique : les lieux à voir, dans l'ordre le plus court
+  function tourPlan() {
+    const f = G.foot; let left = PLACES.filter(o => GUIDE[o.id]), x = f.x, y = f.y; const out = [];
+    while (left.length) { left.sort((a, b) => Math.hypot(a.x - x, a.y - y) - Math.hypot(b.x - x, b.y - y)); const o = left.shift(); out.push(o); x = o.x; y = o.y; }
+    return out;
+  }
+  const toPlace = o => ({ x: o.door.x, y: o.door.y, nom: o.nom, icone: o.icone, place: o });
   function pickDestination() {
-    const f = G.foot, here = nearPlace(f.x, f.y);
+    const A = G.auto, f = G.foot, mode = A.mode || "promenade";
+    if (mode === "maison") { const h = HOME(); return h ? { x: h.door.x, y: h.door.y, nom: "la maison", icone: "🏠", home: true, place: h } : null; }
+    if (mode === "tourisme") {
+      const o = A.tour && A.tour.shift();
+      if (!o) { msg("📸 Fin de la visite guidée ! Ton personnage continue en promenade.", 4, "ok"); A.mode = "promenade"; return pickDestination(); }
+      return Object.assign(toPlace(o), { guide: GUIDE[o.id] });
+    }
+    if (mode === "match") {
+      const games = PLACES.filter(o => o.type === "foot" || o.type === "basket");
+      const g = games.sort((a, b) => Math.hypot(a.x - f.x, a.y - f.y) - Math.hypot(b.x - f.x, b.y - f.y))[A.seen.length % Math.max(1, games.length)];
+      const bs = g && BENCHES.filter(b => b.place === g.id && !b.taken);
+      if (bs && bs.length) { const b = bs[(rand() * bs.length) | 0]; A.seen.push(g.id); return { x: b.x, y: b.y, nom: "un banc au " + g.nom, icone: g.icone, bench: b, match: true }; }
+      if (g) { A.seen.push(g.id); return toPlace(g); }
+    }
+    if (mode === "courses" || mode === "soiree") {
+      const types = mode === "courses" ? ["alim", "magasin"] : ["club"];
+      let list = PLACES.filter(o => types.includes(o.type) && !A.seen.includes(o.id));
+      if (!list.length) { A.seen = []; list = PLACES.filter(o => types.includes(o.type)); }
+      const o = list.sort((a, b) => Math.hypot(a.x - f.x, a.y - f.y) - Math.hypot(b.x - f.x, b.y - f.y))[0];
+      if (o) { A.seen.push(o.id); return toPlace(o); }
+    }
+    if (mode === "footing") {
+      const bs = BENCHES.filter(b => !b.taken && Math.hypot(b.x - f.x, b.y - f.y) > 500 && Math.hypot(b.x - f.x, b.y - f.y) < 2200);
+      if (bs.length) { const b = bs[(rand() * bs.length) | 0]; return { x: b.x, y: b.y, nom: "un banc (pause footing)", bench: b }; }
+    }
+    const here = nearPlace(f.x, f.y);
     const benches = BENCHES.filter(b => !b.taken && Math.hypot(b.x - f.x, b.y - f.y) > 200 && Math.hypot(b.x - f.x, b.y - f.y) < 2600);
     const places = PLACES.filter(o => o !== here && o.id !== "maison" && Math.hypot(o.x - f.x, o.y - f.y) < 3000);
     if (benches.length && (rand() < .5 || !places.length)) { const b = benches[(rand() * benches.length) | 0]; return { x: b.x, y: b.y, nom: "un banc", bench: b }; }
@@ -891,7 +975,7 @@
       if (Math.hypot(t.x - f.x, t.y - f.y) < 14) { arrive(); return; }
     }
     const da = angDiff(f.a, Math.atan2(t.y - f.y, t.x - f.x)); f.a += Math.max(-3.5 * dt, Math.min(3.5 * dt, da));
-    const want = Math.abs(da) > 1.2 ? 12 : 36; f.v += (want - f.v) * Math.min(1, dt * 6);
+    const want = Math.abs(da) > 1.2 ? 12 : A.mode === "footing" ? 70 : 36; f.v += (want - f.v) * Math.min(1, dt * 6);
     const nx = f.x + Math.cos(f.a) * f.v * dt, ny = f.y + Math.sin(f.a) * f.v * dt;
     if (!walkBlocked(nx, f.y)) f.x = nx; if (!walkBlocked(f.x, ny)) f.y = ny;
     f.t += dt * Math.abs(f.v) / 30;
@@ -903,15 +987,27 @@
   }
   function arrive() {
     const A = G.auto, d = A.dest; G.foot.v = 0;
-    if (d.bench) { sitDown(d.bench, true); A.phase = "sit"; A.sitT = 18 + rand() * 20; A.doing = "Assis sur un banc : il observe et fait des rencontres"; return; }
+    if (d.bench) {
+      sitDown(d.bench, true); A.phase = "sit";
+      if (d.match) { A.sitT = 40 + rand() * 25; A.doing = "Regarde le match " + d.icone; msg(d.icone + " Ton personnage s'installe pour regarder le match.", 3, "ok"); }
+      else if (A.mode === "footing") { A.sitT = 6 + rand() * 5; A.doing = "Pause footing : il reprend son souffle"; }
+      else { A.sitT = 18 + rand() * 20; A.doing = "Assis sur un banc : il observe et fait des rencontres"; }
+      return;
+    }
     if (d.home) { A.phase = "home"; A.doing = "À la maison : il se repose"; msg("🏠 Ton personnage est rentré à la maison. Il se repose.", 3.5, "ok"); return; }
+    const o = d.place, t = o && o.type;
+    if (d.guide) { msg("📸 " + d.icone + " " + d.nom + " : " + d.guide, 6, "ok"); A.phase = "visit"; A.wait = 6 + rand() * 3; A.doing = "Tourisme : " + d.nom; return; }
+    if (A.mode === "courses" && t) { const what = t === "alim" ? ["du pain et du lait", "du riz et du poisson salé", "des fruits et de l'eau"] : o.id === "phones" ? ["un nouvel étui de téléphone", "un chargeur"] : ["une chemise en wax", "une paire de baskets"]; msg(d.icone + " Courses à " + d.nom + " : il regarde " + what[(rand() * what.length) | 0] + ". (Achats réels dans la Boutique de Ma vie.)", 4.5); A.phase = "visit"; A.wait = 6 + rand() * 4; A.doing = "Courses : " + d.nom; return; }
+    if (t === "club") { msg("🪩 " + d.nom + " : la musique est forte ! Entrée réservée aux 18 ans et plus, ouvre après le lancement.", 4.5); A.phase = "visit"; A.wait = 8 + rand() * 4; A.doing = "Soirée : " + d.nom; return; }
     msg((d.icone || "📍") + " Ton personnage visite : " + d.nom, 3);
     A.phase = "visit"; A.wait = 4 + rand() * 4; A.doing = "Visite " + d.nom;
   }
   function callTaxi() {
     const A = G.auto, f = G.foot, p = G.player;
-    const goHome = rand() < .5 || !PLACES.length, far = PLACES.filter(o => o.id !== "maison" && Math.hypot(o.x - f.x, o.y - f.y) > 900);
-    const o = goHome ? HOME() : far[(rand() * far.length) | 0] || HOME();
+    const goHome = A.mode === "maison" || A.mode === "footing" || rand() < .5 || !PLACES.length, far = PLACES.filter(o => o.id !== "maison" && Math.hypot(o.x - f.x, o.y - f.y) > 900);
+    const next = A.mode === "tourisme" && A.tour && A.tour[0];
+    const o = next || (goHome ? HOME() : far[(rand() * far.length) | 0] || HOME());
+    if (next) A.tour.shift();
     if (!o) { A.phase = "walk"; A.path = null; return; }
     // le taxi jaune s'arrête au bord de la route la plus proche
     const n = nearestNode(f.x, f.y), N = nodes[n], m = N.nb.length ? N.nb[0] : n, pt = edgePoint(m, n, Math.min(30, N.w * .22));
@@ -1469,7 +1565,7 @@
   $("again").addEventListener("click", () => start(chosen));
   $("garage").addEventListener("click", () => show("menu"));
   $("pausebtn").addEventListener("click", () => setPause(true));
-  if ($("autobtn")) $("autobtn").addEventListener("click", () => autoToggle());
+  if ($("autobtn")) $("autobtn").addEventListener("click", () => openSorties());
   if ($("relbtn")) $("relbtn").addEventListener("click", () => showRelations());
   $("actbtn").addEventListener("click", () => { if (G && !G.over) actPressed = true; });
   const camLabel = () => { $("cambtn").textContent = "Caméra : " + (window.ZBOSS_3D && window.ZBOSS_3D.ok ? window.ZBOSS_3D.camLabel() : (camMode === "chase" ? "poursuite" : "dessus")); };
@@ -1486,5 +1582,5 @@
 
   // Accès pour les tests automatisés
   window.ZBOSS_WORLD = { W, H, C, MW, MH, mask, MAP, ROADS, FILL, walkBlocked, SHOPS, PLACES, BILLBOARDS, BENCHES, SHOP_W, SHOP_D, SHOP_DOOR, nodes, nodesNear, nearestNode, solidAt, groundAt, angDiff, rand };
-  window.__zboss = { get state() { return G; }, start: () => start(chosen), spawnCop, keys, touch, act: () => { actPressed = true; }, step: (n, dt) => { for (let i = 0; i < n && G && !G.paused; i++) update(dt || 1 / 30); } };
+  window.__zboss = { get state() { return G; }, start: () => start(chosen), spawnCop, keys, touch, act: () => { actPressed = true; }, sortie: m => autoToggle(true, m), sorties: openSorties, step: (n, dt) => { for (let i = 0; i < n && G && !G.paused; i++) update(dt || 1 / 30); } };
 })();

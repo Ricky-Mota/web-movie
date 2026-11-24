@@ -179,7 +179,7 @@ export const fmtMakuta = n => (n / UNITS_PER_MAKUTA).toLocaleString("fr-FR", { m
 export const WITHDRAW_FEE = 0.10;          // 10 % de frais au retrait (finance la ville et le service)
 export const LOCK_DAYS = 90;               // argent bloqué 3 mois réels avant tout retrait
 export const OFFERS = [
-  { id: "bebe", nom: "Naissance (parcours normal)", type: "entree", usd: 100, desc: "Tu nais bébé dans une famille et tu grandis normalement." },
+  { id: "bebe", nom: "Naissance (parcours normal)", type: "entree", usd: 5, desc: "Tu nais bébé dans une famille et tu grandis normalement." },
   { id: "parent", nom: "Naître parent", type: "entree", usd: 5000, desc: "Tu nais adulte (25 ans), tes talents sont déjà connus et tu reçois 250 e-makuta d'épargne.", age: 25, epargne: 5000 },
   { id: "petit", nom: "Petit investisseur", type: "investissement", usd: 1500, age: 30, desc: "1 500 $ convertis en e-makuta pour acheter et créer des entreprises." },
   { id: "grand", nom: "Grand investisseur", type: "investissement", usd: 30000, age: 35, desc: "30 000 $ convertis en e-makuta pour racheter de grandes entreprises." },
