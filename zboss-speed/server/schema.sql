@@ -1,0 +1,104 @@
+-- 2 Life : base de données (Cloudflare D1, SQLite)
+-- Les 12 registres du cahier des charges. Les dates sont en millisecondes (Date.now()).
+
+CREATE TABLE IF NOT EXISTS comptes (
+  id TEXT PRIMARY KEY,
+  email TEXT NOT NULL UNIQUE,
+  pseudo TEXT NOT NULL,
+  pass_hash TEXT NOT NULL,
+  pass_salt TEXT NOT NULL,
+  cree_le INTEGER NOT NULL,
+  acces_paye INTEGER NOT NULL DEFAULT 0,   -- entrée payante : formule à décider
+  reputation INTEGER NOT NULL DEFAULT 0,
+  vie_id TEXT                                -- personnage actuel
+);
+
+CREATE TABLE IF NOT EXISTS sessions (
+  token TEXT PRIMARY KEY,
+  compte_id TEXT NOT NULL REFERENCES comptes(id),
+  expire_le INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS villes (
+  id TEXT PRIMARY KEY,
+  nom TEXT NOT NULL,
+  pays TEXT NOT NULL
+);
+INSERT OR IGNORE INTO villes (id, nom, pays) VALUES ('kinshasa', 'Kinshasa', 'RDC');
+
+CREATE TABLE IF NOT EXISTS personnages (
+  id TEXT PRIMARY KEY,
+  compte_id TEXT REFERENCES comptes(id),     -- NULL = personnage géré par le jeu
+  ville_id TEXT NOT NULL REFERENCES villes(id),
+  prenom TEXT NOT NULL,
+  nom TEXT NOT NULL,
+  sexe TEXT NOT NULL CHECK (sexe IN ('F', 'M')),
+  quartier TEXT,
+  apparence INTEGER NOT NULL DEFAULT 0,
+  ne_le INTEGER NOT NULL,
+  mort_le INTEGER,
+  cause_mort TEXT,
+  sante REAL NOT NULL DEFAULT 100,
+  faim REAL NOT NULL DEFAULT 100,
+  energie REAL NOT NULL DEFAULT 100,
+  bonheur REAL NOT NULL DEFAULT 80,
+  maj_le INTEGER NOT NULL,                   -- dernière mise à jour des besoins
+  makuta INTEGER NOT NULL DEFAULT 0,         -- solde, toujours égal à la somme du grand livre
+  pere_id TEXT, mere_id TEXT, conjoint_id TEXT,
+  pere_nom TEXT, mere_nom TEXT               -- parents gérés par le jeu
+);
+
+CREATE TABLE IF NOT EXISTS talents (
+  id TEXT PRIMARY KEY,
+  nom TEXT NOT NULL
+);
+INSERT OR IGNORE INTO talents (id, nom) VALUES
+  ('soin','Soin'),('commerce','Commerce'),('sport','Sport'),('art','Art'),
+  ('technique','Technique'),('etudes','Études'),('parole','Parole'),('cuisine','Cuisine');
+
+CREATE TABLE IF NOT EXISTS talents_personnage (
+  personnage_id TEXT NOT NULL REFERENCES personnages(id),
+  talent_id TEXT NOT NULL REFERENCES talents(id),
+  niveau INTEGER NOT NULL,
+  decouvert INTEGER NOT NULL DEFAULT 0,
+  decouvert_par TEXT,
+  decouvert_le INTEGER,
+  indices INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (personnage_id, talent_id)
+);
+
+CREATE TABLE IF NOT EXISTS maladies (id TEXT PRIMARY KEY, nom TEXT NOT NULL, gravite INTEGER NOT NULL);
+CREATE TABLE IF NOT EXISTS maladies_personnage (
+  id TEXT PRIMARY KEY, personnage_id TEXT NOT NULL, maladie_id TEXT NOT NULL,
+  debut INTEGER NOT NULL, gravite REAL NOT NULL, soignee_le INTEGER
+);
+
+CREATE TABLE IF NOT EXISTS formations (id TEXT PRIMARY KEY, nom TEXT NOT NULL, duree_ans REAL NOT NULL, prerequis TEXT);
+CREATE TABLE IF NOT EXISTS diplomes_obtenus (personnage_id TEXT NOT NULL, formation_id TEXT NOT NULL, obtenu_le INTEGER NOT NULL, note REAL, PRIMARY KEY (personnage_id, formation_id));
+
+CREATE TABLE IF NOT EXISTS metiers (id TEXT PRIMARY KEY, nom TEXT NOT NULL, diplome_requis TEXT, talent_lie TEXT, salaire_base INTEGER NOT NULL);
+CREATE TABLE IF NOT EXISTS emplois (id TEXT PRIMARY KEY, personnage_id TEXT NOT NULL, metier_id TEXT NOT NULL, entreprise_id TEXT, poste TEXT, salaire INTEGER NOT NULL, depuis INTEGER NOT NULL, fin INTEGER);
+
+CREATE TABLE IF NOT EXISTS objets (id TEXT PRIMARY KEY, nom TEXT NOT NULL, type TEXT NOT NULL, prix INTEGER NOT NULL);
+CREATE TABLE IF NOT EXISTS possessions (id TEXT PRIMARY KEY, proprietaire_id TEXT NOT NULL, objet_id TEXT NOT NULL, etat REAL NOT NULL DEFAULT 100, acquis_le INTEGER NOT NULL);
+
+CREATE TABLE IF NOT EXISTS entreprises (id TEXT PRIMARY KEY, nom TEXT NOT NULL, type TEXT NOT NULL, proprietaire_id TEXT NOT NULL, ville_id TEXT NOT NULL, local TEXT, capital INTEGER NOT NULL DEFAULT 0, cree_le INTEGER NOT NULL);
+
+CREATE TABLE IF NOT EXISTS annonces (id TEXT PRIMARY KEY, vendeur_id TEXT NOT NULL, possession_id TEXT NOT NULL, prix INTEGER NOT NULL, statut TEXT NOT NULL DEFAULT 'ouverte', cree_le INTEGER NOT NULL);
+
+-- grand livre : chaque e-makuta qui bouge, jamais modifié ni effacé
+CREATE TABLE IF NOT EXISTS transactions (
+  id TEXT PRIMARY KEY,
+  de_id TEXT,                                -- NULL = la ville / le jeu
+  vers_id TEXT,
+  montant INTEGER NOT NULL CHECK (montant > 0),
+  motif TEXT NOT NULL,
+  le INTEGER NOT NULL
+);
+CREATE TRIGGER IF NOT EXISTS transactions_pas_de_modif BEFORE UPDATE ON transactions BEGIN SELECT RAISE(ABORT, 'grand livre en lecture seule'); END;
+CREATE TRIGGER IF NOT EXISTS transactions_pas_d_effacement BEFORE DELETE ON transactions BEGIN SELECT RAISE(ABORT, 'grand livre en lecture seule'); END;
+
+CREATE TABLE IF NOT EXISTS successions (id TEXT PRIMARY KEY, defunt_id TEXT NOT NULL, heritier_id TEXT, part TEXT NOT NULL, montant INTEGER NOT NULL, le INTEGER NOT NULL);
+
+-- journal des activités (indices de talents)
+CREATE TABLE IF NOT EXISTS activites (id TEXT PRIMARY KEY, personnage_id TEXT NOT NULL, activite TEXT NOT NULL, score INTEGER, resultat TEXT, le INTEGER NOT NULL);

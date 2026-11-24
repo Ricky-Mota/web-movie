@@ -34,6 +34,14 @@ VARIANTS = [
     dict(id="f1", g=0.0, mus=.45, wt=.55, h=.45, tone=.90, top="tee", bottom="pagne", hair="wrap"),
     dict(id="f2", g=0.0, mus=.40, wt=.80, h=.40, tone=.75, top="long", bottom="pagne", hair="wrap"),
     dict(id="f3", g=.02, mus=.50, wt=.45, h=.60, tone=1.00, top="tank", bottom="pants", hair="puff"),
+    # âges de la vie (2 Life) : bébé, enfants, adolescents, seniors
+    dict(id="bb", g=.5, mus=.5, wt=.6, h=.5, tone=.92, top="tee", bottom="shorts", hair="short", age={"baby": 1.0}, shoes=False),
+    dict(id="cm", g=1.0, mus=.5, wt=.5, h=.5, tone=.85, top="tee", bottom="shorts", hair="short", age={"baby": .3, "child": .7}),
+    dict(id="cf", g=0.0, mus=.5, wt=.5, h=.5, tone=.95, top="tee", bottom="pagne", hair="puff", age={"baby": .3, "child": .7}),
+    dict(id="tm", g=1.0, mus=.55, wt=.45, h=.55, tone=.80, top="tee", bottom="pants", hair="short", age={"child": .4, "young": .6}),
+    dict(id="tf", g=0.0, mus=.5, wt=.45, h=.5, tone=1.00, top="tank", bottom="pants", hair="puff", age={"child": .4, "young": .6}),
+    dict(id="om", g=1.0, mus=.4, wt=.6, h=.45, tone=.78, top="long", bottom="pants", hair="short", age={"young": .5, "old": .5}, gray=True),
+    dict(id="of", g=0.0, mus=.4, wt=.7, h=.4, tone=.88, top="long", bottom="pagne", hair="wrap", age={"young": .5, "old": .5}),
 ]
 FINGERS = ("thumb", "index", "middle", "ring", "pinky")
 
@@ -93,13 +101,17 @@ def morph(P):
         i, d = target(name)
         V[i] += d * w
     for g, a in gw.items():
-        add("african-%s-young" % g, a)
-        for m, b in mw.items():
-            for w, c in ww.items():
-                add("universal-%s-young-%s-%s" % (g, m, w), a * b * c)
-                hk = "maxheight" if P["h"] >= .5 else "minheight"
-                add("height/%s-young-%s-%s-%s" % (g, m, w, hk), a * b * c * abs(P["h"] - .5) * 2)
-                add("proportions/%s-young-%s-%s-idealproportions" % (g, m, w), a * b * c * .7)
+        for ag, aw in P.get("age", {"young": 1.0}).items():
+            a2 = a * aw
+            add("african-%s-%s" % (g, ag), a2)
+            for m, b in mw.items():
+                for w, c in ww.items():
+                    add("universal-%s-%s-%s-%s" % (g, ag, m, w), a2 * b * c)
+                    hk = "maxheight" if P["h"] >= .5 else "minheight"
+                    add("height/%s-%s-%s-%s-%s" % (g, ag, m, w, hk), a2 * b * c * abs(P["h"] - .5) * 2)
+                    pp = "proportions/%s-%s-%s-%s-idealproportions" % (g, ag, m, w)
+                    if os.path.exists(os.path.join(TD, pp + ".target.gz")):
+                        add(pp, a2 * b * c * .7)
     # obj : décimètres, Y haut, Z avant -> Blender : mètres, Z haut, -Y avant
     B = np.stack([V[:, 0], -V[:, 2], V[:, 1]], 1) * .1
     return B
@@ -208,6 +220,33 @@ def orig_index(ob):
     a = np.zeros(len(ob.data.vertices), dtype=np.int32)
     ob.data.attributes["oi"].data.foreach_get("value", a)
     return a
+
+def iso_cut(ob, vals, level):
+    """coupe le maillage le long de la courbe vals == level (bord net et lisse au lieu d'un bord en escalier) ;
+    renvoie les valeurs par sommet après la coupe"""
+    bm = bmesh.new(); bm.from_mesh(ob.data)
+    bmesh.ops.triangulate(bm, faces=bm.faces[:])
+    lay = bm.verts.layers.float.new("mcut")
+    bm.verts.ensure_lookup_table()
+    for v in bm.verts:
+        v[lay] = float(vals[v.index])
+    cross = [e for e in bm.edges if (e.verts[0][lay] - level) * (e.verts[1][lay] - level) < 0]
+    fresh = set()
+    for e in cross:
+        a, b = e.verts
+        f = (level - a[lay]) / (b[lay] - a[lay])
+        _, nv = bmesh.utils.edge_split(e, a, f)
+        nv[lay] = level
+        fresh.add(nv)
+    for fc in list(bm.faces):
+        nv = [v for v in fc.verts if v in fresh]
+        if len(nv) == 2 and not bm.edges.get(nv):
+            bmesh.utils.face_split(fc, nv[0], nv[1])
+    bmesh.ops.delete(bm, geom=[v for v in bm.verts if v[lay] < level - 1e-6], context="VERTS")
+    bmesh.ops.delete(bm, geom=[v for v in bm.verts if not v.link_faces], context="VERTS")
+    out = np.array([v[lay] for v in bm.verts])
+    bm.to_mesh(ob.data); bm.free(); ob.data.update()
+    return out
 
 def decimate(ob, ratio, protect=None):
     m = ob.modifiers.new("dec", "DECIMATE")
@@ -403,7 +442,7 @@ def region(B, J, spec):
         w = WM[:, BI[b]].copy()
         if lim:
             t = bone_t(B, J, b)
-            w *= (t >= lim[0]) & (t <= lim[1])
+            w *= smooth(lim[0] - .06, lim[0] + .06, t) * smooth(lim[1] + .06, lim[1] - .06, t)
         s += w
     return s
 
@@ -450,6 +489,7 @@ def faces_where(group, ok):
 
 # ---------------------------------------------------------------- un personnage
 EYEC = {}
+SZ = 1.0
 
 def build_variant(P, mats):
     B = morph(P)
@@ -459,32 +499,37 @@ def build_variant(P, mats):
     J = bone_frames(B)
     for s in ("l", "r"):
         EYEC[s] = B[sorted({v for f in GROUPS["helper-%s-eye" % s] for v in f[0]})].mean(0)
+    global SZ
+    SZ = min(1.0, max(.45, (B[:, 2].max() - B[:, 2].min()) / 1.75))
     parts = []
     hide = np.zeros(NV, bool)
     # haut
     tsp = top_spec(P["top"])
-    rt = region(B, J, tsp) * smooth(J["thigh_l"][0][2] - .02, J["thigh_l"][0][2] + .01, B[:, 2])
-    parts.append(("shirt", faces_where("helper-tights", rt > .45), .010 if P["top"] != "tank" else .006))
+    # poids saturés (évite le bruit entre bassin et cuisses) puis ourlet défini par la hauteur seule
+    rt = smooth(.15, .55, region(B, J, tsp)) * smooth(J["thigh_l"][0][2] + .005, J["thigh_l"][0][2] + .035, B[:, 2])
+    parts.append(("shirt", faces_where("helper-tights", rt > .06), .010 if P["top"] != "tank" else .006, smooth(.3, .6, rt)))
     hide |= rt > .985
     # bas
     if P["bottom"] == "pagne":
         sk = GROUPS["helper-skirt"]
-        parts.append(("wax", sk, .004))
+        parts.append(("wax", sk, .004, None))
         legs = region(B, J, {"pelvis": None, **{b: None for b in sides("thigh")}, **{b: (-1, .8) for b in sides("calf")}})
         hide |= legs > .9
         top_only = region(B, J, {"pelvis": (.0, .5)})
     else:
         bsp = bottom_spec(P["bottom"])
         rb = region(B, J, bsp)
-        parts.append(("pants", faces_where("helper-tights", rb > .45), .008))
+        parts.append(("pants", faces_where("helper-tights", rb > .06), .008, smooth(.3, .6, rb)))
         hide |= rb > .985
     # chaussures (sandales pour les femmes en pagne)
     rs = region(B, J, SHOE())
-    if P["bottom"] == "pagne":
-        sole = rs * (B[:, 2] < .035)
-        parts.append(("shoes", faces_where("helper-tights", sole > .5), .006))
+    if not P.get("shoes", True):
+        pass
+    elif P["bottom"] == "pagne":
+        sole = rs * smooth(.045, .025, B[:, 2])
+        parts.append(("shoes", faces_where("helper-tights", sole > .06), .006, smooth(.3, .6, sole)))
     else:
-        parts.append(("shoes", faces_where("helper-tights", rs > .45), .016))
+        parts.append(("shoes", faces_where("helper-tights", rs > .06), .016, smooth(.3, .6, rs)))
         hide |= rs > .985
     # corps (faces visibles seulement)
     body_faces = [f for f in GROUPS["body"] if not all(hide[v] for v in f[0])]
@@ -507,11 +552,17 @@ def build_variant(P, mats):
         eyes.append(ob)
     # vêtements
     objs = []
-    for name, faces, off in parts:
+    for name, faces, off, mask in parts:
         if not faces:
             continue
         ob = make_mesh(name + "_" + P["id"], B, faces, mats[name])
-        inflate(ob, off)
+        if mask is None:
+            inflate(ob, off * SZ)
+        else:
+            # bord lisse : le vêtement plonge sous la peau là où la zone s'arrête (plus de bord en escalier)
+            # bord net : coupe le long de la courbe du masque
+            mk = iso_cut(ob, mask[orig_index(ob)], .25)
+            inflate(ob, off * SZ)  # épaisseur constante : le haut reste au-dessus du pantalon jusqu'au bord
         if name == "wax":
             c = vcos(ob)
             ang = np.arctan2(c[:, 0], -c[:, 1])
@@ -525,7 +576,8 @@ def build_variant(P, mats):
     if P["hair"] != "bald":
         E = (EYEC["l"] + EYEC["r"]) / 2
         hd = WM[:, BI["head"]] + WM[:, BI["neck_01"]] * (P["hair"] != "short")
-        rel = B - E
+        HS = max(.6, min(1.0, (B[:, 2].max() - E[2]) / .115))   # tête plus petite chez l'enfant
+        rel = (B - E) / HS
         y = rel[:, 1]  # <0 = devant
         if P["hair"] == "short":
             line = np.interp(y, [-.12, -.07, 0, .05, .12], [.055, .05, .035, -.02, -.07])
@@ -540,22 +592,22 @@ def build_variant(P, mats):
         HM = smooth(line - .012, line + .012, z) * (1 - ear)
         ok = (hd > .5) & (z > line - .03)
         hf = faces_where("body", ok)
-        ob = make_mesh("hair_" + P["id"], B, hf, mats["wax" if P["hair"] == "wrap" else "hair"])
+        ob = make_mesh("hair_" + P["id"], B, hf, mats["wax" if P["hair"] == "wrap" else "hairgray" if P.get("gray") else "hair"])
         oi = orig_index(ob)
         m = HM[oi]
         top = B[:, 2].max()
         if P["hair"] == "short":
-            inflate(ob, lambda c, n: -.004 + .011 * m)
+            inflate(ob, lambda c, n: (-.004 + .011 * m) * HS)
         elif P["hair"] == "puff":
             def puff(c, n):
                 k = smooth(E[2] + .02, top - .01, c[:, 2])
-                return -.004 + m * (.014 + .022 * k + .004 * np.sin(c[:, 0] * 300) * np.sin(c[:, 1] * 280) * np.sin(c[:, 2] * 260))
+                return HS * (-.004 + m * (.014 + .022 * k + .004 * np.sin(c[:, 0] * 300) * np.sin(c[:, 1] * 280) * np.sin(c[:, 2] * 260)))
             inflate(ob, puff)
         else:  # foulard gélé, volume vers le haut et l'arrière
             def wrap(c, n):
                 k = smooth(E[2] + .01, top, c[:, 2])
                 back = smooth(-.02, .09, c[:, 1] - E[1])
-                return -.004 + m * (.02 + .05 * k + .03 * k * back)
+                return HS * (-.004 + m * (.02 + .05 * k + .03 * k * back))
             inflate(ob, wrap)
             c = vcos(ob)
             ang = np.arctan2(c[:, 0], -(c[:, 1] - E[1]))
@@ -705,6 +757,7 @@ def main():
         "pants": material("pants", srgb("#2b3346"), .85),
         "shoes": material("shoes", srgb("#1a1a1c"), .5),
         "hair": material("hair", srgb("#0d0a09"), .9),
+        "hairgray": material("hairgray", srgb("#9a958f"), .9),
         "wax": material("wax", [1, 1, 1, 1], .8, wax),
     }
     skin_img = None
@@ -740,7 +793,16 @@ def main():
             m = e.modifiers.new("s", "SUBSURF"); m.levels = 1
             bpy.context.view_layer.objects.active = e; bpy.ops.object.modifier_apply(modifier="s")
         for o in objs:
-            decimate(o, .35)
+            # le bord du vêtement est protégé pendant la décimation (sinon il redevient en dents de scie)
+            bm = bmesh.new(); bm.from_mesh(o.data)
+            edge = {v.index for e in bm.edges if e.is_boundary for v in e.verts}
+            ring = {w.index for v in bm.verts if v.index in edge for e in v.link_edges for w in e.verts}
+            bm.free()
+            g = o.vertex_groups.new(name="keep_edge")
+            if ring:
+                g.add(sorted(ring), 1.0, "REPLACE")
+            decimate(o, .35, "keep_edge")
+            o.vertex_groups.remove(o.vertex_groups["keep_edge"])
         allo = [body] + eyes + objs
         for o in allo:
             if "oi" in o.data.attributes:
@@ -753,7 +815,8 @@ def main():
         body.name = "human_" + P["id"]
         body.parent = arm
         md = body.modifiers.new("Armature", "ARMATURE"); md.object = arm
-        arm.location.x = (k - (len(VARIANTS) - 1) / 2) * .8
+        grp = [v for v in VARIANTS if ("age" in v) == ("age" in P)]
+        arm.location.x = (grp.index(P) - (len(grp) - 1) / 2) * .8
         arm["variant"] = P["id"]
         rigs.append((arm, body, J))
         print(P["id"], "triangles", tris(body))
@@ -800,6 +863,11 @@ def render(rigs):
             arm.animation_data.action_slot = walk.slots[0]
         except Exception:
             pass
+    def show(ages):
+        for arm, body, J in rigs:
+            on = (arm["variant"] in [v["id"] for v in VARIANTS if "age" in v]) == ages
+            arm.hide_render = body.hide_render = not on
+    show(False)
     for i, f in enumerate((1, 9)):
         sc.frame_set(f)
         if os.environ.get("ZB_DEBUG"):
@@ -813,6 +881,11 @@ def render(rigs):
             continue
         sc.render.filepath = os.path.join(RENDER, "humans_walk_%d.png" % i)
         bpy.ops.render.render(write_still=True)
+    show(True)
+    sc.frame_set(1)
+    sc.render.filepath = os.path.join(RENDER, "humans_ages.png")
+    bpy.ops.render.render(write_still=True)
+    show(False)
     for arm, body, J in rigs:
         if arm.animation_data: arm.animation_data.action = None
         for b in arm.pose.bones:

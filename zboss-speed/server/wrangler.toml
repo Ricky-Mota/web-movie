@@ -1,0 +1,16 @@
+# 2 Life : serveur du jeu sur Cloudflare (offre gratuite)
+# Déploiement : npx wrangler d1 create two-life  -> recopier database_id ci-dessous
+#               npx wrangler d1 execute two-life --remote --file=schema.sql
+#               npx wrangler deploy
+name = "two-life-api"
+main = "src/index.js"
+compatibility_date = "2025-06-01"
+
+[vars]
+# adresses autorisées à appeler l'API, séparées par des virgules ("*" = toutes)
+ALLOWED_ORIGINS = "*"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "two-life"
+database_id = "00000000-0000-0000-0000-000000000000"
