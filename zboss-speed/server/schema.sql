@@ -231,3 +231,8 @@ CREATE TABLE IF NOT EXISTS beta_inscrits (
   source TEXT,
   cree_le INTEGER NOT NULL
 );
+
+-- négligence : jours d'entretien impayés (cumulés). L'enfant s'en souvient toute sa vie.
+CREATE TABLE IF NOT EXISTS negligences (personnage_id TEXT PRIMARY KEY, jours INTEGER NOT NULL DEFAULT 0, maj_le INTEGER NOT NULL);
+-- 20 % de la fortune d'un mort, gardés par le joueur pour sa prochaine vie
+CREATE TABLE IF NOT EXISTS reports (compte_id TEXT PRIMARY KEY, makuta INTEGER NOT NULL, de_id TEXT, le INTEGER NOT NULL);

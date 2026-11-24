@@ -2,7 +2,7 @@
 // Le serveur est l'arbitre : il décide de l'âge, des talents et de l'argent ; le téléphone ne fait qu'afficher.
 import {
   ageYears, stageOf, STAGES, realMsUntil, TALENTS, ACTIVITIES, rng, drawTalents, doActivity,
-  needsAt, newIdentity, BIRTH_GIFT, BIRTH_USD, ADMIN_FEE_USD, NEGLECT_STEAL_AGE, neglectStealChance, SHOP, cannotBuy, OFFERS, USD_TO_MAKUTA, USD_UNITS, fmtMakuta, WITHDRAW_FEE, walletInfo, birthShiftMs, REAL_MONEY, shopView, familyOf, JOBS, payFor, cannotWork, workView, cannotApply, FORMATIONS, cannotEnroll, attendCourse, schoolView, SUPPORT_PER_DAY, HOST_MIN_AGE, MAX_CHILDREN, supportDue, unpaidEffect, familyShare, DAY, LAUNCH_RULES, launchStatus, canSignupBeforeLaunch, COMPANY_TYPES, cannotOpenCompany, companyName, companyView, companyAccrue, companyJob, EMPLOYEE_YIELD, RESELL_RATE, TAXI_FARE, TAXI_ENERGY, KINSHASA_QUARTIERS, OTHER_CITIES, STATE_ID, TAX, POSTS, PUBLIC_JOBS, BANKS, bankAccrue, INSURERS, CARE, careCost, OPERATORS, RECHARGES, CALL, stateView, ELECTION_EVERY, VOTER_MIN_AGE, electionCalendar, tally, CRIMES, catchChance, sentence, inPrison, PRISON_BLOCKED, PRISON_HOURS, BAIL, RECIDIVE, policeView,
+  needsAt, newIdentity, BIRTH_GIFT, BIRTH_USD, ADMIN_FEE_USD, NEGLECT_STEAL_AGE, neglectStealChance, NEGLECT_DANGER_DAYS, NEGLECT_DANGER_HEALTH, splitEstate, deathCause, familyShareRate, SHOP, cannotBuy, OFFERS, USD_TO_MAKUTA, USD_UNITS, fmtMakuta, WITHDRAW_FEE, walletInfo, birthShiftMs, REAL_MONEY, shopView, familyOf, JOBS, payFor, cannotWork, workView, cannotApply, FORMATIONS, cannotEnroll, attendCourse, schoolView, SUPPORT_PER_DAY, HOST_MIN_AGE, MAX_CHILDREN, supportDue, unpaidEffect, familyShare, DAY, LAUNCH_RULES, launchStatus, canSignupBeforeLaunch, COMPANY_TYPES, cannotOpenCompany, companyName, companyView, companyAccrue, companyJob, EMPLOYEE_YIELD, RESELL_RATE, TAXI_FARE, TAXI_ENERGY, KINSHASA_QUARTIERS, OTHER_CITIES, STATE_ID, TAX, POSTS, PUBLIC_JOBS, BANKS, bankAccrue, INSURERS, CARE, careCost, OPERATORS, RECHARGES, CALL, stateView, ELECTION_EVERY, VOTER_MIN_AGE, electionCalendar, tally, CRIMES, catchChance, sentence, inPrison, PRISON_BLOCKED, PRISON_HOURS, BAIL, RECIDIVE, policeView,
   describeAction, ORDER_DONE, ORDERS, ORDERS_PER_DAY, ORDERS_CHECK_MS, dayKey, ordersToRun, cannotGiveOrder,
 } from "./life.js";
 import { sendPush, newVapidKeys } from "./webpush.js";
@@ -349,8 +349,8 @@ async function settle(db, p, now) {
 }
 
 // entretien des enfants : calculé à la demande, pour le personnage et ses enfants mineurs
-async function supportFamily(db, pid, now) {
-  const { results: kids } = await db.prepare(`SELECT id, prenom, ne_le, entretien_le, pere_id, mere_id, faim, energie, bonheur, sante, maj_le FROM personnages
+async function supportFamily(db, pid, now, env = null) {
+  const { results: kids } = await db.prepare(`SELECT id, prenom, sexe, ne_le, entretien_le, pere_id, mere_id, faim, energie, bonheur, sante, maj_le FROM personnages
       WHERE mort_le IS NULL AND (id = ? OR pere_id = ? OR mere_id = ?)`).bind(pid, pid, pid).all();
   for (const k of kids) {
     const par = k.pere_id || k.mere_id;
@@ -359,8 +359,13 @@ async function supportFamily(db, pid, now) {
     if (days < 1) continue;
     const pr = await db.prepare(`SELECT makuta FROM personnages WHERE id = ? AND mort_le IS NULL`).bind(par).first();
     const pay = Math.min(due, pr ? pr.makuta : 0), unpaid = Math.floor((due - pay) / SUPPORT_PER_DAY), fx = unpaidEffect(unpaid);
+    // négligence cumulée : au-delà de 7 jours, l'enfant est en danger de mort (et il s'en souviendra)
+    const neg = unpaid > 0 ? (await neglectOf(db, k.id)) + unpaid : 0, danger = neg >= NEGLECT_DANGER_DAYS;
     const st = [db.prepare(`UPDATE personnages SET entretien_le = ?, bonheur = MAX(0, bonheur - ?), sante = MAX(0, sante - ?) WHERE id = ?`)
-      .bind((k.entretien_le || k.ne_le) + days * DAY, fx.bonheur, fx.sante, k.id)];
+      .bind((k.entretien_le || k.ne_le) + days * DAY, fx.bonheur, fx.sante + (danger ? NEGLECT_DANGER_HEALTH * unpaid : 0), k.id)];
+    if (unpaid > 0) st.push(db.prepare(`INSERT INTO negligences (personnage_id, jours, maj_le) VALUES (?, ?, ?) ON CONFLICT(personnage_id) DO UPDATE SET jours = jours + excluded.jours, maj_le = excluded.maj_le`).bind(k.id, unpaid, now),
+      db.prepare(`INSERT INTO mouvements (id, personnage_id, icone, texte, par_consigne, le) VALUES (?, ?, ?, ?, 0, ?)`).bind(uid(), k.id, danger ? "🆘" : "😢",
+        danger ? `${k.prenom} est ${k.sexe === "F" ? "négligée" : "négligé"} depuis ${neg} jours : ${k.sexe === "F" ? "elle" : "il"} est en danger de mort, et s'en souviendra.` : `Entretien de ${k.prenom} impayé (${neg} jour${neg > 1 ? "s" : ""} de négligence au total).`, now));
     if (pay > 0) st.push(
       db.prepare(`UPDATE personnages SET makuta = makuta - ? WHERE id = ? AND makuta >= ?`).bind(pay, par, pay),
       db.prepare(`UPDATE personnages SET makuta = makuta + ? WHERE id = ?`).bind(pay, k.id),
@@ -372,18 +377,61 @@ async function supportFamily(db, pid, now) {
       if (caught) {
         const fine = Math.min(cr.amende, Math.max(0, (pr ? pr.makuta : 0) - pay));
         st.push(db.prepare(`INSERT INTO infractions (id, personnage_id, type, amende, prison_heures, le) VALUES (?, ?, ?, ?, 0, ?)`).bind(uid(), k.id, cr.id, fine, now),
-          db.prepare(`INSERT INTO mouvements (id, personnage_id, icone, texte, par_consigne, le) VALUES (?, ?, ?, ?, 0, ?)`).bind(uid(), k.id, "🚓", `${k.prenom}, affamé et sans entretien, a volé au marché et s'est fait attraper. Amende payée par les parents : ${fmtMakuta(fine)}.`, now));
+          db.prepare(`INSERT INTO mouvements (id, personnage_id, icone, texte, par_consigne, le) VALUES (?, ?, ?, ?, 0, ?)`).bind(uid(), k.id, "🚓", `${k.prenom}, sans entretien et le ventre vide, a volé au marché et s'est fait attraper. Amende payée par les parents : ${fmtMakuta(fine)}.`, now));
         if (fine > 0) st.push(db.prepare(`UPDATE personnages SET makuta = makuta - ? WHERE id = ? AND makuta >= ?`).bind(fine, par, fine),
           db.prepare(`INSERT INTO transactions (id, de_id, vers_id, montant, motif, le) VALUES (?, ?, ?, ?, ?, ?)`).bind(uid(), par, STATE_ID, fine, `amende : vol de l'enfant ${k.prenom}`, now));
       } else {
         const gain = cr.gain[0] + Math.floor(Math.random() * (cr.gain[1] - cr.gain[0]));
         st.push(db.prepare(`UPDATE personnages SET makuta = makuta + ? WHERE id = ?`).bind(gain, k.id),
           db.prepare(`INSERT INTO transactions (id, de_id, vers_id, montant, motif, le) VALUES (?, NULL, ?, ?, ?, ?)`).bind(uid(), k.id, gain, "vol au marché (enfant négligé)", now),
-          db.prepare(`INSERT INTO mouvements (id, personnage_id, icone, texte, par_consigne, le) VALUES (?, ?, ?, ?, 0, ?)`).bind(uid(), k.id, "🫳", `${k.prenom}, livré à lui-même, a volé ${fmtMakuta(gain)} au marché pour manger.`, now));
+          db.prepare(`INSERT INTO mouvements (id, personnage_id, icone, texte, par_consigne, le) VALUES (?, ?, ?, ?, 0, ?)`).bind(uid(), k.id, "🫳", `${k.prenom}, sans personne pour s'occuper de ${k.sexe === "F" ? "elle" : "lui"}, a volé ${fmtMakuta(gain)} au marché pour manger.`, now));
       }
     }
     await db.batch(st);
+    await checkDeath(env, db, k.id, now);
   }
+}
+
+// ---------------------------------------------------------------- mort et héritage
+async function neglectOf(db, id) { const r = await db.prepare(`SELECT jours FROM negligences WHERE personnage_id = ?`).bind(id).first(); return r ? r.jours : 0; }
+// la santé est tombée à 0 ? le personnage meurt (définitif) et sa fortune est partagée
+async function checkDeath(env, db, id, now) {
+  const p = await db.prepare(`SELECT * FROM personnages WHERE id = ? AND mort_le IS NULL`).bind(id).first();
+  if (!p) return false;
+  const n = needsAt({ hunger: p.faim, energy: p.energie, happiness: p.bonheur, health: p.sante, updatedAt: p.maj_le }, now);
+  const cause = deathCause(n, await neglectOf(db, id));
+  if (!cause) return false;
+  await die(env, db, p, cause, now);
+  return true;
+}
+async function die(env, db, p, cause, now) {
+  const { results: banks } = await db.prepare(`SELECT banque_id, solde FROM comptes_banque WHERE personnage_id = ?`).bind(p.id).all();
+  const total = p.makuta + banks.reduce((a, b) => a + b.solde, 0);
+  // héritiers : enfants et parents vivants, sinon le conjoint, sinon personne (la ville prend tout)
+  let { results: heirs } = await db.prepare(`SELECT id, compte_id FROM personnages WHERE mort_le IS NULL AND id != ? AND (pere_id = ? OR mere_id = ? OR id IN (?, ?))`)
+    .bind(p.id, p.id, p.id, p.pere_id || "", p.mere_id || "").all();
+  if (!heirs.length && p.conjoint_id) heirs = (await db.prepare(`SELECT id, compte_id FROM personnages WHERE id = ? AND mort_le IS NULL`).bind(p.conjoint_id).all()).results;
+  const sp = splitEstate(total, heirs.length);
+  const T = (de, vers, m, motif) => db.prepare(`INSERT INTO transactions (id, de_id, vers_id, montant, motif, le) VALUES (?, ?, ?, ?, ?, ?)`).bind(uid(), de, vers, m, motif, now);
+  const S = (h, part, m) => db.prepare(`INSERT INTO successions (id, defunt_id, heritier_id, part, montant, le) VALUES (?, ?, ?, ?, ?, ?)`).bind(uid(), p.id, h, part, m, now);
+  const st = [
+    db.prepare(`UPDATE personnages SET mort_le = ?, cause_mort = ?, makuta = 0, sante = 0, accueille_enfants = 0 WHERE id = ?`).bind(now, cause, p.id),
+    db.prepare(`DELETE FROM comptes_banque WHERE personnage_id = ?`).bind(p.id),
+    db.prepare(`UPDATE emplois SET fin = ? WHERE personnage_id = ? AND fin IS NULL`).bind(now, p.id),
+    db.prepare(`INSERT INTO mouvements (id, personnage_id, icone, texte, par_consigne, le) VALUES (?, ?, ?, ?, 0, ?)`).bind(uid(), p.id, "✝️", `${p.prenom} ${p.nom} est ${p.sexe === "F" ? "morte" : "mort"} (${cause}).`, now),
+    S(STATE_ID, "ville", sp.ville), ...(sp.ville > 0 ? [T(p.id, STATE_ID, sp.ville, "frais de succession de " + p.prenom + " " + p.nom)] : []),
+  ];
+  if (p.compte_id) st.push(S(null, "report", sp.report),
+    db.prepare(`INSERT INTO reports (compte_id, makuta, de_id, le) VALUES (?, ?, ?, ?) ON CONFLICT(compte_id) DO UPDATE SET makuta = makuta + excluded.makuta, de_id = excluded.de_id, le = excluded.le`).bind(p.compte_id, sp.report, p.id, now));
+  for (const hr of heirs) if (sp.each > 0) st.push(S(hr.id, "heritier", sp.each),
+    db.prepare(`UPDATE personnages SET makuta = makuta + ? WHERE id = ?`).bind(sp.each, hr.id), T(p.id, hr.id, sp.each, "héritage de " + p.prenom + " " + p.nom),
+    db.prepare(`INSERT INTO mouvements (id, personnage_id, icone, texte, par_consigne, le) VALUES (?, ?, ?, ?, 0, ?)`).bind(uid(), hr.id, "🕊️", `Héritage de ${p.prenom} ${p.nom} : ${fmtMakuta(sp.each)}.`, now));
+  await db.batch(st);
+  if (env) for (const hr of heirs) if (hr.compte_id) try { await notify(env, db, hr.compte_id, { titre: "2 Life · décès", texte: `${p.prenom} ${p.nom} est ${p.sexe === "F" ? "morte" : "mort"} (${cause}). Tu hérites de ${fmtMakuta(sp.each)}.`, url: "vie.html#moves" }); } catch (e) { console.error(e); }
+}
+function deadView(compte, p, report, now) {
+  return { compte: { pseudo: compte.pseudo, reputation: compte.reputation }, mort: { prenom: p.prenom, nom: p.nom, sexe: p.sexe, neLe: p.ne_le, mortLe: p.mort_le, cause: p.cause_mort,
+    age: Math.floor(ageYears(p.ne_le, p.mort_le || now)) }, report: report ? report.makuta : 0, renaissance: OFFERS.find(o => o.id === "bebe") };
 }
 
 // ---------------------------------------------------------------- lancement
@@ -428,12 +476,17 @@ const worker = {
   async scheduled(event, env, ctx) {
     const db = env.DB, now = Date.now();
     try { await kidAlerts(env, now); } catch (e) { console.error(e); }
+    // les joueurs absents peuvent aussi mourir (faim, maladie)
+    try {
+      const { results: alive } = await db.prepare(`SELECT id FROM personnages WHERE mort_le IS NULL AND compte_id IS NOT NULL ORDER BY maj_le LIMIT 300`).all();
+      for (const a of alive) await checkDeath(env, db, a.id, now);
+    } catch (e) { console.error(e); }
     const { results } = await db.prepare(`SELECT DISTINCT c.personnage_id AS pid, p.compte_id FROM consignes c JOIN personnages p ON p.id = c.personnage_id WHERE c.jour = ? AND p.mort_le IS NULL LIMIT 500`).bind(dayKey(now)).all();
     for (const r of results) {
       try {
         const compte = await db.prepare(`SELECT * FROM comptes WHERE id = ? AND vie_id = ?`).bind(r.compte_id, r.pid).first();
         if (!compte) continue;
-        await supportFamily(db, r.pid, now);
+        await supportFamily(db, r.pid, now, env);
         const ch = await loadCharacter(db, r.pid);
         if (ch) await applyOrders(env, db, compte, ch, now);
       } catch (e) { console.error(e); }
@@ -528,7 +581,10 @@ const worker = {
         const { hash } = await hashPassword(String(body.motdepasse || ""), c.pass_salt);
         if (!sameText(hash, c.pass_hash)) return fail(h, 401, "E-mail ou mot de passe incorrect.");
         const token = await newSession(db, c.id, now);
-        return json(h, 200, { token, ...view(c, await loadCharacter(db, c.vie_id), now), admin: isAdmin(env, c) });
+        await checkDeath(env, db, c.vie_id, now);
+        const chc = await loadCharacter(db, c.vie_id);
+        if (chc.p.mort_le) return json(h, 200, { token, ...deadView(c, chc.p, await db.prepare(`SELECT makuta FROM reports WHERE compte_id = ?`).bind(c.id).first(), now), admin: isAdmin(env, c) });
+        return json(h, 200, { token, ...view(c, chc, now), admin: isAdmin(env, c) });
       }
 
       // ---- routes réservées aux joueurs connectés
@@ -545,7 +601,17 @@ const worker = {
           const { results: beta } = await db.prepare(`SELECT pseudo, email, pays, plateforme, newsletter, source, cree_le FROM beta_inscrits ORDER BY cree_le DESC LIMIT 2000`).all();
           const { results: support } = await db.prepare(`SELECT id, pseudo, email, categorie, message, statut, cree_le, resolu_le FROM support_demandes ORDER BY statut = 'ouvert' DESC, cree_le DESC LIMIT 300`).all();
           const nb = await db.prepare(`SELECT COUNT(*) AS n, COALESCE(SUM(usd), 0) AS usd FROM depots WHERE offre = 'bebe'`).first();
-          return json(h, 200, { lancement: await launch(db), naissances: { n: nb.n, usd: nb.usd, fraisAdmin: nb.n * ADMIN_FEE_USD, parents: nb.usd - nb.n * ADMIN_FEE_USD }, parents, investisseurs: inv, entreprises: ent, elections: await elections(db, now), beta, support });
+          // observer le jeu pour l'améliorer : population, enfants négligés, décès, derniers événements
+          const pop = await db.prepare(`SELECT SUM(mort_le IS NULL) AS vivants, SUM(mort_le IS NOT NULL) AS morts, SUM(mort_le IS NULL AND ne_le > ?) AS enfants FROM personnages WHERE compte_id IS NOT NULL`).bind(now - birthShiftMs(18)).first();
+          const ng = await db.prepare(`SELECT SUM(n.jours > 0) AS negliges, SUM(n.jours >= ?) AS danger FROM negligences n JOIN personnages p ON p.id = n.personnage_id WHERE p.mort_le IS NULL`).bind(NEGLECT_DANGER_DAYS).first();
+          const { results: deces } = await db.prepare(`SELECT p.prenom, p.nom, p.cause_mort AS cause, p.ne_le, p.mort_le, c.pseudo,
+              (SELECT COALESCE(SUM(montant), 0) FROM successions s WHERE s.defunt_id = p.id) AS fortune FROM personnages p LEFT JOIN comptes c ON c.id = p.compte_id
+              WHERE p.mort_le IS NOT NULL ORDER BY p.mort_le DESC LIMIT 20`).all();
+          const { results: evts } = await db.prepare(`SELECT m.icone, m.texte, m.le, p.prenom || ' ' || p.nom AS qui FROM mouvements m JOIN personnages p ON p.id = m.personnage_id ORDER BY m.le DESC LIMIT 40`).all();
+          const pub = await publicState(db);
+          const observer = { vivants: pop.vivants || 0, morts: pop.morts || 0, enfants: pop.enfants || 0, negliges: ng.negliges || 0, enDanger: ng.danger || 0,
+            tresor: pub.tresor, masse: pub.masse, deces: deces.map(d => ({ ...d, age: Math.floor(ageYears(d.ne_le, d.mort_le)) })), evenements: evts };
+          return json(h, 200, { lancement: await launch(db), observer, naissances: { n: nb.n, usd: nb.usd, fraisAdmin: nb.n * ADMIN_FEE_USD, parents: nb.usd - nb.n * ADMIN_FEE_USD }, parents, investisseurs: inv, entreprises: ent, elections: await elections(db, now), beta, support });
         }
         if (url.pathname === "/api/admin/support" && req.method === "POST") {
           const st = body.statut === "resolu" ? "resolu" : "ouvert";
@@ -582,9 +648,25 @@ const worker = {
         return fail(h, 404, "Route inconnue.");
       }
 
-      await supportFamily(db, compte.vie_id, now);
+      await supportFamily(db, compte.vie_id, now, env);
+      await checkDeath(env, db, compte.vie_id, now);
       const ch = await loadCharacter(db, compte.vie_id);
       if (!ch) return fail(h, 404, "Personnage introuvable.");
+      // personnage mort : on ne peut que voir son décès et renaître (en payant une nouvelle naissance)
+      if (ch.p.mort_le) {
+        const rep = await db.prepare(`SELECT makuta FROM reports WHERE compte_id = ?`).bind(compte.id).first();
+        if (url.pathname === "/api/renaitre" && req.method === "POST") {
+          const pid = await birth(db, compte.id, now, OFFERS.find(o => o.id === "bebe"));
+          if (rep && rep.makuta > 0) await db.batch([
+            db.prepare(`UPDATE personnages SET makuta = makuta + ? WHERE id = ?`).bind(rep.makuta, pid),
+            db.prepare(`INSERT INTO transactions (id, de_id, vers_id, montant, motif, le) VALUES (?, NULL, ?, ?, ?, ?)`).bind(uid(), pid, rep.makuta, "20 % gardés de la vie précédente", now),
+            db.prepare(`DELETE FROM reports WHERE compte_id = ?`).bind(compte.id)]);
+          const c2 = await db.prepare(`SELECT * FROM comptes WHERE id = ?`).bind(compte.id).first();
+          return json(h, 200, { ...view(c2, await loadCharacter(db, pid), now), renaissance: true });
+        }
+        if (url.pathname === "/api/moi") return json(h, 200, deadView(compte, ch.p, rep, now));
+        return fail(h, 409, "Ton personnage est mort. Tu peux renaître depuis la page Ma vie.");
+      }
       const { p, tal } = ch;
 
       if (url.pathname === "/api/moi" && req.method === "GET") {
@@ -757,7 +839,9 @@ const worker = {
         if (no) return fail(h, 409, no);
         const pay = payFor(job, tal.map(t => ({ talent: t.talent_id, discovered: !!t.decouvert })));
         // 10 % du salaire pour les parents : aux parents joueurs s'il y en a, sinon à la famille du jeu
-        pay.famille = familyShare(pay.montant);
+        const grudge = await neglectOf(db, p.id);   // un enfant négligé se souvient : il reverse moins
+        pay.famille = familyShare(pay.montant, grudge);
+        if (grudge > 0) pay.rancune = Math.round(familyShareRate(grudge) * 100);
         pay.impot = Math.round(pay.montant * TAX.salaire);   // IPR prélevé par la DGI
         const fromState = PUBLIC_JOBS.some(j => j.id === job.id) || !!job.elu;
         const parents = ch.par.map(x => x.id), each = parents.length ? Math.floor(pay.famille / parents.length) : 0;

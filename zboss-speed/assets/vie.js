@@ -4,7 +4,7 @@ import {
   ageYears, stageOf, STAGES, realMsUntil, TALENTS, ACTIVITIES, rng, drawTalents, doActivity, needsAt, newIdentity, BIRTH_GIFT,
   SHOP, cannotBuy, OFFERS, USD_TO_MAKUTA, USD_UNITS, fmtMakuta, WITHDRAW_FEE, walletInfo, birthShiftMs, shopView, familyOf, JOBS, payFor, cannotWork, workView, SHIFT_ENERGY, cannotApply, FORMATIONS, cannotEnroll, attendCourse, schoolView, STUDY_ENERGY, SUPPORT_PER_DAY, HOST_MIN_AGE, canSignupBeforeLaunch, COMPANY_TYPES, cannotOpenCompany, companyName, companyView, companyAccrue, companyJob, EMPLOYEE_YIELD, RESELL_RATE, TAXI_FARE, TAXI_ENERGY, KINSHASA_QUARTIERS, OTHER_CITIES, TAX, POSTS, PUBLIC_JOBS, BANKS, bankAccrue, INSURERS, CARE, careCost, OPERATORS, RECHARGES, CALL, stateView, supportDue, unpaidEffect, familyShare, FIRST_NAMES,
   describeAction, ORDER_DONE, ORDERS, ORDERS_PER_DAY, ORDERS_CHECK_MS, dayKey, ordersToRun, cannotGiveOrder,
-  VOTER_MIN_AGE, CRIMES, catchChance, sentence, inPrison, PRISON_BLOCKED, BAIL, PRISON_HOURS, RECIDIVE, policeView,
+  VOTER_MIN_AGE, NEGLECT_DANGER_DAYS, NEGLECT_DANGER_HEALTH, splitEstate, deathCause, familyShareRate, CRIMES, catchChance, sentence, inPrison, PRISON_BLOCKED, BAIL, PRISON_HOURS, RECIDIVE, policeView,
 } from "../server/src/life.js";
 import { launchDemo } from "./lancement-demo.js";
 
@@ -93,11 +93,34 @@ const demo = {
       if (ageYears(k.neLe, now) >= 18) continue;
       const { days, due } = supportDue(k.entretienLe, k.neLe, now);
       if (days < 1) continue;
-      const pay = Math.min(due, c.makuta), fx = unpaidEffect(Math.floor((due - pay) / SUPPORT_PER_DAY));
+      const pay = Math.min(due, c.makuta), unpaid = Math.floor((due - pay) / SUPPORT_PER_DAY), fx = unpaidEffect(unpaid);
       c.makuta -= pay; k.makuta += pay; k.entretienLe = (k.entretienLe || k.neLe) + days * 864e5;
-      Object.assign(k, needsAt(k, now), { updatedAt: now }); k.happiness = Math.max(0, k.happiness - fx.bonheur); k.health = Math.max(0, k.health - fx.sante);
+      if (unpaid > 0) k.neglige = (k.neglige || 0) + unpaid;
+      const danger = (k.neglige || 0) >= NEGLECT_DANGER_DAYS;
+      Object.assign(k, needsAt(k, now), { updatedAt: now }); k.happiness = Math.max(0, k.happiness - fx.bonheur); k.health = Math.max(0, k.health - fx.sante - (danger ? NEGLECT_DANGER_HEALTH * unpaid : 0));
+      if (unpaid > 0) this.move(d, danger ? "🆘" : "😢", danger ? `${k.prenom} est négligé${k.sex === "F" ? "e" : ""} depuis ${k.neglige} jours : en danger de mort, et ${k.sex === "F" ? "elle" : "il"} s'en souviendra.` : `Entretien de ${k.prenom} impayé (${k.neglige} jour${k.neglige > 1 ? "s" : ""} de négligence au total).`);
+    }
+    // un enfant dont la santé tombe à 0 meurt : héritage partagé (ici, son seul héritier est toi, son parent)
+    for (const k of (d.enfants || []).slice()) {
+      const cause = deathCause(needsAt(k, now), k.neglige || 0); if (!cause) continue;
+      const sp = splitEstate(k.makuta, 1);
+      c.makuta += sp.each; d.tresor = (d.tresor || 0) + sp.ville;
+      d.enfants = d.enfants.filter(x => x !== k); (d.deuils = d.deuils || []).push({ prenom: k.prenom, cause, le: now });
+      this.move(d, "✝️", `${k.prenom} est ${k.sex === "F" ? "morte" : "mort"} (${cause}). Tu hérites de ${fmtMakuta(sp.each)}.`);
     }
   },
+  move(d, icone, texte) { d.mouvements = [{ icone, texte, par_consigne: 0, le: Date.now() }, ...(d.mouvements || [])].slice(0, 100); },
+  // ton personnage meurt : 20 % gardés pour ta prochaine vie, 10 % à la ville, 70 % aux héritiers (ici la famille du jeu)
+  die(d, cause) {
+    const c = d.perso, now = Date.now(), total = c.makuta + (d.comptes || []).reduce((a, x) => a + bankAccrue(x, now), 0);
+    const heirs = (d.enfants || []).length, sp = splitEstate(total, heirs);
+    for (const k of d.enfants || []) k.makuta += sp.each;
+    d.mort = { prenom: c.firstName, nom: c.lastName, sexe: c.sex, neLe: c.neLe, mortLe: now, cause, age: Math.floor(ageYears(c.neLe, now)),
+      partage: { report: sp.report, ville: sp.ville, heritiers: heirs ? sp.heritiers : 0, famille: heirs ? 0 : sp.heritiers } };
+    d.report = (d.report || 0) + sp.report; c.makuta = 0; d.comptes = [];
+    this.move(d, "✝️", `${c.firstName} ${c.lastName} est ${c.sex === "F" ? "morte" : "mort"} (${cause}).`);
+  },
+  deadView(d) { return { compte: { pseudo: d.pseudo, reputation: 0 }, mort: d.mort, report: d.report || 0, renaissance: OFFERS.find(o => o.id === "bebe"), demo: true }; },
   // chaque action réussie est inscrite dans les mouvements (même règle que le serveur)
   async call(path, body, parConsigne) {
     const r = await this.run(path, body);
@@ -109,8 +132,9 @@ const demo = {
   },
   async run(path, body) {
     let d = store.get(LS_DEMO);
-    if (d && d.perso) {
+    if (d && d.perso && !d.mort) {
       this.support(d);
+      const cause = deathCause(needsAt(d.perso), 0); if (cause) this.die(d, cause);
       const el = launchDemo.elections(this.me(d));   // dépouillement : un joueur élu prend son poste
       if (el.depouille) { d.candidature = null; if (el.gagne) { d.job = "elu-" + el.gagne; d.boss = null; } }
       store.set(LS_DEMO, d);
@@ -134,10 +158,26 @@ const demo = {
     }
     if (path === "/api/connexion") {
       if (!d || d.email !== String(body.email || "").trim().toLowerCase()) throw new Error("Aucun personnage de démo pour cette adresse sur cet appareil.");
-      store.set(LS_TOKEN, "demo"); return { token: "demo", ...this.view(d) };
+      store.set(LS_TOKEN, "demo"); return { token: "demo", ...(d.mort ? this.deadView(d) : this.view(d)) };
     }
     if (!d) throw new Error("Connecte-toi pour continuer.");
     const c = d.perso;
+    if (path === "/api/demo/mourir") { this.die(d, "maladie non soignée"); store.set(LS_DEMO, d); return this.deadView(d); }
+    if (d.mort) {
+      if (path === "/api/renaitre") {
+        // renaissance payante (15 $ simulés) : nouvelle vie, avec les 20 % gardés de la précédente
+        const r = rng(this.seed()), who = newIdentity(r), now = Date.now(), o = OFFERS.find(x => x.id === "bebe");
+        const vies = [...(d.vies || []), d.mort];
+        d = { pseudo: d.pseudo, email: d.email, inv: [], ret: d.ret || [], accueil: false, enfants: [], notif: d.notif, vies, deuils: d.deuils || [],
+          dep: [...(d.dep || []), { offre: o.id, usd: o.usd, makuta: 0, le: now }],
+          perso: { ...who, neLe: now, updatedAt: now, hunger: 100, energy: 100, happiness: 80, health: 100, makuta: BIRTH_GIFT + (d.report || 0),
+            talents: drawTalents(r).map(t => ({ ...t, discovered: false, hints: 0 })) } };
+        this.move(d, "👶", `Nouvelle vie : ${who.firstName} ${who.lastName} est né${who.sex === "F" ? "e" : ""} à ${who.quartier}.`);
+        store.set(LS_DEMO, d); return { ...this.view(d), renaissance: true };
+      }
+      if (path === "/api/moi") return this.deadView(d);
+      throw new Error("Ton personnage est mort. Tu peux renaître.");
+    }
     if (path === "/api/moi") { await this.applyOrders(d); return this.view(store.get(LS_DEMO)); }
     if (path === "/api/consigne") {
       const C = this.orders(d), no = cannotGiveOrder(body.ordre, C.liste); if (no) throw new Error(no);
@@ -313,7 +353,7 @@ const demo = {
       const job = d.boss ? companyJob(d.boss) : JOBS.find(j => j.id === d.job), no = cannotWork(job, ageYears(c.neLe), c.energy, d.lastShift);
       if (no) throw new Error(no);
       const pay = payFor(job, c.talents);
-      pay.famille = familyShare(pay.montant);   // 10 % pour les parents
+      pay.famille = familyShare(pay.montant, d.rancune || 0);   // 10 % pour les parents (moins s'il a été négligé enfant)
       pay.impot = Math.round(pay.montant * TAX.salaire); d.tresor = (d.tresor || 0) + pay.impot - (PUBLIC_JOBS.some(j => j.id === job.id) || job.elu ? pay.montant : 0);
       c.makuta += pay.montant - pay.famille - pay.impot; c.energy = Math.max(0, c.energy - SHIFT_ENERGY); c.hunger = Math.max(0, c.hunger - 10); d.lastShift = Date.now();
       store.set(LS_DEMO, d); return { paie: pay, ...this.view(d) };
@@ -343,7 +383,9 @@ const demo = {
       if (!d.accueil) throw new Error("Active d'abord l'accueil des enfants.");
       const r = rng(this.seed()), sex = r() < .5 ? "F" : "M", now = Date.now();
       (d.enfants = d.enfants || []).push({ id: "k" + this.seed(), prenom: FIRST_NAMES[sex][Math.floor(r() * FIRST_NAMES[sex].length)], nom: c.lastName, sex, neLe: now, entretienLe: now,
-        updatedAt: now, hunger: 100, energy: 100, happiness: 80, health: 100, makuta: BIRTH_GIFT });
+        updatedAt: now, hunger: 100, energy: 100, happiness: 80, health: 100, makuta: 0 });
+      c.makuta += BIRTH_GIFT;   // les 10 $ de la naissance sont confiés au parent, qui gère l'argent de l'enfant
+      this.move(d, "👶", `Naissance de ${d.enfants.at(-1).prenom} : ${fmtMakuta(BIRTH_GIFT)} confiés à toi, son parent.`);
       store.set(LS_DEMO, d); return this.view(d);
     }
     if (path === "/api/enfant/nourrir") {
@@ -435,6 +477,8 @@ function toast(msg) {
 
 function render(v) {
   state = v;
+  if (v.mort) return renderDeath(v);
+  $("v-dead").hidden = true;
   const p = v.perso;
   $("v-auth").hidden = true; $("v-life").hidden = false;
   $("h-name").textContent = `${p.prenom} ${p.nom}`;
@@ -463,12 +507,29 @@ function render(v) {
     ["Frères et sœurs", f.fratrie.length ? f.fratrie.map(x => `${x.prenom} (${x.age < 1 ? "bébé" : ag(x.age)})`).join(", ") : "Enfant unique"],
     ["Maison", `${f.maison.type}, ${f.maison.pieces} pièces à ${f.maison.quartier} : ${f.maison.desc}`],
   ] : []).concat([["Joueur", v.compte.pseudo], ["Né le", new Date(p.neLe).toLocaleDateString("fr-FR")]])
-    .map(([a, b]) => `<div class="row"><span>${a}</span><span style="text-align:right">${b}</span></div>`).join("");
+    .map(([a, b]) => `<div class="row"><span>${a}</span><span style="text-align:right">${b}</span></div>`).join("")
+    + (v.demo ? `<button class="mini" id="b-demo-die" type="button" style="margin-top:12px">💀 Simuler la mort (démo)</button>` : "");
   renderShop(v); renderWallet(v); renderWork(v); renderSchool(v); renderKids(v); renderCompanies(v); renderTravel(v); renderState(v); renderTips(v); renderOrders(v); renderMoves(v);
   if (!render.hashDone && location.hash === "#moves") { render.hashDone = true; setTimeout(() => goTo("moves"), 300); }
   portrait(p);
   dress(v);
 }
+
+// ---------------------------------------------------------------- mort et renaissance
+function renderDeath(v) {
+  const m = v.mort, o = v.renaissance, P = m.partage;
+  $("v-auth").hidden = true; $("v-life").hidden = true; $("v-dead").hidden = false;
+  $("dead").innerHTML = `<p style="margin:0;font-size:13px">✝️ Fin de vie</p>
+    <h1>${esc(m.prenom)} ${esc(m.nom)} est ${m.sexe === "F" ? "morte" : "mort"}</h1>
+    <p>À ${m.age} an${m.age > 1 ? "s" : ""}, le ${new Date(m.mortLe).toLocaleDateString("fr-FR")} · cause : <b>${esc(m.cause || "inconnue")}</b>. La mort est définitive : ce personnage ne reviendra pas.</p>
+    ${P ? `<div class="row"><span>Gardé pour ta prochaine vie (20 %)</span><span>${mk(P.report)}</span></div>
+    <div class="row"><span>Frais de succession pour la ville (10 %)</span><span>${mk(P.ville)}</span></div>
+    <div class="row"><span>Héritiers : enfants et parents (70 %)</span><span>${mk(P.heritiers + P.famille)}</span></div>` : ""}
+    <div class="row"><span>Tu repars avec</span><span><b>${mk(v.report)}</b></span></div>
+    <button class="btn" id="b-reborn" type="button">Renaître bébé · ${o.usd} $${v.demo ? " (simulé)" : ""}</button>
+    <p style="font-size:13px;margin:10px 0 0">${esc(o.desc)} Les ${mk(v.report)} gardés de cette vie te sont rendus à la naissance.</p>`;
+}
+$("dead").onclick = e => { if (e.target.id === "b-reborn") act("/api/renaitre", {}, v => `Bienvenue dans ta nouvelle vie, ${v.perso.prenom} !`); };
 
 // ---------------------------------------------------------------- magasin, affaires, portefeuille
 const TYPES = [["nourriture", "Nourriture", "🍲"], ["vetement", "Vêtements", "👕"], ["telephone", "Téléphones", "📱"]];
@@ -747,6 +808,7 @@ function renderKids(v) {
   }).join("");
   $("kids").innerHTML = head + (kids.length ? `<h2 style="font-size:16px;margin:16px 0 4px">Mes enfants</h2>${list}` : "");
 }
+$("ident").onclick = e => { if (e.target.id === "b-demo-die") act("/api/demo/mourir", {}, () => "Ton personnage est mort (simulation)."); };
 $("kids").onclick = e => {
   if (e.target.id === "b-host") return act("/api/accueil", { actif: !state.perso.accueil }, v => v.perso.accueil ? "Ta famille est prête à accueillir un nouveau joueur." : "Tu n'accueilles plus de nouvel enfant.");
   if (e.target.id === "b-demo-baby") return act("/api/demo/bebe", {}, v => `${v.enfants.at(-1).prenom} vient de naître chez toi !`);
@@ -804,7 +866,7 @@ function authLabel() {
 }
 document.querySelectorAll("input[name=formule]").forEach(i => i.onchange = authLabel);
 function showAuth() {
-  $("v-life").hidden = true; $("v-auth").hidden = false;
+  $("v-life").hidden = true; $("v-dead").hidden = true; $("v-auth").hidden = false;
   if (!launch) showLaunch();
   $("f-pseudo").hidden = !signup; $("f-formule").hidden = !signup;
   authLabel(); $("launch").hidden = !signup || !launch || launch.demarre;
@@ -836,6 +898,7 @@ $("acts").onclick = async e => {
 };
 $("b-eat").onclick = async () => { try { render(await call("/api/manger", {})); toast("Bon appétit ! La faim est calmée."); } catch (err) { toast(err.message); } };
 $("b-out").onclick = () => { store.del(LS_TOKEN); state = null; signup = false; showAuth(); };
+$("b-out2").onclick = () => $("b-out").click();
 
 // ---------------------------------------------------------------- portrait 3D
 const P3 = { ready: false };

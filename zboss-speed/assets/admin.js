@@ -42,6 +42,7 @@ function render(e) {
       <p style="font-size:13px">Les joueurs de 18 ans et plus votent pendant 7 jours. À la date de l'élection, les voix sont comptées et les élus prennent leur poste (payés par le Trésor).</p>`;
   $("f-elec").hidden = $("b-vote-now").hidden = !L.demarre;
   $("demo-tools").hidden = !e.demo;
+  renderObserve(e.observer || demoObserve());
   const B = e.naissances || { n: 0, usd: 0, fraisAdmin: 0, parents: 0 };
   $("n-births").textContent = B.n;
   $("births").innerHTML = `<p style="font-size:14px">Chaque naissance coûte 15 $ : <b>5 $ pour l'administrateur</b> (faire vivre le jeu) et 10 $ (50 e-makuta) confiés aux parents de l'enfant.</p>
@@ -50,6 +51,24 @@ function render(e) {
   $("n-parents").textContent = e.parents.length; $("n-inv").textContent = e.investisseurs.length;
   $("parents").innerHTML = e.parents.length ? e.parents.map(p => `<div class="item"><span class="sw">${p.sexe === "F" ? "👩🏾" : "👨🏾"}</span><div class="t">${esc(p.prenom)} ${esc(p.nom)} · ${esc(p.quartier)}<small>${esc(p.pseudo)} · ${esc(p.email)} · ajouté le ${day(p.cree_le)}</small></div></div>`).join("") : `<p>Aucun parent fondateur pour l'instant.</p>`;
   $("investors").innerHTML = e.investisseurs.length ? e.investisseurs.map(i => `<div class="item"><span class="sw">💼</span><div class="t">${esc(i.pseudo)} · ${(OFFERS.find(o => o.id === i.offre) || {}).nom || esc(i.offre)}<small>${Number(i.usd).toLocaleString("fr-FR")} $ (simulé) · ${esc(i.email)} · ${day(i.le)}</small></div></div>`).join("") : `<p>Aucun investisseur pour l'instant. Ils s'inscrivent eux-mêmes depuis la page Ma vie.</p>`;
+}
+// observer le jeu (en démo : la vie gardée dans ce navigateur)
+function demoObserve() {
+  let d = null; try { d = JSON.parse(localStorage.getItem("twolife_demo") || "null"); } catch (e) { }
+  if (!d || !d.perso) return { vivants: 0, morts: 0, enfants: 0, negliges: 0, enDanger: 0, deces: [], evenements: [], demo: true };
+  const kids = d.enfants || [], morts = [...(d.vies || []), ...(d.mort ? [d.mort] : [])];
+  return { vivants: (d.mort ? 0 : 1) + kids.length, morts: morts.length + (d.deuils || []).length, enfants: kids.length, negliges: kids.filter(k => k.neglige > 0).length, enDanger: kids.filter(k => k.neglige >= 7).length,
+    deces: [...morts.map(m => ({ prenom: m.prenom, nom: m.nom, cause: m.cause, age: m.age, mort_le: m.mortLe, pseudo: d.pseudo })), ...(d.deuils || []).map(k => ({ prenom: k.prenom, nom: "", cause: k.cause, age: 0, mort_le: k.le, pseudo: "enfant" }))].sort((a, b) => b.mort_le - a.mort_le),
+    evenements: (d.mouvements || []).slice(0, 40).map(m => ({ ...m, qui: d.mort ? d.mort.prenom : d.perso.firstName })), demo: true };
+}
+function renderObserve(o) {
+  const tile = (n, l, warn) => `<div class="cond"><div class="need">${l} <b${warn && n ? ' style="color:var(--warn)"' : ""}>${n}</b></div></div>`;
+  const when = t => new Date(t).toLocaleString("fr-FR", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+  $("observe").innerHTML = tile(o.vivants, "Personnages vivants") + tile(o.enfants, "Enfants (moins de 18 ans)") + tile(o.negliges, "Enfants négligés", true) + tile(o.enDanger, "En danger de mort (7 jours de négligence)", true) + tile(o.morts, "Morts", true)
+    + (o.tresor != null ? tile(Math.round(o.tresor / 20).toLocaleString("fr-FR") + " e-makuta", "Trésor de la ville") : "")
+    + `<h3 style="font-size:15px;margin:16px 0 4px">Derniers décès</h3>` + (o.deces.length ? `<div class="list">${o.deces.map(x => `<div class="item"><span class="sw">✝️</span><div class="t">${esc(x.prenom)} ${esc(x.nom)} · ${x.age} ans<small>${esc(x.cause || "")} · ${esc(x.pseudo || "")} · ${when(x.mort_le)}${x.fortune ? " · fortune partagée : " + Math.round(x.fortune / 20).toLocaleString("fr-FR") + " e-makuta" : ""}</small></div></div>`).join("")}</div>` : `<p>Aucun décès pour l'instant.</p>`)
+    + `<h3 style="font-size:15px;margin:16px 0 4px">Derniers événements</h3>` + (o.evenements.length ? `<div class="list">${o.evenements.map(x => `<div class="item"><span class="sw">${x.icone}</span><div class="t">${esc(x.qui)}<small>${esc(x.texte)} · ${when(x.le)}</small></div></div>`).join("")}</div>` : `<p>Rien pour l'instant.</p>`)
+    + (o.demo ? `<p class="sim">Démo : seule la vie jouée dans ce navigateur est visible. En ligne, tu vois tous les joueurs.</p>` : "");
 }
 // liste d'attente bêta (en mode démo : celle gardée dans ce navigateur par l'accueil)
 let betaRows = [];

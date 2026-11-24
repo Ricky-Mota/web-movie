@@ -357,10 +357,30 @@ export function supportDue(lastPaid, bornAt, now = Date.now()) {
 }
 // effet d'un entretien impayé : bonheur et santé baissent
 export function unpaidEffect(days) { return { bonheur: 12 * days, sante: 4 * days }; }
-export function familyShare(amount) { return Math.round(amount * FAMILY_SHARE); }
+// L'enfant se souvient d'avoir été négligé : devenu adulte, il reverse moins à ses parents (10 % → 2 % après 7 jours de négligence).
+export function familyShareRate(neglectDays = 0) { return FAMILY_SHARE - 0.08 * Math.min(1, neglectDays / NEGLECT_DANGER_DAYS); }
+export function familyShare(amount, neglectDays = 0) { return Math.round(amount * familyShareRate(neglectDays)); }
 // Un enfant dont on ne s'occupe pas (entretien impayé, faim) peut voler pour survivre, dès NEGLECT_STEAL_AGE ans.
 // C'est au joueur réel responsable de s'assurer qu'il ne manque de rien.
 export const NEGLECT_STEAL_AGE = 8;
+// Après 7 jours réels de négligence (cumulés), l'enfant est en danger de mort : sa santé chute vite.
+export const NEGLECT_DANGER_DAYS = 7, NEGLECT_DANGER_HEALTH = 15;
+
+// ---------------------------------------------------------------- mort et héritage
+// La mort est définitive. Quand la santé tombe à 0, le personnage meurt et sa fortune est partagée :
+// 20 % gardés par le joueur pour sa prochaine vie, 10 % de frais de succession pour la ville,
+// 70 % aux héritiers (enfants et parents vivants à parts égales ; sinon le conjoint ; sinon la ville).
+export const ESTATE = { report: 0.20, ville: 0.10, heritiers: 0.70 };
+export function splitEstate(total, heirs) {
+  const report = Math.floor(total * ESTATE.report), ville = Math.floor(total * ESTATE.ville);
+  const pot = total - report - ville, each = heirs > 0 ? Math.floor(pot / heirs) : 0;
+  return { report, ville: ville + (pot - each * heirs), each, heritiers: each * heirs };
+}
+export function deathCause(needs, neglectDays = 0) {
+  if (needs.health > 0) return null;
+  if (neglectDays >= NEGLECT_DANGER_DAYS) return "négligé par sa famille";
+  return needs.hunger < 15 ? "mort de faim" : "maladie non soignée";
+}
 export function neglectStealChance(unpaidDays, hunger) {
   if (unpaidDays < 1) return 0;
   return Math.min(0.6, 0.12 * unpaidDays + (hunger < 30 ? 0.15 : 0));
