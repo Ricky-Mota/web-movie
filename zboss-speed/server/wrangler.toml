@@ -2,6 +2,8 @@
 # Déploiement : voir DEPLOIEMENT.md (base D1 « two-life », puis Workers Builds relié au dépôt GitHub,
 # dossier zboss-speed/server, commande de déploiement : npm run deploy)
 name = "two-life"
+# adresse publique two-life.<compte>.workers.dev toujours active après chaque déploiement
+workers_dev = true
 main = "src/index.js"
 compatibility_date = "2025-06-01"
 # garde les variables saisies dans le tableau de bord Cloudflare (ADMIN_EMAILS) à chaque déploiement

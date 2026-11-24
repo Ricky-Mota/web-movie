@@ -425,7 +425,7 @@ const worker = {
     if (post && res.ok) {
       try {
         const path = new URL(req.url).pathname;
-        if (!["/api/inscription", "/api/connexion"].includes(path) && !path.startsWith("/api/admin/")) {
+        if (!["/api/inscription", "/api/connexion", "/api/beta"].includes(path) && !path.startsWith("/api/admin/")) {
           const out = await res.clone().json().catch(() => ({}));
           const d = describeAction(path, await copy.json().catch(() => ({})), out);
           const compte = d && await auth(env.DB, req, Date.now());
@@ -459,6 +459,18 @@ const worker = {
       if (url.pathname === "/config.js") return new Response(`// 2 Life : configuration générée par le serveur\nwindow.ZBOSS_CONFIG = { SUPABASE_URL: "", SUPABASE_ANON_KEY: "" };\nwindow.TWO_LIFE_API = ${JSON.stringify(url.origin)};\n`,
         { headers: { "Content-Type": "application/javascript; charset=utf-8", "Cache-Control": "no-cache" } });
       if (url.pathname === "/api/lancement" && req.method === "GET") return json(h, 200, await launch(db));
+
+      // liste d'attente bêta : formulaire public de l'accueil (pas de compte nécessaire)
+      if (url.pathname === "/api/beta" && req.method === "POST") {
+        const t = v => String(v ?? "").trim();
+        const pseudo = t(body.pseudo).slice(0, 40), email = t(body.email).toLowerCase();
+        if (pseudo.length < 2) return fail(h, 400, "Choisis un pseudo d'au moins 2 caractères.");
+        if (email.length > 254 || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return fail(h, 400, "Cette adresse e-mail ne semble pas valide.");
+        const r = await db.prepare(`INSERT OR IGNORE INTO beta_inscrits (id, pseudo, email, pays, plateforme, newsletter, source, cree_le) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
+          .bind(uid(), pseudo, email, t(body.country).slice(0, 60) || null, t(body.platform).slice(0, 40) || null, body.newsletter ? 1 : 0, t(body.source).slice(0, 60) || "landing", now).run();
+        if (!r.meta.changes) return fail(h, 409, "Cette adresse est déjà inscrite.");
+        return json(h, 201, { ok: true });
+      }
 
       if (url.pathname === "/api/inscription" && req.method === "POST") {
         const L = await launch(db);
@@ -495,7 +507,8 @@ const worker = {
           const { results: parents } = await db.prepare(`SELECT p.prenom, p.nom, p.sexe, p.quartier, c.pseudo, c.email, c.cree_le FROM personnages p JOIN comptes c ON c.id = p.compte_id WHERE p.fondateur = 1 ORDER BY c.cree_le`).all();
           const { results: inv } = await db.prepare(`SELECT c.pseudo, c.email, d.offre, d.usd, d.le FROM depots d JOIN comptes c ON c.id = d.compte_id WHERE d.offre IN ('petit','grand') ORDER BY d.le`).all();
           const { results: ent } = await db.prepare(`SELECT e.nom, e.type, e.local AS quartier, e.cree_le, p.prenom || ' ' || p.nom AS proprietaire FROM entreprises e JOIN personnages p ON p.id = e.proprietaire_id ORDER BY e.cree_le`).all();
-          return json(h, 200, { lancement: await launch(db), parents, investisseurs: inv, entreprises: ent, elections: await elections(db, now) });
+          const { results: beta } = await db.prepare(`SELECT pseudo, email, pays, plateforme, newsletter, source, cree_le FROM beta_inscrits ORDER BY cree_le DESC LIMIT 2000`).all();
+          return json(h, 200, { lancement: await launch(db), parents, investisseurs: inv, entreprises: ent, elections: await elections(db, now), beta });
         }
         if (url.pathname === "/api/admin/parent" && req.method === "POST") {
           const r = await createAccount(db, body, now, OFFERS.find(o => o.id === "parent"), true);

@@ -3,7 +3,9 @@
   const cfg = window.ZBOSS_CONFIG || {};
   const URL_ = (cfg.SUPABASE_URL || "").replace(/\/+$/, "");
   const KEY = cfg.SUPABASE_ANON_KEY || "";
-  const demo = !(URL_ && KEY);
+  // site servi par le Worker 2 Life : les inscriptions bêta vont dans sa base (Cloudflare D1)
+  const LIFE = !(URL_ && KEY) ? (window.TWO_LIFE_API || "").replace(/\/+$/, "") : "";
+  const demo = !(URL_ && KEY) && !LIFE;
   const LS_ROWS = "zboss_demo_signups";
   const LS_SESSION = "zboss_session";
   const STATUSES = ["nouveau", "contacté", "invité", "actif", "refusé"];
@@ -56,6 +58,11 @@
         if (rows.some(r => r.email === row.email)) { const e = new Error("duplicate"); e.code = "23505"; throw e; }
         rows.unshift({ id: uuid(), created_at: new Date().toISOString(), status: "nouveau", notes: "", ...row });
         lsSet(LS_ROWS, rows);
+        return;
+      }
+      if (LIFE) {
+        const res = await fetch(LIFE + "/api/beta", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(row) });
+        if (!res.ok) { const j = await res.json().catch(() => ({})); const e = new Error(j.erreur || res.statusText); e.status = res.status; throw e; }
         return;
       }
       // return=minimal : le public peut insérer mais pas relire la table
