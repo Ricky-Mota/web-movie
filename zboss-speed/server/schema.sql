@@ -51,7 +51,8 @@ CREATE TABLE IF NOT EXISTS personnages (
   fondateur INTEGER NOT NULL DEFAULT 0,      -- parent fondateur ajouté par l'administrateur
   credit INTEGER NOT NULL DEFAULT 0,        -- crédit téléphone (makuta)
   operateur TEXT, assureur TEXT, assure_jusqu INTEGER,
-  prison_jusqu INTEGER                       -- en prison jusqu'à cette date
+  prison_jusqu INTEGER,                      -- en prison jusqu'à cette date
+  consignes_le INTEGER                       -- dernière application des consignes du jour
 );
 
 CREATE TABLE IF NOT EXISTS talents (
@@ -153,3 +154,23 @@ CREATE TABLE IF NOT EXISTS candidatures (personnage_id TEXT PRIMARY KEY, poste T
 CREATE TABLE IF NOT EXISTS votes (electeur_id TEXT NOT NULL, poste TEXT NOT NULL, cycle INTEGER NOT NULL, candidat_id TEXT NOT NULL, le INTEGER NOT NULL, PRIMARY KEY (electeur_id, poste, cycle));
 CREATE TABLE IF NOT EXISTS mandats (personnage_id TEXT NOT NULL, poste TEXT NOT NULL, cycle INTEGER NOT NULL, voix INTEGER NOT NULL, debut INTEGER NOT NULL, fin INTEGER);
 CREATE TABLE IF NOT EXISTS infractions (id TEXT PRIMARY KEY, personnage_id TEXT NOT NULL, type TEXT NOT NULL, amende INTEGER NOT NULL, prison_heures INTEGER NOT NULL DEFAULT 0, le INTEGER NOT NULL);
+
+-- consignes du jour : ce que le joueur réel demande à son personnage (limité par jour)
+CREATE TABLE IF NOT EXISTS consignes (
+  personnage_id TEXT NOT NULL,
+  jour TEXT NOT NULL,             -- date de Kinshasa, AAAA-MM-JJ
+  ordre TEXT NOT NULL,
+  donnee_le INTEGER NOT NULL,
+  PRIMARY KEY (personnage_id, jour, ordre)
+);
+CREATE TABLE IF NOT EXISTS consignes_journal (
+  id TEXT PRIMARY KEY,
+  personnage_id TEXT NOT NULL,
+  jour TEXT NOT NULL,
+  ordre TEXT NOT NULL,
+  ok INTEGER NOT NULL,
+  message TEXT NOT NULL,
+  le INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_consignes_jour ON consignes (jour);
+CREATE INDEX IF NOT EXISTS idx_journal_perso ON consignes_journal (personnage_id, jour);

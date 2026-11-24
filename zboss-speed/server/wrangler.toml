@@ -18,3 +18,7 @@ ADMIN_EMAILS = ""
 binding = "DB"
 database_name = "two-life"
 database_id = "00000000-0000-0000-0000-000000000000"
+
+# consignes du jour : appliquées toutes les 15 minutes, même quand le joueur n'est pas connecté
+[triggers]
+crons = ["*/15 * * * *"]

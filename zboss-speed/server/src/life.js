@@ -543,3 +543,40 @@ export function policeView(me, now = Date.now()) {
     prisonJusqu: inPrison(me.prisonJusqu, now) ? me.prisonJusqu : null, casier: me.casier || [], policiers: me.policiers || 0,
   };
 }
+
+// ---------------------------------------------------------------- consignes du jour
+// Le joueur réel parle à son personnage par des consignes. Elles s'appliquent toute la journée,
+// même quand il n'est pas connecté. Le nombre de consignes par jour est limité, et une consigne
+// donnée ne peut plus être retirée avant le lendemain.
+export const ORDERS = [
+  { id: "travailler", icone: "🛠️", nom: "Aller travailler dès que possible", desc: "Fait sa journée de travail dès que l'énergie le permet." },
+  { id: "manger", icone: "🍲", nom: "Manger au maquis quand j'ai faim", desc: "Dès que la faim descend sous 40." },
+  { id: "etudier", icone: "🎓", nom: "Aller en cours dès que possible", desc: "Suit le prochain cours de sa formation." },
+  { id: "soigner", icone: "🩺", nom: "Me soigner si ma santé baisse", desc: "Va au centre de santé sous 50 de santé." },
+  { id: "encaisser", icone: "💰", nom: "Encaisser les recettes de mes entreprises", desc: "Vide les caisses pleines une fois par jour." },
+  { id: "appeler", icone: "📱", nom: "Appeler ma famille si je suis triste", desc: "Sous 50 de bonheur, avec un téléphone et du crédit." },
+];
+export const ORDERS_PER_DAY = 3;
+export const ORDERS_CHECK_MS = 10 * 60e3;   // les consignes sont vérifiées toutes les 10 minutes au plus
+// jour de Kinshasa (UTC+1) : les consignes repartent à zéro à minuit
+export const dayKey = (now = Date.now()) => new Date(now + 36e5).toISOString().slice(0, 10);
+// à partir de l'écran du personnage (même forme côté serveur et démo), quelles actions lancer maintenant ?
+export function ordersToRun(orders, v, now = Date.now(), doneToday = []) {
+  const p = v.perso, n = p.besoins, out = [];
+  if (v.police && v.police.prisonJusqu) return out.concat(orders.includes("manger") && n.hunger < 40 ? [["manger", "/api/manger", {}]] : []);
+  for (const id of orders) {
+    if (id === "manger" && n.hunger < 40) out.push([id, "/api/manger", {}]);
+    if (id === "soigner" && n.health < 50) out.push([id, "/api/soigner", {}]);
+    if (id === "appeler" && n.happiness < 50 && v.etat && v.etat.credit >= 20) out.push([id, "/api/telephone/appeler", {}]);
+    if (id === "travailler" && (v.travail.metier || v.travail.emploiEntreprise) && (!v.travail.prochainTravail || v.travail.prochainTravail <= now) && n.energy >= v.travail.fatigueTravail) out.push([id, "/api/travailler", {}]);
+    if (id === "etudier" && v.ecole.enCours && (!v.ecole.enCours.prochainCours || v.ecole.enCours.prochainCours <= now) && n.energy >= v.ecole.fatigueCours) out.push([id, "/api/ecole/cours", {}]);
+    if (id === "encaisser" && !doneToday.includes("encaisser")) for (const e of (v.entreprises && v.entreprises.miennes) || []) if (e.caisse > 0) out.push([id, "/api/entreprise/encaisser", { entreprise: e.id }]);
+  }
+  return out;
+}
+export function cannotGiveOrder(id, today) {
+  if (!ORDERS.some(o => o.id === id)) return "Consigne inconnue.";
+  if (today.includes(id)) return "Cette consigne est déjà dans ton programme du jour.";
+  if (today.length >= ORDERS_PER_DAY) return `Tu as déjà donné tes ${ORDERS_PER_DAY} consignes aujourd'hui. Reviens demain.`;
+  return null;
+}

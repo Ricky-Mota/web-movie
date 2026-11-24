@@ -3,6 +3,7 @@
 import {
   ageYears, stageOf, STAGES, realMsUntil, TALENTS, ACTIVITIES, rng, drawTalents, doActivity, needsAt, newIdentity, BIRTH_GIFT,
   SHOP, cannotBuy, OFFERS, USD_TO_MAKUTA, USD_UNITS, fmtMakuta, WITHDRAW_FEE, walletInfo, birthShiftMs, shopView, familyOf, JOBS, payFor, cannotWork, workView, SHIFT_ENERGY, cannotApply, FORMATIONS, cannotEnroll, attendCourse, schoolView, STUDY_ENERGY, SUPPORT_PER_DAY, HOST_MIN_AGE, canSignupBeforeLaunch, COMPANY_TYPES, cannotOpenCompany, companyName, companyView, companyAccrue, companyJob, EMPLOYEE_YIELD, RESELL_RATE, TAXI_FARE, TAXI_ENERGY, KINSHASA_QUARTIERS, OTHER_CITIES, TAX, POSTS, PUBLIC_JOBS, BANKS, bankAccrue, INSURERS, CARE, careCost, OPERATORS, RECHARGES, CALL, stateView, supportDue, unpaidEffect, familyShare, FIRST_NAMES,
+  ORDERS, ORDERS_PER_DAY, ORDERS_CHECK_MS, dayKey, ordersToRun, cannotGiveOrder,
   VOTER_MIN_AGE, CRIMES, catchChance, sentence, inPrison, PRISON_BLOCKED, BAIL, PRISON_HOURS, RECIDIVE, policeView,
 } from "../server/src/life.js";
 import { launchDemo } from "./lancement-demo.js";
@@ -26,6 +27,8 @@ function demoOthers() {
     .map(([type, nom, quartier, proprietaire]) => ({ type, nom, quartier, proprietaire }));
   return base.map((e, i) => ({ ...e, id: "autre-" + i, en_vente: i % 3 === 0 ? Math.round((COMPANY_TYPES.find(t => t.id === e.type) || { prix: 20000 }).prix * 1.2) : null }));
 }
+const DEMO_ORDERS_MS = 2 * 60e3;
+const ORDER_DONE = { travailler: "Journée de travail faite.", manger: "A mangé au maquis.", etudier: "A suivi un cours.", soigner: "S'est soigné au centre de santé.", encaisser: "A encaissé les recettes.", appeler: "A appelé sa famille." };
 const demo = {
   seed() { return crypto.getRandomValues(new Uint32Array(1))[0]; },
   view(d) {
@@ -53,10 +56,30 @@ const demo = {
       entreprises: companyView((d.ent || []).map(e => ({ ...e, employes: 0 })), { aVendre: demoOthers().filter(e => e.en_vente && !(d.achetees || []).includes(e.id)), offres: demoOthers().filter(e => !(d.achetees || []).includes(e.id)).slice(0, 6) }, now),
       voyage: { quartiers: KINSHASA_QUARTIERS, prix: TAXI_FARE, fatigue: TAXI_ENERGY, villes: OTHER_CITIES },
       elections: launchDemo.elections(this.me(d)),
+      consignes: { ...this.orders(d), max: ORDERS_PER_DAY, catalogue: ORDERS, verifieToutesLesMinutes: DEMO_ORDERS_MS / 60e3 },
       police: policeView({ policiers: 0, prisonJusqu: d.prison, casier: d.casier || [] }, now),
       etat: stateView({ comptes: d.comptes || [], assureur: d.assureur, assureJusqu: d.assureJusqu, operateur: d.operateur, credit: d.credit || 0, candidature: d.candidature },
         { tresor: d.tresor || 0, masse: c.makuta + (d.comptes || []).reduce((a, x) => a + bankAccrue(x, now), 0), candidats: d.candidature ? { [d.candidature]: 1 } : {} }, now),
     };
+  },
+  orders(d) { const jour = dayKey(); if (!d.consignes || d.consignes.jour !== jour) d.consignes = { jour, liste: [], journal: [] }; return d.consignes; },
+  // le personnage suit les consignes (en démo : vérifié à chaque visite, toutes les 2 minutes au plus)
+  async applyOrders(d, force) {
+    const C = this.orders(d), now = Date.now();
+    if (this.busy || !C.liste.length || (!force && d.consignesLe && now - d.consignesLe < DEMO_ORDERS_MS)) return;
+    d.consignesLe = now; store.set(LS_DEMO, d);
+    const runs = ordersToRun(C.liste, this.view(d), now, C.journal.filter(j => j.ok).map(j => j.ordre));
+    this.busy = true;
+    try {
+      for (const [ordre, path, body] of runs) {
+        let ok = true, msg;
+        try { const j = await this.call(path, body); msg = ORDER_DONE[ordre] + (j.paie ? ` +${fmtMakuta(j.paie.montant - (j.paie.famille || 0) - (j.paie.impot || 0))}` : j.encaisse ? ` +${fmtMakuta(j.encaisse)}` : ""); }
+        catch (e) { ok = false; msg = e.message; }
+        const dd = store.get(LS_DEMO), CC = this.orders(dd), last = CC.journal.find(x => x.ordre === ordre);
+        if (ok || !last || last.message !== msg) { CC.journal.unshift({ ordre, ok: ok ? 1 : 0, message: msg, le: now }); CC.journal = CC.journal.slice(0, 30); }
+        store.set(LS_DEMO, dd);
+      }
+    } finally { this.busy = false; }
   },
   me(d) { return { candidature: d.candidature, nom: `${d.perso.firstName} ${d.perso.lastName}`, quartier: d.perso.quartier }; },
   settle(c) { const n = needsAt(c); Object.assign(c, n, { updatedAt: Date.now() }); },
@@ -103,7 +126,12 @@ const demo = {
     }
     if (!d) throw new Error("Connecte-toi pour continuer.");
     const c = d.perso;
-    if (path === "/api/moi") return this.view(d);
+    if (path === "/api/moi") { await this.applyOrders(d); return this.view(store.get(LS_DEMO)); }
+    if (path === "/api/consigne") {
+      const C = this.orders(d), no = cannotGiveOrder(body.ordre, C.liste); if (no) throw new Error(no);
+      C.liste.push(body.ordre); store.set(LS_DEMO, d);
+      await this.applyOrders(d, true); return this.view(store.get(LS_DEMO));
+    }
     if (inPrison(d.prison) && PRISON_BLOCKED.includes(path)) throw new Error(`Tu es en prison jusqu'au ${new Date(d.prison).toLocaleString("fr-FR")}. Paie la caution pour sortir plus tôt.`);
     if (path === "/api/voter") {
       const E = launchDemo.elections(this.me(d));
@@ -396,7 +424,7 @@ function render(v) {
     ["Maison", `${f.maison.type}, ${f.maison.pieces} pièces à ${f.maison.quartier} : ${f.maison.desc}`],
   ] : []).concat([["Joueur", v.compte.pseudo], ["Né le", new Date(p.neLe).toLocaleDateString("fr-FR")]])
     .map(([a, b]) => `<div class="row"><span>${a}</span><span style="text-align:right">${b}</span></div>`).join("");
-  renderShop(v); renderWallet(v); renderWork(v); renderSchool(v); renderKids(v); renderCompanies(v); renderTravel(v); renderState(v); renderTips(v);
+  renderShop(v); renderWallet(v); renderWork(v); renderSchool(v); renderKids(v); renderCompanies(v); renderTravel(v); renderState(v); renderTips(v); renderOrders(v);
   portrait(p);
   dress(v);
 }
@@ -569,6 +597,7 @@ $("travel").onclick = e => { const b = e.target.closest("[data-go]"); if (b) act
 // ---------------------------------------------------------------- que faire maintenant ?
 function tips(v) {
   const p = v.perso, n = p.besoins, out = [], adult = p.age >= 18, w = v.travail, E = v.elections || {};
+  if (v.consignes && !v.consignes.liste.length && p.age >= 6) out.push(["📋", `Donne tes consignes du jour : ${p.prenom} les suivra même quand tu n'es pas là.`, "Donner mes consignes", "orders"]);
   if (v.police && v.police.prisonJusqu) out.push(["🔒", `Tu es en prison jusqu'au ${dt(v.police.prisonJusqu)}. Paie la caution pour sortir plus tôt.`, "Voir", "state:police"]);
   if (E.voteOuvert && adult && (E.candidats || []).some(c => !(E.mesVotes || {})[c.poste])) out.push(["🗳️", "Le vote est ouvert : choisis tes élus avant la date de l'élection.", "Voter", "state:elections"]);
   const hasJob = !!(w.emploiEntreprise || w.metier), Ent = v.entreprises;
@@ -590,8 +619,17 @@ function tips(v) {
   out.push(["🛍️", "Habille-toi et équipe-toi au magasin.", "Aller au magasin", "shop"]);
   return out.slice(0, 3);
 }
-const SECTIONS = { state: "state", needs: "needs", work: "work", school: "school", companies: "companies", inv: "inv", travel: "travel", shop: "shop-tabs", wallet: "wallet", kids: "kids-card" };
+const SECTIONS = { orders: "orders", state: "state", needs: "needs", work: "work", school: "school", companies: "companies", inv: "inv", travel: "travel", shop: "shop-tabs", wallet: "wallet", kids: "kids-card" };
 function goTo(id) { const el = $(id); if (el) (el.closest(".card") || el).scrollIntoView({ behavior: "smooth", block: "start" }); }
+function renderOrders(v) {
+  const C = v.consignes, left = C.max - C.liste.length, name = id => (C.catalogue.find(o => o.id === id) || {});
+  $("orders").innerHTML = `<p style="font-size:14px;margin:0 0 8px">Dis à ${esc(v.perso.prenom)} quoi faire aujourd'hui. ${esc(v.perso.prenom)} suit tes consignes toute la journée, même quand tu n'es pas connecté (vérification toutes les ${C.verifieToutesLesMinutes} minutes). <b>${C.max} consignes par jour</b>, et une consigne donnée ne se retire pas avant demain.</p>` +
+    (C.liste.length ? C.liste.map(id => `<div class="item"><span class="sw">${name(id).icone}</span><div class="t">${name(id).nom}<small>${name(id).desc}</small></div><span class="mini" style="border-color:var(--ok);color:var(--ok)">Active</span></div>`).join("") : "") +
+    (left > 0 ? `<h2 style="font-size:16px;margin:12px 0 6px">Donner une consigne (encore ${left})</h2><div class="chips">${C.catalogue.filter(o => !C.liste.includes(o.id)).map(o => `<button class="chip" data-order="${o.id}" type="button">${o.icone} ${o.nom}</button>`).join("")}</div>`
+      : `<p style="font-size:13px;margin:10px 0 0">Tu as donné tes ${C.max} consignes du jour. Nouvelles consignes demain à minuit (heure de Kinshasa).</p>`) +
+    (C.journal.length ? `<h2 style="font-size:16px;margin:14px 0 4px">Fait aujourd'hui</h2>` + C.journal.slice(0, 8).map(j => `<div class="row"><span>${new Date(j.le).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })} · ${esc(j.message)}</span><span>${j.ok ? "✅" : "⏳"}</span></div>`).join("") : "");
+}
+$("orders").onclick = e => { const b = e.target.closest("[data-order]"); if (b) { b.disabled = true; act("/api/consigne", { ordre: b.dataset.order }, v => { const j = v.consignes.journal[0]; return "Consigne donnée." + (j && j.ordre === b.dataset.order && Date.now() - j.le < 60e3 ? " " + j.message : ""); }); } };
 function renderTips(v) {
   $("tips").innerHTML = tips(v).map(([ic, txt, label, to]) => `<div class="item"><span class="sw">${ic}</span><div class="t" style="font-size:14px">${txt}</div><button class="mini fill" data-tip="${to}" type="button">${label}</button></div>`).join("");
 }

@@ -3,6 +3,7 @@
 import {
   ageYears, stageOf, STAGES, realMsUntil, TALENTS, ACTIVITIES, rng, drawTalents, doActivity,
   needsAt, newIdentity, BIRTH_GIFT, SHOP, cannotBuy, OFFERS, USD_TO_MAKUTA, USD_UNITS, fmtMakuta, WITHDRAW_FEE, walletInfo, birthShiftMs, REAL_MONEY, shopView, familyOf, JOBS, payFor, cannotWork, workView, cannotApply, FORMATIONS, cannotEnroll, attendCourse, schoolView, SUPPORT_PER_DAY, HOST_MIN_AGE, MAX_CHILDREN, supportDue, unpaidEffect, familyShare, DAY, LAUNCH_RULES, launchStatus, canSignupBeforeLaunch, COMPANY_TYPES, cannotOpenCompany, companyName, companyView, companyAccrue, companyJob, EMPLOYEE_YIELD, RESELL_RATE, TAXI_FARE, TAXI_ENERGY, KINSHASA_QUARTIERS, OTHER_CITIES, STATE_ID, TAX, POSTS, PUBLIC_JOBS, BANKS, bankAccrue, INSURERS, CARE, careCost, OPERATORS, RECHARGES, CALL, stateView, ELECTION_EVERY, VOTER_MIN_AGE, electionCalendar, tally, CRIMES, catchChance, sentence, inPrison, PRISON_BLOCKED, PRISON_HOURS, BAIL, RECIDIVE, policeView,
+  ORDERS, ORDERS_PER_DAY, ORDERS_CHECK_MS, dayKey, ordersToRun, cannotGiveOrder,
 } from "./life.js";
 
 const SESSION_DAYS = 30;
@@ -197,10 +198,38 @@ async function loadCharacter(db, id) {
   const elec = await electionView(db, cal, id);
   const pol = await db.prepare(`SELECT COUNT(*) AS n FROM emplois WHERE metier_id = 'policier' AND fin IS NULL`).first();
   const { results: casier } = await db.prepare(`SELECT type, amende, prison_heures, le FROM infractions WHERE personnage_id = ? ORDER BY le DESC LIMIT 20`).bind(id).all();
-  return { p, tal, inv, dep, ret, job, lastShift: last && last.le, enr, dip: dip.map(d => d.formation_id), kids, par, sibs, ent, aVendre, offres, boss, comptes, cand, pub, elec, policiers: pol.n, casier };
+  const jour = dayKey(now);
+  const { results: ord } = await db.prepare(`SELECT ordre FROM consignes WHERE personnage_id = ? AND jour = ? ORDER BY donnee_le`).bind(id, jour).all();
+  const { results: journal } = await db.prepare(`SELECT ordre, ok, message, le FROM consignes_journal WHERE personnage_id = ? AND jour = ? ORDER BY le DESC LIMIT 30`).bind(id, jour).all();
+  return { p, tal, inv, dep, ret, job, lastShift: last && last.le, enr, dip: dip.map(d => d.formation_id), kids, par, sibs, ent, aVendre, offres, boss, comptes, cand, pub, elec, policiers: pol.n, casier,
+    consignes: { jour, liste: ord.map(o => o.ordre), journal } };
 }
 
-function view(compte, { p, tal, inv = [], dep = [], ret = [], job = null, lastShift = null, enr = null, dip = [], kids = [], par = [], sibs = [], ent = [], aVendre = [], offres = [], boss = null, comptes = [], cand = null, pub = {}, elec = null, policiers = 0, casier = [] }, now) {
+// ---------------------------------------------------------------- consignes du jour
+// Le personnage suit les consignes de son joueur : on rejoue les mêmes routes que l'application, en interne.
+const ORDER_DONE = { travailler: "Journée de travail faite.", manger: "A mangé au maquis.", etudier: "A suivi un cours.", soigner: "S'est soigné au centre de santé.", encaisser: "A encaissé les recettes.", appeler: "A appelé sa famille." };
+async function applyOrders(env, db, compte, ch, now, force) {
+  const { p, consignes: C } = ch;
+  if (!C.liste.length || (!force && p.consignes_le && now - p.consignes_le < ORDERS_CHECK_MS)) return false;
+  await db.prepare(`UPDATE personnages SET consignes_le = ? WHERE id = ?`).bind(now, p.id).run();
+  const done = C.journal.filter(j => j.ok).map(j => j.ordre);
+  const runs = ordersToRun(C.liste, view(compte, ch, now), now, done);
+  if (!runs.length) return false;
+  const token = await newSession(db, compte.id, now);
+  try {
+    for (const [ordre, path, body] of runs) {
+      const r = await worker.fetch(new Request("https://interne" + path, { method: "POST", headers: { "Content-Type": "application/json", Authorization: "Bearer " + token }, body: JSON.stringify(body) }), env);
+      const j = await r.json().catch(() => ({}));
+      const msg = r.ok ? ORDER_DONE[ordre] + (j.paie ? ` +${fmtMakuta(j.paie.montant - (j.paie.famille || 0) - (j.paie.impot || 0))}` : j.encaisse ? ` +${fmtMakuta(j.encaisse)}` : "") : (j.erreur || "Impossible pour l'instant.");
+      const last = C.journal.find(x => x.ordre === ordre);
+      if (r.ok || !last || last.message !== msg)
+        await db.prepare(`INSERT INTO consignes_journal (id, personnage_id, jour, ordre, ok, message, le) VALUES (?, ?, ?, ?, ?, ?, ?)`).bind(uid(), p.id, C.jour, ordre, r.ok ? 1 : 0, msg, now).run();
+    }
+  } finally { await db.prepare(`DELETE FROM sessions WHERE token = ?`).bind(token).run(); }
+  return true;
+}
+
+function view(compte, { p, tal, inv = [], dep = [], ret = [], job = null, lastShift = null, enr = null, dip = [], kids = [], par = [], sibs = [], ent = [], aVendre = [], offres = [], boss = null, comptes = [], cand = null, pub = {}, elec = null, policiers = 0, casier = [], consignes = { jour: dayKey(now), liste: [], journal: [] } }, now) {
   const age = ageYears(p.ne_le, now);
   const st = stageOf(age);
   const next = STAGES[STAGES.indexOf(st) + 1];
@@ -232,6 +261,7 @@ function view(compte, { p, tal, inv = [], dep = [], ret = [], job = null, lastSh
     elections: elec,
     police: policeView({ policiers, prisonJusqu: p.prison_jusqu, casier: casier.map(c => ({ ...c, nom: (CRIMES.find(x => x.id === c.type) || {}).nom || c.type })) }, now),
     voyage: { quartiers: KINSHASA_QUARTIERS, prix: TAXI_FARE, fatigue: TAXI_ENERGY, villes: OTHER_CITIES },
+    consignes: { ...consignes, max: ORDERS_PER_DAY, catalogue: ORDERS, verifieToutesLesMinutes: ORDERS_CHECK_MS / 60e3 },
   };
 }
 
@@ -312,7 +342,21 @@ async function createAccount(db, body, now, offer, fondateur) {
 }
 
 // ---------------------------------------------------------------- routes
-export default {
+const worker = {
+  // toutes les 15 minutes (Cron Trigger gratuit) : les personnages suivent leurs consignes, même joueur déconnecté
+  async scheduled(event, env, ctx) {
+    const db = env.DB, now = Date.now();
+    const { results } = await db.prepare(`SELECT DISTINCT c.personnage_id AS pid, p.compte_id FROM consignes c JOIN personnages p ON p.id = c.personnage_id WHERE c.jour = ? AND p.mort_le IS NULL LIMIT 500`).bind(dayKey(now)).all();
+    for (const r of results) {
+      try {
+        const compte = await db.prepare(`SELECT * FROM comptes WHERE id = ? AND vie_id = ?`).bind(r.compte_id, r.pid).first();
+        if (!compte) continue;
+        await supportFamily(db, r.pid, now);
+        const ch = await loadCharacter(db, r.pid);
+        if (ch) await applyOrders(env, db, compte, ch, now);
+      } catch (e) { console.error(e); }
+    }
+  },
   async fetch(req, env) {
     const h = cors(env, req);
     if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: h });
@@ -399,7 +443,18 @@ export default {
       if (!ch) return fail(h, 404, "Personnage introuvable.");
       const { p, tal } = ch;
 
-      if (url.pathname === "/api/moi" && req.method === "GET") return json(h, 200, view(compte, ch, now));
+      if (url.pathname === "/api/moi" && req.method === "GET") {
+        if (await applyOrders(env, db, compte, ch, now)) return json(h, 200, view(compte, await loadCharacter(db, p.id), Date.now()));
+        return json(h, 200, view(compte, ch, now));
+      }
+      if (url.pathname === "/api/consigne" && req.method === "POST") {
+        const no = cannotGiveOrder(body.ordre, ch.consignes.liste);
+        if (no) return fail(h, 409, no);
+        await db.prepare(`INSERT INTO consignes (personnage_id, jour, ordre, donnee_le) VALUES (?, ?, ?, ?)`).bind(p.id, ch.consignes.jour, body.ordre, now).run();
+        const c2 = await loadCharacter(db, p.id);
+        await applyOrders(env, db, compte, c2, now, true);   // la consigne s'applique tout de suite si possible
+        return json(h, 200, view(compte, await loadCharacter(db, p.id), Date.now()));
+      }
       if (inPrison(p.prison_jusqu, now) && PRISON_BLOCKED.includes(url.pathname))
         return fail(h, 423, `Tu es en prison jusqu'au ${new Date(p.prison_jusqu).toLocaleString("fr-FR", { timeZone: "Africa/Kinshasa" })}. Paie la caution pour sortir plus tôt.`);
 
@@ -800,3 +855,4 @@ export default {
     }
   },
 };
+export default worker;
