@@ -3,7 +3,7 @@
 import {
   ageYears, stageOf, STAGES, realMsUntil, TALENTS, ACTIVITIES, rng, drawTalents, doActivity, needsAt, newIdentity, BIRTH_GIFT,
   SHOP, cannotBuy, OFFERS, USD_TO_MAKUTA, USD_UNITS, fmtMakuta, WITHDRAW_FEE, walletInfo, birthShiftMs, shopView, familyOf, JOBS, payFor, cannotWork, workView, SHIFT_ENERGY, cannotApply, FORMATIONS, cannotEnroll, attendCourse, schoolView, STUDY_ENERGY, SUPPORT_PER_DAY, HOST_MIN_AGE, canSignupBeforeLaunch, COMPANY_TYPES, cannotOpenCompany, companyName, companyView, companyAccrue, companyJob, EMPLOYEE_YIELD, RESELL_RATE, TAXI_FARE, TAXI_ENERGY, KINSHASA_QUARTIERS, OTHER_CITIES, TAX, POSTS, PUBLIC_JOBS, BANKS, bankAccrue, INSURERS, CARE, careCost, OPERATORS, RECHARGES, CALL, stateView, supportDue, unpaidEffect, familyShare, FIRST_NAMES,
-  ORDERS, ORDERS_PER_DAY, ORDERS_CHECK_MS, dayKey, ordersToRun, cannotGiveOrder,
+  describeAction, ORDER_DONE, ORDERS, ORDERS_PER_DAY, ORDERS_CHECK_MS, dayKey, ordersToRun, cannotGiveOrder,
   VOTER_MIN_AGE, CRIMES, catchChance, sentence, inPrison, PRISON_BLOCKED, BAIL, PRISON_HOURS, RECIDIVE, policeView,
 } from "../server/src/life.js";
 import { launchDemo } from "./lancement-demo.js";
@@ -28,7 +28,6 @@ function demoOthers() {
   return base.map((e, i) => ({ ...e, id: "autre-" + i, en_vente: i % 3 === 0 ? Math.round((COMPANY_TYPES.find(t => t.id === e.type) || { prix: 20000 }).prix * 1.2) : null }));
 }
 const DEMO_ORDERS_MS = 2 * 60e3;
-const ORDER_DONE = { travailler: "Journée de travail faite.", manger: "A mangé au maquis.", etudier: "A suivi un cours.", soigner: "S'est soigné au centre de santé.", encaisser: "A encaissé les recettes.", appeler: "A appelé sa famille." };
 const demo = {
   seed() { return crypto.getRandomValues(new Uint32Array(1))[0]; },
   view(d) {
@@ -56,6 +55,7 @@ const demo = {
       entreprises: companyView((d.ent || []).map(e => ({ ...e, employes: 0 })), { aVendre: demoOthers().filter(e => e.en_vente && !(d.achetees || []).includes(e.id)), offres: demoOthers().filter(e => !(d.achetees || []).includes(e.id)).slice(0, 6) }, now),
       voyage: { quartiers: KINSHASA_QUARTIERS, prix: TAXI_FARE, fatigue: TAXI_ENERGY, villes: OTHER_CITIES },
       elections: launchDemo.elections(this.me(d)),
+      mouvements: d.mouvements || [],
       consignes: { ...this.orders(d), max: ORDERS_PER_DAY, catalogue: ORDERS, verifieToutesLesMinutes: DEMO_ORDERS_MS / 60e3 },
       police: policeView({ policiers: 0, prisonJusqu: d.prison, casier: d.casier || [] }, now),
       etat: stateView({ comptes: d.comptes || [], assureur: d.assureur, assureJusqu: d.assureJusqu, operateur: d.operateur, credit: d.credit || 0, candidature: d.candidature },
@@ -73,7 +73,7 @@ const demo = {
     try {
       for (const [ordre, path, body] of runs) {
         let ok = true, msg;
-        try { const j = await this.call(path, body); msg = ORDER_DONE[ordre] + (j.paie ? ` +${fmtMakuta(j.paie.montant - (j.paie.famille || 0) - (j.paie.impot || 0))}` : j.encaisse ? ` +${fmtMakuta(j.encaisse)}` : ""); }
+        try { const j = await this.call(path, body, true); msg = ORDER_DONE[ordre] + (j.paie ? ` +${fmtMakuta(j.paie.montant - (j.paie.famille || 0) - (j.paie.impot || 0))}` : j.encaisse ? ` +${fmtMakuta(j.encaisse)}` : ""); }
         catch (e) { ok = false; msg = e.message; }
         const dd = store.get(LS_DEMO), CC = this.orders(dd), last = CC.journal.find(x => x.ordre === ordre);
         if (ok || !last || last.message !== msg) { CC.journal.unshift({ ordre, ok: ok ? 1 : 0, message: msg, le: now }); CC.journal = CC.journal.slice(0, 30); }
@@ -95,7 +95,16 @@ const demo = {
       Object.assign(k, needsAt(k, now), { updatedAt: now }); k.happiness = Math.max(0, k.happiness - fx.bonheur); k.health = Math.max(0, k.health - fx.sante);
     }
   },
-  async call(path, body) {
+  // chaque action réussie est inscrite dans les mouvements (même règle que le serveur)
+  async call(path, body, parConsigne) {
+    const r = await this.run(path, body);
+    if (body && !["/api/inscription", "/api/connexion"].includes(path) && !path.startsWith("/api/admin/")) {
+      const m = describeAction(path, body, r), d = store.get(LS_DEMO);
+      if (m && d) { d.mouvements = [{ ...m, par_consigne: parConsigne ? 1 : 0, le: Date.now() }, ...(d.mouvements || [])].slice(0, 100); store.set(LS_DEMO, d); return { ...r, mouvements: d.mouvements }; }
+    }
+    return r;
+  },
+  async run(path, body) {
     let d = store.get(LS_DEMO);
     if (d && d.perso) {
       this.support(d);
@@ -424,7 +433,7 @@ function render(v) {
     ["Maison", `${f.maison.type}, ${f.maison.pieces} pièces à ${f.maison.quartier} : ${f.maison.desc}`],
   ] : []).concat([["Joueur", v.compte.pseudo], ["Né le", new Date(p.neLe).toLocaleDateString("fr-FR")]])
     .map(([a, b]) => `<div class="row"><span>${a}</span><span style="text-align:right">${b}</span></div>`).join("");
-  renderShop(v); renderWallet(v); renderWork(v); renderSchool(v); renderKids(v); renderCompanies(v); renderTravel(v); renderState(v); renderTips(v); renderOrders(v);
+  renderShop(v); renderWallet(v); renderWork(v); renderSchool(v); renderKids(v); renderCompanies(v); renderTravel(v); renderState(v); renderTips(v); renderOrders(v); renderMoves(v);
   portrait(p);
   dress(v);
 }
@@ -619,7 +628,7 @@ function tips(v) {
   out.push(["🛍️", "Habille-toi et équipe-toi au magasin.", "Aller au magasin", "shop"]);
   return out.slice(0, 3);
 }
-const SECTIONS = { orders: "orders", state: "state", needs: "needs", work: "work", school: "school", companies: "companies", inv: "inv", travel: "travel", shop: "shop-tabs", wallet: "wallet", kids: "kids-card" };
+const SECTIONS = { moves: "moves", orders: "orders", state: "state", needs: "needs", work: "work", school: "school", companies: "companies", inv: "inv", travel: "travel", shop: "shop-tabs", wallet: "wallet", kids: "kids-card" };
 function goTo(id) { const el = $(id); if (el) (el.closest(".card") || el).scrollIntoView({ behavior: "smooth", block: "start" }); }
 function renderOrders(v) {
   const C = v.consignes, left = C.max - C.liste.length, name = id => (C.catalogue.find(o => o.id === id) || {});
@@ -630,6 +639,22 @@ function renderOrders(v) {
     (C.journal.length ? `<h2 style="font-size:16px;margin:14px 0 4px">Fait aujourd'hui</h2>` + C.journal.slice(0, 8).map(j => `<div class="row"><span>${new Date(j.le).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })} · ${esc(j.message)}</span><span>${j.ok ? "✅" : "⏳"}</span></div>`).join("") : "");
 }
 $("orders").onclick = e => { const b = e.target.closest("[data-order]"); if (b) { b.disabled = true; act("/api/consigne", { ordre: b.dataset.order }, v => { const j = v.consignes.journal[0]; return "Consigne donnée." + (j && j.ordre === b.dataset.order && Date.now() - j.le < 60e3 ? " " + j.message : ""); }); } };
+let movesTab = "tout", movesAll = false;
+function renderMoves(v) {
+  const M = (v.mouvements || []).filter(m => movesTab === "tout" || (movesTab === "consignes") === !!m.par_consigne);
+  $("moves-tabs").innerHTML = [["tout", "Tout"], ["moi", "Mes actions"], ["consignes", "Par consigne"]].map(([id, l]) => `<button class="tab ${id === movesTab ? "on" : ""}" data-mv="${id}" type="button">${l}</button>`).join("");
+  if (!M.length) { $("moves").innerHTML = `<p style="font-size:14px;margin:0">Aucun mouvement pour l'instant. Chaque action de ${esc(v.perso.prenom)} apparaîtra ici : travail, achats, trajets, banque, consignes…</p>`; return; }
+  let day = "", h = "";
+  for (const m of movesAll ? M : M.slice(0, 15)) {
+    const d = new Date(m.le).toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" });
+    if (d !== day) { day = d; h += `<h2 style="font-size:14px;margin:12px 0 4px;text-transform:capitalize">${d}</h2>`; }
+    h += `<div class="item"><span class="sw">${m.icone}</span><div class="t" style="font-size:14px">${esc(m.texte)}<small>${new Date(m.le).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}${m.par_consigne ? " · 📋 par consigne" : " · par toi"}</small></div></div>`;
+  }
+  if (M.length > 15) h += `<button class="link" id="b-moves-all" type="button" style="display:block;margin:8px auto 0">${movesAll ? "Voir moins" : `Voir tout (${M.length})`}</button>`;
+  $("moves").innerHTML = h;
+}
+$("moves-tabs").onclick = e => { const b = e.target.closest("[data-mv]"); if (b) { movesTab = b.dataset.mv; renderMoves(state); } };
+$("moves").onclick = e => { if (e.target.id === "b-moves-all") { movesAll = !movesAll; renderMoves(state); } };
 function renderTips(v) {
   $("tips").innerHTML = tips(v).map(([ic, txt, label, to]) => `<div class="item"><span class="sw">${ic}</span><div class="t" style="font-size:14px">${txt}</div><button class="mini fill" data-tip="${to}" type="button">${label}</button></div>`).join("");
 }

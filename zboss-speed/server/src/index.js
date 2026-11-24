@@ -3,7 +3,7 @@
 import {
   ageYears, stageOf, STAGES, realMsUntil, TALENTS, ACTIVITIES, rng, drawTalents, doActivity,
   needsAt, newIdentity, BIRTH_GIFT, SHOP, cannotBuy, OFFERS, USD_TO_MAKUTA, USD_UNITS, fmtMakuta, WITHDRAW_FEE, walletInfo, birthShiftMs, REAL_MONEY, shopView, familyOf, JOBS, payFor, cannotWork, workView, cannotApply, FORMATIONS, cannotEnroll, attendCourse, schoolView, SUPPORT_PER_DAY, HOST_MIN_AGE, MAX_CHILDREN, supportDue, unpaidEffect, familyShare, DAY, LAUNCH_RULES, launchStatus, canSignupBeforeLaunch, COMPANY_TYPES, cannotOpenCompany, companyName, companyView, companyAccrue, companyJob, EMPLOYEE_YIELD, RESELL_RATE, TAXI_FARE, TAXI_ENERGY, KINSHASA_QUARTIERS, OTHER_CITIES, STATE_ID, TAX, POSTS, PUBLIC_JOBS, BANKS, bankAccrue, INSURERS, CARE, careCost, OPERATORS, RECHARGES, CALL, stateView, ELECTION_EVERY, VOTER_MIN_AGE, electionCalendar, tally, CRIMES, catchChance, sentence, inPrison, PRISON_BLOCKED, PRISON_HOURS, BAIL, RECIDIVE, policeView,
-  ORDERS, ORDERS_PER_DAY, ORDERS_CHECK_MS, dayKey, ordersToRun, cannotGiveOrder,
+  describeAction, ORDER_DONE, ORDERS, ORDERS_PER_DAY, ORDERS_CHECK_MS, dayKey, ordersToRun, cannotGiveOrder,
 } from "./life.js";
 
 const SESSION_DAYS = 30;
@@ -199,15 +199,15 @@ async function loadCharacter(db, id) {
   const pol = await db.prepare(`SELECT COUNT(*) AS n FROM emplois WHERE metier_id = 'policier' AND fin IS NULL`).first();
   const { results: casier } = await db.prepare(`SELECT type, amende, prison_heures, le FROM infractions WHERE personnage_id = ? ORDER BY le DESC LIMIT 20`).bind(id).all();
   const jour = dayKey(now);
+  const { results: mv } = await db.prepare(`SELECT icone, texte, par_consigne, le FROM mouvements WHERE personnage_id = ? ORDER BY le DESC LIMIT 100`).bind(id).all();
   const { results: ord } = await db.prepare(`SELECT ordre FROM consignes WHERE personnage_id = ? AND jour = ? ORDER BY donnee_le`).bind(id, jour).all();
   const { results: journal } = await db.prepare(`SELECT ordre, ok, message, le FROM consignes_journal WHERE personnage_id = ? AND jour = ? ORDER BY le DESC LIMIT 30`).bind(id, jour).all();
   return { p, tal, inv, dep, ret, job, lastShift: last && last.le, enr, dip: dip.map(d => d.formation_id), kids, par, sibs, ent, aVendre, offres, boss, comptes, cand, pub, elec, policiers: pol.n, casier,
-    consignes: { jour, liste: ord.map(o => o.ordre), journal } };
+    consignes: { jour, liste: ord.map(o => o.ordre), journal }, mouvements: mv };
 }
 
 // ---------------------------------------------------------------- consignes du jour
 // Le personnage suit les consignes de son joueur : on rejoue les mêmes routes que l'application, en interne.
-const ORDER_DONE = { travailler: "Journée de travail faite.", manger: "A mangé au maquis.", etudier: "A suivi un cours.", soigner: "S'est soigné au centre de santé.", encaisser: "A encaissé les recettes.", appeler: "A appelé sa famille." };
 async function applyOrders(env, db, compte, ch, now, force) {
   const { p, consignes: C } = ch;
   if (!C.liste.length || (!force && p.consignes_le && now - p.consignes_le < ORDERS_CHECK_MS)) return false;
@@ -218,7 +218,7 @@ async function applyOrders(env, db, compte, ch, now, force) {
   const token = await newSession(db, compte.id, now);
   try {
     for (const [ordre, path, body] of runs) {
-      const r = await worker.fetch(new Request("https://interne" + path, { method: "POST", headers: { "Content-Type": "application/json", Authorization: "Bearer " + token }, body: JSON.stringify(body) }), env);
+      const r = await worker.fetch(new Request("https://interne" + path, { method: "POST", headers: { "Content-Type": "application/json", Authorization: "Bearer " + token, "X-Consigne": "1" }, body: JSON.stringify(body) }), env);
       const j = await r.json().catch(() => ({}));
       const msg = r.ok ? ORDER_DONE[ordre] + (j.paie ? ` +${fmtMakuta(j.paie.montant - (j.paie.famille || 0) - (j.paie.impot || 0))}` : j.encaisse ? ` +${fmtMakuta(j.encaisse)}` : "") : (j.erreur || "Impossible pour l'instant.");
       const last = C.journal.find(x => x.ordre === ordre);
@@ -229,7 +229,7 @@ async function applyOrders(env, db, compte, ch, now, force) {
   return true;
 }
 
-function view(compte, { p, tal, inv = [], dep = [], ret = [], job = null, lastShift = null, enr = null, dip = [], kids = [], par = [], sibs = [], ent = [], aVendre = [], offres = [], boss = null, comptes = [], cand = null, pub = {}, elec = null, policiers = 0, casier = [], consignes = { jour: dayKey(now), liste: [], journal: [] } }, now) {
+function view(compte, { p, tal, inv = [], dep = [], ret = [], job = null, lastShift = null, enr = null, dip = [], kids = [], par = [], sibs = [], ent = [], aVendre = [], offres = [], boss = null, comptes = [], cand = null, pub = {}, elec = null, policiers = 0, casier = [], consignes = { jour: dayKey(now), liste: [], journal: [] }, mouvements = [] }, now) {
   const age = ageYears(p.ne_le, now);
   const st = stageOf(age);
   const next = STAGES[STAGES.indexOf(st) + 1];
@@ -261,6 +261,7 @@ function view(compte, { p, tal, inv = [], dep = [], ret = [], job = null, lastSh
     elections: elec,
     police: policeView({ policiers, prisonJusqu: p.prison_jusqu, casier: casier.map(c => ({ ...c, nom: (CRIMES.find(x => x.id === c.type) || {}).nom || c.type })) }, now),
     voyage: { quartiers: KINSHASA_QUARTIERS, prix: TAXI_FARE, fatigue: TAXI_ENERGY, villes: OTHER_CITIES },
+    mouvements,
     consignes: { ...consignes, max: ORDERS_PER_DAY, catalogue: ORDERS, verifieToutesLesMinutes: ORDERS_CHECK_MS / 60e3 },
   };
 }
@@ -357,7 +358,24 @@ const worker = {
       } catch (e) { console.error(e); }
     }
   },
+  // chaque action réussie est inscrite dans les mouvements du personnage (le joueur réel voit tout)
   async fetch(req, env) {
+    const post = req.method === "POST", copy = post ? req.clone() : null;
+    const res = await worker.handle(req, env);
+    if (post && res.ok) {
+      try {
+        const path = new URL(req.url).pathname;
+        if (!["/api/inscription", "/api/connexion"].includes(path) && !path.startsWith("/api/admin/")) {
+          const d = describeAction(path, await copy.json().catch(() => ({})), await res.clone().json().catch(() => ({})));
+          const compte = d && await auth(env.DB, req, Date.now());
+          if (compte) await env.DB.prepare(`INSERT INTO mouvements (id, personnage_id, icone, texte, par_consigne, le) VALUES (?, ?, ?, ?, ?, ?)`)
+            .bind(uid(), compte.vie_id, d.icone, d.texte, req.headers.get("X-Consigne") ? 1 : 0, Date.now()).run();
+        }
+      } catch (e) { console.error(e); }
+    }
+    return res;
+  },
+  async handle(req, env) {
     const h = cors(env, req);
     if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: h });
     const url = new URL(req.url);

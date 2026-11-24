@@ -555,7 +555,11 @@ export const ORDERS = [
   { id: "soigner", icone: "🩺", nom: "Me soigner si ma santé baisse", desc: "Va au centre de santé sous 50 de santé." },
   { id: "encaisser", icone: "💰", nom: "Encaisser les recettes de mes entreprises", desc: "Vide les caisses pleines une fois par jour." },
   { id: "appeler", icone: "📱", nom: "Appeler ma famille si je suis triste", desc: "Sous 50 de bonheur, avec un téléphone et du crédit." },
+  { id: "epargner", icone: "🏦", nom: "Épargner à la banque", desc: "Garde 100 e-makuta sur soi et place le reste dans la banque qui rapporte le plus." },
+  { id: "enfants", icone: "👶", nom: "M'occuper de mes enfants", desc: "Donne à manger à chaque enfant mineur qui a faim (sous 50)." },
 ];
+export const ORDER_DONE = { travailler: "Journée de travail faite.", manger: "A mangé au maquis.", etudier: "A suivi un cours.", soigner: "S'est soigné au centre de santé.", encaisser: "A encaissé les recettes.", appeler: "A appelé sa famille.", epargner: "A placé son argent à la banque.", enfants: "A donné à manger aux enfants." };
+export const SAVE_KEEP = 2000;   // l'épargne automatique laisse 100 e-makuta sur soi
 export const ORDERS_PER_DAY = 3;
 export const ORDERS_CHECK_MS = 10 * 60e3;   // les consignes sont vérifiées toutes les 10 minutes au plus
 // jour de Kinshasa (UTC+1) : les consignes repartent à zéro à minuit
@@ -570,6 +574,18 @@ export function ordersToRun(orders, v, now = Date.now(), doneToday = []) {
     if (id === "appeler" && n.happiness < 50 && v.etat && v.etat.credit >= 20) out.push([id, "/api/telephone/appeler", {}]);
     if (id === "travailler" && (v.travail.metier || v.travail.emploiEntreprise) && (!v.travail.prochainTravail || v.travail.prochainTravail <= now) && n.energy >= v.travail.fatigueTravail) out.push([id, "/api/travailler", {}]);
     if (id === "etudier" && v.ecole.enCours && (!v.ecole.enCours.prochainCours || v.ecole.enCours.prochainCours <= now) && n.energy >= v.ecole.fatigueCours) out.push([id, "/api/ecole/cours", {}]);
+    if (id === "epargner" && p.age >= 16 && p.makuta - SAVE_KEEP >= 20 && v.etat) {
+      let reste = p.makuta - SAVE_KEEP;
+      for (const b of [...v.etat.banques].sort((x, y) => y.taux - x.taux)) {
+        const m = Math.min(reste, b.plafond ? b.plafond - b.solde : reste);
+        if (m >= 20) { out.push([id, "/api/banque/deposer", { banque: b.id, montant: m }]); reste -= m; }
+        if (reste < 20) break;
+      }
+    }
+    if (id === "enfants") {
+      const repas = (v.boutique || []).filter(x => x.type === "nourriture" && (x.effet || {}).faim >= 40).sort((a, b) => a.prix - b.prix)[0];
+      for (const k of v.enfants || []) if (repas && k.age < 18 && k.besoins.hunger < 50) out.push([id, "/api/enfant/nourrir", { enfant: k.id, objet: repas.id }]);
+    }
     if (id === "encaisser" && !doneToday.includes("encaisser")) for (const e of (v.entreprises && v.entreprises.miennes) || []) if (e.caisse > 0) out.push([id, "/api/entreprise/encaisser", { entreprise: e.id }]);
   }
   return out;
@@ -579,4 +595,45 @@ export function cannotGiveOrder(id, today) {
   if (today.includes(id)) return "Cette consigne est déjà dans ton programme du jour.";
   if (today.length >= ORDERS_PER_DAY) return `Tu as déjà donné tes ${ORDERS_PER_DAY} consignes aujourd'hui. Reviens demain.`;
   return null;
+}
+
+// ---------------------------------------------------------------- mouvements du personnage
+// Chaque action réussie (faite par le joueur ou par une consigne) est inscrite dans le journal des mouvements.
+export function describeAction(path, body = {}, r = {}) {
+  const nm = (list, id) => (list.find(x => x.id === id) || {}).nom || (list.find(x => x.id === id) || {}).label || id;
+  const pay = r.paie ? fmtMakuta(r.paie.montant - (r.paie.famille || 0) - (r.paie.impot || 0)) : "";
+  const kid = r.enfants && (r.enfants.find(k => k.id === body.enfant) || {}).prenom;
+  const D = {
+    "/api/activite": () => ["🎲", "Activité : " + nm(ACTIVITIES, body.activite)],
+    "/api/manger": () => ["🍲", "A mangé au maquis"],
+    "/api/acheter": () => ["🛍️", "A acheté : " + nm(SHOP, body.objet)],
+    "/api/porter": () => ["👕", "A changé de tenue : " + nm(SHOP, body.objet)],
+    "/api/revendre": () => ["🏷️", `A revendu ${r.vendu || "un objet"}${r.gain ? " pour " + fmtMakuta(r.gain) : ""}`],
+    "/api/postuler": () => ["💼", body.entreprise ? "Embauché dans une entreprise" : "Nouveau métier : " + nm(JOBS, body.metier)],
+    "/api/travailler": () => ["🛠️", `Journée de travail${pay ? " : +" + pay : ""}`],
+    "/api/ecole/inscription": () => ["🎓", "Inscrit à l'école : " + nm(FORMATIONS, body.formation)],
+    "/api/ecole/cours": () => ["📚", "A suivi un cours"],
+    "/api/entreprise/ouvrir": () => ["🏪", "A ouvert l'entreprise " + (r.ouverte || "")],
+    "/api/entreprise/encaisser": () => ["💰", "A encaissé les recettes" + (r.encaisse ? " : +" + fmtMakuta(r.encaisse) : "")],
+    "/api/entreprise/vendre": () => ["🤝", body.prix == null ? "A retiré son entreprise de la vente" : "A mis son entreprise en vente pour " + fmtMakuta(body.prix)],
+    "/api/entreprise/acheter": () => ["🤝", "A racheté l'entreprise " + (r.achetee || "")],
+    "/api/voyager": () => ["🚕", "Taxi jusqu'à " + (r.arrive || body.quartier)],
+    "/api/banque/deposer": () => ["🏦", `Dépôt de ${fmtMakuta(body.montant)} à ${nm(BANKS, body.banque)}`],
+    "/api/banque/retirer": () => ["🏦", `Retrait de ${fmtMakuta(body.montant)} à ${nm(BANKS, body.banque)}`],
+    "/api/assurance": () => ["🩺", "Assurance santé : " + nm(INSURERS, body.assureur)],
+    "/api/soigner": () => ["🩺", "S'est soigné au centre de santé" + (r.soins ? " (" + fmtMakuta(r.soins.prix) + ")" : "")],
+    "/api/telephone/recharger": () => ["📶", `Recharge de ${fmtMakuta(body.montant)} chez ${nm(OPERATORS, body.operateur)}`],
+    "/api/telephone/appeler": () => ["📱", "A appelé sa famille"],
+    "/api/candidature": () => ["🗳️", body.poste ? "Candidat au poste de " + nm(POSTS, body.poste).toLowerCase() : "A retiré sa candidature"],
+    "/api/voter": () => ["🗳️", "A voté (vote secret)"],
+    "/api/crime": () => ["🚨", r.crime && r.crime.attrape ? `Attrapé par la police : amende de ${fmtMakuta(r.crime.amende)}${r.crime.prison ? " et prison" : ""}` : `${nm(CRIMES, body.crime)} : +${fmtMakuta((r.crime || {}).gain || 0)}`],
+    "/api/caution": () => ["🔓", "A payé la caution et quitté la prison"],
+    "/api/accueil": () => ["🏠", body.actif ? "Accepte d'accueillir des enfants" : "N'accueille plus d'enfants"],
+    "/api/enfant/nourrir": () => ["👶", `A donné à manger à ${kid || "son enfant"}`],
+    "/api/investir": () => ["💼", "Investissement (simulé)"],
+    "/api/retirer": () => ["💵", "Retrait vers l'argent réel (simulé)"],
+    "/api/consigne": () => ["📋", "Consigne du jour : " + nm(ORDERS, body.ordre)],
+  };
+  const f = D[path]; if (!f) return null;
+  const [icone, texte] = f(); return { icone, texte };
 }

@@ -174,3 +174,14 @@ CREATE TABLE IF NOT EXISTS consignes_journal (
 );
 CREATE INDEX IF NOT EXISTS idx_consignes_jour ON consignes (jour);
 CREATE INDEX IF NOT EXISTS idx_journal_perso ON consignes_journal (personnage_id, jour);
+
+-- tous les mouvements du personnage, visibles par le joueur réel (actions du joueur et des consignes)
+CREATE TABLE IF NOT EXISTS mouvements (
+  id TEXT PRIMARY KEY,
+  personnage_id TEXT NOT NULL,
+  icone TEXT NOT NULL,
+  texte TEXT NOT NULL,
+  par_consigne INTEGER NOT NULL DEFAULT 0,
+  le INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_mouvements_perso ON mouvements (personnage_id, le);
