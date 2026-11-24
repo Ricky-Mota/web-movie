@@ -183,7 +183,7 @@ export const fmtMakuta = n => (n / UNITS_PER_MAKUTA).toLocaleString("fr-FR", { m
 export const WITHDRAW_FEE = 0.10;          // 10 % de frais au retrait (finance la ville et le service)
 export const LOCK_DAYS = 90;               // argent bloqué 3 mois réels avant tout retrait
 export const OFFERS = [
-  { id: "bebe", nom: "Naissance (parcours normal)", type: "entree", usd: BIRTH_USD, fraisAdmin: ADMIN_FEE_USD, desc: "Tu nais bébé dans une famille et tu grandis normalement. Sur les 15 $, 5 $ font vivre le jeu et 10 $ (50 e-makuta) sont confiés à tes parents, qui gèrent ton argent." },
+  { id: "bebe", nom: "Naissance (le jeu décide)", type: "entree", usd: BIRTH_USD, fraisAdmin: ADMIN_FEE_USD, desc: "Le jeu décide de ton arrivée : bébé dans une famille, ou jeune adulte qui doit d'abord grandir. Ta classe sociale et tes études de départ sont tirées au sort. Sur les 15 $, 5 $ font vivre le jeu et 10 $ (50 e-makuta) te sont confiés (à tes parents si tu nais bébé)." },
   { id: "parent", nom: "Naître parent", type: "entree", usd: 5000, desc: "Tu nais adulte (25 ans), tes talents sont déjà connus et tu reçois 250 e-makuta d'épargne.", age: 25, epargne: 5000 },
   { id: "petit", nom: "Petit investisseur", type: "investissement", usd: 1500, age: 30, desc: "1 500 $ convertis en e-makuta pour acheter et créer des entreprises." },
   { id: "grand", nom: "Grand investisseur", type: "investissement", usd: 30000, age: 35, desc: "30 000 $ convertis en e-makuta pour racheter de grandes entreprises." },
@@ -254,11 +254,11 @@ export const JOBS = [
   { id: "vendeur", nom: "Vendeur au marché de la Liberté", talent: "commerce", salaire: 120, minAge: 16 },
   { id: "taxi-moto", nom: "Chauffeur de taxi-moto", talent: "sport", salaire: 150, minAge: 18 },
   { id: "cuisinier", nom: "Cuisinier dans un maquis", talent: "cuisine", salaire: 140, minAge: 16 },
-  { id: "aide-soignant", nom: "Aide-soignant au centre de santé", talent: "soin", salaire: 160, minAge: 18 },
+  { id: "aide-soignant", nom: "Aide-soignant au centre de santé", talent: "soin", salaire: 160, minAge: 18, etudesMin: "secondaire" },
   { id: "musicien", nom: "Musicien dans un orchestre", talent: "art", salaire: 130, minAge: 16 },
-  { id: "mecanicien", nom: "Mécanicien au garage", talent: "technique", salaire: 170, minAge: 18 },
-  { id: "animateur", nom: "Animateur à la radio", talent: "parole", salaire: 150, minAge: 18 },
-  { id: "repetiteur", nom: "Répétiteur (cours du soir)", talent: "etudes", salaire: 140, minAge: 16 },
+  { id: "mecanicien", nom: "Mécanicien au garage", talent: "technique", salaire: 170, minAge: 18, etudesMin: "primaire" },
+  { id: "animateur", nom: "Animateur à la radio", talent: "parole", salaire: 150, minAge: 18, etudesMin: "secondaire" },
+  { id: "repetiteur", nom: "Répétiteur (cours du soir)", talent: "etudes", salaire: 140, minAge: 16, etudesMin: "secondaire" },
   // carrières qui demandent des études (ouvertes avec l'école et l'université)
   { id: "medecin", nom: "Médecin", talent: "soin", salaire: 600, minAge: 24, formation: "medecine", diplome: "Doctorat en médecine" },
   { id: "ingenieur", nom: "Ingénieur", talent: "technique", salaire: 500, minAge: 22, formation: "ingenieur", diplome: "Diplôme d'ingénieur civil" },
@@ -279,12 +279,13 @@ export function cannotApply(job, age, diplomas, talents = []) {
   if (job.talentRequis && !talents.includes(job.talent)) return `Carrière réservée aux talents découverts : ${(TALENTS.find(t => t.id === job.talent) || {}).label || job.talent}.`;
   if (job.elu) return "Ce poste s'obtient par élection.";
   if (job.formation && !diplomas.includes(job.formation)) return `Il faut d'abord le diplôme : ${job.diplome}.`;
+  if (job.etudesMin && eduRank(eduLevel(diplomas)) < eduRank(job.etudesMin)) return `Niveau d'études demandé : ${eduLabel(job.etudesMin)}.`;
   if (age < job.minAge) return `Ce métier est ouvert dès ${job.minAge} ans.`;
   return null;
 }
-export function payFor(job, talents) {
-  const t = talents.find(x => x.talent === job.talent && x.discovered);
-  return { montant: Math.round(job.salaire * (t ? 1 + TALENT_BONUS : 1)), bonus: !!t };
+export function payFor(job, talents, diplomas = []) {
+  const t = talents.find(x => x.talent === job.talent && x.discovered), e = EDU_LEVELS[eduRank(eduLevel(diplomas))];
+  return { montant: Math.round(job.salaire * (t ? 1 + TALENT_BONUS : 1) * (1 + e.bonus)), bonus: !!t, etudes: e.bonus };
 }
 export function cannotWork(job, age, energy, lastShift, now = Date.now()) {
   if (!job) return "Choisis d'abord un métier.";
@@ -792,3 +793,72 @@ export function applySettings(o = {}) {
 }
 export const FOOD_BASE = { prix: 25, faim: 45 };
 export const food = () => ({ prix: Math.max(1, Math.round(FOOD_BASE.prix * SET.prix)), faim: FOOD_BASE.faim });
+
+// ---------------------------------------------------------------- arrivée, classes sociales, études, maturité
+// Le joueur ne choisit plus : le jeu décide s'il naît bébé ou s'il arrive jeune adulte.
+export const ADULT_ENTRY_CHANCE = 0.45;
+export const SOCIAL_CLASSES = [
+  { id: "pauvre", label: "Pauvre", p: .35, epargne: [0, 400], seuil: 0 },
+  { id: "modeste", label: "Modeste", p: .33, epargne: [400, 1500], seuil: 1400 },
+  { id: "moyenne", label: "Classe moyenne", p: .22, epargne: [1500, 5000], seuil: 2500 },
+  { id: "aisee", label: "Aisée", p: .08, epargne: [5000, 15000], seuil: 6000 },
+  { id: "riche", label: "Riche", p: .02, epargne: [15000, 50000], seuil: 16000 },
+];
+export const classLabel = id => (SOCIAL_CLASSES.find(c => c.id === id) || SOCIAL_CLASSES[0]).label;
+// la classe d'aujourd'hui suit la fortune totale (makuta) : on peut monter ou descendre
+export function classOfWealth(total) { let c = SOCIAL_CLASSES[0]; for (const x of SOCIAL_CLASSES) if (total >= x.seuil) c = x; return c.id; }
+export function drawClass(r = Math.random) { let x = r(); for (const c of SOCIAL_CLASSES) { if (x < c.p) return c.id; x -= c.p; } return "pauvre"; }
+// niveaux d'études : déduits des diplômes, ils ouvrent des métiers et augmentent la paie
+export const EDU_LEVELS = [
+  { id: "aucun", label: "Sans diplôme", bonus: 0 },
+  { id: "primaire", label: "Primaire", bonus: .05 },
+  { id: "secondaire", label: "Secondaire (Diplôme d'État)", bonus: .10 },
+  { id: "superieur", label: "Supérieur (graduat, licence)", bonus: .20 },
+  { id: "doctorat", label: "Doctorat ou ingénieur", bonus: .30 },
+];
+export const eduRank = id => Math.max(0, EDU_LEVELS.findIndex(e => e.id === id));
+export const eduLabel = id => EDU_LEVELS[eduRank(id)].label;
+export function eduLevel(diplomas = []) {
+  if (diplomas.includes("medecine") || diplomas.includes("ingenieur")) return "doctorat";
+  if (diplomas.includes("droit") || diplomas.includes("commerce")) return "superieur";
+  if (diplomas.includes("secondaire")) return "secondaire";
+  if (diplomas.includes("primaire")) return "primaire";
+  return "aucun";
+}
+// arrivée décidée par le jeu : bébé, ou jeune adulte (18 à 28 ans) avec des études qui dépendent de sa classe
+export function drawEntry(r = Math.random) {
+  const classe = drawClass(r), adulte = r() < ADULT_ENTRY_CHANCE;
+  if (!adulte) return { adulte: false, age: 0, classe, diplomes: [], epargne: 0 };
+  const C = SOCIAL_CLASSES.find(c => c.id === classe), k = SOCIAL_CLASSES.indexOf(C), x = r();
+  const diplomes = [];
+  if (k >= 1 || x < .7) diplomes.push("primaire");
+  if (diplomes.length && (k >= 2 || x < .25 * (k + 1))) diplomes.push("secondaire");
+  if (diplomes.includes("secondaire") && (k >= 3 || x < .08 * (k + 1))) diplomes.push(["commerce", "droit"][Math.floor(r() * 2)]);
+  return { adulte: true, age: 18 + Math.floor(r() * 11), classe, diplomes, epargne: Math.round(C.epargne[0] + r() * (C.epargne[1] - C.epargne[0])) };
+}
+// maturité : un adulte qui vient d'arriver doit d'abord grandir avant les grandes décisions
+export const MATURE_AT = 100, MATURITY_PER_DAY = 10;
+export const MATURITY_GAIN = { travail: 8, cours: 10, petitboulot: 4 };
+export const BIG_DECISIONS = ["/api/mariage/demander", "/api/logement/acheter", "/api/entreprise/ouvrir", "/api/entreprise/acheter", "/api/candidature"];
+export function maturityOf(o, now = Date.now()) {
+  if (!o || !o.adulte) return MATURE_AT;
+  return Math.min(MATURE_AT, Math.round((o.maturite || 0) + (now - o.arrive_le) / DAY * MATURITY_PER_DAY));
+}
+export function cannotDecide(o, prenom, now = Date.now()) {
+  const m = maturityOf(o, now);
+  return m >= MATURE_AT ? null : `${prenom} vient d'arriver dans la vie adulte et doit d'abord grandir avant les grandes décisions (maturité ${m}/${MATURE_AT}). Le temps, le travail et les études font mûrir.`;
+}
+// tableau de bord : richesse, flux d'argent, part du propriétaire réel
+export function dashboard({ makuta, banque = 0, biens = 0, entreprises = 0, maison = 0, flux = {}, depots = [], origine = null, diplomas = [], now = Date.now() }) {
+  const total = makuta + banque + biens + entreprises + maison;
+  const naissances = depots.filter(d => d.offre === "bebe").length, depose = depots.reduce((s, d) => s + d.usd, 0);
+  return {
+    richesse: { poche: makuta, banque, biens, entreprises, maison, total },
+    argent: { recu: flux.recu || 0, depense: flux.depense || 0, famille: flux.famille || 0, impots: flux.impots || 0, recuFamille: flux.recuFamille || 0 },
+    proprietaire: { deposeUsd: depose, fraisAdminUsd: naissances * ADMIN_FEE_USD, confieUsd: depose - naissances * ADMIN_FEE_USD,
+      valeurUsd: Math.floor(total / USD_UNITS * (1 - WITHDRAW_FEE) * 100) / 100, simulation: !REAL_MONEY },
+    classe: { naissance: origine ? origine.classe : null, naissanceLabel: origine ? classLabel(origine.classe) : null, actuelle: classOfWealth(total), actuelleLabel: classLabel(classOfWealth(total)) },
+    etudes: { niveau: eduLevel(diplomas), label: eduLabel(eduLevel(diplomas)), bonus: EDU_LEVELS[eduRank(eduLevel(diplomas))].bonus },
+    maturite: { points: maturityOf(origine, now), max: MATURE_AT, arriveAdulte: !!(origine && origine.adulte) },
+  };
+}

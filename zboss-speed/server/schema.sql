@@ -248,3 +248,6 @@ CREATE TABLE IF NOT EXISTS logements (personnage_id TEXT PRIMARY KEY, statut TEX
 
 -- réglages en direct de l'administrateur (multiplicateurs : prix, salaires, faim, vol, police, destin)
 CREATE TABLE IF NOT EXISTS reglages (cle TEXT PRIMARY KEY, valeur REAL NOT NULL, maj_le INTEGER NOT NULL);
+
+-- origine du personnage : classe sociale de naissance, arrivée adulte (décidée par le jeu) et maturité
+CREATE TABLE IF NOT EXISTS origines (personnage_id TEXT PRIMARY KEY, classe TEXT NOT NULL, adulte INTEGER NOT NULL DEFAULT 0, maturite INTEGER NOT NULL DEFAULT 100, arrive_le INTEGER NOT NULL);

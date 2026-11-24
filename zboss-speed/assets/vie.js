@@ -4,7 +4,7 @@ import {
   ageYears, stageOf, STAGES, realMsUntil, TALENTS, ACTIVITIES, rng, drawTalents, doActivity, needsAt, newIdentity, BIRTH_GIFT,
   SHOP, cannotBuy, OFFERS, USD_TO_MAKUTA, USD_UNITS, fmtMakuta, WITHDRAW_FEE, walletInfo, birthShiftMs, shopView, familyOf, JOBS, payFor, cannotWork, workView, SHIFT_ENERGY, cannotApply, FORMATIONS, cannotEnroll, attendCourse, schoolView, STUDY_ENERGY, SUPPORT_PER_DAY, HOST_MIN_AGE, canSignupBeforeLaunch, COMPANY_TYPES, cannotOpenCompany, companyName, companyView, companyAccrue, companyJob, EMPLOYEE_YIELD, RESELL_RATE, TAXI_FARE, TAXI_ENERGY, KINSHASA_QUARTIERS, OTHER_CITIES, TAX, POSTS, PUBLIC_JOBS, BANKS, bankAccrue, INSURERS, CARE, careCost, OPERATORS, RECHARGES, CALL, stateView, supportDue, unpaidEffect, familyShare, FIRST_NAMES,
   describeAction, ORDER_DONE, ORDERS, ORDERS_PER_DAY, ORDERS_CHECK_MS, dayKey, ordersToRun, cannotGiveOrder,
-  VOTER_MIN_AGE, NEGLECT_DANGER_DAYS, NEGLECT_DANGER_HEALTH, splitEstate, deathCause, familyShareRate, REP, REP_BAD, REP_GOOD, repLabel, repDiscount, DOT_MAKUTA, MARRY_MIN_AGE, STREET_JOBS, cannotStreetJob, RENT, rentOf, houseOf, rentDue, HOUSING_MIN_AGE, SALE_TAX, LIFE_EVENTS, EVENT_EVERY_H, drawEvent, eventMoney, lifeAlbum, CRIMES, catchChance, sentence, inPrison, PRISON_BLOCKED, BAIL, PRISON_HOURS, RECIDIVE, policeView, applySettings, food,
+  VOTER_MIN_AGE, NEGLECT_DANGER_DAYS, NEGLECT_DANGER_HEALTH, splitEstate, deathCause, familyShareRate, REP, REP_BAD, REP_GOOD, repLabel, repDiscount, DOT_MAKUTA, MARRY_MIN_AGE, STREET_JOBS, cannotStreetJob, RENT, rentOf, houseOf, rentDue, HOUSING_MIN_AGE, SALE_TAX, LIFE_EVENTS, EVENT_EVERY_H, drawEvent, eventMoney, lifeAlbum, CRIMES, catchChance, sentence, inPrison, PRISON_BLOCKED, BAIL, PRISON_HOURS, RECIDIVE, policeView, applySettings, food, drawEntry, classOfWealth, classLabel, MATURITY_GAIN, BIG_DECISIONS, cannotDecide, dashboard,
 } from "../server/src/life.js";
 import { launchDemo } from "./lancement-demo.js";
 
@@ -48,6 +48,8 @@ const demo = {
       activites: ACTIVITIES.map(a => ({ id: a.id, label: a.label, minAge: a.minAge, energie: a.energy })),
       repas: { ...FOOD, prix: Math.round(FOOD.prix * repDiscount(d.rep || 0)) },
       reputation: { points: d.rep || 0, label: repLabel(d.rep || 0), mauvaise: (d.rep || 0) <= REP_BAD, bonne: (d.rep || 0) >= REP_GOOD },
+      tableau: dashboard({ makuta: c.makuta, banque: (d.comptes || []).reduce((a, x) => a + bankAccrue(x, now), 0), biens: (d.inv || []).reduce((a, o) => a + ((SHOP.find(x => x.id === (o.objet || o.objet_id || o.id)) || {}).prix || 0), 0),
+        entreprises: (d.ent || []).reduce((a, e) => a + (e.capital || 0), 0), maison: d.logement && d.logement.statut === "proprio" ? houseOf(d.logement.quartier) : 0, flux: d.flux || {}, depots: d.dep || [], origine: d.origine || null, diplomas: d.dip || [], now }),
       couple: { conjoint: d.conjoint || null, recues: [], envoyees: [], dot: DOT_MAKUTA },
       petitsBoulots: { liste: STREET_JOBS, dernier: d.lastStreet || null },
       logement: { actuel: d.logement || null, quartiers: Object.keys(RENT).map(q => ({ quartier: q, loyer: rentOf(q), prix: houseOf(q) })), minAge: HOUSING_MIN_AGE },
@@ -131,6 +133,15 @@ const demo = {
     if (c.makuta >= due) { c.makuta -= due; L.paye_jusqu += weeks * 7 * 864e5; this.move(d, "🏠", `Loyer payé : ${fmtMakuta(due)} (${L.quartier}).`); }
     else { d.logement = null; c.happiness = Math.max(0, c.happiness - 20); this.addRep(d, -5); this.move(d, "🚪", `Loyer impayé : expulsé du logement à ${L.quartier}. Retour chez les parents.`); }
   },
+  flow(d, k, n) { d.flux = d.flux || {}; d.flux[k] = (d.flux[k] || 0) + Math.max(0, Math.round(n)); },
+  mature(d, n) { if (d.origine && d.origine.adulte) d.origine.maturite = Math.min(100, (d.origine.maturite || 0) + n); },
+  // le jeu décide : bébé ou jeune adulte, avec une classe sociale et des études de départ
+  arrive(r, who, now, extra = 0) {
+    const e = drawEntry(r), gift = BIRTH_GIFT + extra + (e.adulte ? e.epargne : 0);
+    return { e, perso: { ...who, neLe: e.adulte ? now - birthShiftMs(e.age + .01) : now, updatedAt: now, hunger: 100, energy: 100, happiness: 80, health: 100, makuta: gift,
+      talents: drawTalents(r).map(t => ({ ...t, discovered: false, hints: 0 })) },
+      origine: { classe: e.classe, adulte: e.adulte ? 1 : 0, maturite: e.adulte ? 0 : 100, arrive_le: now }, dip: e.diplomes.slice(), flux: { recu: gift } };
+  },
   addRep(d, n) { d.rep = Math.max(-100, Math.min(100, (d.rep || 0) + n)); },
   move(d, icone, texte) { d.mouvements = [{ icone, texte, par_consigne: 0, le: Date.now() }, ...(d.mouvements || [])].slice(0, 100); },
   // ton personnage meurt : 20 % gardés pour ta prochaine vie, 10 % à la ville, 70 % aux héritiers (ici la famille du jeu)
@@ -188,11 +199,20 @@ const demo = {
       const r = rng(this.seed()), who = newIdentity(r), now = Date.now();
       const offer = OFFERS.find(o => o.id === body.formule) || OFFERS[0], adult = !!offer.age, inv = offer.type === "investissement";
       const gift = inv ? offer.usd * USD_UNITS : adult ? offer.epargne : BIRTH_GIFT;
+      if (offer.id === "bebe") {
+        const A = this.arrive(r, who, now);
+        d = { pseudo: body.pseudo, email: String(body.email || "").trim().toLowerCase(), inv: [], ret: [], accueil: false, enfants: [],
+          dep: [{ offre: offer.id, usd: offer.usd, makuta: 0, le: now }], perso: A.perso, origine: A.origine, dip: A.dip, flux: A.flux };
+        this.move(d, A.e.adulte ? "🧑🏾" : "👶", A.e.adulte ? `Le jeu a décidé : ${who.firstName} arrive à ${who.quartier} à ${A.e.age} ans (${classLabel(A.e.classe).toLowerCase()}). Il faut d'abord grandir avant les grandes décisions.` : `Le jeu a décidé : ${who.firstName} naît bébé à ${who.quartier}, dans une famille ${classLabel(A.e.classe).toLowerCase()}.`);
+        store.set(LS_DEMO, d); store.set(LS_TOKEN, "demo");
+        return { token: "demo", ...this.view(d), naissance: true };
+      }
       d = {
         pseudo: body.pseudo, email: String(body.email || "").trim().toLowerCase(), inv: [], ret: [], accueil: adult, enfants: [],
         dep: [{ offre: offer.id, usd: offer.usd, makuta: inv ? gift : 0, le: now }],
         perso: { ...who, neLe: adult ? now - birthShiftMs(offer.age + .01) : now, updatedAt: now, hunger: 100, energy: 100, happiness: 80, health: 100,
           makuta: gift, talents: drawTalents(r).map(t => ({ ...t, discovered: adult, hints: 0 })) },
+        origine: { classe: classOfWealth(gift), adulte: 0, maturite: 100, arrive_le: now }, flux: { recu: gift },
       };
       if (inv) launchDemo.addInvestor(d.pseudo, d.email, offer.id);
       store.set(LS_DEMO, d); store.set(LS_TOKEN, "demo");
@@ -210,11 +230,10 @@ const demo = {
         // renaissance payante (15 $ simulés) : nouvelle vie, avec les 20 % gardés de la précédente
         const r = rng(this.seed()), who = newIdentity(r), now = Date.now(), o = OFFERS.find(x => x.id === "bebe");
         const vies = [...(d.vies || []), d.mort];
+        const A = this.arrive(r, who, now, d.report || 0);
         d = { pseudo: d.pseudo, email: d.email, inv: [], ret: d.ret || [], accueil: false, enfants: [], notif: d.notif, vies, deuils: d.deuils || [],
-          dep: [...(d.dep || []), { offre: o.id, usd: o.usd, makuta: 0, le: now }],
-          perso: { ...who, neLe: now, updatedAt: now, hunger: 100, energy: 100, happiness: 80, health: 100, makuta: BIRTH_GIFT + (d.report || 0),
-            talents: drawTalents(r).map(t => ({ ...t, discovered: false, hints: 0 })) } };
-        this.move(d, "👶", `Nouvelle vie : ${who.firstName} ${who.lastName} est né${who.sex === "F" ? "e" : ""} à ${who.quartier}.`);
+          dep: [...(d.dep || []), { offre: o.id, usd: o.usd, makuta: 0, le: now }], perso: A.perso, origine: A.origine, dip: A.dip, flux: A.flux };
+        this.move(d, A.e.adulte ? "🧑🏾" : "👶", A.e.adulte ? `Nouvelle vie : ${who.firstName} ${who.lastName} arrive à ${who.quartier} à ${A.e.age} ans.` : `Nouvelle vie : ${who.firstName} ${who.lastName} est né${who.sex === "F" ? "e" : ""} à ${who.quartier}.`);
         store.set(LS_DEMO, d); return { ...this.view(d), renaissance: true };
       }
       if (path === "/api/moi") return this.deadView(d);
@@ -226,6 +245,7 @@ const demo = {
       C.liste.push(body.ordre); store.set(LS_DEMO, d);
       await this.applyOrders(d, true); return this.view(store.get(LS_DEMO));
     }
+    if (BIG_DECISIONS.includes(path) || (path === "/api/mariage/repondre" && body.accepte)) { const no = cannotDecide(d.origine, c.firstName); if (no) throw new Error(no); }
     if (inPrison(d.prison) && PRISON_BLOCKED.includes(path)) throw new Error(`Tu es en prison jusqu'au ${new Date(d.prison).toLocaleString("fr-FR")}. Paie la caution pour sortir plus tôt.`);
     if (path === "/api/voter") {
       const E = launchDemo.elections(this.me(d));
@@ -272,7 +292,7 @@ const demo = {
       this.settle(c);
       const prix = Math.round(FOOD.prix * repDiscount(d.rep || 0));
       if (c.makuta < prix) throw new Error("Pas assez d'e-makuta pour un repas.");
-      c.makuta -= prix; c.hunger = Math.min(100, c.hunger + FOOD.faim); store.set(LS_DEMO, d);
+      c.makuta -= prix; this.flow(d, "depense", prix); c.hunger = Math.min(100, c.hunger + FOOD.faim); store.set(LS_DEMO, d);
       return this.view(d);
     }
     if (path === "/api/acheter") {
@@ -304,7 +324,7 @@ const demo = {
       const j = STREET_JOBS.find(x => x.id === body.boulot), no = cannotStreetJob(j, ageYears(c.neLe), c.energy, d.lastStreet);
       if (no) throw new Error(no);
       const gain = j.gain[0] + Math.floor(Math.random() * (j.gain[1] - j.gain[0] + 1));
-      c.makuta += gain; c.energy = Math.max(0, c.energy - j.energie); d.lastStreet = Date.now();
+      c.makuta += gain; c.energy = Math.max(0, c.energy - j.energie); d.lastStreet = Date.now(); this.mature(d, MATURITY_GAIN.petitboulot); this.flow(d, "recu", gain);
       store.set(LS_DEMO, d); return { boulot: { nom: j.nom, gain }, ...this.view(d) };
     }
     if (path === "/api/logement/louer" || path === "/api/logement/acheter") {
@@ -449,10 +469,11 @@ const demo = {
       this.settle(c);
       const job = d.boss ? companyJob(d.boss) : JOBS.find(j => j.id === d.job), no = cannotWork(job, ageYears(c.neLe), c.energy, d.lastShift);
       if (no) throw new Error(no);
-      const pay = payFor(job, c.talents);
+      const pay = payFor(job, c.talents, d.dip || []);
       pay.famille = familyShare(pay.montant, d.rancune || 0);   // 10 % pour les parents (moins s'il a été négligé enfant)
       pay.impot = Math.round(pay.montant * TAX.salaire); d.tresor = (d.tresor || 0) + pay.impot - (PUBLIC_JOBS.some(j => j.id === job.id) || job.elu ? pay.montant : 0);
-      this.addRep(d, REP.travail); c.makuta += pay.montant - pay.famille - pay.impot; c.energy = Math.max(0, c.energy - SHIFT_ENERGY); c.hunger = Math.max(0, c.hunger - 10); d.lastShift = Date.now();
+      this.addRep(d, REP.travail); this.mature(d, MATURITY_GAIN.travail); this.flow(d, "recu", pay.montant); this.flow(d, "famille", pay.famille); this.flow(d, "impots", pay.impot); this.flow(d, "depense", pay.famille + pay.impot);
+      c.makuta += pay.montant - pay.famille - pay.impot; c.energy = Math.max(0, c.energy - SHIFT_ENERGY); c.hunger = Math.max(0, c.hunger - 10); d.lastShift = Date.now();
       store.set(LS_DEMO, d); return { paie: pay, ...this.view(d) };
     }
     if (path === "/api/ecole/inscription") {
@@ -467,7 +488,7 @@ const demo = {
       const f = FORMATIONS.find(x => x.id === d.enr.formation);
       const res = attendCourse(f, d.enr, c.talents, c.makuta, c.energy, Date.now(), rng(this.seed()));
       if (res.error) throw new Error(res.error);
-      c.energy = Math.max(0, c.energy - STUDY_ENERGY); c.makuta -= res.fee;
+      c.energy = Math.max(0, c.energy - STUDY_ENERGY); c.makuta -= res.fee; this.mature(d, MATURITY_GAIN.cours); this.flow(d, "depense", res.fee);
       if (res.fin) { (d.dip = d.dip || []).push(f.id); d.enr = null; } else d.enr = res.enr;
       store.set(LS_DEMO, d); return { cours: { note: res.note, message: res.message, diplome: !!res.fin }, ...this.view(d) };
     }
@@ -606,7 +627,7 @@ function render(v) {
   ] : []).concat([["Joueur", v.compte.pseudo], ["Né le", new Date(p.neLe).toLocaleDateString("fr-FR")]])
     .map(([a, b]) => `<div class="row"><span>${a}</span><span style="text-align:right">${b}</span></div>`).join("")
     + (v.demo ? `<button class="mini" id="b-demo-die" type="button" style="margin-top:12px">💀 Simuler la mort (démo)</button>` : "");
-  renderCouple(v); renderCity(v);
+  renderDash(v); renderCouple(v); renderCity(v);
   renderShop(v); renderWallet(v); renderWork(v); renderSchool(v); renderKids(v); renderCompanies(v); renderTravel(v); renderState(v); renderTips(v); renderOrders(v); renderMoves(v);
   if (!render.hashDone && location.hash === "#moves") { render.hashDone = true; setTimeout(() => goTo("moves"), 300); }
   portrait(p);
@@ -645,6 +666,31 @@ $("market").onclick = e => {
   const b = e.target.closest("[data-annbuy]"); if (b) return act("/api/annonce/acheter", { id: b.dataset.annbuy }, v => `Acheté : ${v.achete}.`);
   const o = e.target.closest("[data-annoff]"); if (o) return act("/api/annonce/retirer", { id: o.dataset.annoff }, () => "Annonce retirée.");
 };
+
+// ---------------------------------------------------------------- tableau de bord du personnage
+function renderDash(v) {
+  const T = v.tableau; if (!T) { $("dash-card").hidden = true; return; } $("dash-card").hidden = false;
+  const R = T.richesse, A = T.argent, P = T.proprietaire, N = v.perso.besoins, M = T.maturite;
+  const row = (l, x, b) => `<div class="row"><span>${l}</span><span>${b ? "<b>" + x + "</b>" : x}</span></div>`;
+  const bar = (l, n, inv) => { const g = inv ? 100 - n : n; return `<div class="need">${l} <b style="float:right">${n}</b><div class="bar"><i class="${g < 25 ? "low" : g < 50 ? "mid" : ""}" style="width:${n}%"></i></div></div>`; };
+  $("dash").innerHTML = `<div class="grid2">
+      <div><div class="need">Richesse accumulée</div><div style="font-family:var(--font-d);font-size:24px;color:var(--accent)">${mk(R.total)}</div></div>
+      <div><div class="need">Classe sociale</div><div style="font-size:16px;font-weight:600">${esc(T.classe.actuelleLabel)}</div><small style="color:var(--muted)">${T.classe.naissanceLabel ? "Né" + (v.perso.sexe === "F" ? "e" : "") + " : " + esc(T.classe.naissanceLabel.toLowerCase()) : ""}</small></div>
+    </div>
+    <h3 style="font-size:15px;margin:14px 0 2px">Ce qu'il possède</h3>
+    ${row("En poche", mk(R.poche))}${R.banque ? row("À la banque", mk(R.banque)) : ""}${R.biens ? row("Objets", mk(R.biens)) : ""}${R.entreprises ? row("Entreprises", mk(R.entreprises)) : ""}${R.maison ? row("Maison", mk(R.maison)) : ""}
+    <h3 style="font-size:15px;margin:14px 0 6px">Ses besoins</h3>
+    <div class="grid2">${bar("Faim (rassasié)", N.hunger)}${bar("Énergie", N.energy)}${bar("Santé", N.health)}${bar("Moral", N.happiness)}</div>
+    <h3 style="font-size:15px;margin:14px 0 2px">Où va son argent</h3>
+    ${row("Gagné et reçu", mk(A.recu))}${row("Dépensé", mk(A.depense))}${row("Donné à sa famille", mk(A.famille))}${row("Impôts payés à l'État", mk(A.impots))}${A.recuFamille ? row("Reçu de sa famille", mk(A.recuFamille)) : ""}
+    <h3 style="font-size:15px;margin:14px 0 2px">Côté propriétaire réel (toi)</h3>
+    ${row("Tu as versé", P.deposeUsd.toLocaleString("fr-FR") + " $")}${P.fraisAdminUsd ? row("Pour faire vivre le jeu", P.fraisAdminUsd.toLocaleString("fr-FR") + " $") : ""}${row("Confié au personnage ou à ses parents", P.confieUsd.toLocaleString("fr-FR") + " $")}${row("Sa richesse vaudrait aujourd'hui", P.valeurUsd.toLocaleString("fr-FR") + " $", true)}
+    ${P.simulation ? `<p class="sim">Simulation : l'argent réel n'est pas encore branché. Le retrait viendra plus tard, avec un partenaire de paiement agréé.</p>` : ""}
+    <h3 style="font-size:15px;margin:14px 0 2px">Études et maturité</h3>
+    ${row("Niveau d'études", esc(T.etudes.label) + (T.etudes.bonus ? ` (+${Math.round(T.etudes.bonus * 100)} % de paie)` : ""))}
+    ${M.arriveAdulte ? `<div class="need" style="margin-top:8px">Maturité ${M.points >= M.max ? "atteinte" : ""} <b style="float:right">${M.points} / ${M.max}</b><div class="bar"><i class="${M.points >= M.max ? "" : "mid"}" style="width:${M.points}%"></i></div></div>
+      <p style="font-size:13px;margin-top:8px">${M.points >= M.max ? "Il peut maintenant prendre les grandes décisions : mariage, maison, entreprise, élections." : "Arrivé adulte, il doit d'abord grandir : mariage, achat de maison, entreprise et élections sont bloqués. Le temps (+10 par jour), le travail (+8), les cours (+10) et les petits boulots (+4) le font mûrir."}</p>` : ""}`;
+}
 
 // ---------------------------------------------------------------- couple et réputation
 function renderCouple(v) {
