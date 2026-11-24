@@ -185,3 +185,13 @@ CREATE TABLE IF NOT EXISTS mouvements (
   le INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_mouvements_perso ON mouvements (personnage_id, le);
+
+-- notifications sur le téléphone (Web Push) : un abonnement par navigateur
+CREATE TABLE IF NOT EXISTS abonnements_push (
+  endpoint TEXT PRIMARY KEY,
+  compte_id TEXT NOT NULL,
+  p256dh TEXT NOT NULL,
+  auth TEXT NOT NULL,
+  cree_le INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_push_compte ON abonnements_push (compte_id);

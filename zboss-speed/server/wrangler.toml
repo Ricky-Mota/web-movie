@@ -13,6 +13,11 @@ ALLOWED_ORIGINS = "*"
 # Le dépôt est public : ne pas écrire l'adresse ici. La mettre dans le tableau de bord Cloudflare
 # (Worker > Settings > Variables, nom ADMIN_EMAILS) ou, en local, dans server/.dev.vars (ignoré par git).
 ADMIN_EMAILS = ""
+# notifications sur le téléphone : clé publique VAPID (node scripts/vapid.mjs). La clé privée va en secret :
+#   npx wrangler secret put VAPID_PRIVATE_JWK
+VAPID_PUBLIC = ""
+# adresse de contact demandée par les services de notification (ex. https://ton-site ou mailto:...)
+VAPID_SUBJECT = ""
 
 [[d1_databases]]
 binding = "DB"

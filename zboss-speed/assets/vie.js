@@ -56,6 +56,7 @@ const demo = {
       voyage: { quartiers: KINSHASA_QUARTIERS, prix: TAXI_FARE, fatigue: TAXI_ENERGY, villes: OTHER_CITIES },
       elections: launchDemo.elections(this.me(d)),
       mouvements: d.mouvements || [],
+      notifications: { actives: !!d.notif },
       consignes: { ...this.orders(d), max: ORDERS_PER_DAY, catalogue: ORDERS, verifieToutesLesMinutes: DEMO_ORDERS_MS / 60e3 },
       police: policeView({ policiers: 0, prisonJusqu: d.prison, casier: d.casier || [] }, now),
       etat: stateView({ comptes: d.comptes || [], assureur: d.assureur, assureJusqu: d.assureJusqu, operateur: d.operateur, credit: d.credit || 0, candidature: d.candidature },
@@ -69,17 +70,19 @@ const demo = {
     if (this.busy || !C.liste.length || (!force && d.consignesLe && now - d.consignesLe < DEMO_ORDERS_MS)) return;
     d.consignesLe = now; store.set(LS_DEMO, d);
     const runs = ordersToRun(C.liste, this.view(d), now, C.journal.filter(j => j.ok).map(j => j.ordre));
-    this.busy = true;
+    this.busy = true; const faits = [];
     try {
       for (const [ordre, path, body] of runs) {
         let ok = true, msg;
         try { const j = await this.call(path, body, true); msg = ORDER_DONE[ordre] + (j.paie ? ` +${fmtMakuta(j.paie.montant - (j.paie.famille || 0) - (j.paie.impot || 0))}` : j.encaisse ? ` +${fmtMakuta(j.encaisse)}` : ""); }
         catch (e) { ok = false; msg = e.message; }
+        if (ok) faits.push(msg);
         const dd = store.get(LS_DEMO), CC = this.orders(dd), last = CC.journal.find(x => x.ordre === ordre);
         if (ok || !last || last.message !== msg) { CC.journal.unshift({ ordre, ok: ok ? 1 : 0, message: msg, le: now }); CC.journal = CC.journal.slice(0, 30); }
         store.set(LS_DEMO, dd);
       }
     } finally { this.busy = false; }
+    if (faits.length && store.get(LS_DEMO).notif) demoNotify(`2 Life · ${d.perso.firstName}`, faits.join(" · "));
   },
   me(d) { return { candidature: d.candidature, nom: `${d.perso.firstName} ${d.perso.lastName}`, quartier: d.perso.quartier }; },
   settle(c) { const n = needsAt(c); Object.assign(c, n, { updatedAt: Date.now() }); },
@@ -391,6 +394,34 @@ async function call(path, body) {
   return j;
 }
 
+// ---------------------------------------------------------------- notifications sur le téléphone
+const notifSupported = () => "Notification" in window;
+async function notifOn() {
+  if (!notifSupported()) throw new Error("Ce navigateur ne gère pas les notifications. Installe l'application (Ajouter à l'écran d'accueil).");
+  if (await Notification.requestPermission() !== "granted") throw new Error("Notifications refusées. Tu peux les autoriser dans les réglages du navigateur.");
+  if (!API) { const d = store.get(LS_DEMO); d.notif = true; store.set(LS_DEMO, d); return demo.view(d); }
+  const { cle } = await call("/api/push/cle");
+  if (!cle) throw new Error("Les notifications seront disponibles quand le serveur du jeu sera configuré.");
+  if (!("serviceWorker" in navigator) || !("PushManager" in window)) throw new Error("Ce navigateur ne gère pas les notifications. Installe l'application (Ajouter à l'écran d'accueil).");
+  const reg = await navigator.serviceWorker.ready;
+  const sub = (await reg.pushManager.getSubscription()) || await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64uBytes(cle) });
+  return call("/api/push/abonner", sub.toJSON());
+}
+async function notifOff() {
+  if (!API) { const d = store.get(LS_DEMO); d.notif = false; store.set(LS_DEMO, d); return demo.view(d); }
+  try { const reg = await navigator.serviceWorker.ready, sub = await reg.pushManager.getSubscription(); if (sub) await sub.unsubscribe(); } catch (e) { }
+  return call("/api/push/desabonner", {});
+}
+const b64uBytes = s => Uint8Array.from(atob(s.replace(/-/g, "+").replace(/_/g, "/") + "===".slice((s.length + 3) % 4)), c => c.charCodeAt(0));
+// démo : notification locale quand une consigne est faite
+async function demoNotify(titre, texte) {
+  try {
+    if (!notifSupported() || Notification.permission !== "granted") return;
+    const reg = "serviceWorker" in navigator && await navigator.serviceWorker.getRegistration();
+    if (reg) await reg.showNotification(titre, { body: texte, icon: "assets/icons/2life-192.png", data: { url: "vie.html#moves" } }); else new Notification(titre, { body: texte, icon: "assets/icons/2life-192.png" });
+  } catch (e) { }
+}
+
 // ---------------------------------------------------------------- affichage
 let state = null, signup = true;
 const fmtAge = a => a < 1 ? `${Math.max(0, Math.floor(a * 12))} mois` : `${Math.floor(a)} an${Math.floor(a) > 1 ? "s" : ""}`;
@@ -434,6 +465,7 @@ function render(v) {
   ] : []).concat([["Joueur", v.compte.pseudo], ["Né le", new Date(p.neLe).toLocaleDateString("fr-FR")]])
     .map(([a, b]) => `<div class="row"><span>${a}</span><span style="text-align:right">${b}</span></div>`).join("");
   renderShop(v); renderWallet(v); renderWork(v); renderSchool(v); renderKids(v); renderCompanies(v); renderTravel(v); renderState(v); renderTips(v); renderOrders(v); renderMoves(v);
+  if (!render.hashDone && location.hash === "#moves") { render.hashDone = true; setTimeout(() => goTo("moves"), 300); }
   portrait(p);
   dress(v);
 }
@@ -632,12 +664,18 @@ const SECTIONS = { moves: "moves", orders: "orders", state: "state", needs: "nee
 function goTo(id) { const el = $(id); if (el) (el.closest(".card") || el).scrollIntoView({ behavior: "smooth", block: "start" }); }
 function renderOrders(v) {
   const C = v.consignes, left = C.max - C.liste.length, name = id => (C.catalogue.find(o => o.id === id) || {});
-  $("orders").innerHTML = `<p style="font-size:14px;margin:0 0 8px">Dis à ${esc(v.perso.prenom)} quoi faire aujourd'hui. ${esc(v.perso.prenom)} suit tes consignes toute la journée, même quand tu n'es pas connecté (vérification toutes les ${C.verifieToutesLesMinutes} minutes). <b>${C.max} consignes par jour</b>, et une consigne donnée ne se retire pas avant demain.</p>` +
+  const N = v.notifications || {};
+  $("orders").innerHTML = `<button class="mini ${N.actives ? "" : "fill"}" id="b-notif" type="button" style="float:right;margin:0 0 6px 8px">${N.actives ? "🔕 Couper les notifications" : "🔔 Me prévenir"}</button><p style="font-size:14px;margin:0 0 8px">Dis à ${esc(v.perso.prenom)} quoi faire aujourd'hui. ${esc(v.perso.prenom)} suit tes consignes toute la journée, même quand tu n'es pas connecté (vérification toutes les ${C.verifieToutesLesMinutes} minutes). <b>${C.max} consignes par jour</b>, et une consigne donnée ne se retire pas avant demain.</p>` +
     (C.liste.length ? C.liste.map(id => `<div class="item"><span class="sw">${name(id).icone}</span><div class="t">${name(id).nom}<small>${name(id).desc}</small></div><span class="mini" style="border-color:var(--ok);color:var(--ok)">Active</span></div>`).join("") : "") +
     (left > 0 ? `<h2 style="font-size:16px;margin:12px 0 6px">Donner une consigne (encore ${left})</h2><div class="chips">${C.catalogue.filter(o => !C.liste.includes(o.id)).map(o => `<button class="chip" data-order="${o.id}" type="button">${o.icone} ${o.nom}</button>`).join("")}</div>`
       : `<p style="font-size:13px;margin:10px 0 0">Tu as donné tes ${C.max} consignes du jour. Nouvelles consignes demain à minuit (heure de Kinshasa).</p>`) +
     (C.journal.length ? `<h2 style="font-size:16px;margin:14px 0 4px">Fait aujourd'hui</h2>` + C.journal.slice(0, 8).map(j => `<div class="row"><span>${new Date(j.le).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })} · ${esc(j.message)}</span><span>${j.ok ? "✅" : "⏳"}</span></div>`).join("") : "");
 }
+$("orders").addEventListener("click", async e => {
+  if (e.target.id !== "b-notif") return;
+  const on = !(state.notifications || {}).actives;
+  try { render(await (on ? notifOn() : notifOff())); toast(on ? "Tu recevras une notification sur ce téléphone à chaque consigne faite." : "Notifications coupées."); } catch (err) { toast(err.message); }
+});
 $("orders").onclick = e => { const b = e.target.closest("[data-order]"); if (b) { b.disabled = true; act("/api/consigne", { ordre: b.dataset.order }, v => { const j = v.consignes.journal[0]; return "Consigne donnée." + (j && j.ordre === b.dataset.order && Date.now() - j.le < 60e3 ? " " + j.message : ""); }); } };
 let movesTab = "tout", movesAll = false;
 function renderMoves(v) {
@@ -703,7 +741,9 @@ function renderKids(v) {
     const low = k.besoins.hunger < 40 || k.besoins.health < 60;
     return `<div class="item"><span class="sw">${k.age < 3 ? "👶" : k.sexe === "F" ? "👧" : "👦"}</span><div class="t">${k.prenom} ${k.nom} · ${fmtAge(k.age)} (${k.etapeLabel})
       <small>Faim ${k.besoins.hunger} · Santé ${k.besoins.health} · Bonheur ${k.besoins.happiness} · ${mk(k.makuta)}${k.prochainEntretien ? ` · prochain entretien dans ${fmtWait(k.prochainEntretien - Date.now())}` : " · adulte"}${low ? " · <b style='color:var(--warn)'>a besoin de toi</b>" : ""}</small></div>
-      <button class="mini fill" data-feed="${k.id}" data-food="${food}" type="button" ${p.makuta < it.prix ? "disabled" : ""}>Nourrir (${mk(it.prix)})</button></div>`;
+      <button class="mini fill" data-feed="${k.id}" data-food="${food}" type="button" ${p.makuta < it.prix ? "disabled" : ""}>Nourrir (${mk(it.prix)})</button></div>
+      <details class="kid-moves" style="margin:0 0 8px 48px;font-size:13px"><summary style="cursor:pointer;color:var(--muted, #b9a98f)">Voir les mouvements de ${esc(k.prenom)} (${(k.mouvements || []).length})</summary>
+        ${(k.mouvements || []).length ? k.mouvements.map(m => `<div class="row"><span>${m.icone} ${esc(m.texte)}</span><span>${new Date(m.le).toLocaleString("fr-FR", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}${m.par_consigne ? " · 📋" : ""}</span></div>`).join("") : `<p style="margin:6px 0">Aucun mouvement pour l'instant.</p>`}</details>`;
   }).join("");
   $("kids").innerHTML = head + (kids.length ? `<h2 style="font-size:16px;margin:16px 0 4px">Mes enfants</h2>${list}` : "");
 }

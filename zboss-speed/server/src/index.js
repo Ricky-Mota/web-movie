@@ -5,6 +5,7 @@ import {
   needsAt, newIdentity, BIRTH_GIFT, SHOP, cannotBuy, OFFERS, USD_TO_MAKUTA, USD_UNITS, fmtMakuta, WITHDRAW_FEE, walletInfo, birthShiftMs, REAL_MONEY, shopView, familyOf, JOBS, payFor, cannotWork, workView, cannotApply, FORMATIONS, cannotEnroll, attendCourse, schoolView, SUPPORT_PER_DAY, HOST_MIN_AGE, MAX_CHILDREN, supportDue, unpaidEffect, familyShare, DAY, LAUNCH_RULES, launchStatus, canSignupBeforeLaunch, COMPANY_TYPES, cannotOpenCompany, companyName, companyView, companyAccrue, companyJob, EMPLOYEE_YIELD, RESELL_RATE, TAXI_FARE, TAXI_ENERGY, KINSHASA_QUARTIERS, OTHER_CITIES, STATE_ID, TAX, POSTS, PUBLIC_JOBS, BANKS, bankAccrue, INSURERS, CARE, careCost, OPERATORS, RECHARGES, CALL, stateView, ELECTION_EVERY, VOTER_MIN_AGE, electionCalendar, tally, CRIMES, catchChance, sentence, inPrison, PRISON_BLOCKED, PRISON_HOURS, BAIL, RECIDIVE, policeView,
   describeAction, ORDER_DONE, ORDERS, ORDERS_PER_DAY, ORDERS_CHECK_MS, dayKey, ordersToRun, cannotGiveOrder,
 } from "./life.js";
+import { sendPush } from "./webpush.js";
 
 const SESSION_DAYS = 30;
 const FOOD = { prix: 25, faim: 45 }; // un repas au maquis
@@ -97,7 +98,7 @@ function childView(k, now) {
   const age = ageYears(k.ne_le, now), n = needsAt({ hunger: k.faim, energy: k.energie, happiness: k.bonheur, health: k.sante, updatedAt: k.maj_le }, now);
   return { id: k.id, prenom: k.prenom, nom: k.nom, sexe: k.sexe, age: Math.round(age * 100) / 100, etapeLabel: stageOf(age).label, joueur: !!k.compte_id,
     besoins: Object.fromEntries(Object.entries(n).map(([a, b]) => [a, Math.round(b)])), makuta: k.makuta,
-    prochainEntretien: age < 18 ? supportDue(k.entretien_le, k.ne_le, now).next : null };
+    prochainEntretien: age < 18 ? supportDue(k.entretien_le, k.ne_le, now).next : null, mouvements: k.mouvements || [] };
 }
 
 // ---------------------------------------------------------------- entreprises des joueurs
@@ -178,6 +179,8 @@ async function loadCharacter(db, id) {
   const { results: dip } = await db.prepare(`SELECT formation_id FROM diplomes_obtenus WHERE personnage_id = ? ORDER BY obtenu_le`).bind(id).all();
   const { results: kids } = await db.prepare(`SELECT id, prenom, nom, sexe, ne_le, faim, energie, bonheur, sante, maj_le, makuta, entretien_le, compte_id FROM personnages
       WHERE (pere_id = ? OR mere_id = ?) AND mort_le IS NULL ORDER BY ne_le`).bind(id, id).all();
+  // les parents voient les mouvements de leurs enfants joueurs (20 derniers chacun)
+  for (const k of kids) k.mouvements = (await db.prepare(`SELECT icone, texte, par_consigne, le FROM mouvements WHERE personnage_id = ? ORDER BY le DESC LIMIT 20`).bind(k.id).all()).results;
   const { results: par } = await db.prepare(`SELECT p.id, p.prenom, p.nom, p.sexe, p.ne_le, p.apparence, c.pseudo,
       (SELECT metier_id FROM emplois e WHERE e.personnage_id = p.id AND e.fin IS NULL LIMIT 1) AS metier
       FROM personnages p JOIN comptes c ON c.id = p.compte_id WHERE p.id IN (?, ?)`).bind(p.pere_id || "", p.mere_id || "").all();
@@ -198,12 +201,22 @@ async function loadCharacter(db, id) {
   const elec = await electionView(db, cal, id);
   const pol = await db.prepare(`SELECT COUNT(*) AS n FROM emplois WHERE metier_id = 'policier' AND fin IS NULL`).first();
   const { results: casier } = await db.prepare(`SELECT type, amende, prison_heures, le FROM infractions WHERE personnage_id = ? ORDER BY le DESC LIMIT 20`).bind(id).all();
+  const notif = await db.prepare(`SELECT COUNT(*) AS n FROM abonnements_push WHERE compte_id = ?`).bind(p.compte_id).first();
   const jour = dayKey(now);
   const { results: mv } = await db.prepare(`SELECT icone, texte, par_consigne, le FROM mouvements WHERE personnage_id = ? ORDER BY le DESC LIMIT 100`).bind(id).all();
   const { results: ord } = await db.prepare(`SELECT ordre FROM consignes WHERE personnage_id = ? AND jour = ? ORDER BY donnee_le`).bind(id, jour).all();
   const { results: journal } = await db.prepare(`SELECT ordre, ok, message, le FROM consignes_journal WHERE personnage_id = ? AND jour = ? ORDER BY le DESC LIMIT 30`).bind(id, jour).all();
   return { p, tal, inv, dep, ret, job, lastShift: last && last.le, enr, dip: dip.map(d => d.formation_id), kids, par, sibs, ent, aVendre, offres, boss, comptes, cand, pub, elec, policiers: pol.n, casier,
-    consignes: { jour, liste: ord.map(o => o.ordre), journal }, mouvements: mv };
+    consignes: { jour, liste: ord.map(o => o.ordre), journal }, mouvements: mv, notifications: notif.n };
+}
+
+// ---------------------------------------------------------------- notifications sur le téléphone
+async function notify(env, db, compteId, message) {
+  const { results } = await db.prepare(`SELECT endpoint, p256dh, auth FROM abonnements_push WHERE compte_id = ?`).bind(compteId).all();
+  for (const sub of results) {
+    try { if (await sendPush(env, sub, message) === "expire") await db.prepare(`DELETE FROM abonnements_push WHERE endpoint = ?`).bind(sub.endpoint).run(); }
+    catch (e) { console.error(e); }
+  }
 }
 
 // ---------------------------------------------------------------- consignes du jour
@@ -215,21 +228,23 @@ async function applyOrders(env, db, compte, ch, now, force) {
   const done = C.journal.filter(j => j.ok).map(j => j.ordre);
   const runs = ordersToRun(C.liste, view(compte, ch, now), now, done);
   if (!runs.length) return false;
-  const token = await newSession(db, compte.id, now);
+  const token = await newSession(db, compte.id, now), faits = [];
   try {
     for (const [ordre, path, body] of runs) {
       const r = await worker.fetch(new Request("https://interne" + path, { method: "POST", headers: { "Content-Type": "application/json", Authorization: "Bearer " + token, "X-Consigne": "1" }, body: JSON.stringify(body) }), env);
       const j = await r.json().catch(() => ({}));
       const msg = r.ok ? ORDER_DONE[ordre] + (j.paie ? ` +${fmtMakuta(j.paie.montant - (j.paie.famille || 0) - (j.paie.impot || 0))}` : j.encaisse ? ` +${fmtMakuta(j.encaisse)}` : "") : (j.erreur || "Impossible pour l'instant.");
+      if (r.ok) faits.push(msg);
       const last = C.journal.find(x => x.ordre === ordre);
       if (r.ok || !last || last.message !== msg)
         await db.prepare(`INSERT INTO consignes_journal (id, personnage_id, jour, ordre, ok, message, le) VALUES (?, ?, ?, ?, ?, ?, ?)`).bind(uid(), p.id, C.jour, ordre, r.ok ? 1 : 0, msg, now).run();
     }
   } finally { await db.prepare(`DELETE FROM sessions WHERE token = ?`).bind(token).run(); }
+  if (faits.length) await notify(env, db, compte.id, { titre: `2 Life · ${p.prenom}`, texte: faits.join(" · "), url: "vie.html#moves" });
   return true;
 }
 
-function view(compte, { p, tal, inv = [], dep = [], ret = [], job = null, lastShift = null, enr = null, dip = [], kids = [], par = [], sibs = [], ent = [], aVendre = [], offres = [], boss = null, comptes = [], cand = null, pub = {}, elec = null, policiers = 0, casier = [], consignes = { jour: dayKey(now), liste: [], journal: [] }, mouvements = [] }, now) {
+function view(compte, { p, tal, inv = [], dep = [], ret = [], job = null, lastShift = null, enr = null, dip = [], kids = [], par = [], sibs = [], ent = [], aVendre = [], offres = [], boss = null, comptes = [], cand = null, pub = {}, elec = null, policiers = 0, casier = [], consignes = { jour: dayKey(now), liste: [], journal: [] }, mouvements = [], notifications = 0 }, now) {
   const age = ageYears(p.ne_le, now);
   const st = stageOf(age);
   const next = STAGES[STAGES.indexOf(st) + 1];
@@ -262,6 +277,7 @@ function view(compte, { p, tal, inv = [], dep = [], ret = [], job = null, lastSh
     police: policeView({ policiers, prisonJusqu: p.prison_jusqu, casier: casier.map(c => ({ ...c, nom: (CRIMES.find(x => x.id === c.type) || {}).nom || c.type })) }, now),
     voyage: { quartiers: KINSHASA_QUARTIERS, prix: TAXI_FARE, fatigue: TAXI_ENERGY, villes: OTHER_CITIES },
     mouvements,
+    notifications: { actives: notifications > 0 },
     consignes: { ...consignes, max: ORDERS_PER_DAY, catalogue: ORDERS, verifieToutesLesMinutes: ORDERS_CHECK_MS / 60e3 },
   };
 }
@@ -387,6 +403,7 @@ const worker = {
     try {
       if (url.pathname === "/api/sante") return json(h, 200, { ok: true, jeu: "2 Life" });
 
+      if (url.pathname === "/api/push/cle" && req.method === "GET") return json(h, 200, { cle: env.VAPID_PUBLIC || null });
       if (url.pathname === "/api/lancement" && req.method === "GET") return json(h, 200, await launch(db));
 
       if (url.pathname === "/api/inscription" && req.method === "POST") {
@@ -464,6 +481,17 @@ const worker = {
       if (url.pathname === "/api/moi" && req.method === "GET") {
         if (await applyOrders(env, db, compte, ch, now)) return json(h, 200, view(compte, await loadCharacter(db, p.id), Date.now()));
         return json(h, 200, view(compte, ch, now));
+      }
+      if (url.pathname === "/api/push/abonner" && req.method === "POST") {
+        const ep = String(body.endpoint || ""), k = body.keys || {};
+        if (!/^https:\/\//.test(ep) || ep.length > 1000 || !k.p256dh || !k.auth) return fail(h, 400, "Abonnement invalide.");
+        await db.prepare(`INSERT INTO abonnements_push (endpoint, compte_id, p256dh, auth, cree_le) VALUES (?, ?, ?, ?, ?) ON CONFLICT(endpoint) DO UPDATE SET compte_id = excluded.compte_id, p256dh = excluded.p256dh, auth = excluded.auth`)
+          .bind(ep, compte.id, String(k.p256dh).slice(0, 200), String(k.auth).slice(0, 100), now).run();
+        return json(h, 200, view(compte, await loadCharacter(db, p.id), now));
+      }
+      if (url.pathname === "/api/push/desabonner" && req.method === "POST") {
+        await db.prepare(`DELETE FROM abonnements_push WHERE compte_id = ?`).bind(compte.id).run();
+        return json(h, 200, view(compte, await loadCharacter(db, p.id), now));
       }
       if (url.pathname === "/api/consigne" && req.method === "POST") {
         const no = cannotGiveOrder(body.ordre, ch.consignes.liste);
