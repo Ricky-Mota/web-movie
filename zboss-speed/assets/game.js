@@ -100,12 +100,79 @@
       for (let yy = y - d / 2; yy < y + d / 2; yy += C) for (let xx = x - w / 2; xx < x + w / 2; xx += C) mask[(yy / C | 0) * MW + (xx / C | 0)] = 2;
     }
   })();
+  // concessions « Zboss Motors » : showrooms où l'on entre à pied pour choisir sa voiture.
+  // Posées au bord d'un grand axe, sur un terrain dégagé (les bâtiments de la carte à cet endroit sont retirés).
+  // Masque : 4 = sol intérieur (marchable, solide pour les voitures).
+  const SHOPS = [];
+  const SHOP_W = 360, SHOP_D = 240, SHOP_DOOR = 70;
+  (function () {
+    const M = (x, y) => (x < 0 || y < 0 || x >= W || y >= H) ? 3 : mask[(y / C | 0) * MW + (x / C | 0)];
+    const lm = (MAP.landmarks || [])[0];
+    const targets = [{ x: MAP.start.x + Math.cos(MAP.start.a) * 1400, y: MAP.start.y + Math.sin(MAP.start.a) * 1400 }];
+    if (lm) targets.push({ x: lm.x, y: lm.y - 900 }, { x: (MAP.start.x + lm.x) / 2, y: (MAP.start.y + lm.y) / 2 });
+    const segs = [];
+    ROADS.forEach(r => { if (r.w < 150) return; for (let i = 0; i + 3 < r.p.length; i += 2) segs.push({ r, ax: r.p[i], ay: r.p[i + 1], bx: r.p[i + 2], by: r.p[i + 3] }); });
+    targets.forEach(T0 => {
+      const cand = segs.map(g => ({ g, d: Math.hypot((g.ax + g.bx) / 2 - T0.x, (g.ay + g.by) / 2 - T0.y) })).filter(o => o.d < 5000).sort((a, b) => a.d - b.d);
+      const before = SHOPS.length;
+      for (const { g } of cand) {
+        if (SHOPS.length > before) break;
+        const L = Math.hypot(g.bx - g.ax, g.by - g.ay); if (L < SHOP_W + 60) continue;
+        const ux = (g.bx - g.ax) / L, uy = (g.by - g.ay) / L, a = Math.atan2(uy, ux);
+        for (const sd of [1, -1]) {
+          const nx = -uy * sd, ny = ux * sd, off = g.r.w / 2 + 60 + SHOP_D / 2;
+          const cx = (g.ax + g.bx) / 2 + nx * off, cy = (g.ay + g.by) / 2 + ny * off;
+          if (SHOPS.some(o => Math.hypot(o.x - cx, o.y - cy) < 3000)) continue;
+          let ok = true;
+          for (let v = -SHOP_D / 2 - 20; v <= SHOP_D / 2 + 20 && ok; v += 12) for (let u = -SHOP_W / 2 - 20; u <= SHOP_W / 2 + 20 && ok; u += 12) {
+            const m = M(cx + ux * u + nx * v, cy + uy * u + ny * v); if (m === 1 || m === 3) ok = false;
+          }
+          if (!ok) continue;
+          SHOPS.push({ x: cx, y: cy, a: Math.atan2(uy * sd, ux * sd), ux: ux * sd, uy: uy * sd, nx, ny, road: g.r, exit: { x: (g.ax + g.bx) / 2 + nx * g.r.w * .22, y: (g.ay + g.by) / 2 + ny * g.r.w * .22, a: sd > 0 ? a + Math.PI : a } });
+          break;
+        }
+      }
+    });
+    // le côté route du showroom est v < 0 (repère local u le long de la rue, v vers l'intérieur des terres)
+    const inShop = (o, x, y, m) => { const dx = x - o.x, dy = y - o.y, u = dx * o.ux + dy * o.uy, v = dx * o.nx + dy * o.ny; return Math.abs(u) < SHOP_W / 2 + m && Math.abs(v) < SHOP_D / 2 + m; };
+    const pip = (b, x, y) => { let c = false; for (let i = 1, j = b.length - 2; i < b.length; j = i, i += 2) { const xi = b[i], yi = b[i + 1], xj = b[j], yj = b[j + 1]; if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) c = !c; } return c; };
+    if (SHOPS.length) {
+      MAP.buildings = MAP.buildings.filter(b => {
+        let hit = false; for (let i = 1; i < b.length && !hit; i += 2) if (SHOPS.some(o => inShop(o, b[i], b[i + 1], 60))) hit = true;
+        if (!hit) return true;
+        let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9; for (let i = 1; i < b.length; i += 2) { x0 = Math.min(x0, b[i]); x1 = Math.max(x1, b[i]); y0 = Math.min(y0, b[i + 1]); y1 = Math.max(y1, b[i + 1]); }
+        for (let y = y0; y <= y1 + C; y += C) for (let x = x0; x <= x1 + C; x += C) { const k = (y / C | 0) * MW + (x / C | 0); if (mask[k] === 2 && pip(b, x, y)) mask[k] = 0; }
+        return false;
+      });
+      for (let i = FILL.length - 1; i >= 0; i--) { const f = FILL[i]; if (!SHOPS.some(o => inShop(o, f.x, f.y, 140))) continue; FILL.splice(i, 1); for (let yy = f.y - f.d / 2 - C; yy < f.y + f.d / 2 + C; yy += C) for (let xx = f.x - f.w / 2 - C; xx < f.x + f.w / 2 + C; xx += C) { const k = (yy / C | 0) * MW + (xx / C | 0); if (mask[k] === 2) mask[k] = 0; } }
+      SHOPS.forEach(o => {
+        for (let v = -SHOP_D / 2; v <= SHOP_D / 2; v += C / 2) for (let u = -SHOP_W / 2; u <= SHOP_W / 2; u += C / 2) { const k = ((o.y + o.uy * u + o.ny * v) / C | 0) * MW + ((o.x + o.ux * u + o.nx * v) / C | 0); mask[k] = 4; }
+        // emplacements d'exposition : 2 rangées de 3 voitures
+        o.slots = []; [-1, 0, 1].forEach(i => [-28, 62].forEach(v => o.slots.push({ u: i * 105, v, a: o.a + (v < 0 ? .55 : -.55) })));
+        o.slots.forEach(sl => { sl.x = o.x + o.ux * sl.u + o.nx * sl.v; sl.y = o.y + o.uy * sl.u + o.ny * sl.v; });
+      });
+    }
+    SHOPS.inShop = inShop;
+  })();
+  // déplacement à pied : murs du showroom (porte côté rue), bâtiments et eau
+  function walkBlocked(x, y) {
+    const g = (x < 0 || y < 0 || x >= W || y >= H) ? 2 : mask[(y / C | 0) * MW + (x / C | 0)];
+    if (g === 2 || g === 3) return true;
+    for (const o of SHOPS) {
+      const dx = x - o.x, dy = y - o.y, u = dx * o.ux + dy * o.uy, v = dx * o.nx + dy * o.ny;
+      const outer = Math.abs(u) < SHOP_W / 2 + 4 && Math.abs(v) < SHOP_D / 2 + 4, inner = Math.abs(u) < SHOP_W / 2 - 4 && Math.abs(v) < SHOP_D / 2 - 4;
+      if (outer && !inner && !(v < 0 && Math.abs(u) < SHOP_DOOR)) return true;
+      // podiums
+      if (inner && o.slots && o.slots.some(sl => Math.hypot(x - sl.x, y - sl.y) < 26)) return true;
+    }
+    return false;
+  }
   // carte colorée basse résolution (mini-carte et rendu 2D de secours)
   const C2 = 40, M2W = Math.ceil(W / C2), M2H = Math.ceil(H / C2);
   const MAP2D = document.createElement("canvas"); MAP2D.width = M2W; MAP2D.height = M2H;
   (function () {
     const c = MAP2D.getContext("2d"), img = c.createImageData(M2W, M2H), d = img.data;
-    const COL = [[58, 40, 30], [30, 31, 40], [70, 66, 72], [28, 64, 88]];
+    const COL = [[58, 40, 30], [30, 31, 40], [70, 66, 72], [28, 64, 88], [255, 90, 31]];
     for (let y = 0; y < M2H; y++) for (let x = 0; x < M2W; x++) {
       let v = 0; // la route est prioritaire pour rester visible
       for (let k = 0; k < 4; k++) { const mx = Math.min(MW - 1, ((x * C2 + (k & 1) * C2 * .5 + C2 * .25) / C) | 0), my = Math.min(MH - 1, ((y * C2 + (k >> 1) * C2 * .5 + C2 * .25) / C) | 0), m = mask[my * MW + mx]; if (m === 1) { v = 1; break; } if (k === 0) v = m; }
@@ -253,9 +320,12 @@
       bounty: 0, banked: 0, dist: 0, nitro: 60, takedowns: 0, escapes: 0, nearCd: new Map(),
       cam: { x: player.x, y: player.y, z: 1, a: player.a }, over: false, paused: false, lastBlockT: 0, calmT: 0, shake: 0,
       best: +(lsGet("zboss_best") || 0),
+      peds: [], foot: null, prompt: "", act: null,
     };
     for (let k = 0; k < 44; k++) spawnTraffic(true);
     for (let k = 0; k < 2; k++) spawnCop(false);
+    for (let k = 0; k < PED_N; k++) spawnPed(true);
+    SHOPS.forEach(o => [-1, 1].forEach(k => G.peds.push({ x: o.x + o.ux * k * 150 + o.nx * 95, y: o.y + o.uy * k * 150 + o.ny * 95, a: o.a + Math.PI / 2, v: 0, t: rand() * 9, state: "idle", staff: true, look: 7 + k })));
     msg("Roule. Les patrouilles te repèrent si tu dépasses 170 km/h devant elles.", 4.5);
   }
   function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
@@ -445,15 +515,122 @@
     UI.gameOver(reason, final, G.best, isBest);
   }
 
+  // ---------------------------------------------------------------- Piétons et déplacement à pied
+  const PED_N = 60;
+  let actPressed = false;
+  function spawnPed(anywhere) {
+    const f = G.foot || G.player, ids = nodesNear(f.x, f.y, 1500).filter(i => nodes[i].nb.length);
+    for (let tries = 0; tries < 8 && ids.length; tries++) {
+      const n = ids[(rand() * ids.length) | 0], N = nodes[n], m = N.nb[(rand() * N.nb.length) | 0], M = nodes[m];
+      const t = rand(), side = rand() < .5 ? 1 : -1, w = Math.max(N.w, M.w), off = w / 2 + 12 + rand() * 18;
+      const dx = M.x - N.x, dy = M.y - N.y, L = Math.hypot(dx, dy) || 1;
+      const x = N.x + dx * t - dy / L * off * side, y = N.y + dy * t + dx / L * off * side;
+      const d = Math.hypot(x - f.x, y - f.y);
+      if (!anywhere && d < 900) continue;
+      if (walkBlocked(x, y) || groundAt(x, y) === 1) continue;
+      G.peds.push({ x, y, a: Math.atan2(dy, dx), from: n, to: m, side, off, v: 11 + rand() * 7, t: rand() * 9, state: "walk", st: 0, look: (rand() * 7) | 0 });
+      return;
+    }
+  }
+  function pedTarget(q) {
+    const A = nodes[q.from], B = nodes[q.to], dx = B.x - A.x, dy = B.y - A.y, L = Math.hypot(dx, dy) || 1;
+    return { x: B.x - dy / L * q.off * q.side, y: B.y + dx / L * q.off * q.side };
+  }
+  function pedStep(q, dt, cars) {
+    q.t += dt;
+    if (q.state === "idle") { q.st = 0; return; }
+    // danger : une voiture fonce vers le piéton
+    if (q.state === "walk" || q.state === "cower") {
+      for (const c of cars) {
+        const sp = Math.hypot(c.vx, c.vy); if (sp < 90) continue;
+        const rx = q.x - c.x, ry = q.y - c.y, d = Math.hypot(rx, ry); if (d > 40 + sp * .55) continue;
+        const ahead = (rx * c.vx + ry * c.vy) / sp, lat = (-rx * c.vy + ry * c.vx) / sp;
+        if (ahead > -10 && Math.abs(lat) < 34) {
+          const s = lat >= 0 ? 1 : -1; q.state = "dodge"; q.st = .55;
+          q.dvx = -c.vy / sp * s * 85; q.dvy = c.vx / sp * s * 85; q.a = Math.atan2(q.dvy, q.dvx);
+          if (c === G.player && !G.foot) { G.scare = (G.scare || 0) + 1; }
+          break;
+        }
+      }
+    }
+    if (q.state === "dodge") {
+      q.st -= dt; const nx = q.x + q.dvx * dt, ny = q.y + q.dvy * dt;
+      if (!walkBlocked(nx, ny)) { q.x = nx; q.y = ny; }
+      if (q.st <= 0) { q.state = "cower"; q.st = 1.2; }
+      return;
+    }
+    if (q.state === "cower") { q.st -= dt; if (q.st <= 0) q.state = "walk"; return; }
+    // marche sur le trottoir, de carrefour en carrefour
+    let t = pedTarget(q);
+    if (Math.hypot(t.x - q.x, t.y - q.y) < 14) { const nx = nodes[q.to].nb.filter(m => m !== q.from); const m = nx.length ? nx[(rand() * nx.length) | 0] : q.from; q.from = q.to; q.to = m; t = pedTarget(q); }
+    const da = angDiff(q.a, Math.atan2(t.y - q.y, t.x - q.x)); q.a += Math.max(-4 * dt, Math.min(4 * dt, da));
+    const nx = q.x + Math.cos(q.a) * q.v * dt, ny = q.y + Math.sin(q.a) * q.v * dt;
+    if (!walkBlocked(nx, ny)) { q.x = nx; q.y = ny; } else { q.a += 1.2; }
+  }
+  function footStep(dt, up, down, steer, run) {
+    const f = G.foot;
+    f.a += steer * 2.8 * dt;
+    const want = up ? (run ? 72 : 42) : down ? -18 : 0;
+    f.v += (want - f.v) * Math.min(1, dt * 8);
+    const nx = f.x + Math.cos(f.a) * f.v * dt, ny = f.y + Math.sin(f.a) * f.v * dt;
+    if (!walkBlocked(nx, f.y)) f.x = nx;
+    if (!walkBlocked(f.x, ny)) f.y = ny;
+    f.t += dt * Math.abs(f.v) / 30;
+    // les voitures poussent le piéton (pas de blessure)
+    for (const c of [G.player, ...G.traffic, ...G.cops]) { const dx = f.x - c.x, dy = f.y - c.y, d = Math.hypot(dx, dy); if (d < 20 && d > .1) { f.x = c.x + dx / d * 20; f.y = c.y + dy / d * 20; } }
+  }
+  function nearSlot(x, y) {
+    for (const o of SHOPS) for (const sl of o.slots || []) if (Math.hypot(x - sl.x, y - sl.y) < 48) return { o, sl, car: CARS[o.slots.indexOf(sl) % CARS.length] };
+    return null;
+  }
+  function updatePrompt() {
+    const p = G.player, sp = Math.hypot(p.vx, p.vy);
+    let txt = "", act = null;
+    if (!G.foot) {
+      const shop = SHOPS.find(o => Math.hypot(o.x - p.x, o.y - p.y) < 520);
+      if (sp < 60 && !G.chase) { txt = shop ? "Descendre et entrer dans la concession" : "Descendre de la voiture"; act = "exit"; }
+      else if (shop && !G.chase) txt = "Concession Zboss Motors : arrête-toi pour entrer";
+    } else {
+      const ns = nearSlot(G.foot.x, G.foot.y);
+      if (ns) { txt = ns.car.id === p.carDef.id ? ns.car.name + " : c'est déjà ta voiture" : "Prendre la " + ns.car.name + " (" + ns.car.cls + ")"; act = ns.car.id === p.carDef.id ? null : "pick"; }
+      else if (Math.hypot(G.foot.x - p.x, G.foot.y - p.y) < 50) { txt = "Monter dans la voiture"; act = "enter"; }
+      else txt = "À pied. Reviens à ta voiture pour repartir.";
+    }
+    G.prompt = txt; G.act = act;
+  }
+  function doAction() {
+    const p = G.player;
+    if (G.act === "exit") {
+      const rx = Math.sin(p.a), ry = -Math.cos(p.a);
+      let x = p.x + rx * 26, y = p.y + ry * 26; if (walkBlocked(x, y)) { x = p.x - rx * 26; y = p.y - ry * 26; }
+      G.foot = { x, y, a: p.a, v: 0, t: 0 }; p.vx = p.vy = 0;
+      msg("À pied : flèches pour marcher, Maj pour courir, E pour monter", 3);
+    } else if (G.act === "enter") {
+      G.foot = null; msg("C'est reparti", 1.2, "ok");
+    } else if (G.act === "pick") {
+      const ns = nearSlot(G.foot.x, G.foot.y); if (!ns) return;
+      const car = ns.car, st = statsFor(car);
+      Object.assign(p, st); p.carDef = car; p.sprite = carSprite(car.color, car.dark, "player"); p.health = 100;
+      p.x = ns.o.exit.x; p.y = ns.o.exit.y; p.a = ns.o.exit.a; p.vx = p.vy = 0;
+      chosen = car; lsSet("zboss_car", car.id);
+      G.foot = null; msg(car.name + " : elle est à toi. Bonne route !", 3, "ok");
+    }
+  }
   function update(dt) {
     const p = G.player; G.t += dt;
     // entrées joueur
-    p.inp.gas = keys.ArrowUp || keys.KeyW || touch.gas ? 1 : 0;
-    p.inp.brake = keys.ArrowDown || keys.KeyS || touch.brake ? 1 : 0;
-    p.inp.steer = ((keys.ArrowRight || keys.KeyD || touch.right) ? 1 : 0) - ((keys.ArrowLeft || keys.KeyA || touch.left) ? 1 : 0);
-    p.inp.hand = keys.Space || touch.hand ? 1 : 0;
-    const wantN = keys.ShiftLeft || keys.ShiftRight || keys.KeyN || touch.nitro;
-    if (wantN && G.nitro > 0 && p.inp.gas) { if (!p.inp.nitro) Audio.boost(); p.inp.nitro = 1; G.nitro = Math.max(0, G.nitro - 28 * dt); } else p.inp.nitro = 0;
+    const kUp = keys.ArrowUp || keys.KeyW || touch.gas, kDown = keys.ArrowDown || keys.KeyS || touch.brake;
+    const kSteer = ((keys.ArrowRight || keys.KeyD || touch.right) ? 1 : 0) - ((keys.ArrowLeft || keys.KeyA || touch.left) ? 1 : 0);
+    if (G.foot) { p.inp.gas = 0; p.inp.brake = 1; p.inp.steer = 0; p.inp.hand = 1; p.inp.nitro = 0; footStep(dt, kUp, kDown, kSteer, keys.ShiftLeft || keys.ShiftRight || touch.nitro); }
+    else {
+      p.inp.gas = kUp ? 1 : 0;
+      p.inp.brake = kDown ? 1 : 0;
+      p.inp.steer = kSteer;
+      p.inp.hand = keys.Space || touch.hand ? 1 : 0;
+      const wantN = keys.ShiftLeft || keys.ShiftRight || keys.KeyN || touch.nitro;
+      if (wantN && G.nitro > 0 && p.inp.gas) { if (!p.inp.nitro) Audio.boost(); p.inp.nitro = 1; G.nitro = Math.max(0, G.nitro - 28 * dt); } else p.inp.nitro = 0;
+    }
+    if (actPressed) { actPressed = false; doAction(); }
 
     G.seen = false;
     G.cops.forEach(c => copAI(c, dt));
@@ -488,6 +665,12 @@
     // traffic renouvelé
     G.traffic = G.traffic.filter(c => !c.dead && Math.hypot(c.x - p.x, c.y - p.y) < 2600);
     while (G.traffic.length < 44) spawnTraffic(false);
+    // piétons
+    const fc = G.foot || p;
+    G.peds = G.peds.filter(q => q.staff || Math.hypot(q.x - fc.x, q.y - fc.y) < 1900);
+    for (let k = G.peds.filter(q => !q.staff).length; k < PED_N; k++) spawnPed(false);
+    G.peds.forEach(q => pedStep(q, dt, near));
+    updatePrompt();
 
     // frôlements
     const sp = Math.hypot(p.vx, p.vy);
@@ -665,6 +848,8 @@
     mctx.imageSmoothingEnabled = false; mctx.drawImage(MAP2D, ox, oy, W * s, H * s); mctx.imageSmoothingEnabled = true;
     const X = x => ox + x * s, Y = y => oy + y * s;
     G.blocks.forEach(b => { mctx.fillStyle = "#c9ccd6"; mctx.fillRect(X(b.x) - 2, Y(b.y) - 2, 4, 4); });
+    SHOPS.forEach(o => { const x = Math.max(6, Math.min(MM - 6, X(o.x))), y = Math.max(6, Math.min(MM - 6, Y(o.y))); mctx.fillStyle = "#ff5a1f"; mctx.fillRect(x - 5, y - 5, 10, 10); mctx.fillStyle = "#fff"; mctx.font = "bold 8px sans-serif"; mctx.textAlign = "center"; mctx.fillText("Z", x, y + 3); });
+    if (G.foot) { mctx.fillStyle = "#7ff0a8"; mctx.beginPath(); mctx.arc(X(G.foot.x), Y(G.foot.y), 3, 0, 6.283); mctx.fill(); }
     G.cops.forEach(c => { if (!c.alive || c.mode === "leave") return; mctx.fillStyle = c.mode === "patrol" ? "#8a93a8" : (Math.floor(G.t * 4) % 2 ? "#ff2d4a" : "#2d7bff"); const x = Math.max(4, Math.min(MM - 4, X(c.x))), y = Math.max(4, Math.min(MM - 4, Y(c.y))); mctx.beginPath(); mctx.arc(x, y, 3.2, 0, 6.283); mctx.fill(); });
     if (G.heli) { mctx.strokeStyle = "rgba(220,235,255,.8)"; mctx.beginPath(); mctx.arc(X(G.heli.x), Y(G.heli.y), 170 * s + 2, 0, 6.283); mctx.stroke(); }
     mctx.save(); mctx.translate(MM / 2, MM / 2); mctx.rotate(p.a); mctx.fillStyle = "#ffb21f"; mctx.beginPath(); mctx.moveTo(7, 0); mctx.lineTo(-5, -5); mctx.lineTo(-5, 5); mctx.closePath(); mctx.fill(); mctx.restore();
@@ -693,6 +878,8 @@
         else { ev.className = "evade hiding"; ev.querySelector("span").textContent = "Hors de vue : évasion en cours"; ev.querySelector("i").style.width = Math.min(100, G.evade / G.evadeNeed * 100) + "%"; }
       } else ev.hidden = true;
       $("h-msgs").innerHTML = G.msgs.map(m => `<div class="m ${m.kind}">${m.text}</div>`).join("");
+      const pr = $("h-prompt"); pr.hidden = !G.prompt; if (G.prompt) { pr.querySelector("span").textContent = G.prompt; $("actbtn").hidden = !G.act; $("actbtn").innerHTML = "<kbd>E</kbd>" + ({ exit: "Descendre", enter: "Monter", pick: "Prendre" }[G.act] || "OK"); }
+      if (G.foot) $("h-speed").textContent = Math.round(Math.abs(G.foot.v) * .36);
       renderMinimap();
     },
     gameOver(reason, final, best, isBest) {
@@ -734,6 +921,7 @@
     if ((e.code === "KeyP" || e.code === "Escape") && G && !G.over) setPause(!G.paused);
     if (e.code === "KeyM") $("mute").click();
     if (e.code === "KeyC") $("cambtn").click();
+    if ((e.code === "KeyE" || e.code === "KeyF") && G && !G.over && !G.paused) actPressed = true;
     if (e.code === "Enter" && !$("over").hidden) $("again").click();
   });
   window.addEventListener("keyup", e => { keys[e.code] = false; });
@@ -764,6 +952,7 @@
   $("again").addEventListener("click", () => start(chosen));
   $("garage").addEventListener("click", () => show("menu"));
   $("pausebtn").addEventListener("click", () => setPause(true));
+  $("actbtn").addEventListener("click", () => { if (G && !G.over) actPressed = true; });
   const camLabel = () => { $("cambtn").textContent = "Caméra : " + (window.ZBOSS_3D && window.ZBOSS_3D.ok ? window.ZBOSS_3D.camLabel() : (camMode === "chase" ? "poursuite" : "dessus")); };
   $("cambtn").addEventListener("click", () => {
     if (window.ZBOSS_3D && window.ZBOSS_3D.ok) window.ZBOSS_3D.cycleCam();
@@ -777,6 +966,6 @@
   resize(); show("menu");
 
   // Accès pour les tests automatisés
-  window.ZBOSS_WORLD = { W, H, C, MW, MH, mask, MAP, ROADS, FILL, nodes, nodesNear, nearestNode, solidAt, groundAt, angDiff, rand };
-  window.__zboss = { get state() { return G; }, start: () => start(chosen), spawnCop, keys, touch };
+  window.ZBOSS_WORLD = { W, H, C, MW, MH, mask, MAP, ROADS, FILL, walkBlocked, SHOPS, SHOP_W, SHOP_D, SHOP_DOOR, nodes, nodesNear, nearestNode, solidAt, groundAt, angDiff, rand };
+  window.__zboss = { get state() { return G; }, start: () => start(chosen), spawnCop, keys, touch, act: () => { actPressed = true; } };
 })();

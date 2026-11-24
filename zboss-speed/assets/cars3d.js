@@ -221,6 +221,50 @@
     matCache[k] = m; return m;
   }
 
+  // ---------------------------------------------------------------- Modèles Blender (.glb)
+  // Générés par tools/blender_cars.py : mêmes modèles pour le jeu et pour les rendus « photo » du garage.
+  const GLB = {}; let version = 0, pending = 0;
+  const readyCbs = [];
+  function loadModels(ids, base) {
+    if (!T.GLTFLoader) return;
+    const ld = new T.GLTFLoader();
+    if (window.MeshoptDecoder) ld.setMeshoptDecoder(window.MeshoptDecoder);
+    ids.forEach(id => {
+      pending++;
+      ld.load((base || "assets/models/") + id + (window.ZBOSS_MODEL_EXT || ".glb"), gl => { prepGlb(gl.scene); GLB[id] = gl.scene; version++; done(); },
+        undefined, e => { console.warn("modèle 3D indisponible", id, e && e.message); done(); });
+    });
+    function done() { if (--pending === 0) readyCbs.splice(0).forEach(cb => cb()); }
+  }
+  function prepGlb(sc) {
+    sc.traverse(o => {
+      if (!o.isMesh) return;
+      const m = o.material, n = m.name || "";
+      if (envMap) { m.envMap = envMap; m.envMapIntensity = n === "glass" ? 1.6 : n === "chrome" || n === "rim" ? 1.3 : 1; }
+      if (n === "lightF" || n === "lightR") { m.toneMapped = false; m.emissiveIntensity = 1; }
+      if (n === "glass") { m.metalness = .9; m.roughness = .04; }
+      m.needsUpdate = true;
+      o.userData.mat = n;
+    });
+  }
+  const paintCache = {};
+  function paintFor(src, color) {
+    const k = src.uuid + color; if (paintCache[k]) return paintCache[k];
+    const m = src.clone(); m.color = new T.Color(color).convertSRGBToLinear(); return (paintCache[k] = m);
+  }
+  function fromGlb(key, color, shadow) {
+    const g = GLB[key].clone(true);
+    g.traverse(o => {
+      if (!o.isMesh) return;
+      if (o.userData.mat === "paint") o.material = paintFor(o.material, color);
+      o.castShadow = shadow !== false && (o.userData.mat === "paint" || o.userData.mat === "glass" || /^wheel/.test(o.name) || /^wheel/.test(o.parent && o.parent.name));
+    });
+    g.userData.wheels = ["wheel_FL", "wheel_FR", "wheel_RL", "wheel_RR"].map(n => g.getObjectByName(n)).filter(Boolean);
+    g.userData.wheels.forEach((w, i) => { w.rotation.order = "YXZ"; w.userData.front = i < 2; });
+    g.userData.glb = true;
+    return g;
+  }
+
   // ---------------------------------------------------------------- API
   // build("kasai", { color }) | build("police") | build("taxi") | build("sedan"|"suv"|"hatch", { color })
   function build(type, opts) {
@@ -228,11 +272,16 @@
     const police = type === "police", taxi = type === "taxi";
     const pkey = PROFILES[type] ? type : (police || taxi ? "sedan" : "sedan");
     const P = PROFILES[pkey];
-    const parts = buildParts(pkey, P);
     const color = opts.color || (police ? "#f4f6fa" : taxi ? "#f2c230" : "#888");
     const m = mats(color, P, police);
-    const g = new T.Group();
-    for (const k in parts) { const mesh = new T.Mesh(parts[k], m[k]); mesh.castShadow = opts.shadow !== false && (k === "body" || k === "glass" || k === "tire"); g.add(mesh); }
+    let g;
+    if (GLB[pkey] && opts.lod !== "low") g = fromGlb(pkey, color, opts.shadow);
+    else {
+      const parts = buildParts(pkey, P);
+      g = new T.Group();
+      for (const k in parts) { const mesh = new T.Mesh(parts[k], m[k]); mesh.castShadow = opts.shadow !== false && (k === "body" || k === "glass" || k === "tire"); g.add(mesh); }
+    }
+    g.userData.ver = version;
     if (police || taxi) {
       // livrée : bande latérale bleue
       const band = new T.Mesh(livery(P), m.accent.clone()); band.material.color.set("#1d4fa0"); g.add(band);
@@ -273,6 +322,10 @@
   window.ZBOSS_CARS3D = {
     PROFILES,
     init(renderer) { makeEnv(renderer); },
+    load(ids, base) { loadModels(ids || Object.keys(PROFILES), base); },
+    onReady(cb) { if (!pending) cb(); else readyCbs.push(cb); },
+    get version() { return version; },
+    has: id => !!GLB[id],
     build,
     bus() { if (!busProto) busProto = bus(); return busProto.clone(); },
     // dimension approximative pour les caméras (longueur)

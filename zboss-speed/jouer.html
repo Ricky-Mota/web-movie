@@ -45,6 +45,11 @@
     .evade.busted .bar i { background: #ff2d4a; }
     .msgs { position: absolute; top: 34%; left: 50%; transform: translateX(-50%); display: grid; gap: 6px; justify-items: center; width: 92vw; }
     .msgs .m { padding: 6px 14px; border-radius: 8px; background: rgba(5,7,12,.7); font-size: 16px; text-align: center; animation: pop .25s; }
+    .prompt { position: absolute; left: 50%; bottom: max(26px, env(safe-area-inset-bottom)); transform: translateX(-50%); display: flex; gap: 10px; align-items: center; padding: 8px 8px 8px 16px; border-radius: 14px; background: rgba(5,7,12,.78); border: 1px solid rgba(255,255,255,.16); font: 600 15px var(--font-body); pointer-events: auto; max-width: 92vw; }
+    .prompt button { background: #ff5a1f; color: #fff; border: 0; border-radius: 10px; padding: 8px 14px; font: 700 14px var(--font-body); cursor: pointer; }
+    .prompt button[hidden] { display: none; }
+    .prompt kbd { font: inherit; background: rgba(0,0,0,.25); border-radius: 5px; padding: 0 5px; margin-right: 4px; }
+    body.playing.is-touch .prompt { bottom: 150px; }
     .msgs .m.alert { color: #ff8a96; } .msgs .m.ok { color: #7ff0a8; }
     @keyframes pop { from { transform: scale(.8); opacity: 0; } }
     .top-btns { position: absolute; top: calc(max(14px, env(safe-area-inset-top)) + 96px); left: 14px; display: flex; gap: 8px; pointer-events: auto; }
@@ -109,6 +114,7 @@
     <div class="panel p-score"><div class="lbl">Score</div><b id="h-score">0</b><div class="lbl">Prime en jeu</div><b class="bounty" id="h-bounty">0</b></div>
     <canvas id="minimap" width="180" height="180"></canvas>
     <div class="msgs" id="h-msgs"></div>
+    <div class="prompt" id="h-prompt" hidden><span></span><button type="button" id="actbtn"><kbd>E</kbd> OK</button></div>
     <div class="panel p-car"><div class="lbl">Carrosserie</div><div class="bar"><i id="h-health"></i></div><div class="lbl">Nitro</div><div class="bar n"><i id="h-nitro"></i></div></div>
     <div class="panel p-speed"><b id="h-speed">0</b><span class="lbl">km/h</span></div>
     <div class="rotate">Tourne ton téléphone pour mieux voir</div>
@@ -128,7 +134,7 @@
       <div class="pick" id="pick"></div>
       <div class="keys">
         <span><kbd>↑</kbd><kbd>W</kbd> accélérer</span><span><kbd>↓</kbd><kbd>S</kbd> freiner</span><span><kbd>←</kbd><kbd>→</kbd> diriger</span>
-        <span><kbd>Espace</kbd> frein à main</span><span><kbd>Maj</kbd> nitro</span><span><kbd>P</kbd> pause</span><span><kbd>M</kbd> son</span><span><kbd>C</kbd> caméra (poursuite / hélico / télé)</span>
+        <span><kbd>Espace</kbd> frein à main</span><span><kbd>Maj</kbd> nitro</span><span><kbd>P</kbd> pause</span><span><kbd>M</kbd> son</span><span><kbd>C</kbd> caméra (poursuite / hélico / télé)</span><span><kbd>E</kbd> descendre, monter, choisir une voiture en concession</span>
       </div>
       <div class="row"><button class="btn btn-primary" id="go" type="button">Démarrer la course</button></div>
       <p style="margin-top:16px;font-size:13px">Record sur cet appareil : <b id="best" style="color:var(--text)">0</b></p>
@@ -155,6 +161,8 @@
   <script src="assets/cars.js"></script>
   <script>if (matchMedia("(pointer: coarse)").matches) document.body.classList.add("is-touch");</script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/libs/meshopt_decoder.js"></script>
   <script src="assets/kinshasa.js"></script>
   <script src="assets/game.js"></script>
   <script src="assets/cars3d.js"></script>
