@@ -245,3 +245,6 @@ CREATE INDEX IF NOT EXISTS idx_mariage_vers ON demandes_mariage (vers_id, statut
 
 -- logement : location (loyer chaque semaine) ou parcelle achetée
 CREATE TABLE IF NOT EXISTS logements (personnage_id TEXT PRIMARY KEY, statut TEXT NOT NULL, quartier TEXT NOT NULL, loyer INTEGER NOT NULL DEFAULT 0, paye_jusqu INTEGER, depuis INTEGER NOT NULL);
+
+-- réglages en direct de l'administrateur (multiplicateurs : prix, salaires, faim, vol, police, destin)
+CREATE TABLE IF NOT EXISTS reglages (cle TEXT PRIMARY KEY, valeur REAL NOT NULL, maj_le INTEGER NOT NULL);

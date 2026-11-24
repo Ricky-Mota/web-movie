@@ -1511,6 +1511,9 @@
   // Horloge de Kinshasa (UTC+1). Le matin (5 h - 10 h), le joueur dirige son personnage et prépare son
   // programme ; de 10 h à 22 h, le personnage agit seul (programme, puis ses propres choix) ; la nuit il dort.
   const LIVE_CLOCK = WALK && !!window.TWO_LIFE_API;
+  // réglages de l'admin : en ligne lus sur le serveur, en démo gardés dans ce navigateur
+  let RG = {}; try { RG = JSON.parse(localStorage.getItem("twolife_reglages") || "{}"); } catch (e) { }
+  if (window.TWO_LIFE_API) fetch(window.TWO_LIFE_API.replace(/\/$/, "") + "/api/reglages").then(r => r.json()).then(j => { if (j && j.reglages) RG = j.reglages; }).catch(() => { });
   const kinNow = () => { const d = new Date(Date.now() + 3600e3); return { h: d.getUTCHours() + d.getUTCMinutes() / 60 + d.getUTCSeconds() / 3600, day: Math.floor((Date.now() + 3600e3) / 864e5) }; };
   const hh = h => String(Math.floor(h)).padStart(2, "0") + ":" + String(Math.floor((h % 1) * 60)).padStart(2, "0");
   const ACTS = [
@@ -1535,7 +1538,7 @@
   // journal du jour : tout ce que fait le personnage, à relire
   function note(t, kind) { const me = G.me; me.journal.unshift({ h: hh(G.hour), d: G.day, t }); me.journal = me.journal.slice(0, 60); msg(t, 5, kind || ""); saveMe(); }
   function saveMe() { lsSet("twolife_moi_ville", JSON.stringify(G.me)); }
-  function pay(n, what) { const me = G.me; if (me.argent < n) return false; me.argent -= n; if (what) note("💸 −" + n + " e-makuta : " + what); return true; }
+  function pay(n, what) { const me = G.me; n = Math.max(1, Math.round(n * (RG.prix || 1))); if (me.argent < n) return false; me.argent -= n; if (what) note("💸 −" + n + " e-makuta : " + what); return true; }
   function earn(n, what) { G.me.argent += n; note("💰 +" + n + " e-makuta : " + what, "ok"); }
   // réputation : le quartier se souvient de ce qu'il fait (−100 à +100)
   function repute(d, why) {
@@ -1577,7 +1580,7 @@
   // besoins : la faim monte avec les heures, la fatigue avec la marche
   function needsStep(dh) {
     const me = G.me; if (!me) return;
-    me.faim = Math.min(100, me.faim + dh * (G.phase === "nuit" ? 1.5 : 5.5));
+    me.faim = Math.min(100, me.faim + dh * (G.phase === "nuit" ? 1.5 : 5.5) * (RG.faim || 1));
     if (me.faim >= 100) G.energy = Math.max(0, G.energy - dh * 8);
     if (me.faim >= 70 && !(G.hungryMsgT > G.t)) { G.hungryMsgT = G.t + 40; msg("🍽️ Ton personnage a faim (" + Math.round(me.faim) + " %).", 3); }
     G.saveT = (G.saveT || 0) + dh; if (G.saveT > .5) { G.saveT = 0; saveMe(); }

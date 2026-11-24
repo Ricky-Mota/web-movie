@@ -1,6 +1,6 @@
 // 2 Life : espace administrateur (conditions de démarrage, parents fondateurs, investisseurs).
 import { launchDemo } from "./lancement-demo.js";
-import { OFFERS, COMPANY_TYPES } from "../server/src/life.js";
+import { OFFERS, COMPANY_TYPES, SETTINGS } from "../server/src/life.js";
 
 const API = (window.TWO_LIFE_API || "").replace(/\/$/, "");
 const $ = id => document.getElementById(id);
@@ -42,6 +42,7 @@ function render(e) {
       <p style="font-size:13px">Les joueurs de 18 ans et plus votent pendant 7 jours. À la date de l'élection, les voix sont comptées et les élus prennent leur poste (payés par le Trésor).</p>`;
   $("f-elec").hidden = $("b-vote-now").hidden = !L.demarre;
   $("demo-tools").hidden = !e.demo;
+  renderSettings(e.reglages || demoSettings());
   renderObserve(e.observer || demoObserve());
   const B = e.naissances || { n: 0, usd: 0, fraisAdmin: 0, parents: 0 };
   $("n-births").textContent = B.n;
@@ -52,6 +53,23 @@ function render(e) {
   $("parents").innerHTML = e.parents.length ? e.parents.map(p => `<div class="item"><span class="sw">${p.sexe === "F" ? "👩🏾" : "👨🏾"}</span><div class="t">${esc(p.prenom)} ${esc(p.nom)} · ${esc(p.quartier)}<small>${esc(p.pseudo)} · ${esc(p.email)} · ajouté le ${day(p.cree_le)}</small></div></div>`).join("") : `<p>Aucun parent fondateur pour l'instant.</p>`;
   $("investors").innerHTML = e.investisseurs.length ? e.investisseurs.map(i => `<div class="item"><span class="sw">💼</span><div class="t">${esc(i.pseudo)} · ${(OFFERS.find(o => o.id === i.offre) || {}).nom || esc(i.offre)}<small>${Number(i.usd).toLocaleString("fr-FR")} $ (simulé) · ${esc(i.email)} · ${day(i.le)}</small></div></div>`).join("") : `<p>Aucun investisseur pour l'instant. Ils s'inscrivent eux-mêmes depuis la page Ma vie.</p>`;
 }
+// réglages en direct (en démo : gardés dans ce navigateur, lus par la page Ma vie et la ville)
+const LS_SET = "twolife_reglages";
+function demoSettings() { let v = {}; try { v = JSON.parse(localStorage.getItem(LS_SET) || "{}"); } catch (e) { } return { defs: SETTINGS, valeurs: Object.fromEntries(SETTINGS.map(s => [s.id, v[s.id] ?? 1])), demo: true }; }
+const fx = n => Number(n).toLocaleString("fr-FR", { maximumFractionDigits: 2 });
+function renderSettings(R) {
+  $("settings").innerHTML = R.defs.map(s => `<div class="cond" style="display:block"><label for="set-${s.id}" class="need" style="display:flex;justify-content:space-between"><span>${esc(s.label)}</span><b id="setv-${s.id}">× ${fx(R.valeurs[s.id])}</b></label>
+    <input type="range" id="set-${s.id}" data-set="${s.id}" min="${s.min}" max="${s.max}" step="0.05" value="${R.valeurs[s.id]}" style="width:100%;accent-color:var(--accent)">
+    <small style="opacity:.75">${esc(s.aide)} De ${fx(s.min)} à ${fx(s.max)}.</small></div>`).join("") + (R.demo ? `<p class="sim">Démo : les réglages sont gardés dans ce navigateur et s'appliquent à la page Ma vie et à la ville.</p>` : "");
+}
+$("settings").addEventListener("input", e => { const i = e.target.closest("[data-set]"); if (i) $("setv-" + i.dataset.set).textContent = "× " + fx(i.value); });
+const readSettings = () => Object.fromEntries([...document.querySelectorAll("[data-set]")].map(i => [i.dataset.set, Number(i.value)]));
+async function saveSettings(v) {
+  if (API) { try { const r = await call("/api/admin/reglages", { valeurs: v }); renderSettings(r.reglages); toast("Réglages enregistrés : les joueurs les voient en moins d'une minute."); } catch (err) { toast(err.message); } }
+  else { try { localStorage.setItem(LS_SET, JSON.stringify(v)); } catch (e) { } renderSettings(demoSettings()); toast("Réglages enregistrés (démo, dans ce navigateur)."); }
+}
+$("b-set").onclick = () => saveSettings(readSettings());
+$("b-set-reset").onclick = () => saveSettings(Object.fromEntries(SETTINGS.map(s => [s.id, 1])));
 // observer le jeu (en démo : la vie gardée dans ce navigateur)
 function demoObserve() {
   let d = null; try { d = JSON.parse(localStorage.getItem("twolife_demo") || "null"); } catch (e) { }

@@ -2,13 +2,21 @@
 // Le serveur est l'arbitre : il décide de l'âge, des talents et de l'argent ; le téléphone ne fait qu'afficher.
 import {
   ageYears, stageOf, STAGES, realMsUntil, TALENTS, ACTIVITIES, rng, drawTalents, doActivity,
-  needsAt, newIdentity, BIRTH_GIFT, BIRTH_USD, ADMIN_FEE_USD, NEGLECT_STEAL_AGE, neglectStealChance, NEGLECT_DANGER_DAYS, NEGLECT_DANGER_HEALTH, splitEstate, deathCause, familyShareRate, REP, REP_BAD, REP_GOOD, repLabel, repDiscount, DOT_MAKUTA, cannotMarry, STREET_JOBS, cannotStreetJob, RENT, rentOf, houseOf, rentDue, HOUSING_MIN_AGE, SALE_TAX, LIFE_EVENTS, EVENT_EVERY_H, drawEvent, eventMoney, lifeAlbum, SHOP, cannotBuy, OFFERS, USD_TO_MAKUTA, USD_UNITS, fmtMakuta, WITHDRAW_FEE, walletInfo, birthShiftMs, REAL_MONEY, shopView, familyOf, JOBS, payFor, cannotWork, workView, cannotApply, FORMATIONS, cannotEnroll, attendCourse, schoolView, SUPPORT_PER_DAY, HOST_MIN_AGE, MAX_CHILDREN, supportDue, unpaidEffect, familyShare, DAY, LAUNCH_RULES, launchStatus, canSignupBeforeLaunch, COMPANY_TYPES, cannotOpenCompany, companyName, companyView, companyAccrue, companyJob, EMPLOYEE_YIELD, RESELL_RATE, TAXI_FARE, TAXI_ENERGY, KINSHASA_QUARTIERS, OTHER_CITIES, STATE_ID, TAX, POSTS, PUBLIC_JOBS, BANKS, bankAccrue, INSURERS, CARE, careCost, OPERATORS, RECHARGES, CALL, stateView, ELECTION_EVERY, VOTER_MIN_AGE, electionCalendar, tally, CRIMES, catchChance, sentence, inPrison, PRISON_BLOCKED, PRISON_HOURS, BAIL, RECIDIVE, policeView,
+  needsAt, newIdentity, BIRTH_GIFT, BIRTH_USD, ADMIN_FEE_USD, NEGLECT_STEAL_AGE, neglectStealChance, NEGLECT_DANGER_DAYS, NEGLECT_DANGER_HEALTH, splitEstate, deathCause, familyShareRate, REP, REP_BAD, REP_GOOD, repLabel, repDiscount, DOT_MAKUTA, cannotMarry, STREET_JOBS, cannotStreetJob, RENT, rentOf, houseOf, rentDue, HOUSING_MIN_AGE, SALE_TAX, LIFE_EVENTS, EVENT_EVERY_H, SETTINGS, SET, applySettings, food, drawEvent, eventMoney, lifeAlbum, SHOP, cannotBuy, OFFERS, USD_TO_MAKUTA, USD_UNITS, fmtMakuta, WITHDRAW_FEE, walletInfo, birthShiftMs, REAL_MONEY, shopView, familyOf, JOBS, payFor, cannotWork, workView, cannotApply, FORMATIONS, cannotEnroll, attendCourse, schoolView, SUPPORT_PER_DAY, HOST_MIN_AGE, MAX_CHILDREN, supportDue, unpaidEffect, familyShare, DAY, LAUNCH_RULES, launchStatus, canSignupBeforeLaunch, COMPANY_TYPES, cannotOpenCompany, companyName, companyView, companyAccrue, companyJob, EMPLOYEE_YIELD, RESELL_RATE, TAXI_FARE, TAXI_ENERGY, KINSHASA_QUARTIERS, OTHER_CITIES, STATE_ID, TAX, POSTS, PUBLIC_JOBS, BANKS, bankAccrue, INSURERS, CARE, careCost, OPERATORS, RECHARGES, CALL, stateView, ELECTION_EVERY, VOTER_MIN_AGE, electionCalendar, tally, CRIMES, catchChance, sentence, inPrison, PRISON_BLOCKED, PRISON_HOURS, BAIL, RECIDIVE, policeView,
   describeAction, ORDER_DONE, ORDERS, ORDERS_PER_DAY, ORDERS_CHECK_MS, dayKey, ordersToRun, cannotGiveOrder,
 } from "./life.js";
 import { sendPush, newVapidKeys } from "./webpush.js";
 
 const SESSION_DAYS = 30;
-const FOOD = { prix: 25, faim: 45 }; // un repas au maquis
+// un repas au maquis : prix recalculé avec les réglages de l'admin
+const FOOD = { get prix() { return food().prix; }, get faim() { return food().faim; } };
+// réglages en direct : relus dans D1 au plus toutes les 30 s
+let setAt = 0;
+async function loadSettings(db, now, force) {
+  if (!force && now - setAt < 30e3) return;
+  setAt = now;
+  try { const { results } = await db.prepare(`SELECT cle, valeur FROM reglages`).all(); applySettings(Object.fromEntries(results.map(r => [r.cle, r.valeur]))); } catch (e) { console.error(e); }
+}
 
 // ---------------------------------------------------------------- utilitaires
 const enc = new TextEncoder();
@@ -595,6 +603,8 @@ const worker = {
 
     try {
       if (url.pathname === "/api/sante") return json(h, 200, { ok: true, jeu: "2 Life" });
+      await loadSettings(db, now);
+      if (url.pathname === "/api/reglages" && req.method === "GET") return json(h, 200, { reglages: { ...SET } });
 
       if (url.pathname === "/api/push/cle" && req.method === "GET") return json(h, 200, { cle: (await vapidKeys(env, db)).publique });
       // site servi par ce Worker : config.js pointe vers l'API du même domaine (mode réel, pas démo)
@@ -679,7 +689,17 @@ const worker = {
           const pub = await publicState(db);
           const observer = { vivants: pop.vivants || 0, morts: pop.morts || 0, enfants: pop.enfants || 0, negliges: ng.negliges || 0, enDanger: ng.danger || 0,
             tresor: pub.tresor, masse: pub.masse, deces: deces.map(d => ({ ...d, age: Math.floor(ageYears(d.ne_le, d.mort_le)) })), evenements: evts };
-          return json(h, 200, { lancement: await launch(db), observer, naissances: { n: nb.n, usd: nb.usd, fraisAdmin: nb.n * ADMIN_FEE_USD, parents: nb.usd - nb.n * ADMIN_FEE_USD }, parents, investisseurs: inv, entreprises: ent, elections: await elections(db, now), beta, support });
+          return json(h, 200, { reglages: { defs: SETTINGS, valeurs: { ...SET } }, lancement: await launch(db), observer, naissances: { n: nb.n, usd: nb.usd, fraisAdmin: nb.n * ADMIN_FEE_USD, parents: nb.usd - nb.n * ADMIN_FEE_USD }, parents, investisseurs: inv, entreprises: ent, elections: await elections(db, now), beta, support });
+        }
+        if (url.pathname === "/api/admin/reglages" && req.method === "POST") {
+          const v = body.valeurs || {}, st = [];
+          for (const s of SETTINGS) if (v[s.id] != null) {
+            const n = Number(v[s.id]); if (!Number.isFinite(n) || n < s.min || n > s.max) return fail(h, 400, `${s.label} : entre ${s.min} et ${s.max}.`);
+            st.push(db.prepare(`INSERT INTO reglages (cle, valeur, maj_le) VALUES (?, ?, ?) ON CONFLICT(cle) DO UPDATE SET valeur = excluded.valeur, maj_le = excluded.maj_le`).bind(s.id, n, now));
+          }
+          if (st.length) await db.batch(st);
+          await loadSettings(db, now, true);
+          return json(h, 200, { ok: true, reglages: { defs: SETTINGS, valeurs: { ...SET } } });
         }
         if (url.pathname === "/api/admin/support" && req.method === "POST") {
           const st = body.statut === "resolu" ? "resolu" : "ouvert";

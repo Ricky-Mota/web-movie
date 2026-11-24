@@ -100,7 +100,7 @@ export function doActivity(act, talents, age, r) {
 // valeurs 0..100, recalculées à la demande depuis la dernière mise à jour
 export function needsAt(c, now = Date.now()) {
   const h = Math.max(0, (now - c.updatedAt) / 36e5);
-  const hunger = Math.max(0, c.hunger - h * 4);          // la faim baisse de 4 points par heure réelle
+  const hunger = Math.max(0, c.hunger - h * 4 * SET.faim); // la faim baisse de 4 points par heure réelle (réglable par l'admin)
   const energy = Math.min(100, c.energy + h * 12);       // l'énergie remonte au repos
   const happy = Math.max(0, Math.min(100, c.happiness - h * 1.5 + (hunger > 50 ? 0 : -h * 2)));
   const health = Math.max(0, Math.min(100, c.health - (hunger < 15 ? h * 3 : 0)));
@@ -434,7 +434,8 @@ export const LIFE_EVENTS = [
 ];
 export const EVENT_EVERY_H = 20;
 export function drawEvent(r = Math.random) {
-  let x = r();
+  if (!(SET.destin > 0)) return null;
+  let x = r() / SET.destin;
   for (const e of LIFE_EVENTS) { if (x < e.p) return e; x -= e.p; }
   return null;   // journée calme
 }
@@ -475,7 +476,7 @@ export function deathCause(needs, neglectDays = 0) {
 }
 export function neglectStealChance(unpaidDays, hunger) {
   if (unpaidDays < 1) return 0;
-  return Math.min(0.6, 0.12 * unpaidDays + (hunger < 30 ? 0.15 : 0));
+  return Math.min(0.9, (0.12 * unpaidDays + (hunger < 30 ? 0.15 : 0)) * SET.vol);
 }
 
 // ---------------------------------------------------------------- lancement du jeu
@@ -651,7 +652,7 @@ export const PRISON_HOURS = 24;          // une journée réelle en prison
 export const BAIL = 10000;               // caution pour sortir plus tôt (500 e-makuta)
 export const RECIDIVE = { fois: 3, jours: 30 };   // 3 infractions en 30 jours = prison
 export const POLICE_BONUS = 0.05;        // chaque policier joueur augmente le risque d'être attrapé (80 % au plus)
-export function catchChance(crime, policiers) { return Math.min(0.8, crime.risque + POLICE_BONUS * (policiers || 0)); }
+export function catchChance(crime, policiers) { return Math.min(0.95, (crime.risque + POLICE_BONUS * (policiers || 0)) * SET.police); }
 // que se passe-t-il quand on est attrapé ?
 export function sentence(crime, makuta, recentOffences) {
   const prison = recentOffences + 1 >= RECIDIVE.fois || makuta < crime.amende;
@@ -770,3 +771,24 @@ export function describeAction(path, body = {}, r = {}) {
   const f = D[path]; if (!f) return null;
   const [icone, texte] = f(); return { icone, texte };
 }
+
+// ---------------------------------------------------------------- réglages en direct (page admin)
+// Des multiplicateurs : 1 = valeur normale. L'admin les change sans redéployer le jeu.
+export const SETTINGS = [
+  { id: "prix", label: "Prix (boutique, maquis)", aide: "Tous les prix d'achat.", min: 0.5, max: 3 },
+  { id: "salaires", label: "Salaires", aide: "Paie d'une journée de travail.", min: 0.5, max: 3 },
+  { id: "faim", label: "Vitesse de la faim", aide: "Plus haut = le personnage a faim plus vite.", min: 0.25, max: 3 },
+  { id: "vol", label: "Risque de vol", aide: "Chance qu'un enfant négligé vole.", min: 0, max: 3 },
+  { id: "police", label: "Efficacité de la police", aide: "Chance d'être attrapé après un délit.", min: 0.25, max: 3 },
+  { id: "destin", label: "Fréquence des événements", aide: "Paludisme, pluie, cadeaux… 0 = aucun.", min: 0, max: 3 },
+];
+export const SET = Object.fromEntries(SETTINGS.map(s => [s.id, 1]));
+const BASE = { shop: SHOP.map(x => x.prix), jobs: JOBS.map(j => j.salaire) };
+export function applySettings(o = {}) {
+  for (const s of SETTINGS) { const v = Number(o[s.id]); SET[s.id] = Number.isFinite(v) ? Math.min(s.max, Math.max(s.min, v)) : 1; }
+  SHOP.forEach((x, i) => { x.prix = Math.max(1, Math.round(BASE.shop[i] * SET.prix)); });
+  JOBS.forEach((j, i) => { j.salaire = Math.max(1, Math.round(BASE.jobs[i] * SET.salaires)); });
+  return { ...SET };
+}
+export const FOOD_BASE = { prix: 25, faim: 45 };
+export const food = () => ({ prix: Math.max(1, Math.round(FOOD_BASE.prix * SET.prix)), faim: FOOD_BASE.faim });
