@@ -185,6 +185,7 @@
     { id: "dgi", type: "etat", nom: "DGI · Direction générale des impôts", icone: "🧾", w: 300, d: 220, h: 100, statut: "Impôts sur les salaires et les entreprises : ouvre après le lancement." },
     { id: "bcc", type: "etat", nom: "Banque centrale", icone: "🏦", w: 320, d: 230, h: 110, statut: "Émet l'e-makuta et surveille les banques : ouvre après le lancement." },
     { id: "hopital", type: "etat", nom: "Hôpital général", icone: "🏥", w: 360, d: 250, h: 100, statut: "Soins des personnages malades : ouvre après le lancement." },
+    { id: "marche", type: "marche", nom: "Marché de la Gombe", icone: "🧺", w: 360, d: 240, open: true, near: "alim1", statut: "Marché : légumes, poisson, pagnes, téléphones. Ouvert de 6 h à 18 h." },
     { id: "park1", type: "parking", nom: "Parking du centre-ville", icone: "🅿️", w: 310, d: 180, open: true, near: "zboss", statut: "Parking public : les voitures des habitants y sont garées." },
     { id: "park2", type: "parking", nom: "Parking du stade", icone: "🅿️", w: 310, d: 180, open: true, near: "foot", statut: "Parking public : les supporters s'y garent les jours de match." },
     { id: "park3", type: "parking", nom: "Parking des institutions", icone: "🅿️", w: 310, d: 180, open: true, near: "mairie", statut: "Parking public réservé aux visiteurs des institutions." },
@@ -204,7 +205,7 @@
     jeux: "L'aire de jeux, le lieu préféré des bébés et des enfants de 2 Life.",
     club1: "Le Mokili Club, une des boîtes de nuit les plus animées de Kin.",
   };
-  const PLACES = [], BILLBOARDS = [], BENCHES = [], PARKED = [];
+  const PLACES = [], BILLBOARDS = [], BENCHES = [], PARKED = [], LIGHTS = [], LIGHT_AT = new Map();
   (function () {
     const M = (x, y) => (x < 0 || y < 0 || x >= W || y >= H) ? 3 : mask[(y / C | 0) * MW + (x / C | 0)];
     const segs = [];
@@ -307,7 +308,19 @@
         PARKED.push({ x, y, a: Math.atan2(uy * sd, ux * sd), t: (pr() * 99) | 0, taxi: pr() < .2 });
       }
     }
+    // feux tricolores aux grands carrefours autour du départ
+    nodes.map((N, i) => ({ N, i, d: Math.hypot(N.x - st.x, N.y - st.y) })).filter(o => o.N.nb.length >= 3 && o.N.w >= 110 && o.d < 3800).sort((a, b) => a.d - b.d).forEach(({ N, i }) => {
+      if (LIGHTS.length >= 36 || LIGHTS.some(L => Math.hypot(L.x - N.x, L.y - N.y) < 300)) return;
+      const B = nodes[N.nb[0]], L = { n: i, x: N.x, y: N.y, w: N.w, ax: Math.atan2(B.y - N.y, B.x - N.x), ph: pr() * 24 };
+      LIGHT_AT.set(i, L); LIGHTS.push(L);
+    });
   })();
+  // cycle de 24 s : axe A vert 10 s, orange 2 s, puis axe B
+  function lightState(L, t) { const k = ((t + L.ph) % 24 + 24) % 24; return { a: k < 10 ? "g" : k < 12 ? "y" : "r", b: k < 12 ? "r" : k < 22 ? "g" : "y" }; }
+  function redFor(L, a, t) { const s = lightState(L, t); return Math.abs(Math.cos(a - L.ax)) > .7 ? s.a : s.b; }
+  // heures d'ouverture des lieux
+  const HOURS = { alim: [7, 21], magasin: [9, 19], partenaire: [8, 17], etat: [8, 16], bureau: [7, 18], club: [20, 4], marche: [6, 18] };
+  function isOpen(o, h) { const H = HOURS[o.type]; if (!H || h === undefined) return true; return H[0] < H[1] ? h >= H[0] && h < H[1] : h >= H[0] || h < H[1]; }
   // déplacement à pied : murs du showroom (porte côté rue), bâtiments et eau
   function walkBlocked(x, y) {
     const g = (x < 0 || y < 0 || x >= W || y >= H) ? 2 : mask[(y / C | 0) * MW + (x / C | 0)];
@@ -475,7 +488,9 @@
       cam: { x: player.x, y: player.y, z: 1, a: player.a }, over: false, paused: false, lastBlockT: 0, calmT: 0, shake: 0,
       best: +(lsGet("zboss_best") || 0),
       peds: [], foot: null, prompt: "", act: null, energy: 100, auto: null, games: [], parked: [], chatT: 2,
+      hour: 6.25, day: 1, speed: 1, phase: null, plan: null, life: null, lifeMsg: "", me: WALK ? myself() : null,
     };
+    if (WALK && LIVE_CLOCK) { const k = kinNow(); G.hour = k.h; G.day = k.day; }
     G.parked = PARKED.map(o => { const c = makeCar("parked", o.x, o.y, o.a, { maxSpeed: 0, accel: 0, steerMax: 0, dmgMul: 0, mass: 60, grip: 30 }); c.tIdx = o.t % TRAFFIC_SPRITES.length; c.sprite = TRAFFIC_SPRITES[c.tIdx]; c.taxi = o.taxi; c.x0 = o.x; c.y0 = o.y; c.a0 = o.a; c.parked = true; return c; });
     for (let k = 0; k < 44; k++) spawnTraffic(true);
     for (let k = 0; k < (WALK ? 3 : 2); k++) spawnCop(false);
@@ -646,6 +661,14 @@
     c.inp.nitro = c.mode === "chase" && sees && dist > 380 && G.heat >= 4 ? 1 : 0;
     if (c.mode === "chase" && dist < 85 && Math.hypot(p.vx, p.vy) < 200) { c.inp.gas = 0; c.inp.brake = 1; c.inp.hand = 0; c.inp.nitro = 0; } // encercle au lieu de pousser
   }
+  // feu rouge devant, ou voiture arrêtée juste devant : on freine
+  function stopHere(c, to) {
+    const L = LIGHT_AT.get(to);
+    if (L) { const d = Math.hypot(L.x - c.x, L.y - c.y); if (d < L.w / 2 + 95 && d > L.w / 2 + 8) { const st = redFor(L, c.a, G.t); if (st === "r" || (st === "y" && d > L.w / 2 + 40)) return true; } }
+    const fx = Math.cos(c.a), fy = Math.sin(c.a);
+    for (const o of G.traffic) { if (o === c) continue; const dx = o.x - c.x, dy = o.y - c.y, ah = dx * fx + dy * fy; if (ah > 0 && ah < 62 && Math.abs(-dx * fy + dy * fx) < 16 && Math.hypot(o.vx, o.vy) < Math.hypot(c.vx, c.vy) + 20) return true; }
+    return false;
+  }
   function angDiff(a, b) { let d = b - a; while (d > Math.PI) d -= Math.PI * 2; while (d < -Math.PI) d += Math.PI * 2; return d; }
   function steerTo(c, tx, ty) { const d = angDiff(c.a, Math.atan2(ty - c.y, tx - c.x)); c.inp.steer = Math.max(-1, Math.min(1, d * 2.4)); }
   function trafficAI(c) {
@@ -653,6 +676,7 @@
     const t = wander(c); steerTo(c, t.x, t.y);
     const sp = Math.hypot(c.vx, c.vy), ang = Math.abs(angDiff(c.a, Math.atan2(t.y - c.y, t.x - c.x)));
     c.inp.gas = sp < c.maxSpeed * (ang > .5 ? .45 : 1) ? 1 : 0; c.inp.brake = ang > .8 && sp > 200 ? 1 : 0;
+    if (WALK && stopHere(c, c.to)) { c.inp.gas = 0; c.inp.brake = 1; }
     if (c.x < 30 || c.x > W - 30 || c.y < 30 || c.y > H - 30) c.dead = true;
   }
 
@@ -699,6 +723,7 @@
   const GOUTS = ["le football", "la rumba", "la mode (la sape)", "la cuisine (pondu, fumbwa)", "le basket", "la politique", "la religion", "les affaires", "le cinéma", "la lecture", "la danse", "les voitures"];
   const FORCES = ["sait négocier", "très travailleur", "bon en calcul", "beau parleur", "très sportif", "bon cuisinier", "connaît tout le monde", "habile de ses mains", "patient", "bon conducteur"];
   const FAIBLESSES = ["dépense trop", "toujours en retard", "s'énerve vite", "trop timide", "un peu paresseux", "fait trop confiance", "parle trop", "têtu", "mauvais en calcul", "oublie tout"];
+  const VENDS = ["arachides grillées", "pain et beignets", "eau fraîche", "bananes", "cartes de recharge", "mouchoirs et chewing-gums"];
   const SUJETS = ["du match d'hier", "des prix au marché", "de la dernière chanson de rumba", "des embouteillages sur le boulevard", "du travail", "des élections à venir", "d'un mariage ce week-end", "de la famille", "d'un nouveau restaurant à Kintambo", "de la pluie qui arrive"];
   function ident(q) {
     if (q.idn) return q.idn;
@@ -713,7 +738,7 @@
     const st = () => 2 + ((r() * 9) | 0);
     q.idn = {
       nom, woman, age, commune: pick(COMMUNES), home,
-      metier: q.cop ? (woman ? "policière (PNC)" : "policier (PNC)") : q.kit ? "joueur amateur du quartier" : q.staff ? "vendeur" : (look && look.biz) ? pick(METIERS_BIZ) : pick(METIERS),
+      metier: q.cop ? (woman ? "policière (PNC)" : "policier (PNC)") : q.vendor ? "vendeur ambulant de " + q.vendor : q.market ? "commerçant au marché (" + q.market + ")" : q.kit ? "joueur amateur du quartier" : q.staff ? "vendeur" : (look && look.biz) ? pick(METIERS_BIZ) : pick(METIERS),
       car: CARACTERES[(r() * CARACTERES.length) | 0], gouts: [g1, g2], intel: st(), force: st(), charisme: st(),
       forte: pick(FORCES), faible: pick(FAIBLESSES),
     };
@@ -733,6 +758,9 @@
     const spots = [];
     PLACES.forEach(o => { const n = o.id === "police" ? 2 : ["mairie", "assemblee", "bcc", "justice", "zboss"].includes(o.id) ? 1 : 0; for (let k = 0; k < n; k++) { const u = (k ? 1 : -1) * (n > 1 ? 60 : 50), v = -o.d / 2 - 14; spots.push({ x: o.x + o.ux * u + o.nx * v, y: o.y + o.uy * u + o.ny * v, a: Math.atan2(-o.ny, -o.nx) }); } });
     spots.forEach(sp => { if (!walkBlocked(sp.x, sp.y)) G.peds.push({ x: sp.x, y: sp.y, a: sp.a, v: 0, t: rand() * 9, state: "idle", staff: true, cop: true, look: 3, id: ++pedSeq }); });
+    const mk = PLACES.find(o => o.id === "marche");
+    if (mk) { const goods = ["légumes", "poisson salé", "pagnes wax", "fruits", "téléphones", "épices", "chikwangue", "chaussures"]; let k = 0;
+      for (const v of [-50, 50]) for (const u of [-120, -40, 40, 120]) { const x = mk.x + mk.ux * u + mk.nx * (v + (v < 0 ? -22 : 22)), y = mk.y + mk.uy * u + mk.ny * (v + (v < 0 ? -22 : 22)); G.peds.push({ x, y, a: Math.atan2(-mk.ny * Math.sign(v), -mk.nx * Math.sign(v)), v: 0, t: rand() * 9, state: "idle", staff: true, market: goods[k++ % goods.length], look: (rand() * 7) | 0, id: ++pedSeq }); } }
   }
   function spawnPed(anywhere) {
     const f = G.foot || G.player, ids = nodesNear(f.x, f.y, 1500).filter(i => nodes[i].nb.length);
@@ -746,7 +774,8 @@
       if (walkBlocked(x, y) || groundAt(x, y) === 1) continue;
       const q = { x, y, a: Math.atan2(dy, dx), from: n, to: m, side, off, v: 11 + rand() * 7, t: rand() * 9, state: "walk", st: 0, look: (rand() * 7) | 0, id: ++pedSeq };
       if (WALK && rand() < .07) { q.cop = true; q.v = 10; }
-      else if (WALK && rand() < .14) planHome(q);
+      else if (WALK && rand() < .08) { q.vendor = VENDS[(rand() * VENDS.length) | 0]; q.v = 9; }
+      else if (WALK && rand() < (G.hour >= 17 || G.hour < 5 ? .5 : .14)) planHome(q);
       G.peds.push(q);
       return;
     }
@@ -913,12 +942,13 @@
       else if (bench) { txt = "🪑 S'asseoir sur le banc"; act = "sit"; }
       else if (WALK && (G.talkQ = nearPed())) { const I = ident(G.talkQ); txt = (G.talkQ.cop ? "🚓 Parler à l'agent " : "💬 Parler à ") + I.nom.split(" ")[0] + " (" + I.car.t + ")"; act = "talk"; }
       else if (WALK && (np = nearPlace(G.foot.x, G.foot.y)) && np.bureau) { txt = np.icone + " " + np.nom + " · entrer au guichet d'aide"; act = "bureau"; }
-      else if (WALK && np) txt = np.icone + " " + np.nom + " · " + np.statut;
+      else if (WALK && np) txt = np.icone + " " + np.nom + " · " + (isOpen(np, G.hour) ? np.statut : "Fermé à cette heure (ouvre à " + HOURS[np.type][0] + " h)");
       else if (WALK) txt = "Promenade à pied dans la Gombe. Le taxi jaune est sur la carte.";
       else if (ns) { txt = ns.car.id === p.carDef.id ? ns.car.name + " : c'est déjà ta voiture" : "Prendre la " + ns.car.name + " (" + ns.car.cls + ")"; act = ns.car.id === p.carDef.id ? null : "pick"; }
       else if (Math.hypot(G.foot.x - p.x, G.foot.y - p.y) < 50) { txt = "Monter dans la voiture"; act = "enter"; }
       else txt = "À pied. Reviens à ta voiture pour repartir.";
     }
+    if (WALK && G.phase && G.phase !== "matin") { txt = (G.phase === "nuit" ? (G.auto && G.auto.doing) || G.lifeMsg : G.lifeMsg || txt) + " · 👀 tu observes"; act = null; }
     G.prompt = txt; G.act = act;
   }
   // ---- bureau Zboss Sarlu : guichet d'aide (questions fréquentes + signaler un problème)
@@ -1041,10 +1071,11 @@
     { id: "soiree", ic: "🪩", nom: "Soirée", txt: "Il sort en boîte de nuit (réservé aux 18 ans et plus)." },
     { id: "maison", ic: "🏠", nom: "Rentrer à la maison", txt: "Il rentre chez lui et se repose." },
   ];
-  const SORTIE = id => SORTIES.find(o => o.id === id) || SORTIES[0];
+  const SORTIE = id => SORTIES.find(o => o.id === id) || { id, ic: id === "travail" ? "💼" : "🪑", nom: id === "travail" ? "Travail" : "Rencontres" };
   let lastSortie = "promenade";
   function openSorties() {
     if (!G || !WALK || $("sortpanel")) return;
+    if (G.phase && G.phase !== "matin") { msg("👀 Ton personnage décide seul jusqu'à demain matin : tu observes.", 3); return; }
     if (G.auto) { autoToggle(false); return; }
     const wasPaused = G.paused; G.paused = true;
     const d = document.createElement("div"); d.id = "sortpanel"; d.className = "bureau";
@@ -1059,8 +1090,9 @@
     d.querySelectorAll("[data-s]").forEach(b => b.onclick = () => { close(); autoToggle(true, b.dataset.s); });
     const f = d.querySelector("[data-s]"); if (f) f.focus();
   }
-  function autoToggle(on, mode) {
+  function autoToggle(on, mode, silent) {
     if (!G || !WALK) return;
+    if (!silent && G.phase && G.phase !== "matin") { msg("👀 Ton personnage décide seul jusqu'à demain matin : tu observes.", 3); return; }
     if (on === undefined) on = !G.auto;
     if (on) {
       if (!G.foot) { msg("Descends d'abord du taxi pour te promener seul.", 2.5); return; }
@@ -1069,7 +1101,7 @@
       G.auto = { phase: "walk", path: null, mode, seen: [] };
       if (mode === "tourisme") G.auto.tour = tourPlan();
       const S = SORTIE(mode);
-      msg(S.ic + " " + S.nom + " : ton personnage se débrouille seul. Touche une flèche pour reprendre la main.", 4, "ok");
+      if (!silent) msg(S.ic + " " + S.nom + " : ton personnage se débrouille seul. Touche une flèche pour reprendre la main.", 4, "ok");
     } else if (G.auto) {
       const ride = G.auto.phase === "ride";
       G.auto = null; if (ride) { G.player.inp.gas = 0; G.player.inp.brake = 1; }
@@ -1087,6 +1119,11 @@
   function pickDestination() {
     const A = G.auto, f = G.foot, mode = A.mode || "promenade";
     if (mode === "maison") { const h = HOME(); return h ? { x: h.door.x, y: h.door.y, nom: "la maison", icone: "🏠", home: true, place: h } : null; }
+    if (mode === "travail") { const w = PLACES.find(o => o.id === (G.me && G.me.lieu) ) || PLACES.find(o => o.id === "zboss"); if (w) return Object.assign(toPlace(w), { work: true }); }
+    if (mode === "rencontres") {
+      const bs = BENCHES.filter(b => !b.taken).sort((a, b) => Math.hypot(a.x - f.x, a.y - f.y) - Math.hypot(b.x - f.x, b.y - f.y));
+      const b = bs[(rand() * Math.min(4, bs.length)) | 0]; if (b) return { x: b.x, y: b.y, nom: "un banc pour rencontrer des gens", icone: "🪑", bench: b, meet: true };
+    }
     if (mode === "tourisme") {
       const o = A.tour && A.tour.shift();
       if (!o) { msg("📸 Fin de la visite guidée ! Ton personnage continue en promenade.", 4, "ok"); A.mode = "promenade"; return pickDestination(); }
@@ -1100,9 +1137,9 @@
       if (g) { A.seen.push(g.id); return toPlace(g); }
     }
     if (mode === "courses" || mode === "soiree") {
-      const types = mode === "courses" ? ["alim", "magasin"] : ["club"];
-      let list = PLACES.filter(o => types.includes(o.type) && !A.seen.includes(o.id));
-      if (!list.length) { A.seen = []; list = PLACES.filter(o => types.includes(o.type)); }
+      const types = mode === "courses" ? ["alim", "magasin", "marche"] : ["club"];
+      let list = PLACES.filter(o => types.includes(o.type) && !A.seen.includes(o.id) && isOpen(o, G.hour));
+      if (!list.length) { A.seen = []; list = PLACES.filter(o => types.includes(o.type) && isOpen(o, G.hour)); }
       const o = list.sort((a, b) => Math.hypot(a.x - f.x, a.y - f.y) - Math.hypot(b.x - f.x, b.y - f.y))[0];
       if (o) { A.seen.push(o.id); return toPlace(o); }
     }
@@ -1151,11 +1188,14 @@
       sitDown(d.bench, true); A.phase = "sit";
       if (d.match) { A.sitT = 40 + rand() * 25; A.doing = "Regarde le match " + d.icone; msg(d.icone + " Ton personnage s'installe pour regarder le match.", 3, "ok"); }
       else if (A.mode === "footing") { A.sitT = 6 + rand() * 5; A.doing = "Pause footing : il reprend son souffle"; }
+      else if (d.meet) { A.sitT = 1e9; A.doing = "Assis sur un banc : il rencontre des gens"; }
       else { A.sitT = 18 + rand() * 20; A.doing = "Assis sur un banc : il observe et fait des rencontres"; }
       return;
     }
     if (d.home) { A.phase = "home"; A.doing = "À la maison : il se repose"; msg("🏠 Ton personnage est rentré à la maison. Il se repose.", 3.5, "ok"); return; }
     const o = d.place, t = o && o.type;
+    if (d.work) { msg("💼 Ton personnage est arrivé au travail : " + d.nom + ".", 3.5, "ok"); A.phase = "visit"; A.wait = 1e9; A.doing = "💼 Au travail à " + d.nom; return; }
+    if (t === "marche") { msg("🧺 Au marché : il compare les prix des légumes et du poisson, puis discute avec les commerçantes.", 4.5); A.phase = "visit"; A.wait = 10 + rand() * 6; A.doing = "Courses au marché"; return; }
     if (d.guide) { msg("📸 " + d.icone + " " + d.nom + " : " + d.guide, 6, "ok"); A.phase = "visit"; A.wait = 6 + rand() * 3; A.doing = "Tourisme : " + d.nom; return; }
     if (A.mode === "courses" && t) { const what = t === "alim" ? ["du pain et du lait", "du riz et du poisson salé", "des fruits et de l'eau"] : o.id === "phones" ? ["un nouvel étui de téléphone", "un chargeur"] : ["une chemise en wax", "une paire de baskets"]; msg(d.icone + " Courses à " + d.nom + " : il regarde " + what[(rand() * what.length) | 0] + ". (Achats réels dans la Boutique de Ma vie.)", 4.5); A.phase = "visit"; A.wait = 6 + rand() * 4; A.doing = "Courses : " + d.nom; return; }
     if (t === "club") { msg("🪩 " + d.nom + " : la musique est forte ! Entrée réservée aux 18 ans et plus, ouvre après le lancement.", 4.5); A.phase = "visit"; A.wait = 8 + rand() * 4; A.doing = "Soirée : " + d.nom; return; }
@@ -1186,6 +1226,7 @@
     const lastLeg = A.i >= P.length - 1;
     p.inp.gas = sp < (lastLeg ? Math.min(220, dist * 1.2) : 330) * (ang > .5 ? .5 : 1) ? 1 : 0;
     p.inp.brake = (ang > .8 && sp > 180) || (lastLeg && dist < 90 && sp > 60) ? 1 : 0; p.inp.hand = 0; p.inp.nitro = 0;
+    if (!lastLeg && stopHere(p, P[A.i + 1])) { p.inp.gas = 0; p.inp.brake = 1; }
     if (lastLeg && dist < 70 && sp < 70) { // arrivée : on descend devant le lieu
       p.inp.gas = 0; p.inp.brake = 1; p.vx = p.vy = 0;
       const rx = Math.sin(p.a), ry = -Math.cos(p.a); let x = p.x + rx * 26, y = p.y + ry * 26; if (walkBlocked(x, y)) { x = p.x - rx * 26; y = p.y - ry * 26; }
@@ -1206,7 +1247,7 @@
       autoWalk(dt);
     } else if (A.phase === "visit") { A.wait -= dt; if (A.wait <= 0) { A.phase = "walk"; A.path = null; } }
     else if (A.phase === "sit") { A.sitT -= dt; if (A.sitT <= 0 || (G.energy > 98 && A.sitT < 8)) { standUp(true); A.phase = "walk"; A.path = null; } }
-    else if (A.phase === "home") { if (G.energy >= 100) { msg("Ton personnage est reposé et repart se promener.", 3, "ok"); A.phase = "walk"; A.path = null; } }
+    else if (A.phase === "home") { if (G.phase === "nuit") { A.doing = "😴 Il dort à la maison"; } else if (G.energy >= 100 && A.mode !== "maison") { msg("Ton personnage est reposé et repart se promener.", 3, "ok"); A.phase = "walk"; A.path = null; } }
     else if (A.phase === "board") {
       A.wait -= dt;
       if (A.wait <= 0) {
@@ -1365,11 +1406,139 @@
     B.x = o.x + o.ux * B.u + o.nx * B.v; B.y = o.y + o.uy * B.u + o.ny * B.v;
   }
 
+  // ================================================================ Vie autonome
+  // Horloge de Kinshasa (UTC+1). Le matin (5 h - 10 h), le joueur dirige son personnage et prépare son
+  // programme ; de 10 h à 22 h, le personnage agit seul (programme, puis ses propres choix) ; la nuit il dort.
+  const LIVE_CLOCK = WALK && !!window.TWO_LIFE_API;
+  const kinNow = () => { const d = new Date(Date.now() + 3600e3); return { h: d.getUTCHours() + d.getUTCMinutes() / 60 + d.getUTCSeconds() / 3600, day: Math.floor((Date.now() + 3600e3) / 864e5) }; };
+  const hh = h => String(Math.floor(h)).padStart(2, "0") + ":" + String(Math.floor((h % 1) * 60)).padStart(2, "0");
+  const ACTS = [
+    { id: "travail", ic: "💼", nom: "Aller travailler", dur: 6, mode: "travail" },
+    { id: "courses", ic: "🛒", nom: "Faire les courses", dur: 1.5, mode: "courses" },
+    { id: "match", ic: "⚽", nom: "Voir un match", dur: 2, mode: "match" },
+    { id: "tourisme", ic: "📸", nom: "Visiter la ville", dur: 2.5, mode: "tourisme" },
+    { id: "rencontres", ic: "🪑", nom: "Rencontrer des gens", dur: 2, mode: "rencontres" },
+    { id: "footing", ic: "🏃", nom: "Faire du sport", dur: 1, mode: "footing" },
+    { id: "promenade", ic: "🚶", nom: "Se promener", dur: 1.5, mode: "promenade" },
+    { id: "repos", ic: "🏠", nom: "Se reposer à la maison", dur: 2, mode: "maison" },
+    { id: "soiree", ic: "🪩", nom: "Sortir le soir (après 20 h)", dur: 2, mode: "soiree", soir: true },
+  ];
+  const ACT = id => ACTS.find(a => a.id === id) || ACTS[6];
+  // la personnalité du personnage du joueur (gardée dans le navigateur en démo)
+  function myself() {
+    let me = null; try { me = JSON.parse(lsGet("twolife_moi_ville") || "null"); } catch (e) { }
+    if (!me || !me.car) {
+      const r = rng((Date.now() & 0xffff) + 7), pick = L => L[(r() * L.length) | 0];
+      const g1 = pick(GOUTS); let g2 = pick(GOUTS); if (g2 === g1) g2 = GOUTS[(GOUTS.indexOf(g1) + 4) % GOUTS.length];
+      me = { car: pick(CARACTERES).t, gouts: [g1, g2], force: 3 + ((r() * 7) | 0), lieu: "zboss", metier: "employé au bureau Zboss Sarlu" };
+      lsSet("twolife_moi_ville", JSON.stringify(me));
+    }
+    return me;
+  }
+  function loadPlan() { try { const P = JSON.parse(lsGet("twolife_plan_ville") || "null"); if (P && P.day === G.day) return P.items; } catch (e) { } return []; }
+  function savePlan(items) { lsSet("twolife_plan_ville", JSON.stringify({ day: G.day, items })); G.plan = items; }
+  function clockStep(dt) {
+    if (LIVE_CLOCK) { const k = kinNow(); G.hour = k.h; G.day = k.day; }
+    else { G.hour += dt * G.speed / 60; if (G.hour >= 24) { G.hour -= 24; G.day++; } }
+    const h = G.hour, ph = h >= 22 || h < 5 ? "nuit" : h < 10 ? "matin" : "jour";
+    if (ph !== G.phase) { const old = G.phase; G.phase = ph; phaseChange(old, ph); }
+  }
+  function phaseChange(old, ph) {
+    if (ph === "matin") {
+      if (G.auto) { G.auto = null; } if (G.foot && G.foot.sit) standUp(true);
+      G.plan = loadPlan(); G.life = null; G.lifeMsg = "";
+      msg("☀️ " + hh(G.hour) + " : c'est le matin. Jusqu'à 10 h, tu peux diriger ton personnage et préparer son programme (📋 Programme).", 6, "ok");
+    } else if (ph === "jour") {
+      if (G.foot && G.foot.sit) standUp(true);
+      if (!G.foot) { const p = G.player; G.foot = { x: p.x + Math.sin(p.a) * 26, y: p.y - Math.cos(p.a) * 26, a: p.a, v: 0, t: 0 }; p.vx = p.vy = 0; }
+      G.plan = G.plan || loadPlan();
+      G.life = { plan: G.plan.slice(), done: [], later: null, cur: null, until: 0 };
+      msg("🧠 " + hh(G.hour) + " : ton personnage agit seul maintenant. Tu peux seulement l'observer jusqu'à demain matin.", 6, "ok");
+      if (old) G.auto = null;
+      nextActivity();
+    } else if (ph === "nuit") {
+      G.life = null; if (G.foot && G.foot.sit) standUp(true);
+      if (!G.foot) { const p = G.player; G.foot = { x: p.x + Math.sin(p.a) * 26, y: p.y - Math.cos(p.a) * 26, a: p.a, v: 0, t: 0 }; }
+      G.auto = null; autoToggle(true, "maison", true);
+      G.lifeMsg = "🌙 Il rentre dormir"; msg("🌙 " + hh(G.hour) + " : la nuit tombe, ton personnage rentre dormir.", 5);
+    }
+    const b = $("planbtn"); if (b) b.disabled = ph !== "matin";
+  }
+  // ce que le personnage décide tout seul, selon son caractère, ses goûts, son énergie et l'heure
+  function conscience() {
+    const me = G.me, h = G.hour, L = G.life, recent = L ? L.done.slice(-2) : [];
+    const c = [];
+    const add = (id, w, why) => { if (!recent.includes(id)) c.push({ a: ACT(id), w, why }); };
+    if (G.energy < 30) return { a: ACT("repos"), why: "il est fatigué" };
+    const likes = g => me.gouts.some(x => x.includes(g));
+    if (h >= 20) { add("soiree", likes("rumba") || likes("danse") || ["drôle", "bavard", "fier"].includes(me.car) ? 6 : 1.5, likes("rumba") ? "il aime la rumba" : "c'est le soir, il a envie de sortir"); add("repos", 2, "la journée a été longue"); }
+    if (likes("football") || likes("basket")) add("match", 5, "il aime " + (likes("football") ? "le football" : "le basket"));
+    if (["bavard", "curieux", "généreux", "drôle"].includes(me.car)) add("rencontres", 4, "il est " + me.car + " : il a envie de parler aux gens");
+    if (me.car === "curieux" || likes("politique") || likes("lecture")) add("tourisme", 3, me.car === "curieux" ? "il est curieux de découvrir la ville" : "il aime " + (likes("politique") ? "la politique : il veut voir les institutions" : "apprendre des choses"));
+    if (likes("mode") || likes("cuisine") || me.car === "fier") add("courses", 3, likes("cuisine") ? "il veut cuisiner ce soir" : "il veut soigner son style");
+    if (me.force >= 7) add("footing", 3, "il est sportif");
+    if (["timide", "méfiant", "calme"].includes(me.car)) add("promenade", 4, "il est " + me.car + " : il préfère marcher tranquillement");
+    add("promenade", 1.5, "il a envie de flâner"); add("courses", 1, "il manque quelque chose à la maison");
+    let tot = c.reduce((s, o) => s + o.w, 0), r = rand() * tot;
+    for (const o of c) { r -= o.w; if (r <= 0) return o; }
+    return c[0] || { a: ACT("promenade"), why: "il flâne" };
+  }
+  function nextActivity() {
+    const L = G.life, h = G.hour; if (!L) return;
+    let a = null, why = "";
+    while (!a && L.plan.length) { const A = ACT(L.plan.shift()); if (A.soir && h < 20) { L.later = A.id; continue; } a = A; why = "prévu dans ton programme du matin"; }
+    if (!a && L.later && h >= 20) { a = ACT(L.later); L.later = null; why = "prévu dans ton programme du matin"; }
+    if (!a) { const c = conscience(); a = c.a; why = "sa décision : " + c.why; }
+    L.cur = a; L.until = Math.min(22, h + a.dur); L.done.push(a.id);
+    if (G.foot && G.foot.sit) standUp(true);
+    G.auto = null; autoToggle(true, a.mode, true);
+    G.lifeMsg = a.ic + " " + a.nom.replace(" (après 20 h)", "") + " · " + why;
+    msg("🧠 " + G.lifeMsg, 5, "ok");
+  }
+  function lifeUpdate() {
+    if (G.phase !== "jour" || !G.life) return;
+    const L = G.life;
+    if (G.auto && G.auto.phase === "ride") return;
+    if (!L.cur || G.hour >= L.until || !G.auto) nextActivity();
+  }
+  // programme du jour : 3 activités au plus, choisies le matin
+  function openPlan() {
+    if (!G || !WALK || $("planpanel")) return;
+    if (G.phase !== "matin") { msg("📋 Le programme se prépare le matin, entre 5 h et 10 h. Pour l'instant, tu observes.", 3.5); return; }
+    const wasPaused = G.paused; G.paused = true;
+    let sel = (G.plan || []).slice();
+    const me = G.me, esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+    const d = document.createElement("div"); d.id = "planpanel"; d.className = "bureau";
+    const draw = () => {
+      d.innerHTML = `<div class="bureau-box" role="dialog" aria-modal="true" aria-labelledby="plan-t"><button type="button" class="bureau-x" aria-label="Fermer">✕</button>
+        <p class="bureau-k">📋 Programme du jour · il est ${hh(G.hour)}</p><h2 id="plan-t">Que fera ton personnage aujourd'hui ?</h2>
+        <p>Choisis jusqu'à 3 activités, dans l'ordre. À 10 h, il part seul. Une fois le programme fini, il décide lui-même selon son caractère : <b>${esc(me.car)}</b>, il aime <b>${esc(me.gouts.join(" et "))}</b>.</p>
+        <div class="sorties">${ACTS.map(a => { const k = sel.indexOf(a.id); return `<button type="button" data-a="${a.id}" aria-pressed="${k >= 0}"><b>${k >= 0 ? (k + 1) + ". " : ""}${a.ic} ${a.nom}</b><span>Environ ${String(a.dur).replace(".", ",")} h</span></button>`; }).join("")}</div>
+        <p class="bureau-msg" id="plan-msg">${sel.length}/3 choisie${sel.length > 1 ? "s" : ""}. Tu peux changer d'avis jusqu'à 10 h.</p>
+        <button type="button" class="plan-ok">Valider le programme</button></div>`;
+      d.querySelector(".bureau-x").onclick = close;
+      d.querySelectorAll("[data-a]").forEach(b => b.onclick = () => { const id = b.dataset.a, k = sel.indexOf(id); if (k >= 0) sel.splice(k, 1); else if (sel.length < 3) sel.push(id); draw(); const f = d.querySelector(`[data-a="${id}"]`); if (f) f.focus(); });
+      d.querySelector(".plan-ok").onclick = () => { savePlan(sel); close(); msg("📋 Programme enregistré : " + (sel.length ? sel.map(id => ACT(id).ic + " " + ACT(id).nom.replace(" (après 20 h)", "")).join(", ") : "rien, il décidera seul") + ". Départ à 10 h.", 5, "ok"); };
+    };
+    const close = () => { d.remove(); if (G) G.paused = wasPaused; };
+    d.addEventListener("click", e => { if (e.target === d) close(); });
+    d.addEventListener("keydown", e => { e.stopPropagation(); if (e.key === "Escape") close(); });
+    draw(); document.body.appendChild(d); const f = d.querySelector("[data-a]"); if (f) f.focus();
+  }
+  // densité de la ville selon l'heure (rues vides la nuit, heure de pointe le matin et le soir)
+  const dens = h => h < 5 ? .2 : h < 6.5 ? .45 : h < 9 ? 1 : h < 17 ? .85 : h < 20 ? 1 : h < 22 ? .6 : .3;
+
   function update(dt) {
     const p = G.player; G.t += dt;
+    if (WALK) clockStep(dt);
+    const locked = WALK && G.phase !== "matin";
     // entrées joueur
-    const kUp = keys.ArrowUp || keys.KeyW || touch.gas, kDown = keys.ArrowDown || keys.KeyS || touch.brake;
-    const kSteer = ((keys.ArrowRight || keys.KeyD || touch.right) ? 1 : 0) - ((keys.ArrowLeft || keys.KeyA || touch.left) ? 1 : 0);
+    let kUp = keys.ArrowUp || keys.KeyW || touch.gas, kDown = keys.ArrowDown || keys.KeyS || touch.brake;
+    let kSteer = ((keys.ArrowRight || keys.KeyD || touch.right) ? 1 : 0) - ((keys.ArrowLeft || keys.KeyA || touch.left) ? 1 : 0);
+    if (locked && (kUp || kDown || kSteer || actPressed)) {
+      kUp = kDown = false; kSteer = 0; actPressed = false;
+      if (!(G.lockMsgT > G.t)) { G.lockMsgT = G.t + 6; msg("👀 Ton personnage agit seul. Tu pourras de nouveau le diriger demain matin, de 5 h à 10 h.", 4); }
+    }
     if (G.auto && (kUp || kDown || kSteer)) autoToggle(false);
     if (G.foot && G.foot.sit && (kUp || kDown || kSteer) && !G.auto) standUp();
     if (G.auto) { autoUpdate(dt); if (!G.foot && G.auto && G.auto.phase === "ride") { /* le taxi roule tout seul */ } else if (G.foot) { p.inp.gas = 0; p.inp.brake = 1; p.inp.steer = 0; p.inp.hand = 1; p.inp.nitro = 0; } }
@@ -1392,8 +1561,11 @@
       if (G.energy < 8 && !G.auto && G.foot && !G.foot.sit && !G.tiredMsg) { G.tiredMsg = true; msg("😮‍💨 Ton personnage est épuisé : assieds-toi sur un banc, prends le taxi ou lance la promenade auto.", 4.5, "alert"); }
       if (G.energy > 30) G.tiredMsg = false;
       if (G.foot && G.foot.sit) sitUpdate(dt);
-      G.games.forEach(g => gameStep(g, dt));
+      if (G.hour >= 7 && G.hour <= 21) G.games.forEach(g => gameStep(g, dt));
       chatUpdate(dt);
+      lifeUpdate();
+      // le soir, les habitants rentrent chez eux
+      if (G.hour >= 17 && G.hour < 23) for (const q of G.peds) if (!q.staff && !q.route && !q.enter && !q.chat && !q.cop && q.state === "walk" && rand() < dt * .012) planHome(q);
     }
 
     G.seen = false;
@@ -1431,11 +1603,15 @@
 
     // traffic renouvelé
     G.traffic = G.traffic.filter(c => !c.dead && Math.hypot(c.x - fcar.x, c.y - fcar.y) < 2600);
-    while (G.traffic.length < 44) spawnTraffic(false);
+    const dn = WALK ? dens(G.hour) : 1, nTraf = Math.round(44 * (WALK ? Math.max(.3, dn) : 1));
+    while (G.traffic.length < nTraf) spawnTraffic(false);
+    if (G.traffic.length > nTraf + 3) { const c = G.traffic.find(c => Math.hypot(c.x - fcar.x, c.y - fcar.y) > 1500); if (c) c.dead = true; }
     // piétons
     const fc = G.foot || p;
     G.peds = G.peds.filter(q => !q.gone && (q.staff || Math.hypot(q.x - fc.x, q.y - fc.y) < 1900));
-    for (let k = G.peds.filter(q => !q.staff).length; k < PED_N; k++) spawnPed(false);
+    const nPed = Math.round(PED_N * dn), walkers = G.peds.filter(q => !q.staff);
+    for (let k = walkers.length; k < nPed; k++) spawnPed(false);
+    if (walkers.length > nPed + 3) { const q = walkers.find(q => !q.route && !q.enter && Math.hypot(q.x - fc.x, q.y - fc.y) > 700); if (q) planHome(q); if (q && !q.route) q.gone = true; }
     G.peds.forEach(q => pedStep(q, dt, near));
     updatePrompt();
 
@@ -1649,6 +1825,7 @@
       } else ev.hidden = true;
       $("h-msgs").innerHTML = G.msgs.map(m => `<div class="m ${m.kind}">${m.text}</div>`).join("");
       const pr = $("h-prompt"); pr.hidden = !G.prompt; if (G.prompt) { pr.querySelector("span").textContent = G.prompt; $("actbtn").hidden = !G.act; $("actbtn").innerHTML = "<kbd>E</kbd>" + ({ exit: "Descendre", enter: "Monter", pick: "Prendre", sit: "S'asseoir", stand: "Se lever", autostop: "Reprendre la main", bureau: "Entrer" }[G.act] || "OK"); }
+      if (WALK && $("h-clock")) { const ph = G.phase === "matin" ? "☀️ tu peux agir" : G.phase === "nuit" ? "🌙 il dort" : "🧠 il agit seul"; $("h-clock").textContent = hh(G.hour) + " · " + ph; }
       if (WALK && $("h-energy")) { const e = Math.round(G.energy); $("h-energy").style.width = e + "%"; $("h-energy").className = e < 25 ? "low" : ""; $("h-energy-n").textContent = e + " %"; }
       if (G.foot) $("h-speed").textContent = Math.round(Math.abs(G.foot.v) * .36);
       renderMinimap();
@@ -1730,6 +1907,8 @@
   $("pausebtn").addEventListener("click", () => setPause(true));
   if ($("autobtn")) $("autobtn").addEventListener("click", () => openSorties());
   if ($("relbtn")) $("relbtn").addEventListener("click", () => showRelations());
+  if ($("planbtn")) $("planbtn").addEventListener("click", () => openPlan());
+  if ($("speedbtn")) { if (WALK && window.TWO_LIFE_API) $("speedbtn").hidden = true; $("speedbtn").addEventListener("click", () => { if (!G) return; G.speed = G.speed === 1 ? 10 : G.speed === 10 ? 60 : 1; $("speedbtn").textContent = "⏩ ×" + G.speed; }); }
   $("actbtn").addEventListener("click", () => { if (G && !G.over) actPressed = true; });
   const camLabel = () => { $("cambtn").textContent = "Caméra : " + (window.ZBOSS_3D && window.ZBOSS_3D.ok ? window.ZBOSS_3D.camLabel() : (camMode === "chase" ? "poursuite" : "dessus")); };
   $("cambtn").addEventListener("click", () => {
@@ -1744,6 +1923,6 @@
   resize(); show("menu");
 
   // Accès pour les tests automatisés
-  window.ZBOSS_WORLD = { W, H, C, MW, MH, mask, MAP, ROADS, FILL, walkBlocked, SHOPS, PLACES, BILLBOARDS, BENCHES, SHOP_W, SHOP_D, SHOP_DOOR, nodes, nodesNear, nearestNode, solidAt, groundAt, angDiff, rand };
-  window.__zboss = { get state() { return G; }, start: () => start(chosen), spawnCop, keys, touch, act: () => { actPressed = true; }, sortie: m => autoToggle(true, m), sorties: openSorties, step: (n, dt) => { for (let i = 0; i < n && G && !G.paused; i++) update(dt || 1 / 30); } };
+  window.ZBOSS_WORLD = { W, H, C, MW, MH, mask, MAP, ROADS, FILL, walkBlocked, SHOPS, PLACES, BILLBOARDS, BENCHES, LIGHTS, lightState, isOpen, SHOP_W, SHOP_D, SHOP_DOOR, nodes, nodesNear, nearestNode, solidAt, groundAt, angDiff, rand };
+  window.__zboss = { get state() { return G; }, start: () => start(chosen), spawnCop, keys, touch, act: () => { actPressed = true; }, sortie: m => autoToggle(true, m), sorties: openSorties, plan: openPlan, setHour: h => { G.hour = h; }, step: (n, dt) => { for (let i = 0; i < n && G && !G.paused; i++) update(dt || 1 / 30); } };
 })();

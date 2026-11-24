@@ -43,6 +43,7 @@
 
   // ------------------------------------------------------------ Ciel et lumière (fin d'après-midi)
   const skyG = new THREE.Group(); scene.add(skyG);
+  let skyMesh = null, sunDisc = null;
   {
     const g = new THREE.SphereGeometry(1500, 32, 16), cols = [], pos = g.attributes.position;
     const top = new THREE.Color("#22305e"), mid = new THREE.Color("#c86a5a"), hor = new THREE.Color("#ffb070");
@@ -52,11 +53,11 @@
       cols.push(c.r, c.g, c.b);
     }
     g.setAttribute("color", new THREE.Float32BufferAttribute(cols, 3));
-    skyG.add(new THREE.Mesh(g, new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.BackSide, fog: false, depthWrite: false })));
-    const sun = new THREE.Mesh(new THREE.CircleGeometry(60, 32), new THREE.MeshBasicMaterial({ color: "#ffd9a0", fog: false }));
+    skyG.add(skyMesh = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.BackSide, fog: false, depthWrite: false })));
+    const sun = sunDisc = new THREE.Mesh(new THREE.CircleGeometry(60, 32), new THREE.MeshBasicMaterial({ color: "#ffd9a0", fog: false }));
     sun.position.set(-1100, 120, -700); sun.lookAt(0, 0, 0); skyG.add(sun);
   }
-  scene.add(new THREE.HemisphereLight("#ffd0b0", "#5a3a2a", 0.75));
+  const hemi = new THREE.HemisphereLight("#ffd0b0", "#5a3a2a", 0.75); scene.add(hemi);
   const sunLight = new THREE.DirectionalLight("#ffbe8a", 1.35);
   sunLight.castShadow = !MOBILE;
   sunLight.shadow.mapSize.set(2048, 2048);
@@ -277,7 +278,7 @@
   }
 
   // ------------------------------------------------------------ Palmiers (boulevard du 30 Juin et bords de route) et lampadaires
-  const lamps = [];
+  const lamps = [], lampHeadMat = new THREE.MeshBasicMaterial({ color: "#f2f6ff" });
   ROADS.forEach(r => {
     const blvd = r.name === "Boulevard du 30 Juin", big = r.cls === "primary" || r.cls === "secondary" || r.cls === "trunk";
     if (!blvd && !big && rnd() > .25) return;
@@ -313,7 +314,38 @@
     const arm = new THREE.BoxGeometry(2.2, .1, .1); arm.translate(1.1, 9, 0);
     instanced(lamps, arm, new THREE.MeshStandardMaterial({ color: "#4a4e57", metalness: .6, roughness: .4 }), (o, p, s) => { p.set(o.x, 0, o.z); s.set(1, 1, 1); return rot(o); });
     const head = new THREE.BoxGeometry(.9, .08, .32); head.translate(2.3, 8.96, 0);
-    instanced(lamps, head, new THREE.MeshBasicMaterial({ color: "#f2f6ff" }), (o, p, s) => { p.set(o.x, 0, o.z); s.set(1, 1, 1); return rot(o); });
+    instanced(lamps, head, lampHeadMat, (o, p, s) => { p.set(o.x, 0, o.z); s.set(1, 1, 1); return rot(o); });
+  }
+  // éclairage de nuit : quelques vraies lumières sur les lampadaires les plus proches
+  const lampLights = []; for (let i = 0; i < (MOBILE ? 3 : 6); i++) { const L = new THREE.PointLight("#ffd9a0", 0, 26, 1.6); scene.add(L); lampLights.push(L); }
+  const lampByCell = new Map(); lamps.forEach(o => { const k = Math.floor(o.x / 40) + "," + Math.floor(o.z / 40); if (!lampByCell.has(k)) lampByCell.set(k, []); lampByCell.get(k).push(o); });
+  // jour et nuit selon l'heure du jeu
+  const C_DAY = { hemiS: new THREE.Color("#ffd0b0"), hemiG: new THREE.Color("#5a3a2a"), sun: new THREE.Color("#ffbe8a"), fog: FOG.clone() };
+  const C_NIGHT = { hemiS: new THREE.Color("#5a6a9a"), hemiG: new THREE.Color("#141018"), fog: new THREE.Color("#121826") };
+  const C_NOON = new THREE.Color("#fff1dc"), tmpC = new THREE.Color();
+  let dayF = 1;
+  function setDay(h, cx, cz) {
+    if (h === undefined) return;
+    const el = Math.sin((h - 6) / 12 * Math.PI);          // hauteur du soleil (-1 la nuit, 1 à midi)
+    dayF = Math.max(0, Math.min(1, (el + .12) / .4));   // 0 la nuit, 1 le jour, crépuscule entre les deux
+    const noon = Math.max(0, el);
+    hemi.color.copy(C_NIGHT.hemiS).lerp(C_DAY.hemiS, dayF); hemi.groundColor.copy(C_NIGHT.hemiG).lerp(C_DAY.hemiG, dayF);
+    hemi.intensity = .32 + .43 * dayF;
+    sunLight.intensity = 1.45 * dayF; sunLight.color.copy(C_DAY.sun).lerp(C_NOON, noon * .7);
+    const az = (h - 6) / 12 * Math.PI; sunLight.position.set(cx - Math.cos(az) * 150, 30 + 150 * Math.max(.15, noon), cz - 80); sunLight.target.position.set(cx, 0, cz);
+    scene.fog.color.copy(C_NIGHT.fog).lerp(C_DAY.fog, dayF);
+    if (skyMesh) skyMesh.material.color.setRGB(.1 + .9 * dayF, .12 + .88 * dayF, .22 + .78 * dayF);
+    if (sunDisc) { sunDisc.visible = dayF > .05; sunDisc.position.set(-Math.cos(az) * 1100, 60 + 900 * noon, -700); sunDisc.lookAt(0, 0, 0); }
+    renderer.toneMappingExposure = .95 + .1 * dayF;
+    const night = 1 - dayF;
+    lampHeadMat.color.copy(tmpC.set("#9aa0aa")).lerp(new THREE.Color("#fff2c8"), night);
+    // allume les lampadaires proches de la caméra
+    if (night > .2) {
+      const near = []; const kx = Math.floor(cx / 40), kz = Math.floor(cz / 40);
+      for (let i = -2; i <= 2; i++) for (let j = -2; j <= 2; j++) { const L = lampByCell.get((kx + i) + "," + (kz + j)); if (L) near.push(...L); }
+      near.sort((a, b) => (a.x - cx) ** 2 + (a.z - cz) ** 2 - ((b.x - cx) ** 2 + (b.z - cz) ** 2));
+      lampLights.forEach((L, i) => { const o = near[i]; if (!o) { L.intensity = 0; return; } L.intensity = 1.6 * night; L.position.set(o.x + Math.cos(o.a) * 2.2, 8.4, o.z + Math.sin(o.a) * 2.2); });
+    } else lampLights.forEach(L => { L.intensity = 0; });
   }
 
   // ------------------------------------------------------------ Quartiers de remplissage (maisons basses, hors carte détaillée)
@@ -478,6 +510,21 @@
       }
       signBoard(g, foot ? "STADE DE QUARTIER" : "BASKET 2 LIFE", o.nom, 8, 3.4, front - .3, "#0d1a12", foot ? "#7dff8a" : "#ffb347");
       [-1, 1].forEach(k => pbox(g, .2, 3, .2, k * 3.6, 1.5, front - .3, PL.dark));
+    } else if (o.type === "marche") {
+      // marché : sol de terre battue, étals sous bâches colorées, marchandises
+      const f = pplane(g, W2 - .6, D2 - .6, new THREE.MeshStandardMaterial({ roughness: 1, map: canvasTex(256, 256, (c, w, h) => noise(c, w, h, "#b48a5a", .2, 3000)) }), 0, .11, 0); f.rotation.x = -Math.PI / 2; f.receiveShadow = true;
+      const TARP = ["#d63031", "#0984e3", "#fdcb6e", "#00b894", "#e17055", "#6c5ce7", "#e84393", "#2d3436"], GOODS = ["#27ae60", "#c0392b", "#f39c12", "#8e44ad", "#d35400", "#16a085", "#f1c40f", "#7f8c8d"];
+      let k = 0;
+      for (const v of [-50, 50]) for (const u of [-120, -40, 40, 120]) {
+        const x = u * S, z = v * S;
+        pbox(g, 5.4, .9, 2.2, x, .45, z, PL.wood, true);                                           // table
+        for (let i = 0; i < 5; i++) { const gm = PL.M(GOODS[(k + i) % GOODS.length]); const b = new THREE.Mesh(new THREE.SphereGeometry(.32, 8, 6), gm); b.position.set(x - 2 + i, 1.05, z + (i % 2 ? .4 : -.4)); b.scale.y = .7; g.add(b); }
+        [-1, 1].forEach(sx => [-1, 1].forEach(sz => pbox(g, .08, 2.6, .08, x + sx * 2.6, 1.3, z + sz * 1.3, PL.dark)));
+        const t = pbox(g, 6, .06, 3.2, x, 2.65, z, PL.M(TARP[k % TARP.length], { roughness: .8 }), true); t.rotation.x = v < 0 ? .12 : -.12; k++;
+      }
+      signBoard(g, "MARCHÉ DE LA GOMBE", "Légumes · poisson · pagnes · téléphones", Math.min(W2 * .5, 10), 3.4, front - .2, "#7a2b12", "#ffd23f");
+      [-1, 1].forEach(s2 => pbox(g, .2, 3.4, .2, s2 * Math.min(W2 * .5, 10) * .46, 1.7, front - .2, PL.dark));
+      o.light = "#ffcf8a";
     } else if (o.type === "parking") {
       // parking : bitume, places tracées en épi sur deux rangées, borne et panneau P
       const f = pplane(g, W2 - .6, D2 - .6, new THREE.MeshStandardMaterial({ roughness: .95, map: canvasTex(512, 300, (c, w, h) => {
@@ -699,14 +746,14 @@
       L.fb = { skin: lin(L.skin), top: lin(L.top), low: lin(L.low), wrap: null, shoe: lin(L.shoe) };
       return L;
     }
-    const woman = q.player ? false : r() < (q.cop ? .25 : .48);
+    const woman = q.player ? false : r() < (q.cop ? .25 : q.vendor || q.market ? .75 : .48);
     if (q.cop) { // police nationale : uniforme bleu marine, béret
       q.lookC = { woman, cop: true, skin: new THREE.Color(SKIN[(r() * SKIN.length) | 0]), top: new THREE.Color("#22345c"), low: new THREE.Color("#1a2744"), wrap: null, sleeve: true, h: .98 + r() * .08, shoe: new THREE.Color("#0b0b0d"), biz: false };
       const L = q.lookC, lin = c => c && c.clone().convertSRGBToLinear();
       L.fb = { skin: lin(L.skin), top: lin(L.top), low: lin(L.low), wrap: null, shoe: lin(L.shoe) };
       return L;
     }
-    const biz = !q.player && !q.staff && ((((q.look || 0) * 7919 + Math.floor((q.x0 || q.x) * 3)) >>> 0) % 100) < (window.TWOLIFE_WALK ? 40 : 18);
+    const biz = !q.player && !q.staff && !q.vendor && ((((q.look || 0) * 7919 + Math.floor((q.x0 || q.x) * 3)) >>> 0) % 100) < (window.TWOLIFE_WALK ? 40 : 18);
     if (biz) {
       const suit = SUIT[(r() * SUIT.length) | 0];
       q.lookC = { woman, biz: true, skin: new THREE.Color(SKIN[(r() * SKIN.length) | 0]), top: new THREE.Color(suit), low: new THREE.Color(woman && r() < .5 ? SUIT[(r() * SUIT.length) | 0] : suit), wrap: null,
@@ -836,6 +883,12 @@
         h.mixer.update(Math.random() * 2);
         if (h.acc) h.acc.forEach(o => { if (o.parent) o.parent.remove(o); });
         h.acc = null;
+        if (q.vendor) { // vendeuse ambulante : bassine de marchandises sur la tête
+          if (!h.bones) { h.bones = {}; h.obj.traverse(b => { if (b.isBone) h.bones[realName(b.name)] = b; }); }
+          const cap = new THREE.Mesh(new THREE.CylinderGeometry(.3, .2, .12, 16), new THREE.MeshStandardMaterial({ color: ["#e74c3c", "#2980b9", "#27ae60", "#f39c12"][(q.id || 0) % 4], roughness: .4, metalness: .2 }));
+          const badge = new THREE.Mesh(new THREE.SphereGeometry(.24, 10, 6), new THREE.MeshStandardMaterial({ color: ["#c8a165", "#f1c40f", "#d35400", "#ecf0f1"][(q.id || 0) % 4], roughness: .9 })); badge.scale.y = .45;
+          h.acc = [cap, badge]; h.acc.forEach(o => { o.castShadow = !MOBILE; h.obj.add(o); }); h.cap = cap; h.badge = badge; h.basin = true;
+        }
         if (L.cop) { // béret de police sur la tête
           if (!h.bones) { h.bones = {}; h.obj.traverse(b => { if (b.isBone) h.bones[realName(b.name)] = b; }); }
           const cap = new THREE.Mesh(new THREE.CylinderGeometry(.11, .12, .07, 14), new THREE.MeshStandardMaterial({ color: new THREE.Color("#141c33").convertSRGBToLinear(), roughness: .7 }));
@@ -861,7 +914,7 @@
           h.knot.position.set(b.x, b.y - .09 / sc, b.z + TIE_Z / sc);
           h.tie.position.set((a.x + b.x) / 2, b.y - .3 / sc, Math.max(a.z, b.z) + (TIE_Z + .045) / sc); h.tie.rotation.x = -.18;
         }
-        if (h.cap) { const hd = h.bones && h.bones.head; if (hd) { const c = hd.getWorldPosition(humV1); h.obj.worldToLocal(c); const sc = h.obj.scale.x || 1; h.cap.position.set(c.x, c.y + .13 / sc, c.z); h.badge.position.set(c.x, c.y + .13 / sc, c.z + .11 / sc); } }
+        if (h.cap) { const hd = h.bones && h.bones.head; if (hd) { const c = hd.getWorldPosition(humV1); h.obj.worldToLocal(c); const sc = h.obj.scale.x || 1; if (h.basin) { h.cap.position.set(c.x, c.y + .2 / sc, c.z); h.badge.position.set(c.x, c.y + .27 / sc, c.z); } else { h.cap.position.set(c.x, c.y + .13 / sc, c.z); h.badge.position.set(c.x, c.y + .13 / sc, c.z + .11 / sc); } } }
         if (h.bag && hr) { const c = hr.getWorldPosition(humV1); h.obj.worldToLocal(c); h.bag.position.set(c.x, c.y - .17, c.z); }
       }
       const sp = Math.abs(q.v || 0) * S * (q.player ? 1 : 1);
@@ -887,6 +940,32 @@
     c.fillStyle = "#1b1e26"; [40, 64, 88].forEach(x => { c.beginPath(); c.arc(x, 38, 7, 0, 6.3); c.fill(); });
   });
   const bubMat = new THREE.SpriteMaterial({ map: bubTex, depthTest: true, transparent: true });
+  // feux tricolores : mât au coin du carrefour, une tête par axe
+  const TLP = [], tlOn = { r: new THREE.MeshBasicMaterial({ color: "#ff2a2a" }), y: new THREE.MeshBasicMaterial({ color: "#ffb300" }), g: new THREE.MeshBasicMaterial({ color: "#2bff6a" }) }, tlOff = new THREE.MeshStandardMaterial({ color: "#1a1c20", roughness: .5 });
+  function makeTL() {
+    const g = new THREE.Group(), dark = PL.dark || new THREE.MeshStandardMaterial({ color: "#22252b" });
+    const pole = new THREE.Mesh(new THREE.CylinderGeometry(.09, .11, 4.4, 8), dark); pole.position.y = 2.2; g.add(pole);
+    g.userData.heads = [0, 1].map(k => {
+      const hd = new THREE.Group(); hd.position.set(0, 3.6, 0); hd.rotation.y = k * Math.PI / 2;
+      const box = new THREE.Mesh(new THREE.BoxGeometry(.34, 1.05, .3), dark); box.position.z = .2; hd.add(box);
+      const bulbs = ["r", "y", "g"].map((c, i) => { const b = new THREE.Mesh(new THREE.CircleGeometry(.11, 12), tlOff); b.position.set(0, .32 - i * .32, .36); hd.add(b); const b2 = b.clone(); b2.position.z = .04; b2.rotation.y = Math.PI; hd.add(b2); return [b, b2]; });
+      g.add(hd); return bulbs;
+    });
+    g.scale.setScalar(1.5); scene.add(g); return g;
+  }
+  function updateLights(G) {
+    const W = WORLD, L = W.LIGHTS; if (!L || !L.length) return;
+    const f = G.foot || G.player; let n = 0;
+    for (const o of L) {
+      if (n >= 14) break; if (Math.abs(o.x - f.x) > 1100 || Math.abs(o.y - f.y) > 1100) continue;
+      const g = TLP[n] || (TLP[n] = makeTL()); n++;
+      const ca = Math.cos(o.ax), sa = Math.sin(o.ax), off = o.w / 2 + 10;
+      g.visible = true; g.position.set((o.x + (ca - sa) * off * .75) * S, 0, (o.y + (sa + ca) * off * .75) * S); g.rotation.y = -o.ax + Math.PI / 2;
+      const st = W.lightState(o, G.t);
+      [st.a, st.b].forEach((c, k) => g.userData.heads[k].forEach((pair, i) => { const m = ["r", "y", "g"][i] === c ? tlOn[c] : tlOff; pair[0].material = m; pair[1].material = m; }));
+    }
+    for (let k = n; k < TLP.length; k++) TLP[k].visible = false;
+  }
   function updateBubbles(G) {
     const f = G.foot || G.player; let n = 0;
     for (const q of G.peds) {
@@ -1184,6 +1263,7 @@
     if (nearCop && nd < 900) { sirenLight.position.set(nearCop.x * S, 2.5, nearCop.y * S); const ph = Math.floor((G.t + nearCop.flash) * 6) % 2; sirenLight.color.set(ph ? "#ff2d4a" : "#2d7bff"); sirenLight.intensity = 3; } else sirenLight.intensity = 0;
     // soleil et ombres qui suivent le joueur
     sunLight.position.set(p.x * S - 120, 140, p.y * S - 80); sunLight.target.position.set(p.x * S, 0, p.y * S);
+    if (G.hour !== undefined) setDay(G.hour, fc.x * S, fc.z !== undefined ? fc.z : fc.y * S);
     // particules
     let n = 0;
     for (const q of G.parts) { if (n >= PMAX) break; const a = q.life / q.max; pPos[n * 3] = q.x * S; pPos[n * 3 + 1] = q.kind === "smoke" ? .6 + (1 - a) * 2 : q.kind === "fire" ? 1 + (1 - a) * 2 : .5; pPos[n * 3 + 2] = q.y * S;
@@ -1192,6 +1272,7 @@
     updateCamera(G, dt);
     updatePeds(G, camera.position.x, camera.position.z, dt);
     updateBubbles(G);
+    updateLights(G);
     updateShops(G);
     updatePlaces(G);
     skyG.position.copy(camera.position); renderer.render(scene, camera);

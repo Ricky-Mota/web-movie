@@ -86,7 +86,7 @@
     .back:hover { color: var(--text); }
     .rotate { display: none; }
     @media (orientation: portrait) and (max-width: 600px) { body.playing .rotate { display: block; position: fixed; bottom: 210px; left: 50%; transform: translateX(-50%); font-size: 12px; color: var(--muted); background: rgba(5,7,12,.7); padding: 4px 10px; border-radius: 8px; } }
-    @media (max-width: 600px) { .p-car { width: 160px; } .p-speed b { font-size: 36px; } #minimap { width: 110px; height: 110px; } .p-score b { font-size: 18px; } .evade { top: 120px; width: 70vw; } }
+    @media (max-width: 600px) { .top-btns { max-width: calc(100vw - 150px); overflow-x: auto; scrollbar-width: none; } .top-btns::-webkit-scrollbar { display: none; } .top-btns button { flex-shrink: 0; } .p-life { width: 170px; } .p-car { width: 160px; } .p-speed b { font-size: 36px; } #minimap { width: 110px; height: 110px; } .p-score b { font-size: 18px; } .evade { top: 120px; width: 70vw; } }
     @media (max-height: 520px) {
       .panel { padding: 6px 10px; border-radius: 10px; }
       .lbl { font-size: 9px; }
@@ -106,11 +106,12 @@
     body.walk .p-heat, body.walk .p-score, body.walk .evade, body.walk .p-car, body.walk .p-speed { display: none !important; }
     .walk-only { display: none; } body.walk .walk-only { display: block; } body.walk .top-btns .walk-only { display: inline-block; }
     .top-btns { flex-wrap: wrap; max-width: calc(100vw - 190px); }
+    @media (max-width: 600px) { .top-btns { flex-wrap: nowrap; max-width: calc(100vw - 150px); } }
     #autobtn[aria-pressed="true"] { background: #ff5a1f; border-color: #ff5a1f; }
     .p-life { top: calc(max(14px, env(safe-area-inset-top)) + 146px); left: 14px; width: 190px; padding: 8px 12px; }
     .p-life .bar { margin: 4px 0 0; } .p-life .bar i.low { background: linear-gradient(90deg, #ff2d4a, #ff8a4c); }
     .p-life #h-energy-n { float: right; color: #fff; letter-spacing: 0; }
-    @media (max-height: 520px) { .p-life { top: 124px; width: 150px; } }
+    @media (max-height: 520px) { .p-life { top: 146px; width: 170px; } }
     .pick-city { min-height: 64px; } .pick-city[disabled] { opacity: .45; cursor: not-allowed; }
   </style>
 </head>
@@ -120,7 +121,7 @@
   <div class="hud" aria-hidden="true">
     <div class="panel p-heat"><div class="lbl">Recherché</div><div class="chev" id="h-heat"></div><span id="h-status">Calme</span></div>
     <div class="top-btns"><button type="button" onclick="history.length > 1 ? history.back() : location.href = 'index.html'" aria-label="Retour à la page précédente">← Retour</button><button type="button" id="pausebtn">Pause</button><button type="button" id="mute" aria-pressed="false">Son</button><button type="button" id="cambtn">Caméra</button><button type="button" id="autobtn" class="walk-only" aria-pressed="false" title="Touche R : relancer la dernière sortie">🚶 Sorties</button><button type="button" id="relbtn" class="walk-only">👥 Relations</button></div>
-    <div class="panel p-life walk-only"><div class="lbl">Énergie <span id="h-energy-n">100 %</span></div><div class="bar"><i id="h-energy"></i></div></div>
+    <div class="panel p-life walk-only"><div id="h-clock" class="clock">06:15</div><div class="lbl">Énergie <span id="h-energy-n">100 %</span></div><div class="bar"><i id="h-energy"></i></div><div class="life-btns"><button type="button" id="planbtn">📋 Programme</button><button type="button" id="speedbtn" title="Aperçu : accélère l'horloge du jeu">⏩ ×1</button></div></div>
     <div class="panel evade" id="h-evade" hidden><span></span><div class="bar"><i></i></div></div>
     <div class="panel p-score"><div class="lbl">Score</div><b id="h-score">0</b><div class="lbl">Prime en jeu</div><b class="bounty" id="h-bounty">0</b></div>
     <canvas id="minimap" width="180" height="180"></canvas>
@@ -181,6 +182,11 @@
     .sorties{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}@media(max-width:520px){.sorties{grid-template-columns:1fr}}
     .sorties button{text-align:left;background:#181b22;color:#eef0f4;border:1px solid #2a2e38;border-radius:10px;padding:10px 12px;cursor:pointer;font:inherit}.sorties button:hover,.sorties button:focus-visible{border-color:#ff5a1f;outline:none}
     .sorties b{display:block;font-size:15px}.sorties span{display:block;font-size:12.5px;color:#aeb4c0;margin-top:2px}
+    .p-life .clock{font:700 15px 'Chakra Petch',Inter,sans-serif;color:#fff;margin-bottom:6px;letter-spacing:.02em}
+    .life-btns{display:flex;gap:6px;margin-top:8px}.life-btns button{flex:1;background:#1c2029;color:#fff;border:1px solid #2c313c;border-radius:8px;padding:6px 4px;font:600 12px Inter,Arial,sans-serif;cursor:pointer;pointer-events:auto}#speedbtn{flex:0 0 52px}
+    #planbtn:disabled{opacity:.45;cursor:not-allowed}
+    .sorties button[aria-pressed="true"]{border-color:#ff5a1f;background:#2a1a12}
+    .plan-ok{margin-top:8px;width:100%;background:#ff5a1f;color:#fff;border:0;border-radius:10px;padding:12px;font:700 15px Inter,Arial,sans-serif;cursor:pointer}
     .pp-say{font-size:16px;font-style:italic;background:#181b22;border-left:3px solid #ff8a4c;padding:10px 12px;border-radius:8px;margin:10px 0}
     .pp-grid{display:grid;grid-template-columns:1fr 1fr;gap:4px 14px}.pp-grid p{margin:4px 0;font-size:14px;color:#c5cad4}.pp-grid b{color:#eef0f4;font-size:12px;text-transform:uppercase;letter-spacing:.04em}
     .pp-bar{display:grid;grid-template-columns:110px 1fr 44px;align-items:center;gap:8px;font-size:13px;margin:6px 0}.pp-bar i{display:block;height:8px;background:#262a33;border-radius:6px;overflow:hidden}.pp-bar i b{display:block;height:100%;background:#ff8a4c}.pp-bar em{font-style:normal;color:#aeb4c0}
