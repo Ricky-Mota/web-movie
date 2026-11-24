@@ -290,8 +290,9 @@
         for (const sd of [1, -1]) {
           const ox = x + nx * (r.w / 2 + 22) * sd, oy = y + ny * (r.w / 2 + 22) * sd;
           if (groundAt(ox, oy) !== 0 || (WORLD.SHOPS || []).some(o => WORLD.SHOPS.inShop(o, ox, oy, 120))) continue;
-          if (blvd || (!big && rnd() < .5)) palms.push({ x: ox * S, z: oy * S, h: 8 + rnd() * 4 });
-          else if (sd === 1 || r.w >= 150) lamps.push({ x: ox * S, z: oy * S, a: Math.atan2(-ny * sd, -nx * sd) });
+          // chaque tronc et chaque mât est aussi un obstacle : on ne passe pas au travers
+          if (blvd || (!big && rnd() < .5)) { palms.push({ x: ox * S, z: oy * S, h: 8 + rnd() * 4 }); if (WORLD.addObst) WORLD.addObst({ x: ox, y: oy, r: 3 }); }
+          else if (sd === 1 || r.w >= 150) { lamps.push({ x: ox * S, z: oy * S, a: Math.atan2(-ny * sd, -nx * sd) }); if (WORLD.addObst) WORLD.addObst({ x: ox, y: oy, r: 2 }); }
         }
       }
     }

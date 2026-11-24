@@ -520,6 +520,7 @@
       const to = F.nb[(rand() * F.nb.length) | 0], T = nodes[to], a = Math.atan2(T.y - F.y, T.x - F.x);
       const off = Math.min(30, T.w * .22), x = F.x - Math.sin(a) * off, y = F.y + Math.cos(a) * off;
       if (solidAt(x, y)) continue;
+      if ([...G.traffic, ...G.parked, ...G.cops].some(o => Math.abs(o.x - x) < 50 && Math.abs(o.y - y) < 50)) continue;   // jamais sur une autre voiture
       const c = makeCar("traffic", x, y, a, { maxSpeed: 150 + rand() * 90, accel: 260, steerMax: 2.2, dmgMul: 1, mass: .8, grip: 9 });
       c.from = from; c.to = to; c.tIdx = (rand() * TRAFFIC_SPRITES.length) | 0; c.sprite = TRAFFIC_SPRITES[c.tIdx]; c.bus = rand() < .18; c.taxi = !c.bus && rand() < .38; if (c.bus) c.maxSpeed *= .8;
       const sp = c.maxSpeed * .7; c.vx = Math.cos(a) * sp; c.vy = Math.sin(a) * sp;
@@ -609,12 +610,25 @@
     if (c.kind === "player") { Audio.crash(v); G.shake = Math.min(14, G.shake + v / 60); }
     if (c.kind === "traffic") c.stun = 2.5;
   }
+  // forme d'une voiture : 3 cercles alignés (avant, milieu, arrière) ; elle fait ~4,2 m sur 1,8 m
+  const CAR_HL = 21, CAR_HW = 9, CAR_OFF = [-12, 0, 12];
+  function carDiscs(c) { const fx = Math.cos(c.a), fy = Math.sin(c.a); return CAR_OFF.map(o => [c.x + fx * o, c.y + fy * o]); }
+  function carOverlap(A, Bc) {
+    // plus forte pénétration entre les cercles des deux voitures
+    let best = null; const da = carDiscs(A), db = carDiscs(Bc), min = CAR_HW * 2;
+    for (const [ax, ay] of da) for (const [bx, by] of db) {
+      const dx = bx - ax, dy = by - ay, d2 = dx * dx + dy * dy; if (d2 >= min * min) continue;
+      const d = Math.sqrt(d2) || .01, ov = min - d; if (!best || ov > best.ov) best = { ov, nx: d > .01 ? dx / d : 1, ny: d > .01 ? dy / d : 0 };
+    }
+    return best;
+  }
   function collideCars(list) {
     for (let a = 0; a < list.length; a++) for (let b = a + 1; b < list.length; b++) {
       const A = list[a], Bc = list[b];
-      const dx = Bc.x - A.x, dy = Bc.y - A.y, d2 = dx * dx + dy * dy, min = CAR_R * 2;
-      if (d2 >= min * min || d2 === 0) continue;
-      const d = Math.sqrt(d2), nx = dx / d, ny = dy / d, ov = min - d;
+      const dx = Bc.x - A.x, dy = Bc.y - A.y, d2 = dx * dx + dy * dy, lim = (CAR_HL + CAR_HW) * 2;
+      if (d2 >= lim * lim) continue;
+      const hit = carOverlap(A, Bc); if (!hit) continue;
+      const nx = hit.nx, ny = hit.ny, ov = hit.ov;
       const ia = 1 / A.mass, ib = 1 / Bc.mass, s = ia + ib;
       A.x -= nx * ov * ia / s; A.y -= ny * ov * ia / s; Bc.x += nx * ov * ib / s; Bc.y += ny * ov * ib / s;
       const rv = (Bc.vx - A.vx) * nx + (Bc.vy - A.vy) * ny; if (rv > 0) continue;
@@ -668,6 +682,9 @@
     if (L) { const d = Math.hypot(L.x - c.x, L.y - c.y); if (d < L.w / 2 + 95 && d > L.w / 2 + 8) { const st = redFor(L, c.a, G.t); if (st === "r" || (st === "y" && d > L.w / 2 + 40)) return true; } }
     const fx = Math.cos(c.a), fy = Math.sin(c.a);
     for (const o of G.traffic) { if (o === c) continue; const dx = o.x - c.x, dy = o.y - c.y, ah = dx * fx + dy * fy; if (ah > 0 && ah < 62 && Math.abs(-dx * fy + dy * fx) < 16 && Math.hypot(o.vx, o.vy) < Math.hypot(c.vx, c.vy) + 20) return true; }
+    // un piéton (ou le personnage) sur la chaussée juste devant : on le laisse passer
+    const walkersNear = G.foot ? [G.foot, ...G.peds] : G.peds;
+    for (const q of walkersNear) { if (q.gone || q.sit) continue; const dx = q.x - c.x, dy = q.y - c.y; if (Math.abs(dx) > 70 || Math.abs(dy) > 70) continue; const ah = dx * fx + dy * fy; if (ah > CAR_HL - 4 && ah < CAR_HL + 34 && Math.abs(-dx * fy + dy * fx) < CAR_HW + 8) return true; }
     return false;
   }
   function angDiff(a, b) { let d = b - a; while (d > Math.PI) d -= Math.PI * 2; while (d < -Math.PI) d += Math.PI * 2; return d; }
@@ -853,6 +870,69 @@
       q.off = Math.max(4, q.off - 2);
     }
   }
+  // ---------------------------------------------------------------- collisions : rien ne se traverse
+  // obstacles fixes (bancs, panneaux, feux, étals, palmiers, lampadaires) rangés dans une grille
+  const OBST = [], OG = new Map(), OGC = 128, ogKey = (i, j) => i * 100000 + j;
+  function addObst(o) { // o : { x, y, r } (cercle) ou { x, y, ux, uy, hw, hh } (boîte orientée)
+    const R = o.r || Math.hypot(o.hw, o.hh); OBST.push(o);
+    for (let i = Math.floor((o.x - R) / OGC); i <= Math.floor((o.x + R) / OGC); i++) for (let j = Math.floor((o.y - R) / OGC); j <= Math.floor((o.y + R) / OGC); j++) { const k = ogKey(i, j); if (!OG.has(k)) OG.set(k, []); OG.get(k).push(o); }
+  }
+  function obstNear(x, y) { return OG.get(ogKey(Math.floor(x / OGC), Math.floor(y / OGC))) || []; }
+  // repousse un cercle (x, y, r) hors d'un obstacle ; renvoie le décalage ou null
+  function pushOut(o, x, y, r) {
+    if (o.r) { const dx = x - o.x, dy = y - o.y, d = Math.hypot(dx, dy), m = o.r + r; if (d >= m) return null; const k = d > .01 ? (m - d) / d : 0; return d > .01 ? [dx * k, dy * k] : [m, 0]; }
+    const dx = x - o.x, dy = y - o.y, u = dx * o.ux + dy * o.uy, v = -dx * o.uy + dy * o.ux;
+    const cu = Math.max(-o.hw, Math.min(o.hw, u)), cv = Math.max(-o.hh, Math.min(o.hh, v)), eu = u - cu, ev = v - cv, d = Math.hypot(eu, ev);
+    if (d >= r) return null;
+    let pu, pv;
+    if (d > .01) { pu = eu / d * (r - d); pv = ev / d * (r - d); }
+    else { const ou = o.hw - Math.abs(u), ov = o.hh - Math.abs(v); if (ou < ov) { pu = Math.sign(u || 1) * (ou + r); pv = 0; } else { pu = 0; pv = Math.sign(v || 1) * (ov + r); } }
+    return [pu * o.ux - pv * o.uy, pu * o.uy + pv * o.ux];
+  }
+  (function buildObstacles() {
+    BENCHES.forEach(b => { const ux = Math.cos(b.a + Math.PI / 2), uy = Math.sin(b.a + Math.PI / 2); addObst({ x: b.x, y: b.y, ux, uy, hw: 9, hh: 2.6, bench: b }); });
+    BILLBOARDS.forEach(b => addObst({ x: b.x, y: b.y, r: 3 }));   // un seul mât central
+    LIGHTS.forEach(L => { const ca = Math.cos(L.ax), sa = Math.sin(L.ax), off = L.w / 2 + 10; addObst({ x: L.x + (ca - sa) * off * .75, y: L.y + (sa + ca) * off * .75, r: 2.5 }); });
+    PLACES.filter(o => o.type === "marche").forEach(mk => { for (const v of [-50, 50]) for (const u of [-120, -40, 40, 120]) addObst({ x: mk.x + mk.ux * u + mk.nx * v, y: mk.y + mk.uy * u + mk.ny * v, ux: mk.ux, uy: mk.uy, hw: 27, hh: 11 }); });
+  })();
+  const PED_R = 4;
+  // voiture (boîte orientée) contre piéton : le piéton est repoussé hors de la carrosserie
+  function pushFromCar(c, x, y, r) { return pushOut({ x: c.x, y: c.y, ux: Math.cos(c.a), uy: Math.sin(c.a), hw: CAR_HL, hh: CAR_HW }, x, y, r); }
+  function moveBody(q, d) { const nx = q.x + d[0], ny = q.y + d[1]; if (!walkBlocked(nx, ny)) { q.x = nx; q.y = ny; return true; } if (!walkBlocked(nx, q.y)) { q.x = nx; return true; } if (!walkBlocked(q.x, ny)) { q.y = ny; return true; } return false; }
+  // piétons et personnage : contre les obstacles fixes, les voitures et entre eux
+  function resolveBodies(cars) {
+    const f = G.foot, bodies = G.peds.filter(q => !q.play && !q.gone && !q.enter);
+    if (f && !f.sit) bodies.push(f);
+    const grid = new Map(), gk = (x, y) => ogKey(Math.floor(x / 32), Math.floor(y / 32));
+    for (const q of bodies) {
+      for (const o of obstNear(q.x, q.y)) { const d = pushOut(o, q.x, q.y, PED_R); if (d) moveBody(q, d); }
+      for (const c of cars) { if (Math.abs(c.x - q.x) > 40 || Math.abs(c.y - q.y) > 40) continue; const d = pushFromCar(c, q.x, q.y, PED_R); if (d) moveBody(q, d); }
+      const k = gk(q.x, q.y); if (!grid.has(k)) grid.set(k, []); grid.get(k).push(q);
+    }
+    const min = PED_R * 2;
+    bodies.forEach((q, i) => { q._ci = i; });
+    for (const q of bodies) {
+      const i0 = Math.floor(q.x / 32), j0 = Math.floor(q.y / 32);
+      for (let i = i0 - 1; i <= i0 + 1; i++) for (let j = j0 - 1; j <= j0 + 1; j++) for (const o of grid.get(ogKey(i, j)) || []) {
+        if (o._ci <= q._ci) continue;   // chaque paire une seule fois
+        if ((q.chat && q.chat.with === o) || (o.chat && o.chat.with === q)) continue;
+        const dx = q.x - o.x, dy = q.y - o.y, d = Math.hypot(dx, dy); if (d >= min) continue;
+        const n = d > .01 ? 1 / d : 0, push = (min - d) / 2, ux = n ? dx * n : 1, uy = n ? dy * n : 0;
+        // les vendeurs et policiers postés ne bougent pas : c'est le passant qui s'écarte
+        const qs = q.staff && q !== f, os = o.staff && o !== f;
+        if (!qs) moveBody(q, [ux * (os ? push * 2 : push), uy * (os ? push * 2 : push)]);
+        if (!os) moveBody(o, [-ux * (qs ? push * 2 : push), -uy * (qs ? push * 2 : push)]);
+      }
+    }
+  }
+  // voitures contre obstacles fixes
+  function carVsStatic(c) {
+    if (c.parked) return;
+    for (const [x, y] of carDiscs(c)) for (const o of obstNear(x, y)) {
+      const d = pushOut(o, x, y, CAR_HW); if (!d) continue;
+      c.x += d[0]; c.y += d[1]; const l = Math.hypot(d[0], d[1]) || 1; impact(c, d[0] / l, d[1] / l, .2);
+    }
+  }
   function footStep(dt, up, down, steer, run) {
     const f = G.foot;
     f.a += steer * 2.8 * dt;
@@ -863,7 +943,7 @@
     if (!walkBlocked(f.x, ny)) f.y = ny;
     f.t += dt * Math.abs(f.v) / 30;
     // les voitures poussent le piéton (pas de blessure)
-    for (const c of [G.player, ...G.traffic, ...G.cops, ...G.parked]) { if (Math.abs(f.x - c.x) > 40 || Math.abs(f.y - c.y) > 40) continue; const dx = f.x - c.x, dy = f.y - c.y, d = Math.hypot(dx, dy); if (d < 20 && d > .1) { f.x = c.x + dx / d * 20; f.y = c.y + dy / d * 20; } }
+    for (const c of [G.player, ...G.traffic, ...G.cops, ...G.parked]) { if (Math.abs(f.x - c.x) > 40 || Math.abs(f.y - c.y) > 40) continue; const d = pushFromCar(c, f.x, f.y, PED_R); if (d) moveBody(f, d); }
   }
   function nearSlot(x, y) {
     for (const o of SHOPS) for (const sl of o.slots || []) if (Math.hypot(x - sl.x, y - sl.y) < 48) return { o, sl, car: CARS[o.slots.indexOf(sl) % CARS.length] };
@@ -1887,9 +1967,12 @@
     G.cops.forEach(c => copAI(c, dt));
     G.traffic.forEach(trafficAI);
     stepCar(p, dt); G.cops.forEach(c => stepCar(c, dt)); G.traffic.forEach(c => stepCar(c, dt));
-    const near = [p, ...G.cops.filter(c => Math.abs(c.x - p.x) < 1400 && Math.abs(c.y - p.y) < 1400), ...G.traffic.filter(c => Math.abs(c.x - p.x) < 1400 && Math.abs(c.y - p.y) < 1400)];
+    // à pied, les collisions se calculent autour du personnage (pas de la voiture laissée au parking)
+    const cc = G.foot || p, nearC = c => Math.abs(c.x - cc.x) < 1400 && Math.abs(c.y - cc.y) < 1400 || Math.abs(c.x - p.x) < 1400 && Math.abs(c.y - p.y) < 1400;
+    const near = [p, ...G.cops.filter(nearC), ...G.traffic.filter(nearC)];
     const fcar = G.foot || p, pk = G.parked.filter(c => Math.abs(c.x - fcar.x) < 1400 && Math.abs(c.y - fcar.y) < 1400 || Math.abs(c.x - p.x) < 200 && Math.abs(c.y - p.y) < 200);
     collideCars(near.concat(pk));
+    near.forEach(carVsStatic);
     pk.forEach(c => { c.x = c.x0; c.y = c.y0; c.a = c.a0; c.vx = c.vy = 0; c.stun = 0; c.health = 100; });
 
     // herses
@@ -1928,6 +2011,7 @@
     for (let k = walkers.length; k < nPed; k++) spawnPed(false);
     if (walkers.length > nPed + 3) { const q = walkers.find(q => !q.route && !q.enter && Math.hypot(q.x - fc.x, q.y - fc.y) > 700); if (q) planHome(q); if (q && !q.route) q.gone = true; }
     G.peds.forEach(q => pedStep(q, dt, near));
+    resolveBodies(near.concat(pk));
     updatePrompt();
 
     // frôlements
@@ -2240,6 +2324,6 @@
   resize(); show("menu");
 
   // Accès pour les tests automatisés
-  window.ZBOSS_WORLD = { W, H, C, MW, MH, mask, MAP, ROADS, FILL, walkBlocked, SHOPS, PLACES, BILLBOARDS, BENCHES, LIGHTS, lightState, isOpen, SHOP_W, SHOP_D, SHOP_DOOR, nodes, nodesNear, nearestNode, solidAt, groundAt, angDiff, rand };
+  window.ZBOSS_WORLD = { addObst, OBST, W, H, C, MW, MH, mask, MAP, ROADS, FILL, walkBlocked, SHOPS, PLACES, BILLBOARDS, BENCHES, LIGHTS, lightState, isOpen, SHOP_W, SHOP_D, SHOP_DOOR, nodes, nodesNear, nearestNode, solidAt, groundAt, angDiff, rand };
   window.__zboss = { get state() { return G; }, start: () => start(chosen), spawnCop, keys, touch, act: () => { actPressed = true; }, sortie: m => autoToggle(true, m), sorties: openSorties, plan: openPlan, me: showMe, setHour: h => { G.hour = h; }, step: (n, dt) => { for (let i = 0; i < n && G && !G.paused; i++) update(dt || 1 / 30); } };
 })();
