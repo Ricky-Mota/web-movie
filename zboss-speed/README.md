@@ -60,4 +60,5 @@ Ajoute `?utm_source=tiktok` (ou `discord`, `youtube`…) aux liens que tu partag
 - Les visuels de la galerie sont des illustrations provisoires : remplace-les par tes captures Unreal Engine 5 (images de 1600 × 900 conseillées).
 - **Partenaires** : Vodacom, Equity BCDC, Bralima et Bracongo sont affichés en texte avec la mention « partenaire pressenti ». N'ajoute leurs logos qu'après un accord écrit de chaque marque (fichiers fournis par elles).
 - **Voitures** : les 6 modèles sont des créations originales inspirées de silhouettes et de couleurs. Ne reprends pas de logos, de noms de modèles ou de photos de constructeurs réels sans licence.
+- **Personnages** : `assets/models/humans.glb` est généré par `tools/blender_humans.py` à partir du maillage et des cibles MakeHuman/MPFB2 (licence CC0, réutilisation libre). Pour le régénérer : `python tools/blender_humans.py <dossier mpfb/data> assets/models/humans.glb`, puis `gltfpack -c -kn -km -ke`.
 - **Bande-annonce** : animée dans la page, avec un son synthétisé et désactivé par défaut. Quand tu auras une vraie vidéo tournée dans Unreal Engine 5 (export MP4 via Movie Render Queue), elle pourra remplacer ce bloc.

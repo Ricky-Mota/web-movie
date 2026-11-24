@@ -439,10 +439,111 @@
     };
     return q.lookC;
   };
+  // ------------------------------------------------------------ Personnages réalistes (Blender + MakeHuman CC0, riggés et animés)
+  // Les piétons les plus proches de la caméra (et le chauffeur à pied) utilisent des modèles humains
+  // animés ; les plus lointains gardent la version instanciée, bien plus légère.
+  const HUM = { ready: false, tpl: {}, clips: {}, pool: {}, byPed: new Map(), max: MOBILE ? 8 : 22, range: MOBILE ? 45 : 70 };
+  const BONE_SET = new Set(["Root", "pelvis", "spine_01", "spine_02", "spine_03", "neck_01", "head", "clavicle_l", "clavicle_r", "upperarm_l", "upperarm_r", "lowerarm_l", "lowerarm_r", "hand_l", "hand_r", "thigh_l", "thigh_r", "calf_l", "calf_r", "foot_l", "foot_r", "ball_l", "ball_r"]);
+  const realName = n => (BONE_SET.has(n) ? n : BONE_SET.has(n.replace(/_\d+$/, "")) ? n.replace(/_\d+$/, "") : n);
+  if (THREE.GLTFLoader && THREE.SkeletonUtils) {
+    const ld = new THREE.GLTFLoader();
+    if (window.MeshoptDecoder) ld.setMeshoptDecoder(window.MeshoptDecoder);
+    ld.load("assets/models/humans" + (window.ZBOSS_MODEL_EXT || ".glb"), gl => {
+      const owner = {};
+      gl.scene.traverse(o => { if (o.userData && o.userData.variant) o.traverse(b => { if (b.isBone) owner[b.name] = o; }); });
+      gl.scene.children.slice().forEach(r => {
+        if (!r.userData.variant) return;
+        r.traverse(o => {
+          if (o.isBone) o.name = realName(o.name);
+          if (o.isMesh) { o.castShadow = !MOBILE; o.frustumCulled = false; const m = o.material; if (m) { m.envMapIntensity = .6; if (/^skin/.test(m.name)) m.roughness = .62; } }
+        });
+        HUM.tpl[r.userData.variant] = r; HUM.pool[r.userData.variant] = [];
+      });
+      gl.animations.forEach(c => {
+        let own = null;
+        c.tracks.forEach(t => { const i = t.name.indexOf("."), node = t.name.slice(0, i); if (!own && owner[node]) own = owner[node]; t.name = realName(node) + t.name.slice(i); });
+        const base = own && own.getObjectByName("pelvis");
+        // une copie par personnage : la translation du bassin est recalée sur sa propre taille
+        for (const v in HUM.tpl) {
+          const cc = c.clone(), pv = HUM.tpl[v].getObjectByName("pelvis");
+          if (base && pv) cc.tracks.forEach(t => { if (t.name === "pelvis.position") for (let i = 0; i < t.values.length; i += 3) { t.values[i] += pv.position.x - base.position.x; t.values[i + 1] += pv.position.y - base.position.y; t.values[i + 2] += pv.position.z - base.position.z; } });
+          (HUM.clips[v] = HUM.clips[v] || {})[c.name] = cc;
+        }
+      });
+      HUM.ready = Object.keys(HUM.tpl).length > 0;
+    }, undefined, () => { HUM.ready = false; });
+  }
+  const MEN = ["m1", "m2", "m3", "m4"], WOMEN = ["f1", "f2", "f3"];
+  function humInstance(v) {
+    const pool = HUM.pool[v];
+    let h = pool.find(x => !x.ped);
+    if (!h) {
+      const obj = THREE.SkeletonUtils.clone(HUM.tpl[v]);
+      obj.position.set(0, 0, 0);
+      const mats = {};
+      obj.traverse(o => { if (o.isMesh) { o.material = o.material.clone(); mats[o.material.name.replace(/\..*$/, "")] = o.material; o.castShadow = !MOBILE; o.frustumCulled = false; } });
+      const mixer = new THREE.AnimationMixer(obj), acts = {};
+      for (const k in HUM.clips[v]) acts[k] = mixer.clipAction(HUM.clips[v][k]);
+      h = { v, obj, mats, mixer, acts, cur: null, ped: null };
+      pool.push(h);
+    }
+    return h;
+  }
+  function humPlay(h, name, ts) {
+    const a = h.acts[name] || h.acts.idle;
+    if (!a) return;
+    a.timeScale = ts;
+    if (h.cur === a) return;
+    a.reset().play();
+    if (h.cur) a.crossFadeFrom(h.cur, .25, false);
+    h.cur = a;
+  }
+  const humTmp = new THREE.Color(), WHITE = new THREE.Color("#ffffff");
+  // place les personnages animés ; renvoie l'ensemble des piétons pris en charge
+  function updateHumans(list, camX, camZ, dt) {
+    const done = new Set();
+    if (!HUM.ready) return done;
+    const r2 = HUM.range * HUM.range;
+    const cand = list.map(q => ({ q, d: (q.x * S - camX) ** 2 + (q.y * S - camZ) ** 2 })).filter(o => o.d < r2 || o.q.player).sort((a, b) => (b.q.player ? 1 : 0) - (a.q.player ? 1 : 0) || a.d - b.d).slice(0, HUM.max).map(o => o.q);
+    const keep = new Set(cand);
+    for (const [q, h] of HUM.byPed) if (!keep.has(q)) { h.ped = null; scene.remove(h.obj); HUM.byPed.delete(q); }
+    cand.forEach(q => {
+      let h = HUM.byPed.get(q);
+      const L = pedLook(q);
+      if (!h) {
+        const hash = ((q.look || 0) * 2654435761 + Math.floor((q.x0 || q.x) * 7)) >>> 0;
+        const v = q.player ? "m1" : L.woman ? WOMEN[hash % WOMEN.length] : MEN[hash % MEN.length];
+        if (!HUM.tpl[v]) return;
+        h = humInstance(v); h.ped = q; h.cur = null; h.mixer.stopAllAction(); HUM.byPed.set(q, h); scene.add(h.obj);
+        const m = h.mats;
+        // couleurs du jeu (sRGB) -> espace linéaire des matériaux glTF
+        if (m.shirt) m.shirt.color.copy(L.top).convertSRGBToLinear();
+        if (m.pants) m.pants.color.copy(L.low).convertSRGBToLinear();
+        if (m.wax) m.wax.color.copy(humTmp.copy(WHITE).lerp(L.wrap || L.low, .45));
+        if (m.shoes) m.shoes.color.copy(L.shoe).convertSRGBToLinear();
+        h.mixer.update(Math.random() * 2);
+      }
+      const sp = Math.abs(q.v || 0) * S * (q.player ? 1 : 1);
+      if (q.state === "cower") humPlay(h, "cower", 1);
+      else if (q.state === "dodge" || sp > 2.4) humPlay(h, "run", Math.min(1.8, Math.max(.7, sp / 3.1)));
+      else if (q.state === "walk" && sp > .2) humPlay(h, "walk", Math.min(2.2, Math.max(.5, sp / 1.05)));
+      else humPlay(h, "idle", 1);
+      h.mixer.update(dt);
+      h.obj.position.set(q.x * S, .02 + (q.state === "dodge" ? Math.sin((.55 - (q.st || 0)) / .55 * Math.PI) * .25 : 0), q.y * S);
+      h.obj.rotation.y = Math.PI / 2 - q.a;
+      h.obj.scale.setScalar(q.player ? 1 : .96 + (L.h - .94) * .6);
+      done.add(q);
+    });
+    return done;
+  }
+
   const mP = new THREE.Matrix4(), mA = new THREE.Matrix4(), mB = new THREE.Matrix4(), HIDE = new THREE.Matrix4().makeScale(0, 0, 0);
-  function updatePeds(G, camX, camZ) {
-    const list = G.peds.filter(q => Math.abs(q.x * S - camX) < 140 && Math.abs(q.y * S - camZ) < 140).slice(0, PEDMAX - 1);
+  function updatePeds(G, camX, camZ, dt) {
+    let list = G.peds.filter(q => Math.abs(q.x * S - camX) < 140 && Math.abs(q.y * S - camZ) < 140).slice(0, PEDMAX - 1);
     if (G.foot) list.push(Object.assign(G.foot, { player: true, state: Math.abs(G.foot.v) > 4 ? "walk" : "idle", look: 0, v: G.foot.v }));
+    else for (const [q, h] of HUM.byPed) if (q.player) { h.ped = null; scene.remove(h.obj); HUM.byPed.delete(q); }
+    const real = updateHumans(list, camX, camZ, dt || 1 / 60);
+    if (real.size) list = list.filter(q => !real.has(q));
     let n = 0;
     const put = (im, idx, local, color) => { mB.multiplyMatrices(mP, local); im.setMatrixAt(idx, mB); if (color) im.setColorAt(idx, color); };
     list.forEach(q => {
@@ -704,7 +805,7 @@
       const col = q.kind === "spark" ? [1, .75, .3] : q.kind === "flame" ? [.35, .8, 1] : q.kind === "fire" ? [1, .5, .15] : [.55 * a, .55 * a, .6 * a]; pCol.set(col, n * 3); n++; }
     pGeo.setDrawRange(0, n); pGeo.attributes.position.needsUpdate = true; pGeo.attributes.color.needsUpdate = true;
     updateCamera(G, dt);
-    updatePeds(G, camera.position.x, camera.position.z);
+    updatePeds(G, camera.position.x, camera.position.z, dt);
     updateShops(G);
     skyG.position.copy(camera.position); renderer.render(scene, camera);
   }
@@ -723,7 +824,7 @@
   requestAnimationFrame(idle);
 
   window.ZBOSS_3D = {
-    ok: true, render,
+    ok: true, render, hum: () => ({ ready: HUM.ready, n: HUM.byPed.size }),
     camLabel: () => CAM_NAMES[camMode],
     cycleCam() { camMode = CAMS[(CAMS.indexOf(camMode) + 1) % CAMS.length]; tvSpot = null; try { localStorage.setItem("zboss_cam3d", camMode); } catch (e) { } },
   };
