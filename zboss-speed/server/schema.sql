@@ -205,6 +205,21 @@ CREATE TABLE IF NOT EXISTS alertes (
   PRIMARY KEY (personnage_id, compte_id, type, jour)
 );
 
+-- bureau Zboss Sarlu : problèmes signalés par les joueurs depuis le guichet d'aide du jeu
+CREATE TABLE IF NOT EXISTS support_demandes (
+  id TEXT PRIMARY KEY,
+  compte_id TEXT,
+  pseudo TEXT,
+  email TEXT,
+  categorie TEXT NOT NULL,
+  message TEXT NOT NULL,
+  page TEXT,
+  statut TEXT NOT NULL DEFAULT 'ouvert',
+  cree_le INTEGER NOT NULL,
+  resolu_le INTEGER
+);
+CREATE INDEX IF NOT EXISTS support_statut ON support_demandes (statut, cree_le);
+
 -- liste d'attente bêta (formulaire « Réserver ma place » de l'accueil)
 CREATE TABLE IF NOT EXISTS beta_inscrits (
   id TEXT PRIMARY KEY,

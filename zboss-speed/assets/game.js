@@ -162,6 +162,7 @@
   // Masque : 2 = bâtiment (plein), 4 = terrain ouvert (marchable, solide pour les voitures).
   // Noms inventés ; les espaces partenaires restent sans logo tant qu'aucun accord écrit n'est signé.
   const PLACE_SPECS = [
+    { id: "zboss", type: "bureau", nom: "Zboss Sarlu", icone: "🏢", w: 300, d: 220, h: 150, bureau: true, statut: "Bureau d'aide : entre pour régler un problème ou poser une question." },
     { id: "foot", type: "foot", nom: "Terrain de football de la Gombe", icone: "⚽", w: 520, d: 340, open: true, statut: "Matchs entre joueurs après le lancement." },
     { id: "jeux", type: "jeux", nom: "Aire de jeux des enfants", icone: "🛝", w: 240, d: 200, open: true, statut: "Les bébés et enfants joueurs y gagneront de la joie." },
     { id: "basket", type: "basket", nom: "Terrain de basket", icone: "🏀", w: 300, d: 190, open: true, statut: "Ouvert à tous les joueurs." },
@@ -695,13 +696,68 @@
     } else {
       const ns = WALK ? null : nearSlot(G.foot.x, G.foot.y);
       if (WALK && Math.hypot(G.foot.x - p.x, G.foot.y - p.y) < 50) { txt = "Prendre le taxi"; act = "enter"; }
-      else if (WALK && (np = nearPlace(G.foot.x, G.foot.y))) txt = np.icone + " " + np.nom + " · " + np.statut;
+      else if (WALK && (np = nearPlace(G.foot.x, G.foot.y)) && np.bureau) { txt = np.icone + " " + np.nom + " · entrer au guichet d'aide"; act = "bureau"; }
+      else if (WALK && np) txt = np.icone + " " + np.nom + " · " + np.statut;
       else if (WALK) txt = "Promenade à pied dans la Gombe. Le taxi jaune est sur la carte.";
       else if (ns) { txt = ns.car.id === p.carDef.id ? ns.car.name + " : c'est déjà ta voiture" : "Prendre la " + ns.car.name + " (" + ns.car.cls + ")"; act = ns.car.id === p.carDef.id ? null : "pick"; }
       else if (Math.hypot(G.foot.x - p.x, G.foot.y - p.y) < 50) { txt = "Monter dans la voiture"; act = "enter"; }
       else txt = "À pied. Reviens à ta voiture pour repartir.";
     }
     G.prompt = txt; G.act = act;
+  }
+  // ---- bureau Zboss Sarlu : guichet d'aide (questions fréquentes + signaler un problème)
+  const BUREAU_FAQ = [
+    ["Je n'arrive pas à me connecter", "Vérifie ton e-mail et ton mot de passe sur la page Ma vie. Si tu as oublié ton mot de passe, signale-le ici : l'équipe te répondra par e-mail."],
+    ["Mon personnage est malade ou a faim", "Va à l'hôpital ou dans une alimentation, ou donne la consigne « Se soigner » ou « Manger » depuis Ma vie. Sans soins, la santé baisse chaque jour."],
+    ["Mes consignes n'ont pas été faites", "Les consignes passent quand tu te connectes et toutes les 15 minutes. Si l'argent manque, la consigne échoue : regarde « Tous mes mouvements »."],
+    ["Je suis en prison", "Tu peux payer la caution de 500 e-makuta depuis Ma vie, ou attendre 24 heures."],
+    ["Je veux signaler un joueur ou un bug", "Utilise le formulaire ci-dessous. Décris ce qui s'est passé, où et quand."],
+  ];
+  const CATS = ["Compte et connexion", "Argent et e-makuta", "Personnage (santé, famille, prison)", "Entreprise et travail", "Bug du jeu", "Signaler un joueur", "Autre"];
+  function openBureau() {
+    if (!G || $("bureau")) return;
+    G.paused = true; for (const k in keys) keys[k] = false;
+    const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+    const d = document.createElement("div"); d.id = "bureau"; d.className = "bureau";
+    d.innerHTML = `<div class="bureau-box" role="dialog" aria-modal="true" aria-labelledby="bureau-t">
+      <button type="button" class="bureau-x" aria-label="Fermer">✕</button>
+      <p class="bureau-k">🏢 Centre-ville · Gombe</p><h2 id="bureau-t">Zboss Sarlu · guichet d'aide</h2>
+      <p>Bienvenue ! Ici on règle les problèmes des joueurs. Regarde d'abord les réponses rapides, sinon laisse ta demande à l'agent.</p>
+      <div class="bureau-faq">${BUREAU_FAQ.map(([q, a]) => `<details><summary>${esc(q)}</summary><p>${esc(a)}</p></details>`).join("")}</div>
+      <form id="bureau-f"><h3>Signaler un problème</h3>
+        <label>Sujet<select name="categorie">${CATS.map(c => `<option>${esc(c)}</option>`).join("")}</select></label>
+        <label>Ton problème<textarea name="message" rows="4" maxlength="2000" required placeholder="Explique ce qui se passe…"></textarea></label>
+        <div class="bureau-2"><label>Pseudo<input name="pseudo" maxlength="40" placeholder="Ton pseudo"></label><label>E-mail (pour la réponse)<input name="email" type="email" maxlength="254" placeholder="toi@exemple.com"></label></div>
+        <button class="btn btn-primary" type="submit">Envoyer à Zboss Sarlu</button><p class="bureau-msg" id="bureau-msg" role="status"></p>
+      </form></div>`;
+    document.body.appendChild(d);
+    const close = () => { d.remove(); if (G) G.paused = false; };
+    d.querySelector(".bureau-x").onclick = close;
+    d.addEventListener("click", e => { if (e.target === d) close(); });
+    d.addEventListener("keydown", e => { e.stopPropagation(); if (e.key === "Escape") close(); });
+    d.addEventListener("keyup", e => e.stopPropagation());
+    const f = d.querySelector("#bureau-f"), out = d.querySelector("#bureau-msg");
+    f.onsubmit = async e => {
+      e.preventDefault();
+      const b = Object.fromEntries(new FormData(f)); b.page = "jouer";
+      if (String(b.message || "").trim().length < 5) { out.textContent = "Écris quelques mots sur ton problème."; return; }
+      const API = (window.TWO_LIFE_API || "").replace(/\/$/, "");
+      f.querySelector("button[type=submit]").disabled = true;
+      try {
+        if (API) {
+          let t = null; try { t = JSON.parse(localStorage.getItem("twolife_token")); } catch (er) { }
+          const r = await fetch(API + "/api/support", { method: "POST", headers: { "Content-Type": "application/json", ...(t ? { Authorization: "Bearer " + t } : {}) }, body: JSON.stringify(b) });
+          const j = await r.json().catch(() => ({}));
+          if (!r.ok) throw new Error(j.erreur || "Le bureau ne répond pas, réessaie plus tard.");
+        } else {
+          let L = []; try { L = JSON.parse(localStorage.getItem("twolife_demo_support") || "[]"); } catch (er) { }
+          L.unshift({ ...b, id: Date.now().toString(36), statut: "ouvert", cree_le: Date.now() }); try { localStorage.setItem("twolife_demo_support", JSON.stringify(L.slice(0, 200))); } catch (er) { }
+        }
+        f.reset(); out.textContent = "Merci ! Ta demande est bien arrivée chez Zboss Sarlu. L'équipe te répond au plus vite.";
+      } catch (er) { out.textContent = er.message; }
+      f.querySelector("button[type=submit]").disabled = false;
+    };
+    setTimeout(() => d.querySelector("summary").focus(), 30);
   }
   function doAction() {
     const p = G.player;
@@ -710,6 +766,8 @@
       let x = p.x + rx * 26, y = p.y + ry * 26; if (walkBlocked(x, y)) { x = p.x - rx * 26; y = p.y - ry * 26; }
       G.foot = { x, y, a: p.a, v: 0, t: 0 }; p.vx = p.vy = 0;
       msg("À pied : flèches pour marcher, Maj pour courir, E pour monter", 3);
+    } else if (G.act === "bureau") {
+      openBureau();
     } else if (G.act === "enter") {
       G.foot = null; msg("C'est reparti", 1.2, "ok");
     } else if (G.act === "pick") {
@@ -955,8 +1013,8 @@
     const X = x => ox + x * s, Y = y => oy + y * s;
     G.blocks.forEach(b => { mctx.fillStyle = "#c9ccd6"; mctx.fillRect(X(b.x) - 2, Y(b.y) - 2, 4, 4); });
     SHOPS.forEach(o => { const x = Math.max(6, Math.min(MM - 6, X(o.x))), y = Math.max(6, Math.min(MM - 6, Y(o.y))); mctx.fillStyle = "#ff5a1f"; mctx.fillRect(x - 5, y - 5, 10, 10); mctx.fillStyle = "#fff"; mctx.font = "bold 8px sans-serif"; mctx.textAlign = "center"; mctx.fillText("Z", x, y + 3); });
-    const PCOL = { foot: "#3fbf5a", jeux: "#3fbf5a", basket: "#3fbf5a", club: "#c04bff", alim: "#ffb21f", magasin: "#ffb21f", partenaire: "#2fa8ff", etat: "#f2f2f2" };
-    PLACES.forEach(o => { const x = X(o.x), y = Y(o.y); if (x < -4 || y < -4 || x > MM + 4 || y > MM + 4) return; mctx.fillStyle = PCOL[o.type] || "#fff"; mctx.beginPath(); mctx.arc(x, y, 3.4, 0, 6.283); mctx.fill(); mctx.strokeStyle = "rgba(0,0,0,.6)"; mctx.lineWidth = 1; mctx.stroke(); });
+    const PCOL = { foot: "#3fbf5a", jeux: "#3fbf5a", basket: "#3fbf5a", club: "#c04bff", alim: "#ffb21f", magasin: "#ffb21f", partenaire: "#2fa8ff", etat: "#f2f2f2", bureau: "#ff5a1f" };
+    PLACES.forEach(o => { const x = X(o.x), y = Y(o.y); if (x < -4 || y < -4 || x > MM + 4 || y > MM + 4) return; mctx.fillStyle = PCOL[o.type] || "#fff"; mctx.beginPath(); mctx.arc(x, y, o.bureau ? 5.2 : 3.4, 0, 6.283); mctx.fill(); mctx.strokeStyle = "rgba(0,0,0,.6)"; mctx.lineWidth = 1; mctx.stroke(); });
     if (G.foot) { mctx.fillStyle = "#7ff0a8"; mctx.beginPath(); mctx.arc(X(G.foot.x), Y(G.foot.y), 3, 0, 6.283); mctx.fill(); }
     G.cops.forEach(c => { if (!c.alive || c.mode === "leave") return; mctx.fillStyle = c.mode === "patrol" ? "#8a93a8" : (Math.floor(G.t * 4) % 2 ? "#ff2d4a" : "#2d7bff"); const x = Math.max(4, Math.min(MM - 4, X(c.x))), y = Math.max(4, Math.min(MM - 4, Y(c.y))); mctx.beginPath(); mctx.arc(x, y, 3.2, 0, 6.283); mctx.fill(); });
     if (G.heli) { mctx.strokeStyle = "rgba(220,235,255,.8)"; mctx.beginPath(); mctx.arc(X(G.heli.x), Y(G.heli.y), 170 * s + 2, 0, 6.283); mctx.stroke(); }

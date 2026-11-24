@@ -68,7 +68,22 @@ $("b-beta-csv").onclick = () => {
 function demoBeta() {
   try { return (JSON.parse(localStorage.getItem("zboss_demo_signups") || "[]")).map(r => ({ pseudo: r.pseudo, email: r.email, pays: r.country, plateforme: r.platform, newsletter: r.newsletter, source: r.source, cree_le: Date.parse(r.created_at) || Date.now() })); } catch (e) { return []; }
 }
-const load = async () => { try { const e = await call("/api/admin/etat"); render(e); renderBeta(API ? e.beta : demoBeta()); show(true); } catch (err) { show(false); } };
+// bureau Zboss Sarlu : demandes d'aide des joueurs
+const demoSup = { get() { try { return JSON.parse(localStorage.getItem("twolife_demo_support") || "[]"); } catch (e) { return []; } }, set(v) { try { localStorage.setItem("twolife_demo_support", JSON.stringify(v)); } catch (e) { } } };
+function renderSupport(rows) {
+  rows = rows || [];
+  const open = rows.filter(r => r.statut !== "resolu").length;
+  $("n-sup").textContent = open;
+  $("support").innerHTML = rows.length ? rows.map(r => `<div class="item"><span class="sw">${r.statut === "resolu" ? "✅" : "🆘"}</span><div class="t">${esc(r.categorie)} · ${esc(r.pseudo || "anonyme")}${r.email ? " · " + esc(r.email) : ""}<small>${esc(r.message)}</small><small>${day(r.cree_le)}${r.statut === "resolu" ? " · résolu" : ""}</small></div>
+    <button class="btn ghost" style="flex:none;width:auto;padding:6px 12px;font-size:13px;margin-left:auto" type="button" data-sup="${esc(r.id)}" data-st="${r.statut === "resolu" ? "ouvert" : "resolu"}">${r.statut === "resolu" ? "Rouvrir" : "Marquer résolu"}</button></div>`).join("")
+    : `<p>Aucun problème signalé pour l'instant.</p>`;
+}
+$("support").addEventListener("click", async e => {
+  const b = e.target.closest("[data-sup]"); if (!b) return;
+  if (API) { try { await call("/api/admin/support", { id: b.dataset.sup, statut: b.dataset.st }); load(); } catch (err) { toast(err.message); } }
+  else { const L = demoSup.get(); const r = L.find(x => x.id === b.dataset.sup); if (r) { r.statut = b.dataset.st; demoSup.set(L); } renderSupport(L); }
+});
+const load = async () => { try { const e = await call("/api/admin/etat"); render(e); renderBeta(API ? e.beta : demoBeta()); renderSupport(API ? e.support : demoSup.get()); show(true); } catch (err) { show(false); } };
 
 $("f-login").onsubmit = async ev => {
   ev.preventDefault(); $("login-err").textContent = "";

@@ -425,7 +425,7 @@ const worker = {
     if (post && res.ok) {
       try {
         const path = new URL(req.url).pathname;
-        if (!["/api/inscription", "/api/connexion", "/api/beta"].includes(path) && !path.startsWith("/api/admin/")) {
+        if (!["/api/inscription", "/api/connexion", "/api/beta", "/api/support"].includes(path) && !path.startsWith("/api/admin/")) {
           const out = await res.clone().json().catch(() => ({}));
           const d = describeAction(path, await copy.json().catch(() => ({})), out);
           const compte = d && await auth(env.DB, req, Date.now());
@@ -472,6 +472,20 @@ const worker = {
         return json(h, 201, { ok: true });
       }
 
+      // bureau Zboss Sarlu (guichet d'aide du jeu) : ouvert à tous, compte facultatif
+      if (url.pathname === "/api/support" && req.method === "POST") {
+        const t = v => String(v ?? "").trim();
+        const message = t(body.message).slice(0, 2000), email = t(body.email).toLowerCase().slice(0, 254);
+        if (message.length < 5) return fail(h, 400, "Écris quelques mots sur ton problème.");
+        if (email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return fail(h, 400, "Cette adresse e-mail ne semble pas valide.");
+        const c = await auth(db, req, now);
+        const recent = await db.prepare(`SELECT COUNT(*) AS n FROM support_demandes WHERE cree_le > ? AND (email = ? OR compte_id = ?)`).bind(now - 36e5, email || "-", c ? c.id : "-").first();
+        if (recent && recent.n >= 10) return fail(h, 429, "Tu as déjà envoyé beaucoup de demandes. Réessaie dans une heure.");
+        await db.prepare(`INSERT INTO support_demandes (id, compte_id, pseudo, email, categorie, message, page, statut, cree_le) VALUES (?, ?, ?, ?, ?, ?, ?, 'ouvert', ?)`)
+          .bind(uid(), c ? c.id : null, t(body.pseudo).slice(0, 40) || (c ? c.pseudo : null), email || (c ? c.email : null), t(body.categorie).slice(0, 60) || "Autre", message, t(body.page).slice(0, 40) || null, now).run();
+        return json(h, 201, { ok: true });
+      }
+
       if (url.pathname === "/api/inscription" && req.method === "POST") {
         const L = await launch(db);
         if (!L.demarre && !canSignupBeforeLaunch(body.formule) && !isAdmin(env, { email: String(body.email || "").trim().toLowerCase() })) {
@@ -508,7 +522,13 @@ const worker = {
           const { results: inv } = await db.prepare(`SELECT c.pseudo, c.email, d.offre, d.usd, d.le FROM depots d JOIN comptes c ON c.id = d.compte_id WHERE d.offre IN ('petit','grand') ORDER BY d.le`).all();
           const { results: ent } = await db.prepare(`SELECT e.nom, e.type, e.local AS quartier, e.cree_le, p.prenom || ' ' || p.nom AS proprietaire FROM entreprises e JOIN personnages p ON p.id = e.proprietaire_id ORDER BY e.cree_le`).all();
           const { results: beta } = await db.prepare(`SELECT pseudo, email, pays, plateforme, newsletter, source, cree_le FROM beta_inscrits ORDER BY cree_le DESC LIMIT 2000`).all();
-          return json(h, 200, { lancement: await launch(db), parents, investisseurs: inv, entreprises: ent, elections: await elections(db, now), beta });
+          const { results: support } = await db.prepare(`SELECT id, pseudo, email, categorie, message, statut, cree_le, resolu_le FROM support_demandes ORDER BY statut = 'ouvert' DESC, cree_le DESC LIMIT 300`).all();
+          return json(h, 200, { lancement: await launch(db), parents, investisseurs: inv, entreprises: ent, elections: await elections(db, now), beta, support });
+        }
+        if (url.pathname === "/api/admin/support" && req.method === "POST") {
+          const st = body.statut === "resolu" ? "resolu" : "ouvert";
+          await db.prepare(`UPDATE support_demandes SET statut = ?, resolu_le = ? WHERE id = ?`).bind(st, st === "resolu" ? now : null, String(body.id || "")).run();
+          return json(h, 200, { ok: true });
         }
         if (url.pathname === "/api/admin/parent" && req.method === "POST") {
           const r = await createAccount(db, body, now, OFFERS.find(o => o.id === "parent"), true);

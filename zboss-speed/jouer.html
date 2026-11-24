@@ -161,6 +161,17 @@
     </div>
   </section>
 
+  <script src="config.js"></script>
+  <style>
+    .bureau{position:fixed;inset:0;z-index:60;background:rgba(6,8,12,.62);display:flex;align-items:center;justify-content:center;padding:16px}
+    .bureau-box{position:relative;width:min(560px,100%);max-height:calc(100vh - 32px);overflow:auto;background:#12141a;color:#eef0f4;border:1px solid #2a2e38;border-radius:16px;padding:22px 20px;font:15px/1.5 Inter,Arial,sans-serif;box-shadow:0 20px 60px rgba(0,0,0,.5)}
+    .bureau-box h2{margin:2px 0 8px;font:700 22px 'Chakra Petch',Inter,sans-serif}.bureau-box h3{margin:16px 0 8px;font-size:16px}
+    .bureau-k{margin:0;color:#ff8a4c;font-size:13px;font-weight:600}.bureau-x{position:absolute;top:10px;right:10px;background:none;border:0;color:#aab;font-size:20px;cursor:pointer;padding:6px}
+    .bureau-faq details{border:1px solid #262a33;border-radius:10px;padding:8px 12px;margin:6px 0;background:#181b22}.bureau-faq summary{cursor:pointer;font-weight:600}.bureau-faq p{margin:6px 0 2px;color:#c5cad4}
+    .bureau-box label{display:block;font-size:13px;color:#aeb4c0;margin:8px 0}.bureau-box select,.bureau-box textarea,.bureau-box input{display:block;width:100%;box-sizing:border-box;margin-top:4px;background:#0c0e12;color:#fff;border:1px solid #2c313c;border-radius:8px;padding:9px 10px;font:inherit}
+    .bureau-2{display:grid;grid-template-columns:1fr 1fr;gap:10px}@media(max-width:520px){.bureau-2{grid-template-columns:1fr}}
+    .bureau-msg{min-height:1.4em;color:#7dff8a;font-size:14px}
+  </style>
   <script>window.TWOLIFE_WALK = true; document.body.classList.add("walk");</script>
   <script src="assets/cars.js"></script>
   <script>if (matchMedia("(pointer: coarse)").matches) document.body.classList.add("is-touch");</script>
