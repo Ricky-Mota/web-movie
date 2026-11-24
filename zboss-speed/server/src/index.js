@@ -2,7 +2,7 @@
 // Le serveur est l'arbitre : il décide de l'âge, des talents et de l'argent ; le téléphone ne fait qu'afficher.
 import {
   ageYears, stageOf, STAGES, realMsUntil, TALENTS, ACTIVITIES, rng, drawTalents, doActivity,
-  needsAt, newIdentity, BIRTH_GIFT, SHOP, cannotBuy, OFFERS, USD_TO_MAKUTA, WITHDRAW_FEE, walletInfo, birthShiftMs, REAL_MONEY, shopView, familyOf, JOBS, payFor, cannotWork, workView,
+  needsAt, newIdentity, BIRTH_GIFT, SHOP, cannotBuy, OFFERS, USD_TO_MAKUTA, USD_UNITS, fmtMakuta, WITHDRAW_FEE, walletInfo, birthShiftMs, REAL_MONEY, shopView, familyOf, JOBS, payFor, cannotWork, workView, cannotApply, FORMATIONS, cannotEnroll, attendCourse, schoolView,
 } from "./life.js";
 
 const SESSION_DAYS = 30;
@@ -78,10 +78,12 @@ async function loadCharacter(db, id) {
   const { results: ret } = await db.prepare(`SELECT makuta, usd, statut, le FROM retraits WHERE compte_id = ? ORDER BY le`).bind(p.compte_id).all();
   const job = await db.prepare(`SELECT id, metier_id FROM emplois WHERE personnage_id = ? AND fin IS NULL ORDER BY depuis DESC LIMIT 1`).bind(id).first();
   const last = await db.prepare(`SELECT MAX(le) AS le FROM activites WHERE personnage_id = ? AND activite LIKE 'travail:%'`).bind(id).first();
-  return { p, tal, inv, dep, ret, job, lastShift: last && last.le };
+  const enr = await db.prepare(`SELECT formation_id AS formation, annee, cours, points, dernier FROM inscriptions WHERE personnage_id = ?`).bind(id).first();
+  const { results: dip } = await db.prepare(`SELECT formation_id FROM diplomes_obtenus WHERE personnage_id = ? ORDER BY obtenu_le`).bind(id).all();
+  return { p, tal, inv, dep, ret, job, lastShift: last && last.le, enr, dip: dip.map(d => d.formation_id) };
 }
 
-function view(compte, { p, tal, inv = [], dep = [], ret = [], job = null, lastShift = null }, now) {
+function view(compte, { p, tal, inv = [], dep = [], ret = [], job = null, lastShift = null, enr = null, dip = [] }, now) {
   const age = ageYears(p.ne_le, now);
   const st = stageOf(age);
   const next = STAGES[STAGES.indexOf(st) + 1];
@@ -104,6 +106,7 @@ function view(compte, { p, tal, inv = [], dep = [], ret = [], job = null, lastSh
     repas: FOOD,
     ...shopView(inv, dep, ret, p.makuta, now),
     travail: workView(job && job.metier_id, lastShift, now),
+    ecole: schoolView(enr, dip, now),
   };
 }
 
@@ -242,9 +245,8 @@ export default {
 
       if (url.pathname === "/api/postuler" && req.method === "POST") {
         const job = JOBS.find(j => j.id === body.metier);
-        if (!job) return fail(h, 400, "Métier inconnu.");
-        if (job.diplome) return fail(h, 409, `Il faut d'abord le diplôme : ${job.diplome}.`);
-        if (ageYears(p.ne_le, now) < job.minAge) return fail(h, 409, `Ce métier est ouvert dès ${job.minAge} ans.`);
+        const no = cannotApply(job, ageYears(p.ne_le, now), ch.dip);
+        if (no) return fail(h, 409, no);
         await db.batch([
           db.prepare(`UPDATE emplois SET fin = ? WHERE personnage_id = ? AND fin IS NULL`).bind(now, p.id),
           db.prepare(`INSERT INTO emplois (id, personnage_id, metier_id, poste, salaire, depuis) VALUES (?, ?, ?, ?, ?, ?)`).bind(uid(), p.id, job.id, job.nom, job.salaire, now),
@@ -266,12 +268,36 @@ export default {
         return json(h, 200, { paie: pay, ...view(compte, await loadCharacter(db, p.id), now) });
       }
 
+      if (url.pathname === "/api/ecole/inscription" && req.method === "POST") {
+        const f = FORMATIONS.find(x => x.id === body.formation);
+        const no = cannotEnroll(f, ageYears(p.ne_le, now), ch.dip, ch.enr);
+        if (no) return fail(h, 409, no);
+        await db.prepare(`INSERT INTO inscriptions (personnage_id, formation_id, depuis) VALUES (?, ?, ?)`).bind(p.id, f.id, now).run();
+        return json(h, 200, view(compte, await loadCharacter(db, p.id), now));
+      }
+
+      if (url.pathname === "/api/ecole/cours" && req.method === "POST") {
+        if (!ch.enr) return fail(h, 409, "Inscris-toi d'abord dans une école.");
+        await settle(db, p, now);
+        const f = FORMATIONS.find(x => x.id === ch.enr.formation);
+        const res = attendCourse(f, ch.enr, tal.map(t => ({ talent: t.talent_id, discovered: !!t.decouvert })), p.makuta, p.energie, now, rng(seedOf()));
+        if (res.error) return fail(h, 409, res.error);
+        const st = [db.prepare(`UPDATE personnages SET energie = MAX(0, energie - ?), makuta = makuta - ? WHERE id = ?`).bind(15, res.fee, p.id)];
+        if (res.fee) st.push(db.prepare(`INSERT INTO transactions (id, de_id, vers_id, montant, motif, le) VALUES (?, ?, NULL, ?, ?, ?)`).bind(uid(), p.id, res.fee, "frais de cours : " + f.nom, now));
+        if (res.fin) st.push(
+          db.prepare(`INSERT OR IGNORE INTO diplomes_obtenus (personnage_id, formation_id, obtenu_le, note) VALUES (?, ?, ?, ?)`).bind(p.id, f.id, now, res.fin.note),
+          db.prepare(`DELETE FROM inscriptions WHERE personnage_id = ?`).bind(p.id));
+        else st.push(db.prepare(`UPDATE inscriptions SET annee = ?, cours = ?, points = ?, dernier = ? WHERE personnage_id = ?`).bind(res.enr.annee, res.enr.cours, res.enr.points, now, p.id));
+        await db.batch(st);
+        return json(h, 200, { cours: { note: res.note, message: res.message, diplome: !!res.fin }, ...view(compte, await loadCharacter(db, p.id), now) });
+      }
+
       // investissement : SIMULATION tant que REAL_MONEY est faux (aucun paiement encaissé)
       if (url.pathname === "/api/investir" && req.method === "POST") {
         const o = OFFERS.find(x => x.id === body.offre && x.type === "investissement");
         if (!o) return fail(h, 400, "Offre inconnue.");
         if (REAL_MONEY) return fail(h, 501, "Le paiement réel passe par le partenaire agréé.");
-        const mk = o.usd * USD_TO_MAKUTA;
+        const mk = o.usd * USD_UNITS;
         await db.batch([
           db.prepare(`INSERT INTO depots (id, compte_id, offre, usd, makuta, simule, le) VALUES (?, ?, ?, ?, ?, 1, ?)`).bind(uid(), compte.id, o.id, o.usd, mk, now),
           db.prepare(`UPDATE personnages SET makuta = makuta + ? WHERE id = ?`).bind(mk, p.id),
@@ -284,8 +310,8 @@ export default {
         const mk = Math.floor(Number(body.makuta) || 0);
         const w = walletInfo(ch.dep, p.makuta, now);
         if (!w.retraitPossible) return fail(h, 409, w.retraitPossibleLe ? `Retrait possible à partir du ${new Date(w.retraitPossibleLe).toLocaleDateString("fr-FR")}.` : "Aucun dépôt.");
-        if (mk < USD_TO_MAKUTA || mk > p.makuta) return fail(h, 400, "Montant invalide.");
-        const usd = Math.floor(mk / USD_TO_MAKUTA * (1 - WITHDRAW_FEE) * 100) / 100;
+        if (mk < USD_UNITS || mk > p.makuta) return fail(h, 400, "Montant invalide.");
+        const usd = Math.floor(mk / USD_UNITS * (1 - WITHDRAW_FEE) * 100) / 100;
         await db.batch([
           db.prepare(`UPDATE personnages SET makuta = makuta - ? WHERE id = ? AND makuta >= ?`).bind(mk, p.id, mk),
           db.prepare(`INSERT INTO retraits (id, compte_id, makuta, usd, simule, le) VALUES (?, ?, ?, ?, ?, ?)`).bind(uid(), compte.id, mk, usd, REAL_MONEY ? 0 : 1, now),

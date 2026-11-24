@@ -2,7 +2,7 @@
 // simule la même vie dans le navigateur (mode démo).
 import {
   ageYears, stageOf, STAGES, realMsUntil, TALENTS, ACTIVITIES, rng, drawTalents, doActivity, needsAt, newIdentity, BIRTH_GIFT,
-  SHOP, cannotBuy, OFFERS, USD_TO_MAKUTA, WITHDRAW_FEE, walletInfo, birthShiftMs, shopView, familyOf, JOBS, payFor, cannotWork, workView, SHIFT_ENERGY,
+  SHOP, cannotBuy, OFFERS, USD_TO_MAKUTA, USD_UNITS, fmtMakuta, WITHDRAW_FEE, walletInfo, birthShiftMs, shopView, familyOf, JOBS, payFor, cannotWork, workView, SHIFT_ENERGY, cannotApply, FORMATIONS, cannotEnroll, attendCourse, schoolView, STUDY_ENERGY,
 } from "../server/src/life.js";
 
 const API = (window.TWO_LIFE_API || "").replace(/\/$/, "");
@@ -35,6 +35,7 @@ const demo = {
       repas: FOOD,
       ...shopView(d.inv || [], d.dep || [], d.ret || [], c.makuta, now),
       travail: workView(d.job, d.lastShift, now),
+      ecole: schoolView(d.enr || null, d.dip || [], now),
     };
   },
   settle(c) { const n = needsAt(c); Object.assign(c, n, { updatedAt: Date.now() }); },
@@ -101,10 +102,8 @@ const demo = {
       store.set(LS_DEMO, d); return this.view(d);
     }
     if (path === "/api/postuler") {
-      const job = JOBS.find(j => j.id === body.metier);
-      if (!job) throw new Error("Métier inconnu.");
-      if (job.diplome) throw new Error(`Il faut d'abord le diplôme : ${job.diplome}.`);
-      if (ageYears(c.neLe) < job.minAge) throw new Error(`Ce métier est ouvert dès ${job.minAge} ans.`);
+      const job = JOBS.find(j => j.id === body.metier), no = cannotApply(job, ageYears(c.neLe), d.dip || []);
+      if (no) throw new Error(no);
       d.job = job.id; store.set(LS_DEMO, d); return this.view(d);
     }
     if (path === "/api/travailler") {
@@ -115,19 +114,35 @@ const demo = {
       c.makuta += pay.montant; c.energy = Math.max(0, c.energy - SHIFT_ENERGY); c.hunger = Math.max(0, c.hunger - 10); d.lastShift = Date.now();
       store.set(LS_DEMO, d); return { paie: pay, ...this.view(d) };
     }
+    if (path === "/api/ecole/inscription") {
+      const f = FORMATIONS.find(x => x.id === body.formation), no = cannotEnroll(f, ageYears(c.neLe), d.dip || [], d.enr);
+      if (no) throw new Error(no);
+      d.enr = { formation: f.id, annee: 1, cours: 0, points: 0, dernier: null };
+      store.set(LS_DEMO, d); return this.view(d);
+    }
+    if (path === "/api/ecole/cours") {
+      if (!d.enr) throw new Error("Inscris-toi d'abord dans une école.");
+      this.settle(c);
+      const f = FORMATIONS.find(x => x.id === d.enr.formation);
+      const res = attendCourse(f, d.enr, c.talents, c.makuta, c.energy, Date.now(), rng(this.seed()));
+      if (res.error) throw new Error(res.error);
+      c.energy = Math.max(0, c.energy - STUDY_ENERGY); c.makuta -= res.fee;
+      if (res.fin) { (d.dip = d.dip || []).push(f.id); d.enr = null; } else d.enr = res.enr;
+      store.set(LS_DEMO, d); return { cours: { note: res.note, message: res.message, diplome: !!res.fin }, ...this.view(d) };
+    }
     if (path === "/api/investir") {
       const o = OFFERS.find(x => x.id === body.offre && x.type === "investissement");
       if (!o) throw new Error("Offre inconnue.");
-      const mk = o.usd * USD_TO_MAKUTA;
+      const mk = o.usd * USD_UNITS;
       (d.dep = d.dep || []).push({ offre: o.id, usd: o.usd, makuta: mk, le: Date.now() });
       c.makuta += mk; store.set(LS_DEMO, d); return this.view(d);
     }
     if (path === "/api/retirer") {
       const mk = Math.floor(Number(body.makuta) || 0), w = walletInfo(d.dep || [], c.makuta);
       if (!w.retraitPossible) throw new Error(w.retraitPossibleLe ? `Retrait possible à partir du ${new Date(w.retraitPossibleLe).toLocaleDateString("fr-FR")}.` : "Aucun dépôt.");
-      if (mk < USD_TO_MAKUTA || mk > c.makuta) throw new Error("Montant invalide.");
+      if (mk < USD_UNITS || mk > c.makuta) throw new Error("Montant invalide.");
       c.makuta -= mk;
-      (d.ret = d.ret || []).push({ makuta: mk, usd: Math.floor(mk / USD_TO_MAKUTA * (1 - WITHDRAW_FEE) * 100) / 100, statut: "demande", le: Date.now() });
+      (d.ret = d.ret || []).push({ makuta: mk, usd: Math.floor(mk / USD_UNITS * (1 - WITHDRAW_FEE) * 100) / 100, statut: "demande", le: Date.now() });
       store.set(LS_DEMO, d); return this.view(d);
     }
     throw new Error("Action inconnue.");
@@ -165,12 +180,12 @@ function render(v) {
   $("h-name").textContent = `${p.prenom} ${p.nom}`;
   $("h-age").textContent = `${fmtAge(p.age)} · ${p.quartier}, ${p.ville}` + (p.prochaineEtape ? ` · ${p.prochaineEtape.label} dans ${fmtWait(p.prochaineEtape.dansMs)}` : "");
   $("h-stage").textContent = p.etapeLabel;
-  $("h-money").textContent = `${p.makuta.toLocaleString("fr-FR")} e-makuta`;
+  $("h-money").textContent = fmtMakuta(p.makuta);
   $("needs").innerHTML = NEEDS.map(([k, label]) => {
     const x = p.besoins[k], cls = x < 25 ? "low" : x < 55 ? "mid" : "";
     return `<div class="need">${label} · ${x}<div class="bar"><i class="${cls}" style="width:${x}%"></i></div></div>`;
   }).join("");
-  $("b-eat").textContent = `Manger au maquis (${v.repas.prix} e-makuta)`;
+  $("b-eat").textContent = `Manger au maquis (${fmtMakuta(v.repas.prix)})`;
   const tal = p.talents.map(t => `<span class="tal on">${t.label} · niveau ${t.niveau}</span>`);
   for (let i = 0; i < p.talentsCaches; i++) tal.push(`<span class="tal">Talent caché</span>`);
   $("talents").innerHTML = tal.join("");
@@ -189,7 +204,7 @@ function render(v) {
     ["Maison", `${f.maison.type}, ${f.maison.pieces} pièces à ${f.maison.quartier} : ${f.maison.desc}`],
   ] : []).concat([["Joueur", v.compte.pseudo], ["Né le", new Date(p.neLe).toLocaleDateString("fr-FR")]])
     .map(([a, b]) => `<div class="row"><span>${a}</span><span style="text-align:right">${b}</span></div>`).join("");
-  renderShop(v); renderWallet(v); renderWork(v);
+  renderShop(v); renderWallet(v); renderWork(v); renderSchool(v);
   portrait(p);
   dress(v);
 }
@@ -197,7 +212,7 @@ function render(v) {
 // ---------------------------------------------------------------- magasin, affaires, portefeuille
 const TYPES = [["nourriture", "Nourriture", "🍲"], ["vetement", "Vêtements", "👕"], ["telephone", "Téléphones", "📱"]];
 let shopTab = "nourriture";
-const mk = n => `${Math.round(n).toLocaleString("fr-FR")} e-makuta`;
+const mk = n => fmtMakuta(Math.round(n));
 const usd = n => `${n.toLocaleString("fr-FR", { maximumFractionDigits: 2 })} $`;
 const SLOT = { haut: "Haut", bas: "Bas", pieds: "Chaussures" };
 function swatch(it) {
@@ -222,14 +237,14 @@ function renderWallet(v) {
   const lock = w.retraitPossibleLe ? (w.retraitPossible ? "Retrait possible" : `Retrait possible à partir du ${new Date(w.retraitPossibleLe).toLocaleDateString("fr-FR")}`) : "Aucun dépôt";
   const rows = [["Solde", mk(p.makuta)], ["Valeur au retrait", `${usd(w.valeurUsd)} (après ${Math.round(w.frais * 100)} % de frais)`], ["Taux", `1 $ = ${w.taux} e-makuta`],
     ["Total déposé", usd(w.deposeUsd)], ["Blocage", `${w.blocageJours} jours après le premier dépôt · ${lock}`]];
-  const inv = w.offres.filter(o => o.type === "investissement").map(o => `<div class="item"><span class="sw">💼</span><div class="t">${o.nom} · ${usd(o.usd)}<small>${o.desc} Tu reçois ${mk(o.usd * w.taux)}.</small></div>
+  const inv = w.offres.filter(o => o.type === "investissement").map(o => `<div class="item"><span class="sw">💼</span><div class="t">${o.nom} · ${usd(o.usd)}<small>${o.desc} Tu reçois ${mk(o.usd * USD_UNITS)}.</small></div>
       <button class="mini fill" data-inv="${o.id}" type="button">Investir</button></div>`).join("");
   const hist = [...w.depots.map(d => [d.le, `${(w.offres.find(o => o.id === d.offre) || {}).nom || d.offre} : ${usd(d.usd)}`]),
     ...w.retraits.map(r => [r.le, `Retrait demandé : ${mk(r.makuta)} → ${usd(r.usd)}`])].sort((a, b) => b[0] - a[0])
     .map(([t, x]) => `<div class="row"><span>${new Date(t).toLocaleDateString("fr-FR")}</span><span>${x}</span></div>`).join("");
   $("wallet").innerHTML = rows.map(([a, b]) => `<div class="row"><span>${a}</span><span style="text-align:right">${b}</span></div>`).join("") +
     `<h2 style="font-size:16px;margin:16px 0 4px">Investir</h2>${inv}` +
-    `<button class="btn" id="b-withdraw" type="button" ${w.retraitPossible && p.makuta >= w.taux ? "" : "disabled"}>Retirer vers M-Pesa ou carte</button>` +
+    `<button class="btn" id="b-withdraw" type="button" ${w.retraitPossible && p.makuta >= USD_UNITS ? "" : "disabled"}>Retirer vers M-Pesa ou carte</button>` +
     (hist ? `<h2 style="font-size:16px;margin:16px 0 4px">Historique</h2>${hist}` : "");
 }
 function renderWork(v) {
@@ -241,12 +256,40 @@ function renderWork(v) {
     <p style="font-size:13px;margin:8px 0 0">${wait ? `Prochaine journée dans ${fmtWait(w.prochainTravail - Date.now())}.` : `Une journée fatigue (−${w.fatigueTravail} énergie).`}${disc.has(cur.talent) ? " Ton talent te donne +30 % de salaire." : ""}</p>`
     : `<p style="font-size:14px;margin:0 0 6px">Choisis un métier. Un métier lié à un talent découvert paie 30 % de plus.</p>`;
   const list = w.metiers.map(j => {
-    const lock = j.diplome ? `diplôme : ${j.diplome}` : p.age < j.minAge ? `dès ${j.minAge} ans` : "";
-    return `<div class="item"><span class="sw">${j.diplome ? "🎓" : "🧰"}</span><div class="t">${j.nom}<small>${mk(j.salaire)} par journée${disc.has(j.talent) ? " · +30 % (ton talent)" : ""}${lock ? " · " + lock : ""}</small></div>
+    const lock = j.formation && !v.ecole.diplomes.includes(j.formation) ? `diplôme : ${j.diplome}` : p.age < j.minAge ? `dès ${j.minAge} ans` : "";
+    return `<div class="item"><span class="sw">${j.formation ? "🎓" : "🧰"}</span><div class="t">${j.nom}<small>${mk(j.salaire)} par journée${disc.has(j.talent) ? " · +30 % (ton talent)" : ""}${lock ? " · " + lock : ""}</small></div>
       ${j.id === w.metier ? `<span class="mini" style="border-color:var(--ok);color:var(--ok)">Ton métier</span>` : `<button class="mini fill" data-job="${j.id}" type="button" ${lock ? "disabled" : ""}>Postuler</button>`}</div>`;
   }).join("");
   $("work").innerHTML = head + `<h2 style="font-size:16px;margin:16px 0 4px">Offres d'emploi</h2>` + list;
 }
+function renderSchool(v) {
+  const p = v.perso, sc = v.ecole, enr = sc.enCours, f = enr && sc.formations.find(x => x.id === enr.formation);
+  const dip = sc.diplomes.map(id => sc.formations.find(x => x.id === id)).filter(Boolean);
+  let head = "";
+  if (f) {
+    const wait = enr.prochainCours && enr.prochainCours > Date.now(), moy = enr.cours ? Math.round(enr.points / enr.cours) : null;
+    head = `<div class="row"><span>Formation</span><span style="text-align:right">${f.nom}</span></div>
+      <div class="row"><span>Année</span><span>${enr.annee} sur ${f.annees} · cours ${enr.cours}/${f.coursParAn}${moy != null ? ` · moyenne ${moy}/100` : ""}</span></div>
+      <div class="bar" style="margin:10px 0 0"><i style="width:${Math.round(((enr.annee - 1) * f.coursParAn + enr.cours) / (f.annees * f.coursParAn) * 100)}%"></i></div>
+      <button class="btn" id="b-study" type="button" ${wait || p.besoins.energy < sc.fatigueCours ? "disabled" : ""}>Aller en cours${f.fraisCours ? ` (${mk(f.fraisCours)})` : ""}</button>
+      <p style="font-size:13px;margin:8px 0 0">${wait ? `Prochain cours dans ${fmtWait(enr.prochainCours - Date.now())}.` : `Un cours fatigue (−${sc.fatigueCours} énergie).`} Il faut ${sc.moyenneRequise}/100 de moyenne pour passer.${f.parents ? " Les frais sont payés par tes parents." : ""}</p>`;
+  } else if (p.age < 6) head = `<p style="font-size:14px;margin:0">${p.prenom} entrera à l'école primaire à 6 ans.</p>`;
+  else head = `<p style="font-size:14px;margin:0">Aucune formation en cours. Choisis une école ci-dessous.</p>`;
+  const list = sc.formations.map(x => {
+    const done = sc.diplomes.includes(x.id);
+    const lock = done ? "" : enr ? "" : x.requis && !sc.diplomes.includes(x.requis) ? `après : ${sc.formations.find(y => y.id === x.requis).diplome}` : p.age < x.minAge ? `dès ${x.minAge} ans` : "";
+    const fee = x.parents ? "payée par les parents" : `${mk(x.fraisAn)} par an`;
+    const btn = done ? `<span class="mini" style="border-color:var(--ok);color:var(--ok)">Diplômé</span>` : enr && enr.formation === x.id ? `<span class="mini">En cours</span>` : `<button class="mini fill" data-enroll="${x.id}" type="button" ${lock || enr ? "disabled" : ""}>S'inscrire</button>`;
+    return `<div class="item"><span class="sw">${x.parents ? "🏫" : "🎓"}</span><div class="t">${x.nom}<small>${x.annees} ans · ${x.diplome} · ${fee}${lock ? " · " + lock : ""}</small></div>${btn}</div>`;
+  }).join("");
+  $("school").innerHTML = head + (dip.length ? `<h2 style="font-size:16px;margin:16px 0 4px">Mes diplômes</h2>` + dip.map(x => `<div class="row"><span>🎓</span><span>${x.diplome}</span></div>`).join("") : "") +
+    `<h2 style="font-size:16px;margin:16px 0 4px">Écoles et universités</h2>` + list;
+}
+$("school").onclick = e => {
+  const b = e.target.closest("[data-enroll]");
+  if (b) return act("/api/ecole/inscription", { formation: b.dataset.enroll }, v => `Inscrit : ${v.ecole.formations.find(x => x.id === v.ecole.enCours.formation).nom}.`);
+  if (e.target.id === "b-study") act("/api/ecole/cours", {}, v => v.cours.message);
+};
 $("work").onclick = e => {
   const b = e.target.closest("[data-job]");
   if (b) return act("/api/postuler", { metier: b.dataset.job }, v => `Embauché : ${v.travail.metiers.find(j => j.id === v.travail.metier).nom}.`);
@@ -262,7 +305,7 @@ $("shop").onclick = e => {
 $("inv").onclick = e => { const b = e.target.closest("[data-wear]"); if (b) act("/api/porter", { possession: b.dataset.wear }); };
 $("wallet").onclick = e => {
   const b = e.target.closest("[data-inv]");
-  if (b) { const o = state.portefeuille.offres.find(x => x.id === b.dataset.inv); return act("/api/investir", { offre: o.id }, v => `Investissement simulé : ${mk(o.usd * v.portefeuille.taux)} ajoutés. Retrait possible après 3 mois.`); }
+  if (b) { const o = state.portefeuille.offres.find(x => x.id === b.dataset.inv); return act("/api/investir", { offre: o.id }, v => `Investissement simulé : ${mk(o.usd * USD_UNITS)} ajoutés. Retrait possible après 3 mois.`); }
   if (e.target.id === "b-withdraw") act("/api/retirer", { makuta: state.perso.makuta }, v => `Demande de retrait simulée : ${usd(v.portefeuille.retraits.at(-1).usd)}.`);
 };
 
@@ -286,7 +329,7 @@ $("f-auth").onsubmit = async e => {
     const v = await call(signup ? "/api/inscription" : "/api/connexion", body);
     store.set(LS_TOKEN, v.token);
     render(v);
-    if (v.naissance) toast(v.perso.age >= 18 ? `Bienvenue ! ${v.perso.prenom} arrive à ${v.perso.quartier} à ${Math.floor(v.perso.age)} ans, avec ${mk(v.perso.makuta)} d'épargne.` : `Félicitations ! ${v.perso.prenom} vient de naître à ${v.perso.quartier}. Ses parents lui offrent ${v.perso.makuta} e-makuta.`);
+    if (v.naissance) toast(v.perso.age >= 18 ? `Bienvenue ! ${v.perso.prenom} arrive à ${v.perso.quartier} à ${Math.floor(v.perso.age)} ans, avec ${mk(v.perso.makuta)} d'épargne.` : `Félicitations ! ${v.perso.prenom} vient de naître à ${v.perso.quartier}. Ses parents lui offrent ${mk(v.perso.makuta)}.`);
   } catch (err) { $("auth-err").textContent = err.message; }
   b.disabled = false;
 };

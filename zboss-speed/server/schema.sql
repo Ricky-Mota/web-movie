@@ -123,3 +123,14 @@ CREATE TABLE IF NOT EXISTS retraits (
   simule INTEGER NOT NULL DEFAULT 1,
   le INTEGER NOT NULL
 );
+
+-- formation en cours (une seule à la fois) ; les diplômes obtenus vont dans diplomes_obtenus
+CREATE TABLE IF NOT EXISTS inscriptions (
+  personnage_id TEXT PRIMARY KEY REFERENCES personnages(id),
+  formation_id TEXT NOT NULL,
+  annee INTEGER NOT NULL DEFAULT 1,
+  cours INTEGER NOT NULL DEFAULT 0,
+  points INTEGER NOT NULL DEFAULT 0,
+  dernier INTEGER,
+  depuis INTEGER NOT NULL
+);
