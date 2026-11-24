@@ -236,3 +236,9 @@ CREATE TABLE IF NOT EXISTS beta_inscrits (
 CREATE TABLE IF NOT EXISTS negligences (personnage_id TEXT PRIMARY KEY, jours INTEGER NOT NULL DEFAULT 0, maj_le INTEGER NOT NULL);
 -- 20 % de la fortune d'un mort, gardés par le joueur pour sa prochaine vie
 CREATE TABLE IF NOT EXISTS reports (compte_id TEXT PRIMARY KEY, makuta INTEGER NOT NULL, de_id TEXT, le INTEGER NOT NULL);
+
+-- réputation de chaque personnage (−100 à +100)
+CREATE TABLE IF NOT EXISTS reputations (personnage_id TEXT PRIMARY KEY, points INTEGER NOT NULL DEFAULT 0, maj_le INTEGER NOT NULL);
+-- demandes en mariage entre joueurs
+CREATE TABLE IF NOT EXISTS demandes_mariage (id TEXT PRIMARY KEY, de_id TEXT NOT NULL, vers_id TEXT NOT NULL, statut TEXT NOT NULL DEFAULT 'attente', le INTEGER NOT NULL);
+CREATE INDEX IF NOT EXISTS idx_mariage_vers ON demandes_mariage (vers_id, statut);

@@ -2,7 +2,7 @@
 // Le serveur est l'arbitre : il décide de l'âge, des talents et de l'argent ; le téléphone ne fait qu'afficher.
 import {
   ageYears, stageOf, STAGES, realMsUntil, TALENTS, ACTIVITIES, rng, drawTalents, doActivity,
-  needsAt, newIdentity, BIRTH_GIFT, BIRTH_USD, ADMIN_FEE_USD, NEGLECT_STEAL_AGE, neglectStealChance, NEGLECT_DANGER_DAYS, NEGLECT_DANGER_HEALTH, splitEstate, deathCause, familyShareRate, SHOP, cannotBuy, OFFERS, USD_TO_MAKUTA, USD_UNITS, fmtMakuta, WITHDRAW_FEE, walletInfo, birthShiftMs, REAL_MONEY, shopView, familyOf, JOBS, payFor, cannotWork, workView, cannotApply, FORMATIONS, cannotEnroll, attendCourse, schoolView, SUPPORT_PER_DAY, HOST_MIN_AGE, MAX_CHILDREN, supportDue, unpaidEffect, familyShare, DAY, LAUNCH_RULES, launchStatus, canSignupBeforeLaunch, COMPANY_TYPES, cannotOpenCompany, companyName, companyView, companyAccrue, companyJob, EMPLOYEE_YIELD, RESELL_RATE, TAXI_FARE, TAXI_ENERGY, KINSHASA_QUARTIERS, OTHER_CITIES, STATE_ID, TAX, POSTS, PUBLIC_JOBS, BANKS, bankAccrue, INSURERS, CARE, careCost, OPERATORS, RECHARGES, CALL, stateView, ELECTION_EVERY, VOTER_MIN_AGE, electionCalendar, tally, CRIMES, catchChance, sentence, inPrison, PRISON_BLOCKED, PRISON_HOURS, BAIL, RECIDIVE, policeView,
+  needsAt, newIdentity, BIRTH_GIFT, BIRTH_USD, ADMIN_FEE_USD, NEGLECT_STEAL_AGE, neglectStealChance, NEGLECT_DANGER_DAYS, NEGLECT_DANGER_HEALTH, splitEstate, deathCause, familyShareRate, REP, REP_BAD, REP_GOOD, repLabel, repDiscount, DOT_MAKUTA, cannotMarry, SHOP, cannotBuy, OFFERS, USD_TO_MAKUTA, USD_UNITS, fmtMakuta, WITHDRAW_FEE, walletInfo, birthShiftMs, REAL_MONEY, shopView, familyOf, JOBS, payFor, cannotWork, workView, cannotApply, FORMATIONS, cannotEnroll, attendCourse, schoolView, SUPPORT_PER_DAY, HOST_MIN_AGE, MAX_CHILDREN, supportDue, unpaidEffect, familyShare, DAY, LAUNCH_RULES, launchStatus, canSignupBeforeLaunch, COMPANY_TYPES, cannotOpenCompany, companyName, companyView, companyAccrue, companyJob, EMPLOYEE_YIELD, RESELL_RATE, TAXI_FARE, TAXI_ENERGY, KINSHASA_QUARTIERS, OTHER_CITIES, STATE_ID, TAX, POSTS, PUBLIC_JOBS, BANKS, bankAccrue, INSURERS, CARE, careCost, OPERATORS, RECHARGES, CALL, stateView, ELECTION_EVERY, VOTER_MIN_AGE, electionCalendar, tally, CRIMES, catchChance, sentence, inPrison, PRISON_BLOCKED, PRISON_HOURS, BAIL, RECIDIVE, policeView,
   describeAction, ORDER_DONE, ORDERS, ORDERS_PER_DAY, ORDERS_CHECK_MS, dayKey, ordersToRun, cannotGiveOrder,
 } from "./life.js";
 import { sendPush, newVapidKeys } from "./webpush.js";
@@ -210,7 +210,11 @@ async function loadCharacter(db, id) {
   const { results: mv } = await db.prepare(`SELECT icone, texte, par_consigne, le FROM mouvements WHERE personnage_id = ? ORDER BY le DESC LIMIT 100`).bind(id).all();
   const { results: ord } = await db.prepare(`SELECT ordre FROM consignes WHERE personnage_id = ? AND jour = ? ORDER BY donnee_le`).bind(id, jour).all();
   const { results: journal } = await db.prepare(`SELECT ordre, ok, message, le FROM consignes_journal WHERE personnage_id = ? AND jour = ? ORDER BY le DESC LIMIT 30`).bind(id, jour).all();
-  return { p, tal, inv, dep, ret, job, lastShift: last && last.le, enr, dip: dip.map(d => d.formation_id), kids, par, sibs, ent, aVendre, offres, boss, comptes, cand, pub, elec, policiers: pol.n, casier,
+  const reputation = await repOf(db, id);
+  const conjoint = p.conjoint_id ? await db.prepare(`SELECT p.prenom, p.nom, p.sexe, c.pseudo FROM personnages p LEFT JOIN comptes c ON c.id = p.compte_id WHERE p.id = ?`).bind(p.conjoint_id).first() : null;
+  const { results: dmIn } = await db.prepare(`SELECT d.id, d.le, p.prenom, p.nom, p.sexe, c.pseudo FROM demandes_mariage d JOIN personnages p ON p.id = d.de_id LEFT JOIN comptes c ON c.id = p.compte_id WHERE d.vers_id = ? AND d.statut = 'attente' ORDER BY d.le DESC`).bind(id).all();
+  const { results: dmOut } = await db.prepare(`SELECT d.id, d.le, p.prenom, p.nom, c.pseudo FROM demandes_mariage d JOIN personnages p ON p.id = d.vers_id LEFT JOIN comptes c ON c.id = p.compte_id WHERE d.de_id = ? AND d.statut = 'attente' ORDER BY d.le DESC`).bind(id).all();
+  return { reputation, couple: { conjoint, recues: dmIn, envoyees: dmOut }, p, tal, inv, dep, ret, job, lastShift: last && last.le, enr, dip: dip.map(d => d.formation_id), kids, par, sibs, ent, aVendre, offres, boss, comptes, cand, pub, elec, policiers: pol.n, casier,
     consignes: { jour, liste: ord.map(o => o.ordre), journal }, mouvements: mv, notifications: notif.n };
 }
 
@@ -291,7 +295,7 @@ async function applyOrders(env, db, compte, ch, now, force) {
   return true;
 }
 
-function view(compte, { p, tal, inv = [], dep = [], ret = [], job = null, lastShift = null, enr = null, dip = [], kids = [], par = [], sibs = [], ent = [], aVendre = [], offres = [], boss = null, comptes = [], cand = null, pub = {}, elec = null, policiers = 0, casier = [], consignes = { jour: dayKey(now), liste: [], journal: [] }, mouvements = [], notifications = 0 }, now) {
+function view(compte, { reputation = 0, couple = { conjoint: null, recues: [], envoyees: [] }, p, tal, inv = [], dep = [], ret = [], job = null, lastShift = null, enr = null, dip = [], kids = [], par = [], sibs = [], ent = [], aVendre = [], offres = [], boss = null, comptes = [], cand = null, pub = {}, elec = null, policiers = 0, casier = [], consignes = { jour: dayKey(now), liste: [], journal: [] }, mouvements = [], notifications = 0 }, now) {
   const age = ageYears(p.ne_le, now);
   const st = stageOf(age);
   const next = STAGES[STAGES.indexOf(st) + 1];
@@ -312,7 +316,9 @@ function view(compte, { p, tal, inv = [], dep = [], ret = [], job = null, lastSh
       indices: tal.filter(t => !t.decouvert && t.indices > 0).map(t => TALENTS.find(x => x.id === t.talent_id).hint),
     },
     activites: ACTIVITIES.map(a => ({ id: a.id, label: a.label, minAge: a.minAge, energie: a.energy })),
-    repas: FOOD,
+    repas: { ...FOOD, prix: Math.round(FOOD.prix * repDiscount(reputation)) },
+    reputation: { points: reputation, label: repLabel(reputation), mauvaise: reputation <= REP_BAD, bonne: reputation >= REP_GOOD },
+    couple: { ...couple, dot: DOT_MAKUTA },
     ...shopView(inv, dep, ret, p.makuta, now),
     travail: { ...workView(job && job.metier_id, lastShift, now), emploiEntreprise: boss ? companyJob(boss) : null },
     ecole: schoolView(enr, dip, now),
@@ -363,6 +369,7 @@ async function supportFamily(db, pid, now, env = null) {
     const neg = unpaid > 0 ? (await neglectOf(db, k.id)) + unpaid : 0, danger = neg >= NEGLECT_DANGER_DAYS;
     const st = [db.prepare(`UPDATE personnages SET entretien_le = ?, bonheur = MAX(0, bonheur - ?), sante = MAX(0, sante - ?) WHERE id = ?`)
       .bind((k.entretien_le || k.ne_le) + days * DAY, fx.bonheur, fx.sante + (danger ? NEGLECT_DANGER_HEALTH * unpaid : 0), k.id)];
+    if (unpaid > 0) st.push(repSt(db, par, REP.negligence * unpaid, now));
     if (unpaid > 0) st.push(db.prepare(`INSERT INTO negligences (personnage_id, jours, maj_le) VALUES (?, ?, ?) ON CONFLICT(personnage_id) DO UPDATE SET jours = jours + excluded.jours, maj_le = excluded.maj_le`).bind(k.id, unpaid, now),
       db.prepare(`INSERT INTO mouvements (id, personnage_id, icone, texte, par_consigne, le) VALUES (?, ?, ?, ?, 0, ?)`).bind(uid(), k.id, danger ? "🆘" : "😢",
         danger ? `${k.prenom} est ${k.sexe === "F" ? "négligée" : "négligé"} depuis ${neg} jours : ${k.sexe === "F" ? "elle" : "il"} est en danger de mort, et s'en souviendra.` : `Entretien de ${k.prenom} impayé (${neg} jour${neg > 1 ? "s" : ""} de négligence au total).`, now));
@@ -392,6 +399,10 @@ async function supportFamily(db, pid, now, env = null) {
   }
 }
 
+// réputation : une ligne à ajouter au lot d'écritures
+const repSt = (db, id, d, now) => db.prepare(`INSERT INTO reputations (personnage_id, points, maj_le) VALUES (?, ?, ?) ON CONFLICT(personnage_id) DO UPDATE SET points = MAX(-100, MIN(100, points + excluded.points)), maj_le = excluded.maj_le`).bind(id, d, now);
+async function repOf(db, id) { const r = await db.prepare(`SELECT points FROM reputations WHERE personnage_id = ?`).bind(id).first(); return r ? r.points : 0; }
+
 // ---------------------------------------------------------------- mort et héritage
 async function neglectOf(db, id) { const r = await db.prepare(`SELECT jours FROM negligences WHERE personnage_id = ?`).bind(id).first(); return r ? r.jours : 0; }
 // la santé est tombée à 0 ? le personnage meurt (définitif) et sa fortune est partagée
@@ -417,6 +428,7 @@ async function die(env, db, p, cause, now) {
   const st = [
     db.prepare(`UPDATE personnages SET mort_le = ?, cause_mort = ?, makuta = 0, sante = 0, accueille_enfants = 0 WHERE id = ?`).bind(now, cause, p.id),
     db.prepare(`DELETE FROM comptes_banque WHERE personnage_id = ?`).bind(p.id),
+    db.prepare(`UPDATE personnages SET conjoint_id = NULL WHERE conjoint_id = ?`).bind(p.id),
     db.prepare(`UPDATE emplois SET fin = ? WHERE personnage_id = ? AND fin IS NULL`).bind(now, p.id),
     db.prepare(`INSERT INTO mouvements (id, personnage_id, icone, texte, par_consigne, le) VALUES (?, ?, ?, ?, 0, ?)`).bind(uid(), p.id, "✝️", `${p.prenom} ${p.nom} est ${p.sexe === "F" ? "morte" : "mort"} (${cause}).`, now),
     S(STATE_ID, "ville", sp.ville), ...(sp.ville > 0 ? [T(p.id, STATE_ID, sp.ville, "frais de succession de " + p.prenom + " " + p.nom)] : []),
@@ -719,6 +731,7 @@ const worker = {
           await db.batch([
             db.prepare(`UPDATE personnages SET makuta = makuta + ? WHERE id = ?`).bind(gain, p.id),
             db.prepare(`INSERT INTO transactions (id, de_id, vers_id, montant, motif, le) VALUES (?, NULL, ?, ?, ?, ?)`).bind(uid(), p.id, gain, "gain illégal : " + cr.nom, now),
+            ...(Math.random() < 0.25 ? [repSt(db, p.id, REP.crimeRumeur, now)] : []),   // des rumeurs circulent
           ]);
           return json(h, 200, { crime: { attrape: false, gain }, ...view(compte, await loadCharacter(db, p.id), now) });
         }
@@ -728,6 +741,7 @@ const worker = {
           db.prepare(`UPDATE personnages SET makuta = makuta - ?, bonheur = MAX(0, bonheur - 10), prison_jusqu = COALESCE(?, prison_jusqu) WHERE id = ?`).bind(sn.amende, until, p.id),
           db.prepare(`INSERT INTO infractions (id, personnage_id, type, amende, prison_heures, le) VALUES (?, ?, ?, ?, ?, ?)`).bind(uid(), p.id, cr.id, sn.amende, sn.heures, now),
           ...taxTo(db, p.id, sn.amende, "amende (police) : " + cr.nom, now),
+          repSt(db, p.id, REP.crimeAttrape + (sn.prison ? REP.prison : 0), now),
         ]);
         return json(h, 200, { crime: { attrape: true, ...sn }, ...view(compte, await loadCharacter(db, p.id), now) });
       }
@@ -760,12 +774,60 @@ const worker = {
         return json(h, 200, { resultat: { score: res.score, message: res.message, talent: res.discovered ? TALENTS.find(x => x.id === res.discovered).label : null }, ...view(compte, again, now) });
       }
 
+      // ---- mariage entre joueurs
+      if (url.pathname === "/api/mariage/demander" && req.method === "POST") {
+        const t = await db.prepare(`SELECT p.* FROM comptes c JOIN personnages p ON p.id = c.vie_id WHERE LOWER(c.pseudo) = LOWER(?)`).bind(String(body.pseudo || "").trim()).first();
+        const no = cannotMarry(p, t, ageYears(p.ne_le, now), t ? ageYears(t.ne_le, now) : 0); if (no) return fail(h, 409, no);
+        const dup = await db.prepare(`SELECT id FROM demandes_mariage WHERE statut = 'attente' AND ((de_id = ? AND vers_id = ?) OR (de_id = ? AND vers_id = ?))`).bind(p.id, t.id, t.id, p.id).first();
+        if (dup) return fail(h, 409, "Une demande est déjà en attente entre vous deux.");
+        await db.batch([db.prepare(`INSERT INTO demandes_mariage (id, de_id, vers_id, le) VALUES (?, ?, ?, ?)`).bind(uid(), p.id, t.id, now),
+          db.prepare(`INSERT INTO mouvements (id, personnage_id, icone, texte, par_consigne, le) VALUES (?, ?, ?, ?, 0, ?)`).bind(uid(), t.id, "💍", `${p.prenom} ${p.nom} te demande en mariage.`, now)]);
+        if (t.compte_id) try { await notify(env, db, t.compte_id, { titre: "2 Life · demande en mariage", texte: `${p.prenom} ${p.nom} te demande en mariage.`, url: "vie.html#couple-card" }); } catch (e) { }
+        return json(h, 200, view(compte, await loadCharacter(db, p.id), now));
+      }
+      if (url.pathname === "/api/mariage/repondre" && req.method === "POST") {
+        const dm = await db.prepare(`SELECT * FROM demandes_mariage WHERE id = ? AND vers_id = ? AND statut = 'attente'`).bind(String(body.id || ""), p.id).first();
+        if (!dm) return fail(h, 404, "Demande introuvable.");
+        if (!body.accepte) { await db.prepare(`UPDATE demandes_mariage SET statut = 'refusee' WHERE id = ?`).bind(dm.id).run(); return json(h, 200, view(compte, await loadCharacter(db, p.id), now)); }
+        const o = await db.prepare(`SELECT * FROM personnages WHERE id = ?`).bind(dm.de_id).first();
+        const no = cannotMarry(p, o, ageYears(p.ne_le, now), o ? ageYears(o.ne_le, now) : 0); if (no) return fail(h, 409, no);
+        const groom = p.sexe === "M" ? p : o, bride = p.sexe === "M" ? o : p;
+        // la famille du marié paie : un parent joueur qui en a les moyens, sinon le marié lui-même
+        const gp = await db.prepare(`SELECT id, makuta FROM personnages WHERE id IN (?, ?) AND mort_le IS NULL AND makuta >= ? ORDER BY makuta DESC LIMIT 1`).bind(groom.pere_id || "", groom.mere_id || "", DOT_MAKUTA).first();
+        const payer = gp || (groom.makuta >= DOT_MAKUTA ? groom : null);
+        if (!payer) return fail(h, 409, `La famille du marié doit réunir la dot : ${fmtMakuta(DOT_MAKUTA)}.`);
+        const { results: bp } = await db.prepare(`SELECT id FROM personnages WHERE id IN (?, ?) AND mort_le IS NULL AND compte_id IS NOT NULL`).bind(bride.pere_id || "", bride.mere_id || "").all();
+        const takers = bp.length ? bp.map(x => x.id) : [bride.id], each = Math.floor(DOT_MAKUTA / takers.length);
+        const M = (id, t) => db.prepare(`INSERT INTO mouvements (id, personnage_id, icone, texte, par_consigne, le) VALUES (?, ?, ?, ?, 0, ?)`).bind(uid(), id, "💒", t, now);
+        await db.batch([
+          db.prepare(`UPDATE personnages SET makuta = makuta - ? WHERE id = ? AND makuta >= ?`).bind(each * takers.length, payer.id, each * takers.length),
+          ...takers.flatMap(id => [db.prepare(`UPDATE personnages SET makuta = makuta + ? WHERE id = ?`).bind(each, id),
+            db.prepare(`INSERT INTO transactions (id, de_id, vers_id, montant, motif, le) VALUES (?, ?, ?, ?, ?, ?)`).bind(uid(), payer.id, id, each, `dot : mariage de ${groom.prenom} et ${bride.prenom}`, now)]),
+          db.prepare(`UPDATE personnages SET conjoint_id = ? WHERE id = ?`).bind(bride.id, groom.id),
+          db.prepare(`UPDATE personnages SET conjoint_id = ? WHERE id = ?`).bind(groom.id, bride.id),
+          db.prepare(`UPDATE demandes_mariage SET statut = 'acceptee' WHERE id = ?`).bind(dm.id),
+          db.prepare(`UPDATE demandes_mariage SET statut = 'annulee' WHERE statut = 'attente' AND (de_id IN (?, ?) OR vers_id IN (?, ?))`).bind(p.id, o.id, p.id, o.id),
+          repSt(db, p.id, REP.mariage, now), repSt(db, o.id, REP.mariage, now),
+          M(groom.id, `Mariage avec ${bride.prenom} ${bride.nom}. Dot versée : ${fmtMakuta(DOT_MAKUTA)}${gp ? " (payée par ta famille)" : ""}.`),
+          M(bride.id, `Mariage avec ${groom.prenom} ${groom.nom}. La famille du marié a versé la dot.`),
+        ]);
+        if (o.compte_id) try { await notify(env, db, o.compte_id, { titre: "2 Life · mariage", texte: `${p.prenom} a dit oui ! Vous êtes mariés.`, url: "vie.html#couple-card" }); } catch (e) { }
+        return json(h, 200, { marie: true, ...view(compte, await loadCharacter(db, p.id), now) });
+      }
+      if (url.pathname === "/api/divorce" && req.method === "POST") {
+        if (!p.conjoint_id) return fail(h, 409, "Tu n'es pas marié.");
+        await db.batch([db.prepare(`UPDATE personnages SET conjoint_id = NULL WHERE id IN (?, ?)`).bind(p.id, p.conjoint_id),
+          repSt(db, p.id, REP.divorce, now), repSt(db, p.conjoint_id, REP.divorce, now),
+          db.prepare(`INSERT INTO mouvements (id, personnage_id, icone, texte, par_consigne, le) VALUES (?, ?, ?, ?, 0, ?)`).bind(uid(), p.conjoint_id, "💔", `${p.prenom} a demandé le divorce.`, now)]);
+        return json(h, 200, view(compte, await loadCharacter(db, p.id), now));
+      }
       if (url.pathname === "/api/manger" && req.method === "POST") {
         await settle(db, p, now);
-        if (p.makuta < FOOD.prix) return fail(h, 409, "Pas assez d'e-makuta pour un repas.");
+        const prix = Math.round(FOOD.prix * repDiscount(ch.reputation));   // prix d'ami pour les gens respectés
+        if (p.makuta < prix) return fail(h, 409, "Pas assez d'e-makuta pour un repas.");
         await db.batch([
-          db.prepare(`UPDATE personnages SET makuta = makuta - ?, faim = MIN(100, faim + ?) WHERE id = ? AND makuta >= ?`).bind(FOOD.prix, FOOD.faim, p.id, FOOD.prix),
-          ...await payToCompany(db, "maquis", p.id, FOOD.prix, "repas au maquis", now),
+          db.prepare(`UPDATE personnages SET makuta = makuta - ?, faim = MIN(100, faim + ?) WHERE id = ? AND makuta >= ?`).bind(prix, FOOD.faim, p.id, prix),
+          ...await payToCompany(db, "maquis", p.id, prix, "repas au maquis", now),
         ]);
         const again = await loadCharacter(db, p.id);
         return json(h, 200, view(compte, again, now));
@@ -806,6 +868,8 @@ const worker = {
         return json(h, 200, view(compte, await loadCharacter(db, p.id), now));
       }
 
+      if (url.pathname === "/api/postuler" && req.method === "POST" && ch.reputation <= REP_BAD)
+        return fail(h, 409, "L'employeur refuse : ta réputation dans le quartier est trop mauvaise (vols, prison…). Travaille ta réputation d'abord.");
       if (url.pathname === "/api/postuler" && req.method === "POST" && body.entreprise) {
         const e = await db.prepare(`SELECT * FROM entreprises WHERE id = ?`).bind(body.entreprise).first();
         const t = e && COMPANY_TYPES.find(x => x.id === e.type);
@@ -847,6 +911,7 @@ const worker = {
         const parents = ch.par.map(x => x.id), each = parents.length ? Math.floor(pay.famille / parents.length) : 0;
         const st = [
           db.prepare(`UPDATE personnages SET makuta = makuta + ?, energie = MAX(0, energie - ?), faim = MAX(0, faim - 10) WHERE id = ?`).bind(pay.montant - pay.famille - pay.impot, 35, p.id),
+          repSt(db, p.id, REP.travail, now),
           db.prepare(`INSERT INTO transactions (id, de_id, vers_id, montant, motif, le) VALUES (?, ?, ?, ?, ?, ?)`).bind(uid(), ch.boss ? ch.boss.id : fromState ? STATE_ID : null, p.id, pay.montant, "salaire : " + job.nom, now),
           ...taxTo(db, p.id, pay.impot, "IPR 5 % (DGI) : " + job.nom, now),
           // dans l'entreprise d'un joueur : la journée rapporte salaire + 60 % à la caisse, qui paie le salaire

@@ -4,7 +4,7 @@ import {
   ageYears, stageOf, STAGES, realMsUntil, TALENTS, ACTIVITIES, rng, drawTalents, doActivity, needsAt, newIdentity, BIRTH_GIFT,
   SHOP, cannotBuy, OFFERS, USD_TO_MAKUTA, USD_UNITS, fmtMakuta, WITHDRAW_FEE, walletInfo, birthShiftMs, shopView, familyOf, JOBS, payFor, cannotWork, workView, SHIFT_ENERGY, cannotApply, FORMATIONS, cannotEnroll, attendCourse, schoolView, STUDY_ENERGY, SUPPORT_PER_DAY, HOST_MIN_AGE, canSignupBeforeLaunch, COMPANY_TYPES, cannotOpenCompany, companyName, companyView, companyAccrue, companyJob, EMPLOYEE_YIELD, RESELL_RATE, TAXI_FARE, TAXI_ENERGY, KINSHASA_QUARTIERS, OTHER_CITIES, TAX, POSTS, PUBLIC_JOBS, BANKS, bankAccrue, INSURERS, CARE, careCost, OPERATORS, RECHARGES, CALL, stateView, supportDue, unpaidEffect, familyShare, FIRST_NAMES,
   describeAction, ORDER_DONE, ORDERS, ORDERS_PER_DAY, ORDERS_CHECK_MS, dayKey, ordersToRun, cannotGiveOrder,
-  VOTER_MIN_AGE, NEGLECT_DANGER_DAYS, NEGLECT_DANGER_HEALTH, splitEstate, deathCause, familyShareRate, CRIMES, catchChance, sentence, inPrison, PRISON_BLOCKED, BAIL, PRISON_HOURS, RECIDIVE, policeView,
+  VOTER_MIN_AGE, NEGLECT_DANGER_DAYS, NEGLECT_DANGER_HEALTH, splitEstate, deathCause, familyShareRate, REP, REP_BAD, REP_GOOD, repLabel, repDiscount, DOT_MAKUTA, MARRY_MIN_AGE, CRIMES, catchChance, sentence, inPrison, PRISON_BLOCKED, BAIL, PRISON_HOURS, RECIDIVE, policeView,
 } from "../server/src/life.js";
 import { launchDemo } from "./lancement-demo.js";
 
@@ -44,7 +44,9 @@ const demo = {
         indices: c.talents.filter(t => !t.discovered && t.hints > 0).map(t => TALENTS.find(x => x.id === t.talent).hint),
       },
       activites: ACTIVITIES.map(a => ({ id: a.id, label: a.label, minAge: a.minAge, energie: a.energy })),
-      repas: FOOD,
+      repas: { ...FOOD, prix: Math.round(FOOD.prix * repDiscount(d.rep || 0)) },
+      reputation: { points: d.rep || 0, label: repLabel(d.rep || 0), mauvaise: (d.rep || 0) <= REP_BAD, bonne: (d.rep || 0) >= REP_GOOD },
+      couple: { conjoint: d.conjoint || null, recues: [], envoyees: [], dot: DOT_MAKUTA },
       ...shopView(d.inv || [], d.dep || [], d.ret || [], c.makuta, now),
       travail: { ...workView(d.job, d.lastShift, now), emploiEntreprise: d.boss ? companyJob(d.boss) : null },
       ecole: schoolView(d.enr || null, d.dip || [], now),
@@ -109,6 +111,7 @@ const demo = {
       this.move(d, "✝️", `${k.prenom} est ${k.sex === "F" ? "morte" : "mort"} (${cause}). Tu hérites de ${fmtMakuta(sp.each)}.`);
     }
   },
+  addRep(d, n) { d.rep = Math.max(-100, Math.min(100, (d.rep || 0) + n)); },
   move(d, icone, texte) { d.mouvements = [{ icone, texte, par_consigne: 0, le: Date.now() }, ...(d.mouvements || [])].slice(0, 100); },
   // ton personnage meurt : 20 % gardés pour ta prochaine vie, 10 % à la ville, 70 % aux héritiers (ici la famille du jeu)
   die(d, cause) {
@@ -199,11 +202,12 @@ const demo = {
       this.settle(c); const now = Date.now(); d.casier = d.casier || [];
       if (Math.random() >= catchChance(cr, 0)) {
         const gain = cr.gain[0] + Math.floor(Math.random() * (cr.gain[1] - cr.gain[0] + 1));
-        c.makuta += gain; store.set(LS_DEMO, d); return { crime: { attrape: false, gain }, ...this.view(d) };
+        c.makuta += gain; if (Math.random() < .25) this.addRep(d, REP.crimeRumeur); store.set(LS_DEMO, d); return { crime: { attrape: false, gain }, ...this.view(d) };
       }
       const sn = sentence(cr, c.makuta, d.casier.filter(x => x.le > now - RECIDIVE.jours * 864e5).length);
       c.makuta -= sn.amende; c.happiness = Math.max(0, c.happiness - 10); d.tresor = (d.tresor || 0) + sn.amende;
       if (sn.prison) d.prison = now + PRISON_HOURS * 36e5;
+      this.addRep(d, REP.crimeAttrape + (sn.prison ? REP.prison : 0));
       d.casier.unshift({ type: cr.id, nom: cr.nom, amende: sn.amende, prison_heures: sn.heures, le: now }); d.casier = d.casier.slice(0, 20);
       store.set(LS_DEMO, d); return { crime: { attrape: true, ...sn }, ...this.view(d) };
     }
@@ -227,8 +231,9 @@ const demo = {
     }
     if (path === "/api/manger") {
       this.settle(c);
-      if (c.makuta < FOOD.prix) throw new Error("Pas assez d'e-makuta pour un repas.");
-      c.makuta -= FOOD.prix; c.hunger = Math.min(100, c.hunger + FOOD.faim); store.set(LS_DEMO, d);
+      const prix = Math.round(FOOD.prix * repDiscount(d.rep || 0));
+      if (c.makuta < prix) throw new Error("Pas assez d'e-makuta pour un repas.");
+      c.makuta -= prix; c.hunger = Math.min(100, c.hunger + FOOD.faim); store.set(LS_DEMO, d);
       return this.view(d);
     }
     if (path === "/api/acheter") {
@@ -254,6 +259,21 @@ const demo = {
       own.porte = was ? 0 : 1;
       store.set(LS_DEMO, d); return this.view(d);
     }
+    if (path === "/api/postuler" && (d.rep || 0) <= REP_BAD) throw new Error("L'employeur refuse : ta réputation dans le quartier est trop mauvaise (vols, prison…). Travaille ta réputation d'abord.");
+    // démo : pas d'autre joueur sur cet appareil, la personne demandée répond tout de suite (elle accepte 2 fois sur 3)
+    if (path === "/api/mariage/demander") {
+      const nm = String(body.pseudo || "").trim(); if (!nm) throw new Error("Écris le pseudo de la personne.");
+      if (ageYears(c.neLe) < MARRY_MIN_AGE) throw new Error(`Le mariage est possible à partir de ${MARRY_MIN_AGE} ans.`);
+      if (d.conjoint) throw new Error("Tu es déjà marié.");
+      if (Math.random() < 1 / 3) { this.move(d, "🙅", `${nm} a refusé ta demande en mariage.`); store.set(LS_DEMO, d); return { refus: nm, ...this.view(d) }; }
+      const groom = c.sex === "M";
+      if (groom && c.makuta < DOT_MAKUTA) throw new Error(`Ta famille doit réunir la dot : ${fmtMakuta(DOT_MAKUTA)}.`);
+      c.makuta += groom ? -DOT_MAKUTA : DOT_MAKUTA;
+      d.conjoint = { prenom: nm, nom: "", pseudo: nm, sexe: groom ? "F" : "M" }; this.addRep(d, REP.mariage);
+      this.move(d, "💒", groom ? `Mariage avec ${nm}. Dot versée : ${fmtMakuta(DOT_MAKUTA)}.` : `Mariage avec ${nm}. La famille du marié a versé la dot (${fmtMakuta(DOT_MAKUTA)}).`);
+      store.set(LS_DEMO, d); return { marie: true, ...this.view(d) };
+    }
+    if (path === "/api/divorce") { if (!d.conjoint) throw new Error("Tu n'es pas marié."); d.conjoint = null; this.addRep(d, REP.divorce); store.set(LS_DEMO, d); return this.view(d); }
     if (path === "/api/postuler" && body.entreprise) {
       const e = demoOthers().find(x => x.id === body.entreprise);
       if (!e) throw new Error("Entreprise introuvable.");
@@ -355,7 +375,7 @@ const demo = {
       const pay = payFor(job, c.talents);
       pay.famille = familyShare(pay.montant, d.rancune || 0);   // 10 % pour les parents (moins s'il a été négligé enfant)
       pay.impot = Math.round(pay.montant * TAX.salaire); d.tresor = (d.tresor || 0) + pay.impot - (PUBLIC_JOBS.some(j => j.id === job.id) || job.elu ? pay.montant : 0);
-      c.makuta += pay.montant - pay.famille - pay.impot; c.energy = Math.max(0, c.energy - SHIFT_ENERGY); c.hunger = Math.max(0, c.hunger - 10); d.lastShift = Date.now();
+      this.addRep(d, REP.travail); c.makuta += pay.montant - pay.famille - pay.impot; c.energy = Math.max(0, c.energy - SHIFT_ENERGY); c.hunger = Math.max(0, c.hunger - 10); d.lastShift = Date.now();
       store.set(LS_DEMO, d); return { paie: pay, ...this.view(d) };
     }
     if (path === "/api/ecole/inscription") {
@@ -509,11 +529,35 @@ function render(v) {
   ] : []).concat([["Joueur", v.compte.pseudo], ["Né le", new Date(p.neLe).toLocaleDateString("fr-FR")]])
     .map(([a, b]) => `<div class="row"><span>${a}</span><span style="text-align:right">${b}</span></div>`).join("")
     + (v.demo ? `<button class="mini" id="b-demo-die" type="button" style="margin-top:12px">💀 Simuler la mort (démo)</button>` : "");
+  renderCouple(v);
   renderShop(v); renderWallet(v); renderWork(v); renderSchool(v); renderKids(v); renderCompanies(v); renderTravel(v); renderState(v); renderTips(v); renderOrders(v); renderMoves(v);
   if (!render.hashDone && location.hash === "#moves") { render.hashDone = true; setTimeout(() => goTo("moves"), 300); }
   portrait(p);
   dress(v);
 }
+
+// ---------------------------------------------------------------- couple et réputation
+function renderCouple(v) {
+  const p = v.perso, C = v.couple || { recues: [], envoyees: [] }, R = v.reputation || { points: 0, label: "inconnu" };
+  const pct = (R.points + 100) / 2, cls = R.mauvaise ? "low" : R.bonne ? "" : "mid";
+  const who = x => `${esc(x.prenom)} ${esc(x.nom || "")}${x.pseudo && x.pseudo !== x.prenom ? ` (${esc(x.pseudo)})` : ""}`.replace(" (", " (").trim();
+  $("couple").innerHTML = `<div class="need">Réputation dans le quartier : <b>${esc(R.label)}</b> (${R.points})<div class="bar"><i class="${cls}" style="width:${pct}%"></i></div></div>
+    <p style="font-size:13px;margin:8px 0 12px">${R.mauvaise ? "Les employeurs refusent de t'embaucher. Travaille, marie-toi, aide les autres pour te racheter." : R.bonne ? "Tu es respecté : prix d'ami au maquis." : "Le travail et le mariage l'améliorent. Le vol, la prison et la négligence de tes enfants la font baisser."}</p>`
+    + (C.conjoint ? `<div class="item"><span class="sw">💒</span><div class="t">Marié${p.sexe === "F" ? "e" : ""} à ${who(C.conjoint)}</div><button class="mini" id="b-divorce" type="button">Divorcer</button></div>`
+      : p.age < 18 ? `<p style="font-size:13px">Le mariage est possible à partir de 18 ans.</p>`
+      : `<label for="m-pseudo" style="font-size:13px">Demander un joueur en mariage (son pseudo)</label>
+        <div style="display:flex;gap:8px;margin-top:6px"><input id="m-pseudo" maxlength="40" placeholder="pseudo" style="flex:1"><button class="mini fill" id="b-ask" type="button">💍 Demander</button></div>
+        <p style="font-size:12px;margin:8px 0 0">Selon la tradition, la dot (${mk(C.dot)}) est payée par la famille du marié et versée à la famille de la mariée.${v.demo ? " Démo : la personne répond tout de suite." : ""}</p>`)
+    + (C.recues.length ? `<h2 style="font-size:16px;margin:14px 0 4px">Demandes reçues</h2>` + C.recues.map(x => `<div class="item"><span class="sw">💍</span><div class="t">${who(x)}<small>${new Date(x.le).toLocaleDateString("fr-FR")}</small></div>
+        <button class="mini fill" data-yes="${esc(x.id)}" type="button">Oui</button><button class="mini" data-no="${esc(x.id)}" type="button">Non</button></div>`).join("") : "")
+    + (C.envoyees.length ? `<p style="font-size:13px;margin-top:10px">En attente de réponse : ${C.envoyees.map(who).join(", ")}.</p>` : "");
+}
+$("couple").onclick = e => {
+  if (e.target.id === "b-ask") return act("/api/mariage/demander", { pseudo: $("m-pseudo").value }, v => v.marie ? `Félicitations, vous êtes mariés !` : v.refus ? `${v.refus} a refusé ta demande.` : "Demande envoyée. Attends sa réponse.");
+  if (e.target.id === "b-divorce") return act("/api/divorce", {}, () => "Divorce prononcé.");
+  const y = e.target.closest("[data-yes]"); if (y) return act("/api/mariage/repondre", { id: y.dataset.yes, accepte: true }, () => "Félicitations, vous êtes mariés !");
+  const n = e.target.closest("[data-no]"); if (n) return act("/api/mariage/repondre", { id: n.dataset.no, accepte: false }, () => "Demande refusée.");
+};
 
 // ---------------------------------------------------------------- mort et renaissance
 function renderDeath(v) {

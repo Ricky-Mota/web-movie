@@ -362,6 +362,26 @@ export function familyShareRate(neglectDays = 0) { return FAMILY_SHARE - 0.08 * 
 export function familyShare(amount, neglectDays = 0) { return Math.round(amount * familyShareRate(neglectDays)); }
 // Un enfant dont on ne s'occupe pas (entretien impayé, faim) peut voler pour survivre, dès NEGLECT_STEAL_AGE ans.
 // C'est au joueur réel responsable de s'assurer qu'il ne manque de rien.
+// ---------------------------------------------------------------- réputation et mariage
+// La réputation (−100 à +100) : le quartier se souvient de ce que fait le personnage.
+export const REP = { crimeAttrape: -15, crimeRumeur: -5, prison: -20, travail: 1, mariage: 10, divorce: -5, negligence: -5 };
+export const REP_BAD = -30, REP_GOOD = 40;
+export function repLabel(r) { return r >= REP_GOOD ? "respecté" : r >= 10 ? "bien vu" : r > REP_BAD ? "inconnu" : r > -60 ? "mal vu" : "réputé voleur"; }
+export const repDiscount = r => r >= REP_GOOD ? 0.8 : 1;   // les gens respectés ont des prix au maquis
+// Mariage entre deux joueurs adultes : la dot est payée par la famille du marié (ses parents joueurs s'ils le peuvent, sinon lui-même)
+// et versée aux parents de la mariée (sinon à la mariée).
+export const DOT_MAKUTA = 1200;   // 60 e-makuta
+export const MARRY_MIN_AGE = 18;
+export function cannotMarry(a, b, ageA, ageB) {
+  if (!b) return "Joueur introuvable (vérifie son pseudo).";
+  if (a.id === b.id) return "Tu ne peux pas t'épouser toi-même.";
+  if (b.mort_le) return "Ce personnage est mort.";
+  if (ageA < MARRY_MIN_AGE || ageB < MARRY_MIN_AGE) return `Le mariage est possible à partir de ${MARRY_MIN_AGE} ans.`;
+  if (a.conjoint_id || b.conjoint_id) return "L'un de vous est déjà marié.";
+  if (a.sexe === b.sexe) return "La dot se verse entre la famille du marié et celle de la mariée : il faut un homme et une femme.";
+  if (a.pere_id && (a.pere_id === b.pere_id || a.mere_id === b.mere_id)) return "Vous êtes de la même famille.";
+  return null;
+}
 export const NEGLECT_STEAL_AGE = 8;
 // Après 7 jours réels de négligence (cumulés), l'enfant est en danger de mort : sa santé chute vite.
 export const NEGLECT_DANGER_DAYS = 7, NEGLECT_DANGER_HEALTH = 15;
@@ -664,6 +684,9 @@ export function describeAction(path, body = {}, r = {}) {
     "/api/investir": () => ["💼", "Investissement (simulé)"],
     "/api/retirer": () => ["💵", "Retrait vers l'argent réel (simulé)"],
     "/api/consigne": () => ["📋", "Consigne du jour : " + nm(ORDERS, body.ordre)],
+    "/api/mariage/demander": () => ["💍", "Demande en mariage envoyée à " + (body.pseudo || "un joueur")],
+    "/api/mariage/repondre": () => body.accepte ? ["💒", "A dit oui : mariage célébré"] : ["🙅", "A refusé une demande en mariage"],
+    "/api/divorce": () => ["💔", "A demandé le divorce"],
   };
   const f = D[path]; if (!f) return null;
   const [icone, texte] = f(); return { icone, texte };

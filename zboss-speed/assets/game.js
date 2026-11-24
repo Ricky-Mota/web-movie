@@ -1124,6 +1124,12 @@
     if (mode === "manger") { const o = PLACES.find(o => o.id === "maquis" && isOpen(o, G.hour)) || nearestOpen(["alim", "marche"]); if (o) return Object.assign(toPlace(o), { eat: true }); const h = HOME(); return { x: h.door.x, y: h.door.y, nom: "la maison", icone: "🏠", home: true, eat: true, place: h }; }
     if (mode === "business") { const o = nearestOpen(["marche"]) || nearestOpen(["alim", "magasin"]); if (o) return Object.assign(toPlace(o), { biz: true }); }
     if (mode === "vol") { const o = nearestOpen(["marche", "alim", "magasin"]); if (o) return Object.assign(toPlace(o), { steal: true }); }
+    if (mode === "rendezvous") {
+      const o = PLACES.find(o => o.id === "maquis" && isOpen(o, G.hour)) || nearestOpen(["alim", "marche"]);
+      if (o) return Object.assign(toPlace(o), { date: true });
+      const bs = BENCHES.filter(b => !b.taken); const b = bs[(rand() * bs.length) | 0]; if (b) return { x: b.x, y: b.y, nom: "un banc en amoureux", icone: "🌹", bench: b, date: true };
+    }
+    if (mode === "aider") { const o = nearestOpen(["marche", "alim"]); if (o) return Object.assign(toPlace(o), { help: true }); }
     if (mode === "draguer") {
       if (G.hour >= 20) { const o = nearestOpen(["club"]); if (o) return Object.assign(toPlace(o), { flirt: true }); }
       const bs = BENCHES.filter(b => !b.taken).sort((a, b) => Math.hypot(a.x - f.x, a.y - f.y) - Math.hypot(b.x - f.x, b.y - f.y)); const b = bs[(rand() * Math.min(4, bs.length)) | 0];
@@ -1201,16 +1207,26 @@
       else if (A.mode === "footing") { A.sitT = 6 + rand() * 5; A.doing = "Pause footing : il reprend son souffle"; }
       else if (d.meet) { A.sitT = 1e9; A.doing = "Assis sur un banc : il rencontre des gens"; }
       else if (d.flirt) { A.sitT = 1e9; A.doing = "💘 Il guette quelqu'un à séduire"; flirt(); }
+      else if (d.date) { A.sitT = 30; date(); }
       else { A.sitT = 18 + rand() * 20; A.doing = "Assis sur un banc : il observe et fait des rencontres"; }
       return;
     }
     if (d.bench && d.flirt) { /* traité plus haut */ }
-    if (d.home && d.eat) { G.me.faim = 15; note("🍲 Il mange à la maison avec la famille (gratuit)."); }
+    if (d.home && d.eat) { G.me.faim = 15; note(G.me.conjoint ? "🍲 Il dîne à la maison avec sa femme, " + G.me.conjoint.split(" ")[0] + "." : "🍲 Il mange à la maison avec la famille (gratuit)."); }
     if (d.home) { A.phase = "home"; A.doing = "À la maison : il se repose"; msg("🏠 Ton personnage est rentré à la maison. Il se repose.", 3.5, "ok"); return; }
     const o = d.place, t = o && o.type;
-    if (d.work) { note("💼 Il arrive au travail : " + d.nom + "."); earn(25, "salaire de la journée à " + d.nom); A.phase = "visit"; A.wait = 1e9; A.doing = "💼 Au travail à " + d.nom; return; }
+    if (d.work) { note("💼 Il arrive au travail : " + d.nom + ".");
+      if ((G.me.rep || 0) <= -30) earn(15, "salaire réduit : son patron se méfie de lui (mauvaise réputation)"); else earn(25, "salaire de la journée à " + d.nom);
+      if (rand() < .5) repute(1, "un travailleur sérieux"); A.phase = "visit"; A.wait = 1e9; A.doing = "💼 Au travail à " + d.nom; return; }
+    if (d.date) { date(); A.phase = "visit"; A.wait = 10; A.doing = "🌹 En rendez-vous à " + d.nom; return; }
+    if (d.help) {
+      const g = 3 + ((rand() * 4) | 0);
+      if (pay(g, "il aide " + ["une maman du marché", "un enfant des rues", "un vieux du quartier", "un vendeur malchanceux"][(rand() * 4) | 0])) { repute(4, "sa générosité"); shiftMind(3, "aider fait du bien"); }
+      A.phase = "visit"; A.wait = 4; A.doing = "🤲 Il aide quelqu'un au " + d.nom; return;
+    }
     if (d.eat) {
-      const cost = o && o.resto ? 6 + ((rand() * 5) | 0) : 4;
+      const cost = Math.max(2, (o && o.resto ? 6 + ((rand() * 5) | 0) : 4) - ((G.me.rep || 0) >= 40 ? 2 : 0));
+      if ((G.me.rep || 0) >= 40 && rand() < .5) note("⭐ On lui fait un prix : il est respecté dans le quartier.");
       if (pay(cost, o && o.resto ? "repas au " + d.nom : "à manger à " + d.nom)) { G.me.faim = 5; G.energy = Math.min(100, G.energy + 12); note("🍲 Il mange " + ["du poulet mayo", "du pondu avec de la chikwangue", "du poisson braisé", "des beignets et du thé"][(rand() * 4) | 0] + " à " + d.nom + "."); }
       else note("😞 Il n'a pas assez d'argent pour manger à " + d.nom + ".", "alert");
       A.phase = "visit"; A.wait = 8; A.doing = "🍲 Il mange à " + d.nom; return;
@@ -1221,23 +1237,23 @@
       me.argent -= stake; const back = Math.round(stake * (luck > .75 ? 1.8 : luck > .5 ? 1.3 : luck > .35 ? .9 : .4));
       me.argent += back; const gain = back - stake;
       note(gain >= 0 ? "💹 Business au " + d.nom + " : il achète et revend " + ["des téléphones d'occasion", "des pagnes wax", "des sacs de riz", "des cartes de recharge"][(rand() * 4) | 0] + ", +" + gain + " e-makuta de bénéfice." : "💹 Mauvaise affaire au " + d.nom + " : il perd " + (-gain) + " e-makuta.", gain >= 0 ? "ok" : "alert");
-      me.bizWins = (me.bizWins || 0) + (gain > 5 ? 1 : 0); if (me.bizWins >= 3 && me.car !== "ambitieux") { changeChar("ambitieux", "ses affaires marchent bien"); me.bizWins = 0; }
+      me.bizWins = (me.bizWins || 0) + (gain > 5 ? 1 : 0); if (gain > 5 && rand() < .4) repute(1, "ses affaires marchent"); if (me.bizWins >= 3 && me.car !== "ambitieux") { changeChar("ambitieux", "ses affaires marchent bien"); me.bizWins = 0; }
       A.phase = "visit"; A.wait = 1e9; A.doing = "💹 Il fait du business au " + d.nom; return;
     }
     if (d.steal) {
       const me = G.me, cops = G.peds.filter(q => q.cop && Math.hypot(q.x - G.foot.x, q.y - G.foot.y) < 700).length + G.cops.filter(c => Math.hypot(c.x - G.foot.x, c.y - G.foot.y) < 900).length;
-      const caught = rand() < .25 + cops * .15;
+      const caught = rand() < .25 + cops * .15 + ((me.rep || 0) <= -30 ? .15 : 0);
       if (caught) {
         me.arrest++; const fine = Math.min(me.argent, 20); me.argent -= fine;
         note("🚓 Il essaie de voler à " + d.nom + "… et se fait attraper par la police ! Amende : " + fine + " e-makuta.", "alert");
-        shiftMind(15, "après cette arrestation");
+        shiftMind(15, "après cette arrestation"); repute(-15, "arrêté pour vol, tout le quartier le sait");
         if (me.arrest >= 2 && me.car !== "méfiant") changeChar("méfiant", "il a été arrêté plusieurs fois");
         if (me.arrest % JAIL_AFTER === 0) { jail(); return; }
         A.phase = "visit"; A.wait = 10; A.doing = "🚓 Arrêté par la police"; return;
       }
       const gain = 8 + ((rand() * 20) | 0); me.argent += gain;
       note("🕵️ Il vole discrètement " + gain + " e-makuta à " + d.nom + ". Personne ne l'a vu… cette fois.", "alert");
-      shiftMind(-6, "ce vol facile");
+      shiftMind(-6, "ce vol facile"); if (rand() < .25) repute(-5, "des rumeurs disent qu'il vole");
       A.phase = "visit"; A.wait = 4; A.doing = "🕵️ Il s'éloigne discrètement"; return;
     }
     if (t === "club" && isOpen(o, G.hour) && A.mode !== "vol") {
@@ -1357,14 +1373,25 @@
     const cand = G.peds.filter(q => !q.play && !q.cop && !q.staff && Math.hypot(q.x - f.x, q.y - f.y) < 500 && ident(q).woman && ident(q).age >= 18 && ident(q).age < 50);
     const q = cand[(rand() * cand.length) | 0];
     const nom = q ? ident(q).nom : NOMS_F[(rand() * NOMS_F.length) | 0] + " " + ["M.", "K.", "B."][(rand() * 3) | 0];
-    const ok = rand() < .15 + me.charisme * .06 + (me.car === "drôle" ? .1 : 0) - .2 * relations.get().filter(r => r.amour).length;
+    const ok = rand() < .15 + me.charisme * .06 + (me.car === "drôle" ? .1 : 0) + (me.rep || 0) * .002 - .2 * relations.get().filter(r => r.amour && !r.epouse).length - (me.conjoint ? .15 : 0);
+    if (me.conjoint) cheatRisk(nom);
     if (ok) {
       const R = relations.get(); let r = q && R.find(x => x.pid === q.id);
       if (!r) { r = { id: Date.now().toString(36), pid: q ? q.id : 0, nom, f: true, fois: 1, lieu: "rencontre galante", le: Date.now() }; R.unshift(r); }
-      r.amour = true; r.fois++; relations.set(R);
+      r.amour = true; r.fois++; r.coeur = Math.min(100, (r.coeur || 0) + 25); relations.set(R);
       note("💘 Il drague " + nom.split(" ")[0] + "… elle sourit et accepte de le revoir ! (relation amoureuse)", "ok");
       if (me.car === "timide") changeChar("bavard", "ce succès lui donne confiance");
     } else note("💔 Il tente sa chance avec " + nom.split(" ")[0] + "… elle le repousse poliment.");
+  }
+  // rendez-vous amoureux : cadeau ou repas, l'amour grandit ; à 100, il demande la main (dot payée par sa famille)
+  function date() {
+    const me = G.me, R = relations.get(), r = R.find(x => x.epouse) || R.filter(x => x.amour).sort((a, b) => (b.coeur || 0) - (a.coeur || 0))[0];
+    if (!r) { note("🌹 Il voulait voir quelqu'un, mais il n'a personne dans sa vie pour l'instant."); return; }
+    const n = r.nom.split(" ")[0], gift = 4 + ((rand() * 6) | 0);
+    if (!pay(gift, (r.epouse ? "sortie avec sa femme " : "cadeau pour ") + n)) { r.coeur = (r.coeur || 0) - 5; relations.set(R); note("🌹 Il voit " + n + " mais n'a rien pour l'inviter. Elle est un peu déçue."); return; }
+    r.coeur = Math.min(100, (r.coeur || 0) + 15 + ((me.charisme * 1.5) | 0)); r.fois++; r.le = Date.now(); relations.set(R);
+    note(r.epouse ? "💑 Moment en amoureux avec sa femme " + n + "." : "🌹 Rendez-vous avec " + n + " (amour " + r.coeur + "/100).", "ok");
+    if (!r.epouse && !me.conjoint && (r.coeur >= 100 || r.fiance)) marry(r);
   }
   function meet(q) {
     const R = relations.get(), place = nearPlace(G.foot.x, G.foot.y), lieu = place ? place.nom : G.foot.sit ? "un banc de la Gombe" : "une rue de la Gombe";
@@ -1387,7 +1414,7 @@
     d.innerHTML = `<div class="bureau-box" role="dialog" aria-modal="true" aria-labelledby="rel-t"><button type="button" class="bureau-x" aria-label="Fermer">✕</button>
       <p class="bureau-k">👥 Mes relations</p><h2 id="rel-t">${R.length} personne${R.length > 1 ? "s" : ""} rencontrée${R.length > 1 ? "s" : ""}</h2>
       <p>Assieds-toi sur un banc public : les passants viennent se présenter. Plus tu revois quelqu'un, plus votre lien grandit.</p>
-      ${R.length ? R.map(r => `<details><summary>${r.amour ? "💘 " : ""}${esc(r.nom)} · ${r.amour ? "Relation amoureuse" : relLevel(r.fois)}</summary><p>${r.metier ? esc(r.metier) + ", " + esc(r.car || "") + ". " : ""}Rencontré${r.fois > 1 ? " " + r.fois + " fois" : ""}, dernière fois à ${esc(r.lieu)}, le ${new Date(r.le).toLocaleDateString("fr-FR")}.</p></details>`).join("") : "<p><b>Personne pour l'instant.</b></p>"}
+      ${R.length ? R.map(r => `<details><summary>${r.epouse ? "💒 " : r.fiance ? "💍 " : r.amour ? "💘 " : ""}${esc(r.nom)} · ${r.epouse ? "Épouse" : r.fiance ? "Fiancée (dot à réunir)" : r.amour ? "Relation amoureuse" + (r.coeur ? " · amour " + r.coeur + "/100" : "") : relLevel(r.fois)}</summary><p>${r.metier ? esc(r.metier) + ", " + esc(r.car || "") + ". " : ""}Rencontré${r.fois > 1 ? " " + r.fois + " fois" : ""}, dernière fois à ${esc(r.lieu)}, le ${new Date(r.le).toLocaleDateString("fr-FR")}.</p></details>`).join("") : "<p><b>Personne pour l'instant.</b></p>"}
       <p style="font-size:12px;opacity:.7">Aperçu : ces relations sont gardées dans ce navigateur. Elles seront liées à ton compte dans la version en ligne.</p></div>`;
     d.querySelector(".bureau-box").classList.add("bureau-faq");
     document.body.appendChild(d);
@@ -1493,6 +1520,8 @@
     { id: "business", ic: "💹", nom: "Faire du business", dur: 2.5, mode: "business" },
     { id: "draguer", ic: "💘", nom: "Draguer", dur: 1.5, mode: "draguer", hidden: true },
     { id: "vol", ic: "🕵️", nom: "Voler", dur: .7, mode: "vol", hidden: true },
+    { id: "rendezvous", ic: "🌹", nom: "Voir sa chérie", dur: 1.5, mode: "rendezvous", hidden: true },
+    { id: "aider", ic: "🤲", nom: "Aider quelqu'un", dur: .8, mode: "aider", hidden: true },
     { id: "rentrer", ic: "🏠", nom: "Rentrer chez lui", dur: 1, mode: "maison", hidden: true },
   ];
   // journal du jour : tout ce que fait le personnage, à relire
@@ -1500,6 +1529,35 @@
   function saveMe() { lsSet("twolife_moi_ville", JSON.stringify(G.me)); }
   function pay(n, what) { const me = G.me; if (me.argent < n) return false; me.argent -= n; if (what) note("💸 −" + n + " e-makuta : " + what); return true; }
   function earn(n, what) { G.me.argent += n; note("💰 +" + n + " e-makuta : " + what, "ok"); }
+  // réputation : le quartier se souvient de ce qu'il fait (−100 à +100)
+  function repute(d, why) {
+    const me = G.me, b = me.rep || 0; me.rep = Math.max(-100, Math.min(100, b + d));
+    if (Math.abs(d) >= 5) note((d > 0 ? "⭐ Réputation +" : "🗣️ Réputation ") + d + " : " + why + ".", d > 0 ? "ok" : "alert");
+    if (b > -30 && me.rep <= -30) note("🗣️ Dans le quartier, on le dit voleur. Les gens se méfient de lui.", "alert");
+    if (b < 40 && me.rep >= 40) note("⭐ Il est respecté dans le quartier.", "ok");
+  }
+  const repLabel = r => r >= 40 ? "respecté" : r >= 10 ? "bien vu" : r > -30 ? "inconnu" : r > -60 ? "mal vu" : "réputé voleur";
+  // amour, fiançailles et mariage : la dot est payée par la famille du marié
+  const DOT = 60;
+  const lover = () => { const R = relations.get(); return R.find(r => r.epouse) || R.filter(r => r.amour).sort((a, b) => (b.coeur || 0) - (a.coeur || 0))[0]; };
+  function marry(r) {
+    const me = G.me, R = relations.get(), x = R.find(y => y.id === r.id) || r;
+    if (!pay(DOT, "dot versée à la famille de " + x.nom)) { x.fiance = true; relations.set(R); note("💍 Il demande " + x.nom.split(" ")[0] + " en mariage. Elle dit oui ! Mais il doit encore réunir la dot (" + DOT + " e-makuta).", "ok"); return; }
+    x.epouse = true; x.fiance = false; me.conjoint = x.nom; relations.set(R);
+    note("💒 Mariage ! Sa famille a versé la dot et il épouse " + x.nom + ". Elle vient vivre avec lui.", "ok");
+    repute(10, "un mariage dans les règles");
+    if (["colérique", "fier"].includes(me.car) && rand() < .4) changeChar("calme", "le mariage l'a apaisé");
+  }
+  function cheatRisk(nom) {
+    const me = G.me; if (!me.conjoint) return;
+    repute(-8, "il drague alors qu'il est marié");
+    if (rand() < .35) {
+      const R = relations.get(), w = R.find(r => r.epouse); if (!w) return;
+      w.coeur = (w.coeur || 100) - 40;
+      if (w.coeur <= 0) { w.epouse = false; w.amour = false; me.conjoint = null; relations.set(R); note("💔 " + w.nom.split(" ")[0] + " a appris pour " + nom.split(" ")[0] + ". Elle demande le divorce et retourne dans sa famille.", "alert"); repute(-5, "un divorce qui fait parler"); }
+      else { relations.set(R); note("😠 " + w.nom.split(" ")[0] + " a appris qu'il draguait " + nom.split(" ")[0] + ". Grosse dispute à la maison.", "alert"); }
+    }
+  }
   // la mentalité bouge avec la vie : honnêteté, caractère
   function shiftMind(d, why) {
     const me = G.me, before = me.honnete; me.honnete = Math.max(0, Math.min(100, me.honnete + d));
@@ -1568,7 +1626,7 @@
     G.lifeMsg = "🔒 En cellule au commissariat jusqu'à " + hh(G.me.prisonT % 24);
   }
   function jail() {
-    const me = G.me; me.prisonT = gameT() + JAIL_HOURS; me.prisons = (me.prisons || 0) + 1;
+    const me = G.me; me.prisonT = gameT() + JAIL_HOURS; me.prisons = (me.prisons || 0) + 1; repute(-20, "un séjour en prison");
     note("🔒 Troisième arrestation : il passe " + JAIL_HOURS + " h en cellule au commissariat. Il ne peut rien faire et tes consignes sont suspendues.", "alert");
     shiftMind(10, "la prison");
     if (G.life) G.life.cur = null;
@@ -1588,7 +1646,8 @@
         msg("🏠 " + hh(G.hour) + " : ton personnage est chez lui. Il vit sa vie seul, selon son caractère" + (ph === "matin" ? ". Jusqu'à 10 h, tu peux lui donner des consignes (📋)." : ". Les consignes se donnent le matin, de 5 h à 10 h."), 6, "ok"); }
     } else if (ph === "matin") {
       atHome("☕ Il se réveille et se prépare"); G.life = newLife(); G.lifeMsg = "☕ Il se réveille et se prépare";
-      { const me = G.me; me.faim = Math.min(me.faim, 25); me.journal = me.journal.filter(j => j.d >= G.day - 1); shiftMind(rand() * 6 - 3, "la nuit porte conseil");
+      { const me = G.me; me.faim = Math.min(me.faim, 25);
+        const fi = relations.get().find(r => r.fiance); if (fi && !me.conjoint && me.argent >= DOT) marry(fi); me.journal = me.journal.filter(j => j.d >= G.day - 1); shiftMind(rand() * 6 - 3, "la nuit porte conseil");
         if (rand() < .06) { const t = CARACTERES[(rand() * CARACTERES.length) | 0].t; changeChar(t, "le destin en a décidé ainsi"); } }
       msg("☀️ " + hh(G.hour) + " : ton personnage se réveille. Jusqu'à 10 h, tu peux lui donner des consignes (📋). Il les suivra… ou pas.", 6, "ok");
     } else if (ph === "jour") {
@@ -1633,7 +1692,9 @@
     if (me.argent < 12 && me.honnete < 30) add("vol", 3, "il manque d'argent et n'a pas beaucoup de scrupules");
     if (me.argent < 25 && h < 17) add("business", 3, "il veut gagner un peu d'argent");
     if (me.car === "ambitieux" || likes("affaires")) add("business", 4, "il a le sens des affaires");
-    if (h >= 11 && (me.charisme >= 6 || ["drôle", "fier", "bavard"].includes(me.car))) add("draguer", 2.5 / (1 + 2 * relations.get().filter(r => r.amour).length), relations.get().some(r => r.amour) ? "il a déjà quelqu'un, mais il aime plaire" : "il veut séduire quelqu'un");
+    if (h >= 11 && (me.charisme >= 6 || ["drôle", "fier", "bavard"].includes(me.car))) add("draguer", (me.conjoint ? (me.honnete < 40 ? .8 : .2) : 2.5) / (1 + 2 * relations.get().filter(r => r.amour && !r.epouse).length), relations.get().some(r => r.amour) ? "il a déjà quelqu'un, mais il aime plaire" : "il veut séduire quelqu'un");
+    { const lv = lover(); if (lv && h >= 12) add("rendezvous", lv.epouse ? 2 : lv.fiance ? 6 : 4, lv.epouse ? "il veut passer du temps avec sa femme" : lv.fiance ? "il pense à son mariage avec " + lv.nom.split(" ")[0] : "il est amoureux de " + lv.nom.split(" ")[0]); }
+    if ((me.honnete >= 60 || me.car === "généreux") && me.argent >= 30) add("aider", me.car === "généreux" ? 4 : 1.5, "il a bon cœur et un peu d'argent");
     if (h >= 20 && me.argent >= 10) { add("soiree", likes("rumba") || likes("danse") || ["drôle", "bavard", "fier"].includes(me.car) ? 6 : 1.5, likes("rumba") ? "il aime la rumba" : "c'est le soir, il a envie de sortir"); add("repos", 2, "la journée a été longue"); }
     if (h >= 7 && h < 12 && me.car === "ambitieux") add("travail", 5, "il est ambitieux : il va travailler");
     if (likes("football") || likes("basket")) add("match", 5, "il aime " + (likes("football") ? "le football" : "le basket"));
@@ -1701,7 +1762,7 @@
     const d = document.createElement("div"); d.id = "mepanel"; d.className = "bureau";
     d.innerHTML = `<div class="bureau-box bureau-faq" role="dialog" aria-modal="true" aria-labelledby="me-t"><button type="button" class="bureau-x" aria-label="Fermer">✕</button>
       <p class="bureau-k">🧍 Mon personnage · décidé par le jeu</p><h2 id="me-t">Il est ${esc(me.car)}</h2>
-      <div class="pp-grid"><p><b>Aime</b><br>${esc(me.gouts.join(" et "))}</p><p><b>Travail</b><br>${esc(me.metier)}</p><p><b>Argent</b><br>${me.argent} e-makuta</p><p><b>Relations</b><br>${R.length} personne${R.length > 1 ? "s" : ""}${love ? ", dont " + love + " amoureuse" + (love > 1 ? "s" : "") : ""}</p></div>
+      <div class="pp-grid"><p><b>Aime</b><br>${esc(me.gouts.join(" et "))}</p><p><b>Travail</b><br>${esc(me.metier)}</p><p><b>Argent</b><br>${me.argent} e-makuta</p><p><b>Relations</b><br>${R.length} personne${R.length > 1 ? "s" : ""}${love ? ", dont " + love + " amoureuse" + (love > 1 ? "s" : "") : ""}</p><p><b>Couple</b><br>${me.conjoint ? "💒 marié à " + esc(me.conjoint) : R.some(r => r.fiance) ? "💍 fiancé à " + esc(R.find(r => r.fiance).nom) + " (dot : " + DOT + " e-makuta)" : love ? "💘 amoureux" : "célibataire"}</p><p><b>Réputation</b><br>${repLabel(me.rep || 0)} (${me.rep || 0})</p></div>
       ${bar(me.honnete, "Honnêteté")}${bar(me.charisme * 10, "Charisme")}${bar(me.intel * 10, "Intelligence")}${bar(me.force * 10, "Force")}${bar(G.energy, "Énergie")}${bar(100 - me.faim, "Rassasié")}
       <h3>Journal</h3>${me.journal.length ? me.journal.slice(0, 25).map(j => `<p><b>${j.h}</b> · ${esc(j.t)}</p>`).join("") : "<p>Rien encore aujourd'hui.</p>"}
       <p style="font-size:12px;opacity:.7;margin-top:12px">Son caractère et son honnêteté changent selon ce qu'il vit. Aperçu : ces données sont gardées dans ce navigateur, elles seront liées à ton compte et à ton porte-monnaie e-makuta dans la version en ligne.</p></div>`;
