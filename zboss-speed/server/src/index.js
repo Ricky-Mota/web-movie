@@ -2,7 +2,7 @@
 // Le serveur est l'arbitre : il décide de l'âge, des talents et de l'argent ; le téléphone ne fait qu'afficher.
 import {
   ageYears, stageOf, STAGES, realMsUntil, TALENTS, ACTIVITIES, rng, drawTalents, doActivity,
-  needsAt, newIdentity, BIRTH_GIFT, SHOP, cannotBuy, OFFERS, USD_TO_MAKUTA, USD_UNITS, fmtMakuta, WITHDRAW_FEE, walletInfo, birthShiftMs, REAL_MONEY, shopView, familyOf, JOBS, payFor, cannotWork, workView, cannotApply, FORMATIONS, cannotEnroll, attendCourse, schoolView, SUPPORT_PER_DAY, HOST_MIN_AGE, MAX_CHILDREN, supportDue, unpaidEffect, familyShare, DAY, LAUNCH_RULES, launchStatus, canSignupBeforeLaunch, COMPANY_TYPES, cannotOpenCompany, companyName, companyView, companyAccrue, companyJob, EMPLOYEE_YIELD, RESELL_RATE, TAXI_FARE, TAXI_ENERGY, KINSHASA_QUARTIERS, OTHER_CITIES,
+  needsAt, newIdentity, BIRTH_GIFT, SHOP, cannotBuy, OFFERS, USD_TO_MAKUTA, USD_UNITS, fmtMakuta, WITHDRAW_FEE, walletInfo, birthShiftMs, REAL_MONEY, shopView, familyOf, JOBS, payFor, cannotWork, workView, cannotApply, FORMATIONS, cannotEnroll, attendCourse, schoolView, SUPPORT_PER_DAY, HOST_MIN_AGE, MAX_CHILDREN, supportDue, unpaidEffect, familyShare, DAY, LAUNCH_RULES, launchStatus, canSignupBeforeLaunch, COMPANY_TYPES, cannotOpenCompany, companyName, companyView, companyAccrue, companyJob, EMPLOYEE_YIELD, RESELL_RATE, TAXI_FARE, TAXI_ENERGY, KINSHASA_QUARTIERS, OTHER_CITIES, STATE_ID, TAX, POSTS, PUBLIC_JOBS, BANKS, bankAccrue, INSURERS, CARE, careCost, OPERATORS, RECHARGES, CALL, stateView,
 } from "./life.js";
 
 const SESSION_DAYS = 30;
@@ -115,6 +115,15 @@ async function accrue(db, e, now) {
   return a.caisse;
 }
 
+// ---------------------------------------------------------------- l'État : Trésor public, masse monétaire, candidatures
+async function publicState(db) {
+  const t = await db.prepare(`SELECT COALESCE((SELECT SUM(montant) FROM transactions WHERE vers_id = '${STATE_ID}'), 0) - COALESCE((SELECT SUM(montant) FROM transactions WHERE de_id = '${STATE_ID}'), 0) AS tresor,
+      COALESCE((SELECT SUM(makuta) FROM personnages WHERE mort_le IS NULL), 0) + COALESCE((SELECT SUM(solde) FROM comptes_banque), 0) AS masse`).first();
+  const { results } = await db.prepare(`SELECT poste, COUNT(*) AS n FROM candidatures GROUP BY poste`).all();
+  return { tresor: t.tresor, masse: t.masse, candidats: Object.fromEntries(results.map(r => [r.poste, r.n])) };
+}
+const taxTo = (db, from, amount, motif, now) => amount > 0 ? [db.prepare(`INSERT INTO transactions (id, de_id, vers_id, montant, motif, le) VALUES (?, ?, '${STATE_ID}', ?, ?, ?)`).bind(uid(), from, amount, motif, now)] : [];
+
 // ---------------------------------------------------------------- profil
 async function loadCharacter(db, id) {
   const p = await db.prepare(`SELECT * FROM personnages WHERE id = ?`).bind(id).first();
@@ -142,10 +151,13 @@ async function loadCharacter(db, id) {
   const { results: offres } = await db.prepare(`SELECT e.id, e.nom, e.type, e.local AS quartier, p.prenom || ' ' || p.nom AS proprietaire FROM entreprises e JOIN personnages p ON p.id = e.proprietaire_id
       WHERE e.proprietaire_id != ? AND (SELECT COUNT(*) FROM emplois m WHERE m.entreprise_id = e.id AND m.fin IS NULL) < ${places} ORDER BY RANDOM() LIMIT 12`).bind(id).all();
   const boss = job && job.entreprise_id ? await db.prepare(`SELECT id, nom, type, caisse, maj_le, cree_le, proprietaire_id FROM entreprises WHERE id = ?`).bind(job.entreprise_id).first() : null;
-  return { p, tal, inv, dep, ret, job, lastShift: last && last.le, enr, dip: dip.map(d => d.formation_id), kids, par, sibs, ent, aVendre, offres, boss };
+  const { results: comptes } = await db.prepare(`SELECT banque_id AS banque, solde, maj_le FROM comptes_banque WHERE personnage_id = ?`).bind(id).all();
+  const cand = await db.prepare(`SELECT poste FROM candidatures WHERE personnage_id = ?`).bind(id).first();
+  const pub = await publicState(db);
+  return { p, tal, inv, dep, ret, job, lastShift: last && last.le, enr, dip: dip.map(d => d.formation_id), kids, par, sibs, ent, aVendre, offres, boss, comptes, cand, pub };
 }
 
-function view(compte, { p, tal, inv = [], dep = [], ret = [], job = null, lastShift = null, enr = null, dip = [], kids = [], par = [], sibs = [], ent = [], aVendre = [], offres = [], boss = null }, now) {
+function view(compte, { p, tal, inv = [], dep = [], ret = [], job = null, lastShift = null, enr = null, dip = [], kids = [], par = [], sibs = [], ent = [], aVendre = [], offres = [], boss = null, comptes = [], cand = null, pub = {} }, now) {
   const age = ageYears(p.ne_le, now);
   const st = stageOf(age);
   const next = STAGES[STAGES.indexOf(st) + 1];
@@ -173,6 +185,7 @@ function view(compte, { p, tal, inv = [], dep = [], ret = [], job = null, lastSh
     enfants: kids.map(k => childView(k, now)),
     entretienParJour: SUPPORT_PER_DAY,
     entreprises: companyView(ent, { aVendre, offres }, now),
+    etat: stateView({ comptes, assureur: p.assureur, assureJusqu: p.assure_jusqu, operateur: p.operateur, credit: p.credit, candidature: cand && cand.poste }, pub, now),
     voyage: { quartiers: KINSHASA_QUARTIERS, prix: TAXI_FARE, fatigue: TAXI_ENERGY, villes: OTHER_CITIES },
   };
 }
@@ -374,7 +387,10 @@ export default {
         const st = [
           db.prepare(`UPDATE personnages SET makuta = makuta - ?, faim = MIN(100, faim + ?), bonheur = MIN(100, bonheur + ?), energie = MIN(100, energie + ?) WHERE id = ? AND makuta >= ?`)
             .bind(item.prix, e.faim || 0, e.bonheur || 0, e.energie || 0, p.id, item.prix),
-          db.prepare(`INSERT INTO transactions (id, de_id, vers_id, montant, motif, le) VALUES (?, ?, NULL, ?, ?, ?)`).bind(uid(), p.id, item.prix, "achat : " + item.nom, now),
+          ...(item.type === "telephone"
+            ? [db.prepare(`INSERT INTO transactions (id, de_id, vers_id, montant, motif, le) VALUES (?, ?, NULL, ?, ?, ?)`).bind(uid(), p.id, item.prix - Math.round(item.prix * TAX.douane), "achat : " + item.nom, now),
+               ...taxTo(db, p.id, Math.round(item.prix * TAX.douane), "droits de douane 10 % (DGDA) : " + item.nom, now)]
+            : [db.prepare(`INSERT INTO transactions (id, de_id, vers_id, montant, motif, le) VALUES (?, ?, NULL, ?, ?, ?)`).bind(uid(), p.id, item.prix, "achat : " + item.nom, now)]),
         ];
         if (item.type !== "nourriture") {
           // un vêtement acheté est porté tout de suite (il remplace celui du même emplacement)
@@ -431,10 +447,13 @@ export default {
         const pay = payFor(job, tal.map(t => ({ talent: t.talent_id, discovered: !!t.decouvert })));
         // 10 % du salaire pour les parents : aux parents joueurs s'il y en a, sinon à la famille du jeu
         pay.famille = familyShare(pay.montant);
+        pay.impot = Math.round(pay.montant * TAX.salaire);   // IPR prélevé par la DGI
+        const fromState = PUBLIC_JOBS.some(j => j.id === job.id);
         const parents = ch.par.map(x => x.id), each = parents.length ? Math.floor(pay.famille / parents.length) : 0;
         const st = [
-          db.prepare(`UPDATE personnages SET makuta = makuta + ?, energie = MAX(0, energie - ?), faim = MAX(0, faim - 10) WHERE id = ?`).bind(pay.montant - pay.famille, 35, p.id),
-          db.prepare(`INSERT INTO transactions (id, de_id, vers_id, montant, motif, le) VALUES (?, ?, ?, ?, ?, ?)`).bind(uid(), ch.boss ? ch.boss.id : null, p.id, pay.montant, "salaire : " + job.nom, now),
+          db.prepare(`UPDATE personnages SET makuta = makuta + ?, energie = MAX(0, energie - ?), faim = MAX(0, faim - 10) WHERE id = ?`).bind(pay.montant - pay.famille - pay.impot, 35, p.id),
+          db.prepare(`INSERT INTO transactions (id, de_id, vers_id, montant, motif, le) VALUES (?, ?, ?, ?, ?, ?)`).bind(uid(), ch.boss ? ch.boss.id : fromState ? STATE_ID : null, p.id, pay.montant, "salaire : " + job.nom, now),
+          ...taxTo(db, p.id, pay.impot, "IPR 5 % (DGI) : " + job.nom, now),
           // dans l'entreprise d'un joueur : la journée rapporte salaire + 60 % à la caisse, qui paie le salaire
           ...(ch.boss ? [db.prepare(`UPDATE entreprises SET caisse = caisse + ? WHERE id = ?`).bind(Math.round(pay.montant * EMPLOYEE_YIELD) - pay.montant, ch.boss.id)] : []),
           ...(pay.famille - each * parents.length > 0 ? [db.prepare(`INSERT INTO transactions (id, de_id, vers_id, montant, motif, le) VALUES (?, ?, NULL, ?, ?, ?)`).bind(uid(), p.id, pay.famille - each * parents.length, "aide à la famille (10 %)", now)] : []),
@@ -461,17 +480,92 @@ export default {
         return json(h, 200, { ouverte: nom, ...view(compte, await loadCharacter(db, p.id), now) });
       }
 
+      // ---- banques commerciales
+      if ((url.pathname === "/api/banque/deposer" || url.pathname === "/api/banque/retirer") && req.method === "POST") {
+        const b = BANKS.find(x => x.id === body.banque), m = Math.floor(Number(body.montant));
+        if (!b) return fail(h, 404, "Banque inconnue.");
+        if (!(m >= 20)) return fail(h, 400, "Montant invalide (1 e-makuta minimum).");
+        if (ageYears(p.ne_le, now) < 16) return fail(h, 409, "Il faut 16 ans pour ouvrir un compte en banque.");
+        const acc = ch.comptes.find(x => x.banque === b.id), solde = acc ? bankAccrue(acc, now) : 0, dep = url.pathname.endsWith("deposer");
+        if (dep && p.makuta < m) return fail(h, 409, "Tu n'as pas autant d'e-makuta sur toi.");
+        if (dep && b.plafond && solde + m > b.plafond) return fail(h, 409, `Cette coopérative accepte au plus ${fmtMakuta(b.plafond)}.`);
+        if (!dep && solde < m) return fail(h, 409, "Solde insuffisant.");
+        const nv = dep ? solde + m : solde - m;
+        await db.batch([
+          db.prepare(`INSERT INTO comptes_banque (personnage_id, banque_id, solde, maj_le) VALUES (?, ?, ?, ?) ON CONFLICT(personnage_id, banque_id) DO UPDATE SET solde = excluded.solde, maj_le = excluded.maj_le`).bind(p.id, b.id, nv, now),
+          db.prepare(`UPDATE personnages SET makuta = makuta + ? WHERE id = ?`).bind(dep ? -m : m, p.id),
+          ...(solde - (acc ? acc.solde : 0) > 0 ? [db.prepare(`INSERT INTO transactions (id, de_id, vers_id, montant, motif, le) VALUES (?, ?, ?, ?, ?, ?)`).bind(uid(), "banque:" + b.id, p.id, solde - acc.solde, "intérêts : " + b.nom, now)] : []),
+          db.prepare(`INSERT INTO transactions (id, de_id, vers_id, montant, motif, le) VALUES (?, ?, ?, ?, ?, ?)`).bind(uid(), dep ? p.id : "banque:" + b.id, dep ? "banque:" + b.id : p.id, m, (dep ? "dépôt : " : "retrait : ") + b.nom, now),
+        ]);
+        return json(h, 200, view(compte, await loadCharacter(db, p.id), now));
+      }
+
+      // ---- assurances et santé
+      if (url.pathname === "/api/assurance" && req.method === "POST") {
+        const a = INSURERS.find(x => x.id === body.assureur);
+        if (!a) return fail(h, 404, "Assureur inconnu.");
+        if (p.makuta < a.prime) return fail(h, 409, `La prime coûte ${fmtMakuta(a.prime)}.`);
+        const from = p.assure_jusqu && p.assure_jusqu > now && p.assureur === a.id ? p.assure_jusqu : now;
+        await db.batch([
+          db.prepare(`UPDATE personnages SET makuta = makuta - ?, assureur = ?, assure_jusqu = ? WHERE id = ? AND makuta >= ?`).bind(a.prime, a.id, from + a.jours * 864e5, p.id, a.prime),
+          db.prepare(`INSERT INTO transactions (id, de_id, vers_id, montant, motif, le) VALUES (?, ?, ?, ?, ?, ?)`).bind(uid(), p.id, "assurance:" + a.id, a.prime, "prime d'assurance : " + a.nom, now),
+        ]);
+        return json(h, 200, view(compte, await loadCharacter(db, p.id), now));
+      }
+      if (url.pathname === "/api/soigner" && req.method === "POST") {
+        await settle(db, p, now);
+        if (p.sante >= 95) return fail(h, 409, "Tu es en bonne santé, pas besoin de soins.");
+        const c = careCost(p.assure_jusqu, p.assureur, now);
+        if (p.makuta < c.prix) return fail(h, 409, `Les soins coûtent ${fmtMakuta(c.prix)}.`);
+        await db.batch([
+          db.prepare(`UPDATE personnages SET makuta = makuta - ?, sante = MIN(100, sante + ?) WHERE id = ? AND makuta >= ?`).bind(c.prix, CARE.sante, p.id, c.prix),
+          ...(c.prix > 0 ? await payToCompany(db, "pharmacie", p.id, c.prix, "soins au centre de santé", now) : []),
+        ]);
+        return json(h, 200, { soins: c, ...view(compte, await loadCharacter(db, p.id), now) });
+      }
+
+      // ---- téléphone
+      if (url.pathname === "/api/telephone/recharger" && req.method === "POST") {
+        const o = OPERATORS.find(x => x.id === body.operateur), m = Math.floor(Number(body.montant));
+        if (!o || !RECHARGES.includes(m)) return fail(h, 400, "Recharge invalide.");
+        if (p.makuta < m) return fail(h, 409, "Pas assez d'e-makuta.");
+        await db.batch([
+          db.prepare(`UPDATE personnages SET makuta = makuta - ?, credit = credit + ?, operateur = ? WHERE id = ? AND makuta >= ?`).bind(m, m, o.id, p.id, m),
+          db.prepare(`INSERT INTO transactions (id, de_id, vers_id, montant, motif, le) VALUES (?, ?, ?, ?, ?, ?)`).bind(uid(), p.id, "operateur:" + o.id, m, "crédit téléphone : " + o.nom, now),
+        ]);
+        return json(h, 200, view(compte, await loadCharacter(db, p.id), now));
+      }
+      if (url.pathname === "/api/telephone/appeler" && req.method === "POST") {
+        if (!ch.inv.some(x => (SHOP.find(y => y.id === x.objet_id) || {}).type === "telephone")) return fail(h, 409, "Il te faut d'abord un téléphone (au magasin).");
+        if (p.credit < CALL.prix) return fail(h, 409, "Plus de crédit : recharge ton téléphone.");
+        await settle(db, p, now);
+        await db.prepare(`UPDATE personnages SET credit = credit - ?, bonheur = MIN(100, bonheur + ?) WHERE id = ? AND credit >= ?`).bind(CALL.prix, CALL.bonheur, p.id, CALL.prix).run();
+        return json(h, 200, view(compte, await loadCharacter(db, p.id), now));
+      }
+
+      // ---- élections
+      if (url.pathname === "/api/candidature" && req.method === "POST") {
+        if (body.poste == null) { await db.prepare(`DELETE FROM candidatures WHERE personnage_id = ?`).bind(p.id).run(); return json(h, 200, view(compte, await loadCharacter(db, p.id), now)); }
+        const po = POSTS.find(x => x.id === body.poste);
+        if (!po) return fail(h, 404, "Poste inconnu.");
+        if (ageYears(p.ne_le, now) < po.minAge) return fail(h, 409, `Il faut avoir ${po.minAge} ans pour être candidat au poste de ${po.nom.toLowerCase()}.`);
+        await db.prepare(`INSERT INTO candidatures (personnage_id, poste, le) VALUES (?, ?, ?) ON CONFLICT(personnage_id) DO UPDATE SET poste = excluded.poste, le = excluded.le`).bind(p.id, po.id, now).run();
+        return json(h, 200, view(compte, await loadCharacter(db, p.id), now));
+      }
+
       if (url.pathname === "/api/entreprise/encaisser" && req.method === "POST") {
         const e = await db.prepare(`SELECT * FROM entreprises WHERE id = ? AND proprietaire_id = ?`).bind(body.entreprise, p.id).first();
         if (!e) return fail(h, 404, "Entreprise introuvable.");
         const c = await accrue(db, e, now);
         if (c < 1) return fail(h, 409, "La caisse est vide pour l'instant. Reviens plus tard.");
+        const impot = Math.round(c * TAX.recettes);   // impôt sur les recettes (DGI)
         await db.batch([
           db.prepare(`UPDATE entreprises SET caisse = caisse - ? WHERE id = ?`).bind(c, e.id),
-          db.prepare(`UPDATE personnages SET makuta = makuta + ? WHERE id = ?`).bind(c, p.id),
+          db.prepare(`UPDATE personnages SET makuta = makuta + ? WHERE id = ?`).bind(c - impot, p.id),
           db.prepare(`INSERT INTO transactions (id, de_id, vers_id, montant, motif, le) VALUES (?, ?, ?, ?, ?, ?)`).bind(uid(), e.id, p.id, c, "recettes : " + e.nom, now),
+          ...taxTo(db, p.id, impot, "impôt 10 % sur les recettes (DGI) : " + e.nom, now),
         ]);
-        return json(h, 200, { encaisse: c, ...view(compte, await loadCharacter(db, p.id), now) });
+        return json(h, 200, { encaisse: c - impot, impot, ...view(compte, await loadCharacter(db, p.id), now) });
       }
 
       if (url.pathname === "/api/entreprise/vendre" && req.method === "POST") {

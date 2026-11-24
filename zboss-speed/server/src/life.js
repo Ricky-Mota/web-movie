@@ -425,3 +425,72 @@ export function companyView(list, extra = {}, now = Date.now()) {
     offres: (extra.offres || []).map(e => ({ ...deco(e), emploi: companyJob(e) })),
   };
 }
+
+// ---------------------------------------------------------------- l'État et les services publics
+// Les institutions sont celles d'un État comme la RDC ; les banques, assureurs et opérateurs sont des noms inventés pour le jeu.
+export const STATE_ID = "etat";                    // compte du Trésor public dans le grand livre
+export const TAX = { salaire: 0.05, recettes: 0.10, douane: 0.10 };   // IPR sur salaires, impôt sur les recettes, droits de douane
+export const INSTITUTIONS = [
+  { id: "presidence", nom: "Présidence de la République", icone: "🏛️", role: "Le Président est élu par les joueurs. Il nomme le gouvernement et fixe les grandes règles de la ville." },
+  { id: "assemblee", nom: "Assemblée nationale", icone: "🗳️", role: "Les députés élus votent les lois du jeu : impôts, salaires publics, amendes." },
+  { id: "senat", nom: "Sénat", icone: "📜", role: "Les sénateurs relisent les lois et représentent les villes." },
+  { id: "gouvernement", nom: "Gouvernement et ministères", icone: "🏢", role: "Santé, éducation, transports : ils gèrent le budget payé par les impôts." },
+  { id: "police", nom: "Police nationale", icone: "🚓", role: "Elle protège les joueurs, dresse les amendes et peut envoyer en prison. Elle recrute des policiers." },
+  { id: "justice", nom: "Cours et tribunaux", icone: "⚖️", role: "Ils jugent les litiges entre joueurs et les infractions." },
+  { id: "dgi", nom: "DGI (Direction générale des impôts)", icone: "🧾", role: "Elle prélève 5 % sur chaque salaire et 10 % sur les recettes des entreprises." },
+  { id: "dgda", nom: "DGDA (douanes et accises)", icone: "🛃", role: "Elle prélève 10 % sur les produits importés, comme les téléphones, et plus tard sur les marchandises entre villes." },
+  { id: "banque-centrale", nom: "Banque centrale", icone: "🏦", role: "Elle émet l'e-makuta, fixe le taux (1 $ = 5 e-makuta) et surveille les banques." },
+];
+// postes électifs : candidatures ouvertes, élections après le lancement
+export const POSTS = [
+  { id: "president", nom: "Président de la République", places: 1, minAge: 30 },
+  { id: "senateur", nom: "Sénateur", places: 109, minAge: 30 },
+  { id: "depute", nom: "Député national", places: 500, minAge: 25 },
+];
+// métiers publics, payés par le Trésor
+export const PUBLIC_JOBS = [
+  { id: "policier", nom: "Policier", talent: "sport", salaire: 200, minAge: 18, institution: "police" },
+  { id: "agent-dgi", nom: "Agent des impôts (DGI)", talent: "commerce", salaire: 220, minAge: 21, institution: "dgi", formation: "commerce", diplome: "Licence en commerce" },
+  { id: "douanier", nom: "Douanier (DGDA)", talent: "commerce", salaire: 220, minAge: 21, institution: "dgda" },
+  { id: "agent-bc", nom: "Agent de la Banque centrale", talent: "etudes", salaire: 320, minAge: 23, institution: "banque-centrale", formation: "commerce", diplome: "Licence en commerce" },
+];
+JOBS.push(...PUBLIC_JOBS);
+// banques commerciales : l'épargne rapporte des intérêts chaque jour réel
+export const BANKS = [
+  { id: "fleuve", nom: "Banque du Fleuve", icone: "🏦", taux: 0.002, desc: "Grande banque de la Gombe. 0,2 % d'intérêts par jour." },
+  { id: "equateur", nom: "Banque de l'Équateur", icone: "🏦", taux: 0.0015, desc: "Agences dans tous les quartiers. 0,15 % par jour." },
+  { id: "likelemba", nom: "Coopérative Likelemba", icone: "🤝", taux: 0.003, plafond: 200000, desc: "Épargne de quartier, 0,3 % par jour, jusqu'à 10 000 e-makuta." },
+];
+export function bankAccrue(acc, now = Date.now()) {
+  const b = BANKS.find(x => x.id === acc.banque), days = Math.max(0, now - (acc.maj_le || now)) / 864e5;
+  return Math.floor(acc.solde * (1 + (b ? b.taux : 0) * days));
+}
+// assurances : une semaine de couverture santé, les soins coûtent alors 20 %
+export const INSURERS = [
+  { id: "kongo-sante", nom: "Kongo Santé", icone: "🩺", prime: 1400, jours: 7, couverture: 0.8, desc: "Assurance santé : 70 e-makuta la semaine, 80 % des soins remboursés." },
+  { id: "mutuelle", nom: "Mutuelle des Travailleurs", icone: "🛡️", prime: 1000, jours: 7, couverture: 0.6, desc: "Moins chère : 50 e-makuta la semaine, 60 % des soins remboursés." },
+];
+export const CARE = { prix: 2000, sante: 40 };    // consultation et médicaments au centre de santé
+export function careCost(insuredUntil, insurerId, now = Date.now()) {
+  const ins = insuredUntil && insuredUntil > now && INSURERS.find(x => x.id === insurerId);
+  return { prix: Math.round(CARE.prix * (ins ? 1 - ins.couverture : 1)), assure: !!ins };
+}
+// réseaux de communication : on achète du crédit chez un opérateur, un appel coûte 1 e-makuta et rend heureux
+export const OPERATORS = [
+  { id: "mbote", nom: "Mbote Télécom", couleur: "#e0603a" },
+  { id: "kinnet", nom: "KinNet Mobile", couleur: "#2d7bff" },
+  { id: "lisanga", nom: "Lisanga", couleur: "#4fc58a" },
+];
+export const RECHARGES = [200, 1000, 2000];         // en makuta (10, 50, 100 e-makuta)
+export const CALL = { prix: 20, bonheur: 6 };
+export function stateView(me, pub, now = Date.now()) {
+  return {
+    institutions: INSTITUTIONS, postes: POSTS.map(x => ({ ...x, candidats: (pub.candidats || {})[x.id] || 0 })), impots: TAX,
+    tresor: pub.tresor || 0, masse: pub.masse || 0, tauxUsd: USD_TO_MAKUTA,
+    banques: BANKS.map(b => { const a = (me.comptes || []).find(x => x.banque === b.id); return { ...b, solde: a ? bankAccrue(a, now) : 0 }; }),
+    assureurs: INSURERS, assurance: me.assureJusqu && me.assureJusqu > now ? { id: me.assureur, jusqua: me.assureJusqu } : null,
+    soins: { ...CARE, ...careCost(me.assureJusqu, me.assureur, now) },
+    operateurs: OPERATORS, operateur: me.operateur || null, credit: me.credit || 0, recharges: RECHARGES, appel: CALL,
+    candidature: me.candidature || null, metiersPublics: PUBLIC_JOBS,
+  };
+}

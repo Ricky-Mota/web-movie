@@ -2,7 +2,7 @@
 // simule la même vie dans le navigateur (mode démo).
 import {
   ageYears, stageOf, STAGES, realMsUntil, TALENTS, ACTIVITIES, rng, drawTalents, doActivity, needsAt, newIdentity, BIRTH_GIFT,
-  SHOP, cannotBuy, OFFERS, USD_TO_MAKUTA, USD_UNITS, fmtMakuta, WITHDRAW_FEE, walletInfo, birthShiftMs, shopView, familyOf, JOBS, payFor, cannotWork, workView, SHIFT_ENERGY, cannotApply, FORMATIONS, cannotEnroll, attendCourse, schoolView, STUDY_ENERGY, SUPPORT_PER_DAY, HOST_MIN_AGE, canSignupBeforeLaunch, COMPANY_TYPES, cannotOpenCompany, companyName, companyView, companyAccrue, companyJob, EMPLOYEE_YIELD, RESELL_RATE, TAXI_FARE, TAXI_ENERGY, KINSHASA_QUARTIERS, OTHER_CITIES, supportDue, unpaidEffect, familyShare, FIRST_NAMES,
+  SHOP, cannotBuy, OFFERS, USD_TO_MAKUTA, USD_UNITS, fmtMakuta, WITHDRAW_FEE, walletInfo, birthShiftMs, shopView, familyOf, JOBS, payFor, cannotWork, workView, SHIFT_ENERGY, cannotApply, FORMATIONS, cannotEnroll, attendCourse, schoolView, STUDY_ENERGY, SUPPORT_PER_DAY, HOST_MIN_AGE, canSignupBeforeLaunch, COMPANY_TYPES, cannotOpenCompany, companyName, companyView, companyAccrue, companyJob, EMPLOYEE_YIELD, RESELL_RATE, TAXI_FARE, TAXI_ENERGY, KINSHASA_QUARTIERS, OTHER_CITIES, TAX, POSTS, PUBLIC_JOBS, BANKS, bankAccrue, INSURERS, CARE, careCost, OPERATORS, RECHARGES, CALL, stateView, supportDue, unpaidEffect, familyShare, FIRST_NAMES,
 } from "../server/src/life.js";
 import { launchDemo } from "./lancement-demo.js";
 
@@ -51,6 +51,8 @@ const demo = {
       entretienParJour: SUPPORT_PER_DAY, demo: true,
       entreprises: companyView((d.ent || []).map(e => ({ ...e, employes: 0 })), { aVendre: demoOthers().filter(e => e.en_vente && !(d.achetees || []).includes(e.id)), offres: demoOthers().filter(e => !(d.achetees || []).includes(e.id)).slice(0, 6) }, now),
       voyage: { quartiers: KINSHASA_QUARTIERS, prix: TAXI_FARE, fatigue: TAXI_ENERGY, villes: OTHER_CITIES },
+      etat: stateView({ comptes: d.comptes || [], assureur: d.assureur, assureJusqu: d.assureJusqu, operateur: d.operateur, credit: d.credit || 0, candidature: d.candidature },
+        { tresor: d.tresor || 0, masse: c.makuta + (d.comptes || []).reduce((a, x) => a + bankAccrue(x, now), 0), candidats: d.candidature ? { [d.candidature]: 1 } : {} }, now),
     };
   },
   settle(c) { const n = needsAt(c); Object.assign(c, n, { updatedAt: Date.now() }); },
@@ -117,7 +119,7 @@ const demo = {
       const no = cannotBuy(item, c.makuta, ageYears(c.neLe));
       if (no) throw new Error(no);
       const e = item.effet || {};
-      c.makuta -= item.prix;
+      c.makuta -= item.prix; if (item.type === "telephone") d.tresor = (d.tresor || 0) + Math.round(item.prix * TAX.douane);
       c.hunger = Math.min(100, c.hunger + (e.faim || 0)); c.happiness = Math.min(100, c.happiness + (e.bonheur || 0)); c.energy = Math.min(100, c.energy + (e.energie || 0));
       d.inv = d.inv || [];
       if (item.type !== "nourriture") {
@@ -141,11 +143,55 @@ const demo = {
       d.boss = { id: e.id, nom: e.nom, type: e.type }; d.job = companyJob(d.boss).id;
       store.set(LS_DEMO, d); return { embauche: e.nom, ...this.view(d) };
     }
+    if (path === "/api/banque/deposer" || path === "/api/banque/retirer") {
+      const b = BANKS.find(x => x.id === body.banque), m = Math.floor(Number(body.montant));
+      if (!b) throw new Error("Banque inconnue."); if (!(m >= 20)) throw new Error("Montant invalide (1 e-makuta minimum).");
+      if (ageYears(c.neLe) < 16) throw new Error("Il faut 16 ans pour ouvrir un compte en banque.");
+      d.comptes = d.comptes || []; let acc = d.comptes.find(x => x.banque === b.id); if (!acc) d.comptes.push(acc = { banque: b.id, solde: 0, maj_le: Date.now() });
+      const solde = bankAccrue(acc), dep = path.endsWith("deposer");
+      if (dep && c.makuta < m) throw new Error("Tu n'as pas autant d'e-makuta sur toi.");
+      if (dep && b.plafond && solde + m > b.plafond) throw new Error(`Cette coopérative accepte au plus ${fmtMakuta(b.plafond)}.`);
+      if (!dep && solde < m) throw new Error("Solde insuffisant.");
+      acc.solde = dep ? solde + m : solde - m; acc.maj_le = Date.now(); c.makuta += dep ? -m : m;
+      store.set(LS_DEMO, d); return this.view(d);
+    }
+    if (path === "/api/assurance") {
+      const a = INSURERS.find(x => x.id === body.assureur); if (!a) throw new Error("Assureur inconnu.");
+      if (c.makuta < a.prime) throw new Error(`La prime coûte ${fmtMakuta(a.prime)}.`);
+      const from = d.assureJusqu > Date.now() && d.assureur === a.id ? d.assureJusqu : Date.now();
+      c.makuta -= a.prime; d.assureur = a.id; d.assureJusqu = from + a.jours * 864e5;
+      store.set(LS_DEMO, d); return this.view(d);
+    }
+    if (path === "/api/soigner") {
+      this.settle(c); if (c.health >= 95) throw new Error("Tu es en bonne santé, pas besoin de soins.");
+      const k = careCost(d.assureJusqu, d.assureur); if (c.makuta < k.prix) throw new Error(`Les soins coûtent ${fmtMakuta(k.prix)}.`);
+      c.makuta -= k.prix; c.health = Math.min(100, c.health + CARE.sante);
+      store.set(LS_DEMO, d); return { soins: k, ...this.view(d) };
+    }
+    if (path === "/api/telephone/recharger") {
+      const o = OPERATORS.find(x => x.id === body.operateur), m = Math.floor(Number(body.montant));
+      if (!o || !RECHARGES.includes(m)) throw new Error("Recharge invalide."); if (c.makuta < m) throw new Error("Pas assez d'e-makuta.");
+      c.makuta -= m; d.credit = (d.credit || 0) + m; d.operateur = o.id;
+      store.set(LS_DEMO, d); return this.view(d);
+    }
+    if (path === "/api/telephone/appeler") {
+      if (!(d.inv || []).some(x => (SHOP.find(y => y.id === x.objet_id) || {}).type === "telephone")) throw new Error("Il te faut d'abord un téléphone (au magasin).");
+      if ((d.credit || 0) < CALL.prix) throw new Error("Plus de crédit : recharge ton téléphone.");
+      this.settle(c); d.credit -= CALL.prix; c.happiness = Math.min(100, c.happiness + CALL.bonheur);
+      store.set(LS_DEMO, d); return this.view(d);
+    }
+    if (path === "/api/candidature") {
+      if (body.poste == null) { d.candidature = null; store.set(LS_DEMO, d); return this.view(d); }
+      const po = POSTS.find(x => x.id === body.poste); if (!po) throw new Error("Poste inconnu.");
+      if (ageYears(c.neLe) < po.minAge) throw new Error(`Il faut avoir ${po.minAge} ans pour être candidat au poste de ${po.nom.toLowerCase()}.`);
+      d.candidature = po.id; store.set(LS_DEMO, d); return this.view(d);
+    }
     if (path === "/api/entreprise/encaisser") {
       const e = (d.ent || []).find(x => x.id === body.entreprise); if (!e) throw new Error("Entreprise introuvable.");
       const a = companyAccrue(e); if (a.caisse < 1) throw new Error("La caisse est vide pour l'instant. Reviens plus tard.");
-      c.makuta += a.caisse; e.caisse = 0; e.maj_le = a.maj_le;
-      store.set(LS_DEMO, d); return { encaisse: a.caisse, ...this.view(d) };
+      const impot = Math.round(a.caisse * TAX.recettes); d.tresor = (d.tresor || 0) + impot;
+      c.makuta += a.caisse - impot; e.caisse = 0; e.maj_le = a.maj_le;
+      store.set(LS_DEMO, d); return { encaisse: a.caisse - impot, impot, ...this.view(d) };
     }
     if (path === "/api/entreprise/vendre") {
       const e = (d.ent || []).find(x => x.id === body.entreprise); if (!e) throw new Error("Entreprise introuvable.");
@@ -190,7 +236,8 @@ const demo = {
       if (no) throw new Error(no);
       const pay = payFor(job, c.talents);
       pay.famille = familyShare(pay.montant);   // 10 % pour les parents
-      c.makuta += pay.montant - pay.famille; c.energy = Math.max(0, c.energy - SHIFT_ENERGY); c.hunger = Math.max(0, c.hunger - 10); d.lastShift = Date.now();
+      pay.impot = Math.round(pay.montant * TAX.salaire); d.tresor = (d.tresor || 0) + pay.impot - (PUBLIC_JOBS.some(j => j.id === job.id) ? pay.montant : 0);
+      c.makuta += pay.montant - pay.famille - pay.impot; c.energy = Math.max(0, c.energy - SHIFT_ENERGY); c.hunger = Math.max(0, c.hunger - 10); d.lastShift = Date.now();
       store.set(LS_DEMO, d); return { paie: pay, ...this.view(d) };
     }
     if (path === "/api/ecole/inscription") {
@@ -311,7 +358,7 @@ function render(v) {
     ["Maison", `${f.maison.type}, ${f.maison.pieces} pièces à ${f.maison.quartier} : ${f.maison.desc}`],
   ] : []).concat([["Joueur", v.compte.pseudo], ["Né le", new Date(p.neLe).toLocaleDateString("fr-FR")]])
     .map(([a, b]) => `<div class="row"><span>${a}</span><span style="text-align:right">${b}</span></div>`).join("");
-  renderShop(v); renderWallet(v); renderWork(v); renderSchool(v); renderKids(v); renderCompanies(v); renderTravel(v); renderTips(v);
+  renderShop(v); renderWallet(v); renderWork(v); renderSchool(v); renderKids(v); renderCompanies(v); renderTravel(v); renderState(v); renderTips(v);
   portrait(p);
   dress(v);
 }
@@ -400,6 +447,55 @@ $("companies").onclick = e => {
   if (b.dataset.unsell) return act("/api/entreprise/vendre", { entreprise: b.dataset.unsell, prix: null }, () => "Ton entreprise n'est plus en vente.");
   if (b.dataset.buyco) { b.disabled = true; return act("/api/entreprise/acheter", { entreprise: b.dataset.buyco }, v => `Bravo, « ${v.achetee} » est à toi !`); }
 };
+let stateTab = "institutions";
+const STATE_TABS = [["institutions", "🏛️ Institutions"], ["banque", "🏦 Banques"], ["assurance", "🩺 Santé"], ["telephone", "📱 Téléphone"], ["impots", "🧾 Impôts"]];
+function renderState(v) {
+  const p = v.perso, S = v.etat;
+  $("state-tabs").innerHTML = STATE_TABS.map(([id, l]) => `<button class="tab ${id === stateTab ? "on" : ""}" data-st="${id}" type="button">${l}</button>`).join("");
+  let h = "";
+  if (stateTab === "institutions") {
+    h = S.institutions.map(i => `<div class="item"><span class="sw">${i.icone}</span><div class="t">${i.nom}<small>${i.role}</small></div></div>`).join("") +
+      `<h2 style="font-size:16px;margin:16px 0 4px">Élections</h2><p style="font-size:13px;margin:0 0 6px">Les élections auront lieu après le démarrage du jeu. Tu peux déjà te porter candidat.</p>` +
+      S.postes.map(x => `<div class="item"><span class="sw">🗳️</span><div class="t">${x.nom}<small>${x.places} ${x.places > 1 ? "sièges" : "siège"} · dès ${x.minAge} ans · ${x.candidats} candidat(s)</small></div>
+        ${S.candidature === x.id ? `<button class="mini" data-cand="" type="button">Retirer</button>` : `<button class="mini fill" data-cand="${x.id}" type="button" ${p.age < x.minAge ? "disabled" : ""}>Candidater</button>`}</div>`).join("") +
+      `<h2 style="font-size:16px;margin:16px 0 4px">L'État recrute</h2>` + S.metiersPublics.map(j => `<div class="item"><span class="sw">🎖️</span><div class="t">${j.nom}<small>${mk(j.salaire)} par journée, payé par le Trésor${j.diplome ? " · diplôme : " + j.diplome : ""} · dès ${j.minAge} ans</small></div>
+        ${v.travail.metier === j.id ? `<span class="mini" style="border-color:var(--ok);color:var(--ok)">Ton métier</span>` : `<button class="mini fill" data-job="${j.id}" type="button" ${p.age < j.minAge || (j.formation && !v.ecole.diplomes.includes(j.formation)) ? "disabled" : ""}>Postuler</button>`}</div>`).join("");
+  } else if (stateTab === "banque") {
+    h = `<div class="row"><span>Sur toi</span><span>${mk(p.makuta)}</span></div>` + S.banques.map(b => `<div class="co"><div class="item" style="border:0"><span class="sw">${b.icone}</span><div class="t">${b.nom} · <b>${mk(b.solde)}</b><small>${b.desc}</small></div></div>
+      <div class="two-btn">${[[20000, `Déposer ${mk(20000)}`], [b.plafond ? Math.min(p.makuta, b.plafond - b.solde) : p.makuta, "Tout déposer"]].map(([m, l]) => `<button class="mini fill" data-dep="${b.id}" data-m="${m}" type="button" ${m < 20 || p.makuta < m || p.age < 16 ? "disabled" : ""}>${l}</button>`).join("")}
+      <button class="mini" data-wd="${b.id}" data-m="${b.solde}" type="button" ${b.solde < 20 ? "disabled" : ""}>Tout retirer</button></div></div>`).join("") +
+      `<p style="font-size:13px;margin:6px 0 0">La Banque centrale émet l'e-makuta (1 $ = ${S.tauxUsd} e-makuta). Masse monétaire en circulation : ${mk(S.masse)}.</p>`;
+  } else if (stateTab === "assurance") {
+    h = `<div class="row"><span>Santé</span><span>${p.besoins.health} / 100</span></div><div class="row"><span>Assurance</span><span>${S.assurance ? `${S.assureurs.find(a => a.id === S.assurance.id).nom} jusqu'au ${new Date(S.assurance.jusqua).toLocaleDateString("fr-FR")}` : "aucune"}</span></div>
+      <button class="btn" id="b-care" type="button" ${p.besoins.health >= 95 ? "disabled" : ""}>Se soigner au centre de santé (${mk(S.soins.prix)}${S.soins.assure ? ", assuré" : ""})</button>
+      <h2 style="font-size:16px;margin:16px 0 4px">Assurances santé</h2>` + S.assureurs.map(a => `<div class="item"><span class="sw">${a.icone}</span><div class="t">${a.nom} · ${mk(a.prime)} / semaine<small>${a.desc}</small></div><button class="mini fill" data-ins="${a.id}" type="button" ${p.makuta < a.prime ? "disabled" : ""}>${S.assurance && S.assurance.id === a.id ? "Prolonger" : "Souscrire"}</button></div>`).join("");
+  } else if (stateTab === "telephone") {
+    const hasPhone = (v.inventaire || []).some(x => (v.boutique.find(b => b.id === x.objet) || {}).type === "telephone");
+    h = `<div class="row"><span>Crédit</span><span>${mk(S.credit)}${S.operateur ? " · " + S.operateurs.find(o => o.id === S.operateur).nom : ""}</span></div>
+      <button class="btn" id="b-call" type="button" ${!hasPhone || S.credit < S.appel.prix ? "disabled" : ""}>Appeler ma famille (${mk(S.appel.prix)}, +${S.appel.bonheur} bonheur)</button>
+      ${hasPhone ? "" : `<p style="font-size:13px;margin:8px 0 0">Achète d'abord un téléphone au magasin.</p>`}
+      <h2 style="font-size:16px;margin:16px 0 4px">Recharger chez un opérateur</h2>` + S.operateurs.map(o => `<div class="item"><span class="sw" style="background:${o.couleur}">📶</span><div class="t">${o.nom}</div><div class="two-btn" style="margin:0">${S.recharges.map(m => `<button class="mini fill" data-rech="${o.id}" data-m="${m}" type="button" ${p.makuta < m ? "disabled" : ""}>${mk(m)}</button>`).join("")}</div></div>`).join("");
+  } else {
+    h = `<div class="row"><span>Trésor public</span><span>${mk(S.tresor)}</span></div>
+      <div class="row"><span>Impôt sur le salaire (DGI)</span><span>${S.impots.salaire * 100} %</span></div>
+      <div class="row"><span>Impôt sur les recettes des entreprises (DGI)</span><span>${S.impots.recettes * 100} %</span></div>
+      <div class="row"><span>Droits de douane sur les téléphones (DGDA)</span><span>${S.impots.douane * 100} %</span></div>
+      <p style="font-size:13px;margin:8px 0 0">Les impôts sont prélevés automatiquement. Ils paient les salaires publics (policiers, agents) et, plus tard, les écoles et les routes. Les députés pourront voter d'autres taux.</p>`;
+  }
+  $("state").innerHTML = h;
+}
+$("state-tabs").onclick = e => { const b = e.target.closest("[data-st]"); if (!b) return; stateTab = b.dataset.st; renderState(state); };
+$("state").onclick = e => {
+  const b = e.target.closest("button"); if (!b || b.disabled) return; const d = b.dataset;
+  if (d.cand !== undefined) return act("/api/candidature", { poste: d.cand || null }, () => d.cand ? "Candidature enregistrée. Bonne campagne !" : "Candidature retirée.");
+  if (d.job) return act("/api/postuler", { metier: d.job }, v => `Embauché : ${v.travail.metiers.find(j => j.id === v.travail.metier).nom}.`);
+  if (d.dep) return act("/api/banque/deposer", { banque: d.dep, montant: Number(d.m) }, () => `Dépôt de ${mk(Number(d.m))} effectué.`);
+  if (d.wd) return act("/api/banque/retirer", { banque: d.wd, montant: Number(d.m) }, () => `Retrait de ${mk(Number(d.m))} effectué.`);
+  if (d.ins) return act("/api/assurance", { assureur: d.ins }, v => `Assuré jusqu'au ${new Date(v.etat.assurance.jusqua).toLocaleDateString("fr-FR")}.`);
+  if (d.rech) return act("/api/telephone/recharger", { operateur: d.rech, montant: Number(d.m) }, () => `Crédit rechargé : +${mk(Number(d.m))}.`);
+  if (b.id === "b-care") return act("/api/soigner", {}, v => `Soigné pour ${mk(v.soins.prix)}${v.soins.assure ? " grâce à ton assurance" : ""}. Santé +${CARE.sante}.`);
+  if (b.id === "b-call") return act("/api/telephone/appeler", {}, () => "Ta famille est contente de t'entendre !");
+};
 function renderTravel(v) {
   const p = v.perso, V = v.voyage;
   if (p.age < 12) { $("travel").innerHTML = `<p style="font-size:14px;margin:0">${p.prenom} se déplace avec ses parents. Il pourra prendre le taxi seul à 12 ans.</p>`; return; }
@@ -414,6 +510,7 @@ function tips(v) {
   const p = v.perso, n = p.besoins, out = [], adult = p.age >= 18, w = v.travail;
   const hasJob = !!(w.emploiEntreprise || w.metier), E = v.entreprises;
   if (n.hunger < 40) out.push(["🍲", "Tu as faim : va manger au maquis pour reprendre des forces.", "Manger au maquis", "eat"]);
+  if (n.health < 50) out.push(["🩺", "Ta santé baisse : va te soigner au centre de santé. Une assurance réduit le prix.", "Se soigner", "state:assurance"]);
   if (n.energy < 30) out.push(["😴", "Tu es fatigué : mange ou repose-toi avant de travailler.", "Voir mes besoins", "needs"]);
   const full = (E.miennes || []).filter(e => e.caisse > 0).sort((a, b) => b.caisse - a.caisse)[0];
   if (full) out.push(["💰", `La caisse de ${full.nom} contient ${mk(full.caisse)}. Va encaisser tes recettes.`, "Encaisser", "cash:" + full.id]);
@@ -422,12 +519,14 @@ function tips(v) {
   if (p.age >= 6 && !v.ecole.enCours && p.age < 30) out.push(["🎓", "Étudie pour obtenir un diplôme et un meilleur métier.", "Aller à l'école", "school"]);
   if (adult && !(E.miennes || []).length && p.makuta >= 16000) out.push(["🏪", "Tu as de quoi ouvrir un commerce : il gagnera de l'argent chaque jour.", "Ouvrir une entreprise", "companies"]);
   if (adult && (E.aVendre || []).some(e => e.en_vente <= p.makuta)) out.push(["🤝", "Des joueurs vendent leur entreprise : tu peux en racheter une.", "Voir le marché", "companies"]);
+  if (p.makuta > 20000 && p.age >= 16 && !v.etat.banques.some(b => b.solde > 0)) out.push(["🏦", "Tu as beaucoup d'argent sur toi : place-le en banque, il rapportera des intérêts.", "Aller à la banque", "state:banque"]);
+  if (adult && p.age >= 25 && !v.etat.candidature) out.push(["🗳️", "Tu peux être candidat aux élections : député, sénateur ou Président.", "Se présenter", "state:institutions"]);
   if ((v.inventaire || []).length > 3) out.push(["🏷️", "Tu as beaucoup d'affaires : revends ce qui ne te sert plus.", "Vendre mes affaires", "inv"]);
   if (p.age >= 12) out.push(["🚕", "Découvre un autre quartier de Kinshasa en taxi.", "Voyager", "travel"]);
   out.push(["🛍️", "Habille-toi et équipe-toi au magasin.", "Aller au magasin", "shop"]);
   return out.slice(0, 3);
 }
-const SECTIONS = { needs: "needs", work: "work", school: "school", companies: "companies", inv: "inv", travel: "travel", shop: "shop-tabs", wallet: "wallet", kids: "kids-card" };
+const SECTIONS = { state: "state", needs: "needs", work: "work", school: "school", companies: "companies", inv: "inv", travel: "travel", shop: "shop-tabs", wallet: "wallet", kids: "kids-card" };
 function goTo(id) { const el = $(id); if (el) (el.closest(".card") || el).scrollIntoView({ behavior: "smooth", block: "start" }); }
 function renderTips(v) {
   $("tips").innerHTML = tips(v).map(([ic, txt, label, to]) => `<div class="item"><span class="sw">${ic}</span><div class="t" style="font-size:14px">${txt}</div><button class="mini fill" data-tip="${to}" type="button">${label}</button></div>`).join("");
@@ -436,6 +535,7 @@ $("tips").onclick = e => {
   const b = e.target.closest("[data-tip]"); if (!b) return; const to = b.dataset.tip;
   if (to === "eat") return $("b-eat").click();
   if (to === "dowork") return ($("b-work") || {}).click ? $("b-work").click() : goTo("work");
+  if (to.startsWith("state:")) { stateTab = to.slice(6); renderState(state); return goTo("state"); }
   if (to.startsWith("cash:")) return act("/api/entreprise/encaisser", { entreprise: to.slice(5) }, v => `Tu as encaissé ${mk(v.encaisse)}.`);
   goTo(SECTIONS[to]);
 };

@@ -48,7 +48,9 @@ CREATE TABLE IF NOT EXISTS personnages (
   pere_nom TEXT, mere_nom TEXT,              -- noms des parents (joueurs ou gérés par le jeu)
   accueille_enfants INTEGER NOT NULL DEFAULT 0,  -- accepte qu'un nouveau joueur naisse chez lui
   entretien_le INTEGER,                      -- dernier entretien versé par le parent joueur
-  fondateur INTEGER NOT NULL DEFAULT 0       -- parent fondateur ajouté par l'administrateur
+  fondateur INTEGER NOT NULL DEFAULT 0,      -- parent fondateur ajouté par l'administrateur
+  credit INTEGER NOT NULL DEFAULT 0,        -- crédit téléphone (makuta)
+  operateur TEXT, assureur TEXT, assure_jusqu INTEGER
 );
 
 CREATE TABLE IF NOT EXISTS talents (
@@ -143,3 +145,7 @@ CREATE TABLE IF NOT EXISTS inscriptions (
 
 -- état du jeu (clé / valeur) : demarre_le = date du lancement
 CREATE TABLE IF NOT EXISTS jeu (cle TEXT PRIMARY KEY, valeur TEXT);
+
+-- l'État et les services (impôts, banques, assurances, téléphone, élections)
+CREATE TABLE IF NOT EXISTS comptes_banque (personnage_id TEXT NOT NULL, banque_id TEXT NOT NULL, solde INTEGER NOT NULL DEFAULT 0 CHECK (solde >= 0), maj_le INTEGER NOT NULL, PRIMARY KEY (personnage_id, banque_id));
+CREATE TABLE IF NOT EXISTS candidatures (personnage_id TEXT PRIMARY KEY, poste TEXT NOT NULL, le INTEGER NOT NULL);
