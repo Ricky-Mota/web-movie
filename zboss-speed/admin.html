@@ -121,7 +121,10 @@
       <div class="card">
         <h2>Conditions de démarrage</h2>
         <div id="state"></div>
-        <button class="btn" id="b-start" type="button" disabled>Démarrer le jeu</button>
+        <form id="f-date" novalidate>
+          <label for="d-date">Date et heure d'ouverture officielle</label>
+          <div class="two"><input id="d-date" type="datetime-local"><button class="btn ghost" type="submit" style="margin-top:0">Fixer la date</button></div>
+        </form>
         <div id="demo-tools" hidden>
           <p class="sim">Démo : tout est gardé dans ce navigateur. Tu peux remplir les listes automatiquement pour montrer le démarrage.</p>
           <div class="two">
@@ -148,6 +151,11 @@
       <div class="card">
         <h2>Parents fondateurs <span class="pill" id="n-parents">0</span></h2>
         <div class="list" id="parents"></div>
+      </div>
+
+      <div class="card">
+        <h2>Entreprises ouvertes <span class="pill" id="n-ent">0</span></h2>
+        <div class="list" id="companies"></div>
       </div>
 
       <div class="card">

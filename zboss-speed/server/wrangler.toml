@@ -9,7 +9,9 @@ compatibility_date = "2025-06-01"
 [vars]
 # adresses autorisées à appeler l'API, séparées par des virgules ("*" = toutes)
 ALLOWED_ORIGINS = "*"
-# e-mails des administrateurs (séparés par des virgules) : ils accèdent à admin.html
+# e-mails des administrateurs (séparés par des virgules) : ils accèdent à admin.html.
+# Le dépôt est public : ne pas écrire l'adresse ici. La mettre dans le tableau de bord Cloudflare
+# (Worker > Settings > Variables, nom ADMIN_EMAILS) ou, en local, dans server/.dev.vars (ignoré par git).
 ADMIN_EMAILS = ""
 
 [[d1_databases]]

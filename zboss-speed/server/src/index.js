@@ -2,7 +2,7 @@
 // Le serveur est l'arbitre : il décide de l'âge, des talents et de l'argent ; le téléphone ne fait qu'afficher.
 import {
   ageYears, stageOf, STAGES, realMsUntil, TALENTS, ACTIVITIES, rng, drawTalents, doActivity,
-  needsAt, newIdentity, BIRTH_GIFT, SHOP, cannotBuy, OFFERS, USD_TO_MAKUTA, USD_UNITS, fmtMakuta, WITHDRAW_FEE, walletInfo, birthShiftMs, REAL_MONEY, shopView, familyOf, JOBS, payFor, cannotWork, workView, cannotApply, FORMATIONS, cannotEnroll, attendCourse, schoolView, SUPPORT_PER_DAY, HOST_MIN_AGE, MAX_CHILDREN, supportDue, unpaidEffect, familyShare, DAY, LAUNCH_RULES, launchStatus, canSignupBeforeLaunch,
+  needsAt, newIdentity, BIRTH_GIFT, SHOP, cannotBuy, OFFERS, USD_TO_MAKUTA, USD_UNITS, fmtMakuta, WITHDRAW_FEE, walletInfo, birthShiftMs, REAL_MONEY, shopView, familyOf, JOBS, payFor, cannotWork, workView, cannotApply, FORMATIONS, cannotEnroll, attendCourse, schoolView, SUPPORT_PER_DAY, HOST_MIN_AGE, MAX_CHILDREN, supportDue, unpaidEffect, familyShare, DAY, LAUNCH_RULES, launchStatus, canSignupBeforeLaunch, COMPANY_TYPES, cannotOpenCompany, companyName, companyView,
 } from "./life.js";
 
 const SESSION_DAYS = 30;
@@ -118,10 +118,11 @@ async function loadCharacter(db, id) {
       FROM personnages p JOIN comptes c ON c.id = p.compte_id WHERE p.id IN (?, ?)`).bind(p.pere_id || "", p.mere_id || "").all();
   const { results: sibs } = par.length ? await db.prepare(`SELECT prenom, sexe, ne_le FROM personnages WHERE id != ? AND mort_le IS NULL AND (pere_id IN (?, ?) OR mere_id IN (?, ?))`)
     .bind(id, p.pere_id || "", p.mere_id || "", p.pere_id || "", p.mere_id || "").all() : { results: [] };
-  return { p, tal, inv, dep, ret, job, lastShift: last && last.le, enr, dip: dip.map(d => d.formation_id), kids, par, sibs };
+  const { results: ent } = await db.prepare(`SELECT id, nom, type, local AS quartier, capital, cree_le FROM entreprises WHERE proprietaire_id = ? ORDER BY cree_le`).bind(id).all();
+  return { p, tal, inv, dep, ret, job, lastShift: last && last.le, enr, dip: dip.map(d => d.formation_id), kids, par, sibs, ent };
 }
 
-function view(compte, { p, tal, inv = [], dep = [], ret = [], job = null, lastShift = null, enr = null, dip = [], kids = [], par = [], sibs = [] }, now) {
+function view(compte, { p, tal, inv = [], dep = [], ret = [], job = null, lastShift = null, enr = null, dip = [], kids = [], par = [], sibs = [], ent = [] }, now) {
   const age = ageYears(p.ne_le, now);
   const st = stageOf(age);
   const next = STAGES[STAGES.indexOf(st) + 1];
@@ -148,6 +149,7 @@ function view(compte, { p, tal, inv = [], dep = [], ret = [], job = null, lastSh
     ecole: schoolView(enr, dip, now),
     enfants: kids.map(k => childView(k, now)),
     entretienParJour: SUPPORT_PER_DAY,
+    entreprises: companyView(ent),
   };
 }
 
@@ -195,11 +197,19 @@ async function supportFamily(db, pid, now) {
 async function launchCounts(db) {
   const a = await db.prepare(`SELECT COUNT(*) AS n FROM personnages WHERE fondateur = 1 AND mort_le IS NULL`).first();
   const b = await db.prepare(`SELECT COUNT(DISTINCT compte_id) AS n FROM depots WHERE offre IN (${OFFERS.filter(o => o.type === "investissement").map(o => `'${o.id}'`).join(",")})`).first();
-  return { parents: a.n, investisseurs: b.n };
+  const e = await db.prepare(`SELECT COUNT(*) AS n FROM entreprises`).first();
+  return { parents: a.n, investisseurs: b.n, entreprises: e.n };
 }
-async function launch(db) {
-  const st = await db.prepare(`SELECT valeur FROM jeu WHERE cle = 'demarre_le'`).first();
-  return launchStatus(await launchCounts(db), st ? Number(st.valeur) : null);
+async function launch(db, now = Date.now()) {
+  const { results } = await db.prepare(`SELECT cle, valeur FROM jeu WHERE cle IN ('demarre_le', 'date_ouverture')`).all();
+  const kv = Object.fromEntries(results.map(r => [r.cle, Number(r.valeur)]));
+  let S = launchStatus(await launchCounts(db), kv.demarre_le || null, kv.date_ouverture || null, now);
+  // démarrage automatique : la date officielle est passée et toutes les conditions sont réunies
+  if (!S.demarre && S.pret) {
+    await db.prepare(`INSERT OR IGNORE INTO jeu (cle, valeur) VALUES ('demarre_le', ?)`).bind(String(now)).run();
+    S = { ...S, demarre: true, demarreLe: now };
+  }
+  return S;
 }
 const isAdmin = (env, compte) => !!compte && (env.ADMIN_EMAILS || "").split(",").map(x => x.trim().toLowerCase()).filter(Boolean).includes(compte.email);
 
@@ -269,12 +279,20 @@ export default {
         if (url.pathname === "/api/admin/etat" && req.method === "GET") {
           const { results: parents } = await db.prepare(`SELECT p.prenom, p.nom, p.sexe, p.quartier, c.pseudo, c.email, c.cree_le FROM personnages p JOIN comptes c ON c.id = p.compte_id WHERE p.fondateur = 1 ORDER BY c.cree_le`).all();
           const { results: inv } = await db.prepare(`SELECT c.pseudo, c.email, d.offre, d.usd, d.le FROM depots d JOIN comptes c ON c.id = d.compte_id WHERE d.offre IN ('petit','grand') ORDER BY d.le`).all();
-          return json(h, 200, { lancement: await launch(db), parents, investisseurs: inv });
+          const { results: ent } = await db.prepare(`SELECT e.nom, e.type, e.local AS quartier, e.cree_le, p.prenom || ' ' || p.nom AS proprietaire FROM entreprises e JOIN personnages p ON p.id = e.proprietaire_id ORDER BY e.cree_le`).all();
+          return json(h, 200, { lancement: await launch(db), parents, investisseurs: inv, entreprises: ent });
         }
         if (url.pathname === "/api/admin/parent" && req.method === "POST") {
           const r = await createAccount(db, body, now, OFFERS.find(o => o.id === "parent"), true);
           if (r.error) return fail(h, ...r.error);
           return json(h, 201, { ok: true, lancement: await launch(db) });
+        }
+        if (url.pathname === "/api/admin/date" && req.method === "POST") {
+          const d = Number(body.date);
+          if (!Number.isFinite(d) || d < now - 864e5) return fail(h, 400, "Choisis une date à venir.");
+          if ((await launch(db)).demarre) return fail(h, 409, "Le jeu a déjà démarré.");
+          await db.prepare(`INSERT INTO jeu (cle, valeur) VALUES ('date_ouverture', ?) ON CONFLICT(cle) DO UPDATE SET valeur = excluded.valeur`).bind(String(Math.round(d))).run();
+          return json(h, 200, { ok: true, lancement: await launch(db) });
         }
         if (url.pathname === "/api/admin/demarrer" && req.method === "POST") {
           const L = await launch(db);
@@ -386,6 +404,20 @@ export default {
         ];
         await db.batch(st.filter(x => x));
         return json(h, 200, { paie: pay, ...view(compte, await loadCharacter(db, p.id), now) });
+      }
+
+      if (url.pathname === "/api/entreprise/ouvrir" && req.method === "POST") {
+        const t = COMPANY_TYPES.find(x => x.id === body.type);
+        const no = cannotOpenCompany(t, ageYears(p.ne_le, now), p.makuta);
+        if (no) return fail(h, 409, no);
+        const nom = companyName(t, p.nom, body.nom), eid = uid();
+        const [upd] = await db.batch([
+          db.prepare(`UPDATE personnages SET makuta = makuta - ? WHERE id = ? AND makuta >= ?`).bind(t.prix, p.id, t.prix),
+          db.prepare(`INSERT INTO entreprises (id, nom, type, proprietaire_id, ville_id, local, capital, cree_le) SELECT ?, ?, ?, ?, 'kinshasa', ?, ?, ? WHERE changes() = 1`).bind(eid, nom, t.id, p.id, p.quartier, t.prix, now),
+          db.prepare(`INSERT INTO transactions (id, de_id, vers_id, montant, motif, le) SELECT ?, ?, NULL, ?, ?, ? WHERE EXISTS (SELECT 1 FROM entreprises WHERE id = ?)`).bind(uid(), p.id, t.prix, "ouverture : " + nom, now, eid),
+        ]);
+        if (!upd.meta.changes) return fail(h, 409, "Pas assez d'e-makuta.");
+        return json(h, 200, { ouverte: nom, ...view(compte, await loadCharacter(db, p.id), now) });
       }
 
       if (url.pathname === "/api/ecole/inscription" && req.method === "POST") {

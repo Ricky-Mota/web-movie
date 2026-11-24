@@ -1,5 +1,5 @@
 // 2 Life : conditions de lancement en mode démo (sans serveur). Mêmes règles que le serveur (server/src/life.js).
-import { launchStatus, canSignupBeforeLaunch, OFFERS, rng, newIdentity } from "../server/src/life.js";
+import { launchStatus, canSignupBeforeLaunch, OFFERS, rng, newIdentity, COMPANY_TYPES } from "../server/src/life.js";
 
 const KEY = "twolife_launch";
 const read = () => { try { return JSON.parse(localStorage.getItem(KEY)) || null; } catch (e) { return null; } };
@@ -7,10 +7,13 @@ const write = L => { try { localStorage.setItem(KEY, JSON.stringify(L)); } catch
 const seed = () => crypto.getRandomValues(new Uint32Array(1))[0];
 
 export const launchDemo = {
-  get() { return read() || { parents: [], investisseurs: [], demarreLe: null }; },
+  get() { return { parents: [], investisseurs: [], entreprises: [], demarreLe: null, dateOuverture: null, ...(read() || {}) }; },
   save: write,
   status(L = this.get()) {
-    return launchStatus({ parents: L.parents.length, investisseurs: new Set(L.investisseurs.map(i => i.email)).size }, L.demarreLe);
+    const now = Date.now();
+    const S = launchStatus({ parents: L.parents.length, investisseurs: new Set(L.investisseurs.map(i => i.email)).size, entreprises: L.entreprises.length }, L.demarreLe, L.dateOuverture, now);
+    if (!S.demarre && S.pret) { L.demarreLe = now; write(L); return { ...S, demarre: true, demarreLe: now }; } // démarrage automatique
+    return S;
   },
   // message identique au serveur quand une inscription arrive trop tôt
   refusal(formule) {
@@ -23,10 +26,11 @@ export const launchDemo = {
     const L = this.get(), o = OFFERS.find(x => x.id === offre);
     L.investisseurs.push({ pseudo, email, offre, usd: o.usd, le: Date.now() }); write(L);
   },
+  addCompany(e) { const L = this.get(); L.entreprises.push(e); write(L); },
   // routes /api/admin/* simulées (en démo, l'espace administrateur est ouvert à tous)
   admin(path, body) {
     const L = this.get();
-    const etat = () => ({ lancement: this.status(L), parents: L.parents, investisseurs: L.investisseurs, demo: true });
+    const etat = () => ({ lancement: this.status(L), parents: L.parents, investisseurs: L.investisseurs, entreprises: L.entreprises, demo: true });
     if (path === "/api/admin/etat") return etat();
     if (path === "/api/admin/parent") {
       const email = String(body.email || "").trim().toLowerCase(), pseudo = String(body.pseudo || "").trim().slice(0, 40);
@@ -37,6 +41,12 @@ export const launchDemo = {
       const who = newIdentity(rng(seed()));
       L.parents.push({ pseudo, email, prenom: who.firstName, nom: who.lastName, sexe: who.sex, quartier: who.quartier, cree_le: Date.now() });
       write(L); return { ok: true, ...etat() };
+    }
+    if (path === "/api/admin/date") {
+      const d = Number(body.date);
+      if (!Number.isFinite(d) || d < Date.now() - 864e5) throw new Error("Choisis une date à venir.");
+      if (this.status(L).demarre) throw new Error("Le jeu a déjà démarré.");
+      L.dateOuverture = Math.round(d); write(L); return { ok: true, ...etat() };
     }
     if (path === "/api/admin/demarrer") {
       const S = this.status(L);
@@ -54,9 +64,14 @@ export const launchDemo = {
         const w = newIdentity(r), n = L.investisseurs.length + 1, o = OFFERS.find(x => x.id === (n % 4 ? "petit" : "grand"));
         L.investisseurs.push({ pseudo: `${w.lastName}${n}`, email: `investisseur${n}@demo.2life`, offre: o.id, usd: o.usd, le: Date.now() });
       }
+      while (L.entreprises.length < 20) {
+        const t = COMPANY_TYPES[L.entreprises.length % 5], w = newIdentity(r);
+        L.entreprises.push({ nom: `${t.nom} ${w.lastName}`, type: t.id, quartier: w.quartier, proprietaire: `${w.firstName} ${w.lastName}`, cree_le: Date.now() });
+      }
+      if (!L.dateOuverture) L.dateOuverture = Date.now() + 2 * 60e3; // démo : ouverture dans 2 minutes
       write(L); return etat();
     }
-    if (path === "/api/admin/reinitialiser") { write(null); localStorage.removeItem(KEY); return { ok: true, lancement: this.status(), parents: [], investisseurs: [], demo: true }; }
+    if (path === "/api/admin/reinitialiser") { write(null); localStorage.removeItem(KEY); return { ok: true, lancement: this.status(), parents: [], investisseurs: [], entreprises: [], demo: true }; }
     throw new Error("Route inconnue.");
   },
 };

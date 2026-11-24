@@ -360,10 +360,41 @@ export function familyShare(amount) { return Math.round(amount * FAMILY_SHARE); 
 export const LAUNCH_RULES = [
   { id: "parents", label: "Parents fondateurs ajoutés par l'administrateur", min: 20 },
   { id: "investisseurs", label: "Investisseurs inscrits", min: 10 },
+  { id: "entreprises", label: "Entreprises ouvertes", min: 20 },
+  { id: "date", label: "Date d'ouverture officielle", min: 1 },
 ];
-export function launchStatus(counts, startedAt) {
-  const conditions = LAUNCH_RULES.map(r => ({ ...r, actuel: counts[r.id] || 0, ok: (counts[r.id] || 0) >= r.min }));
-  return { demarre: !!startedAt, demarreLe: startedAt || null, pret: conditions.every(c => c.ok), conditions };
+// counts : { parents, investisseurs, entreprises } ; openingDate : date fixée par l'administrateur (ms) ou null
+export function launchStatus(counts, startedAt, openingDate = null, now = Date.now()) {
+  const c = { ...counts, date: openingDate && now >= openingDate ? 1 : 0 };
+  const conditions = LAUNCH_RULES.map(r => ({ ...r, actuel: c[r.id] || 0, ok: (c[r.id] || 0) >= r.min }));
+  return { demarre: !!startedAt, demarreLe: startedAt || null, dateOuverture: openingDate || null, pret: conditions.every(x => x.ok), conditions };
 }
 // avant le lancement, seuls les investisseurs peuvent s'inscrire (les parents fondateurs sont créés par l'administrateur)
 export function canSignupBeforeLaunch(formule) { return OFFERS.some(o => o.id === formule && o.type === "investissement"); }
+
+// ---------------------------------------------------------------- entreprises
+// prix en makuta (20 makuta = 1 e-makuta). Les recettes et les embauches viendront à l'étape suivante.
+export const COMPANY_TYPES = [
+  { id: "salon", nom: "Salon de coiffure", icone: "💇🏾", prix: 16000, desc: "Coiffure et tresses dans ton quartier." },
+  { id: "boutique", nom: "Boutique", icone: "🏪", prix: 20000, desc: "Vente de produits de tous les jours." },
+  { id: "maquis", nom: "Maquis", icone: "🍲", prix: 30000, desc: "Restaurant populaire : fufu, poulet, beignets." },
+  { id: "taxi", nom: "Taxi", icone: "🚕", prix: 50000, desc: "Une voiture et un chauffeur pour transporter les joueurs." },
+  { id: "pharmacie", nom: "Pharmacie", icone: "💊", prix: 100000, desc: "Médicaments pour soigner les joueurs malades." },
+  { id: "ecole", nom: "École privée", icone: "🏫", prix: 400000, desc: "Accueille des élèves et emploie des enseignants." },
+  { id: "supermarche", nom: "Supermarché", icone: "🛒", prix: 800000, desc: "Grand magasin qui approvisionne la ville." },
+  { id: "hotel", nom: "Hôtel", icone: "🏨", prix: 1600000, desc: "Chambres, restaurant et salles de fête." },
+];
+export const COMPANY_MIN_AGE = 18;
+export function cannotOpenCompany(type, age, makuta) {
+  if (!type) return "Type d'entreprise inconnu.";
+  if (age < COMPANY_MIN_AGE) return `Il faut avoir ${COMPANY_MIN_AGE} ans pour ouvrir une entreprise.`;
+  if (makuta < type.prix) return `Il te faut ${fmtMakuta(type.prix)} pour ouvrir ce commerce.`;
+  return null;
+}
+export function companyName(type, ownerLastName, name) {
+  const n = String(name || "").trim().slice(0, 40);
+  return n.length >= 2 ? n : `${type.nom} ${ownerLastName}`;
+}
+export function companyView(list) {
+  return { types: COMPANY_TYPES, miennes: list.map(e => ({ ...e, typeNom: (COMPANY_TYPES.find(t => t.id === e.type) || {}).nom, icone: (COMPANY_TYPES.find(t => t.id === e.type) || {}).icone })) };
+}

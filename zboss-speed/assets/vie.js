@@ -2,12 +2,13 @@
 // simule la même vie dans le navigateur (mode démo).
 import {
   ageYears, stageOf, STAGES, realMsUntil, TALENTS, ACTIVITIES, rng, drawTalents, doActivity, needsAt, newIdentity, BIRTH_GIFT,
-  SHOP, cannotBuy, OFFERS, USD_TO_MAKUTA, USD_UNITS, fmtMakuta, WITHDRAW_FEE, walletInfo, birthShiftMs, shopView, familyOf, JOBS, payFor, cannotWork, workView, SHIFT_ENERGY, cannotApply, FORMATIONS, cannotEnroll, attendCourse, schoolView, STUDY_ENERGY, SUPPORT_PER_DAY, HOST_MIN_AGE, canSignupBeforeLaunch, supportDue, unpaidEffect, familyShare, FIRST_NAMES,
+  SHOP, cannotBuy, OFFERS, USD_TO_MAKUTA, USD_UNITS, fmtMakuta, WITHDRAW_FEE, walletInfo, birthShiftMs, shopView, familyOf, JOBS, payFor, cannotWork, workView, SHIFT_ENERGY, cannotApply, FORMATIONS, cannotEnroll, attendCourse, schoolView, STUDY_ENERGY, SUPPORT_PER_DAY, HOST_MIN_AGE, canSignupBeforeLaunch, COMPANY_TYPES, cannotOpenCompany, companyName, companyView, supportDue, unpaidEffect, familyShare, FIRST_NAMES,
 } from "../server/src/life.js";
 import { launchDemo } from "./lancement-demo.js";
 
 const API = (window.TWO_LIFE_API || "").replace(/\/$/, "");
 const $ = id => document.getElementById(id);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const LS_TOKEN = "twolife_token", LS_DEMO = "twolife_demo";
 const store = {
   get(k) { try { return JSON.parse(localStorage.getItem(k)); } catch (e) { return null; } },
@@ -40,7 +41,7 @@ const demo = {
       enfants: (d.enfants || []).map(k => { const a = ageYears(k.neLe, now), kn = needsAt(k, now);
         return { id: k.id, prenom: k.prenom, nom: k.nom, sexe: k.sex, age: Math.round(a * 100) / 100, etapeLabel: stageOf(a).label, joueur: true, simule: true,
           besoins: Object.fromEntries(Object.entries(kn).map(([x, y]) => [x, Math.round(y)])), makuta: k.makuta, prochainEntretien: a < 18 ? supportDue(k.entretienLe, k.neLe, now).next : null }; }),
-      entretienParJour: SUPPORT_PER_DAY, demo: true,
+      entretienParJour: SUPPORT_PER_DAY, entreprises: companyView(d.ent || []), demo: true,
     };
   },
   settle(c) { const n = needsAt(c); Object.assign(c, n, { updatedAt: Date.now() }); },
@@ -174,6 +175,14 @@ const demo = {
       c.makuta -= item.prix; k.hunger = Math.min(100, k.hunger + (item.effet.faim || 0)); k.happiness = Math.min(100, k.happiness + (item.effet.bonheur || 0) + 3);
       store.set(LS_DEMO, d); return this.view(d);
     }
+    if (path === "/api/entreprise/ouvrir") {
+      const t = COMPANY_TYPES.find(x => x.id === body.type), no = cannotOpenCompany(t, ageYears(c.neLe), c.makuta);
+      if (no) throw new Error(no);
+      const e = { id: "e" + Date.now(), nom: companyName(t, c.lastName, body.nom), type: t.id, quartier: c.quartier, capital: t.prix, cree_le: Date.now() };
+      c.makuta -= t.prix; (d.ent = d.ent || []).push(e);
+      launchDemo.addCompany({ nom: e.nom, type: e.type, quartier: e.quartier, proprietaire: `${c.firstName} ${c.lastName}`, cree_le: e.cree_le });
+      store.set(LS_DEMO, d); return { ouverte: e.nom, ...this.view(d) };
+    }
     if (path === "/api/investir") {
       const o = OFFERS.find(x => x.id === body.offre && x.type === "investissement");
       if (!o) throw new Error("Offre inconnue.");
@@ -248,7 +257,7 @@ function render(v) {
     ["Maison", `${f.maison.type}, ${f.maison.pieces} pièces à ${f.maison.quartier} : ${f.maison.desc}`],
   ] : []).concat([["Joueur", v.compte.pseudo], ["Né le", new Date(p.neLe).toLocaleDateString("fr-FR")]])
     .map(([a, b]) => `<div class="row"><span>${a}</span><span style="text-align:right">${b}</span></div>`).join("");
-  renderShop(v); renderWallet(v); renderWork(v); renderSchool(v); renderKids(v);
+  renderShop(v); renderWallet(v); renderWork(v); renderSchool(v); renderKids(v); renderCompanies(v);
   portrait(p);
   dress(v);
 }
@@ -306,6 +315,20 @@ function renderWork(v) {
   }).join("");
   $("work").innerHTML = head + `<h2 style="font-size:16px;margin:16px 0 4px">Offres d'emploi</h2>` + list;
 }
+function renderCompanies(v) {
+  const p = v.perso, E = v.entreprises;
+  if (p.age < 18) { $("companies").innerHTML = `<p style="font-size:14px;margin:0">${p.prenom} pourra ouvrir une entreprise à 18 ans.</p>`; return; }
+  const mine = E.miennes.length ? E.miennes.map(e => `<div class="item"><span class="sw">${e.icone || "🏢"}</span><div class="t">${esc(e.nom)}<small>${e.typeNom} · ${esc(e.quartier || "")} · capital ${mk(e.capital)}</small></div></div>`).join("")
+    : `<p style="font-size:14px;margin:0 0 6px">Tu n'as pas encore d'entreprise. Choisis un commerce et ouvre-le avec tes e-makuta.</p>`;
+  const list = E.types.map(t => `<div class="item"><span class="sw">${t.icone}</span><div class="t">${t.nom} · ${mk(t.prix)}<small>${t.desc}</small></div>
+    <button class="mini fill" data-open="${t.id}" type="button" ${p.makuta < t.prix ? "disabled" : ""}>Ouvrir</button></div>`).join("");
+  $("companies").innerHTML = mine + `<label for="co-name">Nom de ta prochaine entreprise (facultatif)</label><input id="co-name" maxlength="40" placeholder="ex. Chez ${esc(p.prenom)}">` +
+    `<h2 style="font-size:16px;margin:16px 0 4px">Ouvrir un commerce</h2>${list}<p style="font-size:13px;margin:8px 0 0">Les recettes, les embauches et le rachat entre joueurs arrivent à l'étape suivante.</p>`;
+}
+$("companies").onclick = e => {
+  const b = e.target.closest("[data-open]"); if (!b) return;
+  b.disabled = true; act("/api/entreprise/ouvrir", { type: b.dataset.open, nom: ($("co-name") || {}).value }, v => `Ton entreprise « ${v.ouverte} » est ouverte !`);
+};
 function renderSchool(v) {
   const p = v.perso, sc = v.ecole, enr = sc.enCours, f = enr && sc.formations.find(x => x.id === enr.formation);
   const dip = sc.diplomes.map(id => sc.formations.find(x => x.id === id)).filter(Boolean);
@@ -387,7 +410,8 @@ async function showLaunch() {
   });
   if (!launch || launch.demarre) return;
   box.innerHTML = `<b>Le jeu n'a pas encore démarré</b><p>La ville ouvre quand toutes les conditions sont réunies. En attendant, seuls les investisseurs peuvent s'inscrire.</p>` +
-    launch.conditions.map(c => `<div class="need">${c.label} <b style="float:right">${c.actuel} / ${c.min}</b><div class="bar"><i class="${c.ok ? "" : "mid"}" style="width:${Math.min(100, c.actuel / c.min * 100)}%"></i></div></div>`).join("") +
+    launch.conditions.map(c => c.id === "date" ? `<div class="need">${c.label} <b style="float:right">${launch.dateOuverture ? new Date(launch.dateOuverture).toLocaleString("fr-FR", { dateStyle: "long", timeStyle: "short" }) : "à fixer"}</b></div>`
+      : `<div class="need">${c.label} <b style="float:right">${c.actuel} / ${c.min}</b><div class="bar"><i class="${c.ok ? "" : "mid"}" style="width:${Math.min(100, c.actuel / c.min * 100)}%"></i></div></div>`).join("") +
     (API ? "" : `<p class="sim" style="margin-top:12px">Démo : ouvre <a href="admin.html" style="color:inherit">l'espace administrateur</a> pour ajouter les parents fondateurs et démarrer le jeu.</p>`);
   authLabel();
 }
