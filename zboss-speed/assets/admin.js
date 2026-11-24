@@ -36,6 +36,11 @@ function render(e) {
   const ent = e.entreprises || [];
   $("n-ent").textContent = ent.length;
   $("companies").innerHTML = ent.length ? ent.map(c => `<div class="item"><span class="sw">${(COMPANY_TYPES.find(t => t.id === c.type) || {}).icone || "🏢"}</span><div class="t">${esc(c.nom)}<small>${esc(c.proprietaire)} · ${esc(c.quartier || "")} · ${day(c.cree_le)}</small></div></div>`).join("") : `<p>Aucune entreprise pour l'instant. Les investisseurs les ouvrent depuis la page Ma vie.</p>`;
+  const E = e.elections || {};
+  $("elec").innerHTML = !L.demarre ? `<p>Les élections commencent après le démarrage du jeu : la première a lieu 6 mois plus tard, puis tous les 6 mois.</p>`
+    : `<div class="cond"><div class="need">Élection n° ${E.cycle} <b>${when(E.prochaine)}</b></div><small class="${E.voteOuvert ? "ok-badge" : "wait-badge"}">${E.voteOuvert ? "Vote ouvert" : `Vote dans ${wait(E.ouvertureVote - Date.now())}`}</small></div>
+      <p style="font-size:13px">Les joueurs de 18 ans et plus votent pendant 7 jours. À la date de l'élection, les voix sont comptées et les élus prennent leur poste (payés par le Trésor).</p>`;
+  $("f-elec").hidden = $("b-vote-now").hidden = !L.demarre;
   $("demo-tools").hidden = !e.demo;
   $("n-parents").textContent = e.parents.length; $("n-inv").textContent = e.investisseurs.length;
   $("parents").innerHTML = e.parents.length ? e.parents.map(p => `<div class="item"><span class="sw">${p.sexe === "F" ? "👩🏾" : "👨🏾"}</span><div class="t">${esc(p.prenom)} ${esc(p.nom)} · ${esc(p.quartier)}<small>${esc(p.pseudo)} · ${esc(p.email)} · ajouté le ${day(p.cree_le)}</small></div></div>`).join("") : `<p>Aucun parent fondateur pour l'instant.</p>`;
@@ -67,6 +72,9 @@ $("f-date").onsubmit = async ev => {
   const t = new Date($("d-date").value).getTime();
   try { await call("/api/admin/date", { date: t }); await load(); toast(`Date d'ouverture fixée : ${when(t)}.`); } catch (err) { toast(err.message); }
 };
+const setElection = async (t, msg) => { try { const r = await call("/api/admin/election", { date: t }); await load(); toast(msg || `Prochaine élection : ${when(t)}.`); return r; } catch (err) { toast(err.message); } };
+$("f-elec").onsubmit = ev => { ev.preventDefault(); setElection(new Date($("e-date").value).getTime()); };
+$("b-vote-now").onclick = () => setElection(Date.now() + 3 * 60e3, "Le vote est ouvert. Les voix seront comptées dans 3 minutes.");
 $("b-fill").onclick = async () => { render(await call("/api/admin/remplir", {})); toast("Listes remplies avec des joueurs de démonstration."); };
 $("b-reset").onclick = async () => { render(await call("/api/admin/reinitialiser", {})); toast("Tout est remis à zéro."); };
 $("b-out").onclick = () => { tok.set(null); show(false); };

@@ -50,7 +50,8 @@ CREATE TABLE IF NOT EXISTS personnages (
   entretien_le INTEGER,                      -- dernier entretien versé par le parent joueur
   fondateur INTEGER NOT NULL DEFAULT 0,      -- parent fondateur ajouté par l'administrateur
   credit INTEGER NOT NULL DEFAULT 0,        -- crédit téléphone (makuta)
-  operateur TEXT, assureur TEXT, assure_jusqu INTEGER
+  operateur TEXT, assureur TEXT, assure_jusqu INTEGER,
+  prison_jusqu INTEGER                       -- en prison jusqu'à cette date
 );
 
 CREATE TABLE IF NOT EXISTS talents (
@@ -149,3 +150,6 @@ CREATE TABLE IF NOT EXISTS jeu (cle TEXT PRIMARY KEY, valeur TEXT);
 -- l'État et les services (impôts, banques, assurances, téléphone, élections)
 CREATE TABLE IF NOT EXISTS comptes_banque (personnage_id TEXT NOT NULL, banque_id TEXT NOT NULL, solde INTEGER NOT NULL DEFAULT 0 CHECK (solde >= 0), maj_le INTEGER NOT NULL, PRIMARY KEY (personnage_id, banque_id));
 CREATE TABLE IF NOT EXISTS candidatures (personnage_id TEXT PRIMARY KEY, poste TEXT NOT NULL, le INTEGER NOT NULL);
+CREATE TABLE IF NOT EXISTS votes (electeur_id TEXT NOT NULL, poste TEXT NOT NULL, cycle INTEGER NOT NULL, candidat_id TEXT NOT NULL, le INTEGER NOT NULL, PRIMARY KEY (electeur_id, poste, cycle));
+CREATE TABLE IF NOT EXISTS mandats (personnage_id TEXT NOT NULL, poste TEXT NOT NULL, cycle INTEGER NOT NULL, voix INTEGER NOT NULL, debut INTEGER NOT NULL, fin INTEGER);
+CREATE TABLE IF NOT EXISTS infractions (id TEXT PRIMARY KEY, personnage_id TEXT NOT NULL, type TEXT NOT NULL, amende INTEGER NOT NULL, prison_heures INTEGER NOT NULL DEFAULT 0, le INTEGER NOT NULL);

@@ -263,6 +263,7 @@ export const JOBS = [
 ];
 export function cannotApply(job, age, diplomas) {
   if (!job) return "Métier inconnu.";
+  if (job.elu) return "Ce poste s'obtient par élection.";
   if (job.formation && !diplomas.includes(job.formation)) return `Il faut d'abord le diplôme : ${job.diplome}.`;
   if (age < job.minAge) return `Ce métier est ouvert dès ${job.minAge} ans.`;
   return null;
@@ -492,5 +493,53 @@ export function stateView(me, pub, now = Date.now()) {
     soins: { ...CARE, ...careCost(me.assureJusqu, me.assureur, now) },
     operateurs: OPERATORS, operateur: me.operateur || null, credit: me.credit || 0, recharges: RECHARGES, appel: CALL,
     candidature: me.candidature || null, metiersPublics: PUBLIC_JOBS,
+  };
+}
+
+// ---------------------------------------------------------------- élections
+// Un vote tous les 6 mois réels après le démarrage du jeu. Le vote dure 7 jours et se termine à la date de l'élection.
+export const ELECTION_EVERY = 182.5 * 864e5;
+export const VOTE_DAYS = 7;
+export const VOTER_MIN_AGE = 18;
+export const ELECTED_PAY = { president: 1200, senateur: 600, depute: 500 };   // indemnité par journée de travail, payée par le Trésor
+POSTS.forEach(x => JOBS.push({ id: "elu-" + x.id, nom: x.nom + " (élu)", talent: "parole", salaire: ELECTED_PAY[x.id], minAge: x.minAge, elu: true }));
+// calendrier : la prochaine élection est enregistrée (date, numéro du cycle) ; le vote ouvre 7 jours avant
+export function electionCalendar(nextDate, cycle, now = Date.now()) {
+  if (!nextDate) return { cycle: 0, prochaine: null, ouvertureVote: null, voteOuvert: false };
+  const open = nextDate - VOTE_DAYS * 864e5;
+  return { cycle, prochaine: nextDate, ouvertureVote: open, voteOuvert: now >= open && now < nextDate };
+}
+// dépouillement : pour chaque poste, les candidats ayant le plus de voix prennent les sièges
+export function tally(votes, candidates) {
+  const out = {};
+  for (const po of POSTS) {
+    const c = candidates.filter(x => x.poste === po.id).map(x => ({ ...x, voix: votes.filter(v => v.poste === po.id && v.candidat_id === x.personnage_id).length }));
+    out[po.id] = c.filter(x => x.voix > 0).sort((a, b) => b.voix - a.voix || a.le - b.le).slice(0, po.places);
+  }
+  return out;
+}
+
+// ---------------------------------------------------------------- police, amendes et prison
+export const CRIMES = [
+  { id: "vol-marche", nom: "Voler au marché", gain: [400, 1600], risque: 0.4, amende: 2000, desc: "Rapporte de 20 à 80 e-makuta, mais la police attrape 4 voleurs sur 10." },
+  { id: "fraude-taxi", nom: "Partir sans payer le taxi", gain: [200, 200], risque: 0.3, amende: 1000, desc: "Économise une course, mais 3 fois sur 10 la police te verbalise." },
+];
+export const PRISON_HOURS = 24;          // une journée réelle en prison
+export const BAIL = 10000;               // caution pour sortir plus tôt (500 e-makuta)
+export const RECIDIVE = { fois: 3, jours: 30 };   // 3 infractions en 30 jours = prison
+export const POLICE_BONUS = 0.05;        // chaque policier joueur augmente le risque d'être attrapé (80 % au plus)
+export function catchChance(crime, policiers) { return Math.min(0.8, crime.risque + POLICE_BONUS * (policiers || 0)); }
+// que se passe-t-il quand on est attrapé ?
+export function sentence(crime, makuta, recentOffences) {
+  const prison = recentOffences + 1 >= RECIDIVE.fois || makuta < crime.amende;
+  return { amende: Math.min(makuta, crime.amende), prison, heures: prison ? PRISON_HOURS : 0 };
+}
+export function inPrison(until, now = Date.now()) { return !!until && until > now; }
+// en prison : pas de travail, d'école, de voyage, de magasin (sauf manger), ni d'affaires
+export const PRISON_BLOCKED = ["/api/travailler", "/api/ecole/cours", "/api/ecole/inscription", "/api/voyager", "/api/entreprise/ouvrir", "/api/entreprise/acheter", "/api/postuler", "/api/crime", "/api/telephone/appeler"];
+export function policeView(me, now = Date.now()) {
+  return {
+    crimes: CRIMES.map(c => ({ ...c, chance: catchChance(c, me.policiers) })), caution: BAIL, prisonHeures: PRISON_HOURS, recidive: RECIDIVE,
+    prisonJusqu: inPrison(me.prisonJusqu, now) ? me.prisonJusqu : null, casier: me.casier || [], policiers: me.policiers || 0,
   };
 }

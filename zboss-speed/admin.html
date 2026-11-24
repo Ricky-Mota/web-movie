@@ -136,6 +136,16 @@
       </div>
 
       <div class="card">
+        <h2>Élections</h2>
+        <div id="elec"></div>
+        <form id="f-elec" novalidate hidden>
+          <label for="e-date">Changer la date de la prochaine élection (le vote ouvre 7 jours avant)</label>
+          <div class="two"><input id="e-date" type="datetime-local"><button class="btn ghost" type="submit" style="margin-top:0">Fixer la date</button></div>
+        </form>
+        <button class="btn ghost" id="b-vote-now" type="button" hidden>Ouvrir le vote maintenant (dépouillement dans 3 minutes)</button>
+      </div>
+
+      <div class="card">
         <h2>Ajouter un parent fondateur</h2>
         <p style="font-size:14px">Le parent naît adulte (25 ans), ses talents sont connus et il accueille les premiers bébés inscrits. Donne-lui ensuite son e-mail et ce mot de passe provisoire.</p>
         <form id="f-parent" novalidate>

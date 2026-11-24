@@ -2,7 +2,7 @@
 // Le serveur est l'arbitre : il décide de l'âge, des talents et de l'argent ; le téléphone ne fait qu'afficher.
 import {
   ageYears, stageOf, STAGES, realMsUntil, TALENTS, ACTIVITIES, rng, drawTalents, doActivity,
-  needsAt, newIdentity, BIRTH_GIFT, SHOP, cannotBuy, OFFERS, USD_TO_MAKUTA, USD_UNITS, fmtMakuta, WITHDRAW_FEE, walletInfo, birthShiftMs, REAL_MONEY, shopView, familyOf, JOBS, payFor, cannotWork, workView, cannotApply, FORMATIONS, cannotEnroll, attendCourse, schoolView, SUPPORT_PER_DAY, HOST_MIN_AGE, MAX_CHILDREN, supportDue, unpaidEffect, familyShare, DAY, LAUNCH_RULES, launchStatus, canSignupBeforeLaunch, COMPANY_TYPES, cannotOpenCompany, companyName, companyView, companyAccrue, companyJob, EMPLOYEE_YIELD, RESELL_RATE, TAXI_FARE, TAXI_ENERGY, KINSHASA_QUARTIERS, OTHER_CITIES, STATE_ID, TAX, POSTS, PUBLIC_JOBS, BANKS, bankAccrue, INSURERS, CARE, careCost, OPERATORS, RECHARGES, CALL, stateView,
+  needsAt, newIdentity, BIRTH_GIFT, SHOP, cannotBuy, OFFERS, USD_TO_MAKUTA, USD_UNITS, fmtMakuta, WITHDRAW_FEE, walletInfo, birthShiftMs, REAL_MONEY, shopView, familyOf, JOBS, payFor, cannotWork, workView, cannotApply, FORMATIONS, cannotEnroll, attendCourse, schoolView, SUPPORT_PER_DAY, HOST_MIN_AGE, MAX_CHILDREN, supportDue, unpaidEffect, familyShare, DAY, LAUNCH_RULES, launchStatus, canSignupBeforeLaunch, COMPANY_TYPES, cannotOpenCompany, companyName, companyView, companyAccrue, companyJob, EMPLOYEE_YIELD, RESELL_RATE, TAXI_FARE, TAXI_ENERGY, KINSHASA_QUARTIERS, OTHER_CITIES, STATE_ID, TAX, POSTS, PUBLIC_JOBS, BANKS, bankAccrue, INSURERS, CARE, careCost, OPERATORS, RECHARGES, CALL, stateView, ELECTION_EVERY, VOTER_MIN_AGE, electionCalendar, tally, CRIMES, catchChance, sentence, inPrison, PRISON_BLOCKED, PRISON_HOURS, BAIL, RECIDIVE, policeView,
 } from "./life.js";
 
 const SESSION_DAYS = 30;
@@ -122,6 +122,45 @@ async function publicState(db) {
   const { results } = await db.prepare(`SELECT poste, COUNT(*) AS n FROM candidatures GROUP BY poste`).all();
   return { tresor: t.tresor, masse: t.masse, candidats: Object.fromEntries(results.map(r => [r.poste, r.n])) };
 }
+// ---------------------------------------------------------------- élections (tous les 6 mois après le démarrage)
+async function elections(db, now) {
+  const { results } = await db.prepare(`SELECT cle, valeur FROM jeu WHERE cle IN ('demarre_le', 'election_date', 'election_cycle')`).all();
+  const kv = Object.fromEntries(results.map(r => [r.cle, Number(r.valeur)]));
+  if (!kv.demarre_le) return electionCalendar(null, 0, now);
+  let date = kv.election_date, cycle = kv.election_cycle || 1;
+  const save = () => db.batch([
+    db.prepare(`INSERT INTO jeu (cle, valeur) VALUES ('election_date', ?) ON CONFLICT(cle) DO UPDATE SET valeur = excluded.valeur`).bind(String(date)),
+    db.prepare(`INSERT INTO jeu (cle, valeur) VALUES ('election_cycle', ?) ON CONFLICT(cle) DO UPDATE SET valeur = excluded.valeur`).bind(String(cycle)),
+  ]);
+  if (!date) { date = kv.demarre_le + ELECTION_EVERY; await save(); }
+  // dépouillement d'une élection passée : les élus prennent leur mandat et leur poste
+  while (now >= date) {
+    const { results: votes } = await db.prepare(`SELECT poste, candidat_id FROM votes WHERE cycle = ?`).bind(cycle).all();
+    const { results: cands } = await db.prepare(`SELECT personnage_id, poste, le FROM candidatures`).all();
+    const won = Object.entries(tally(votes, cands)).flatMap(([poste, list]) => list.map(w => ({ ...w, poste })));
+    await db.batch([
+      db.prepare(`UPDATE mandats SET fin = ? WHERE fin IS NULL`).bind(date),
+      db.prepare(`UPDATE emplois SET fin = ? WHERE fin IS NULL AND metier_id LIKE 'elu-%'`).bind(date),
+      ...won.flatMap(w => [
+        db.prepare(`INSERT INTO mandats (personnage_id, poste, cycle, voix, debut) VALUES (?, ?, ?, ?, ?)`).bind(w.personnage_id, w.poste, cycle, w.voix, date),
+        db.prepare(`UPDATE emplois SET fin = ? WHERE personnage_id = ? AND fin IS NULL`).bind(date, w.personnage_id),
+        db.prepare(`INSERT INTO emplois (id, personnage_id, metier_id, poste, salaire, depuis) VALUES (?, ?, ?, ?, ?, ?)`).bind(uid(), w.personnage_id, "elu-" + w.poste, w.poste, 0, date),
+      ]),
+      db.prepare(`DELETE FROM candidatures`),
+    ]);
+    date += ELECTION_EVERY; cycle += 1; await save();
+  }
+  return electionCalendar(date, cycle, now);
+}
+async function electionView(db, cal, me) {
+  const { results: cands } = await db.prepare(`SELECT c.personnage_id AS id, c.poste, p.prenom || ' ' || p.nom AS nom, p.quartier,
+      (SELECT COUNT(*) FROM votes v WHERE v.candidat_id = c.personnage_id AND v.poste = c.poste AND v.cycle = ?) AS voix
+      FROM candidatures c JOIN personnages p ON p.id = c.personnage_id ORDER BY voix DESC, c.le LIMIT 60`).bind(cal.cycle).all();
+  const { results: elus } = await db.prepare(`SELECT m.poste, m.voix, p.prenom || ' ' || p.nom AS nom FROM mandats m JOIN personnages p ON p.id = m.personnage_id WHERE m.fin IS NULL ORDER BY m.voix DESC LIMIT 60`).all();
+  const { results: mine } = await db.prepare(`SELECT poste, candidat_id FROM votes WHERE electeur_id = ? AND cycle = ?`).bind(me, cal.cycle).all();
+  return { ...cal, candidats: cands, elus, mesVotes: Object.fromEntries(mine.map(v => [v.poste, v.candidat_id])) };
+}
+
 const taxTo = (db, from, amount, motif, now) => amount > 0 ? [db.prepare(`INSERT INTO transactions (id, de_id, vers_id, montant, motif, le) VALUES (?, ?, '${STATE_ID}', ?, ?, ?)`).bind(uid(), from, amount, motif, now)] : [];
 
 // ---------------------------------------------------------------- profil
@@ -154,10 +193,14 @@ async function loadCharacter(db, id) {
   const { results: comptes } = await db.prepare(`SELECT banque_id AS banque, solde, maj_le FROM comptes_banque WHERE personnage_id = ?`).bind(id).all();
   const cand = await db.prepare(`SELECT poste FROM candidatures WHERE personnage_id = ?`).bind(id).first();
   const pub = await publicState(db);
-  return { p, tal, inv, dep, ret, job, lastShift: last && last.le, enr, dip: dip.map(d => d.formation_id), kids, par, sibs, ent, aVendre, offres, boss, comptes, cand, pub };
+  const now = Date.now(), cal = await elections(db, now);
+  const elec = await electionView(db, cal, id);
+  const pol = await db.prepare(`SELECT COUNT(*) AS n FROM emplois WHERE metier_id = 'policier' AND fin IS NULL`).first();
+  const { results: casier } = await db.prepare(`SELECT type, amende, prison_heures, le FROM infractions WHERE personnage_id = ? ORDER BY le DESC LIMIT 20`).bind(id).all();
+  return { p, tal, inv, dep, ret, job, lastShift: last && last.le, enr, dip: dip.map(d => d.formation_id), kids, par, sibs, ent, aVendre, offres, boss, comptes, cand, pub, elec, policiers: pol.n, casier };
 }
 
-function view(compte, { p, tal, inv = [], dep = [], ret = [], job = null, lastShift = null, enr = null, dip = [], kids = [], par = [], sibs = [], ent = [], aVendre = [], offres = [], boss = null, comptes = [], cand = null, pub = {} }, now) {
+function view(compte, { p, tal, inv = [], dep = [], ret = [], job = null, lastShift = null, enr = null, dip = [], kids = [], par = [], sibs = [], ent = [], aVendre = [], offres = [], boss = null, comptes = [], cand = null, pub = {}, elec = null, policiers = 0, casier = [] }, now) {
   const age = ageYears(p.ne_le, now);
   const st = stageOf(age);
   const next = STAGES[STAGES.indexOf(st) + 1];
@@ -186,6 +229,8 @@ function view(compte, { p, tal, inv = [], dep = [], ret = [], job = null, lastSh
     entretienParJour: SUPPORT_PER_DAY,
     entreprises: companyView(ent, { aVendre, offres }, now),
     etat: stateView({ comptes, assureur: p.assureur, assureJusqu: p.assure_jusqu, operateur: p.operateur, credit: p.credit, candidature: cand && cand.poste }, pub, now),
+    elections: elec,
+    police: policeView({ policiers, prisonJusqu: p.prison_jusqu, casier: casier.map(c => ({ ...c, nom: (CRIMES.find(x => x.id === c.type) || {}).nom || c.type })) }, now),
     voyage: { quartiers: KINSHASA_QUARTIERS, prix: TAXI_FARE, fatigue: TAXI_ENERGY, villes: OTHER_CITIES },
   };
 }
@@ -317,7 +362,7 @@ export default {
           const { results: parents } = await db.prepare(`SELECT p.prenom, p.nom, p.sexe, p.quartier, c.pseudo, c.email, c.cree_le FROM personnages p JOIN comptes c ON c.id = p.compte_id WHERE p.fondateur = 1 ORDER BY c.cree_le`).all();
           const { results: inv } = await db.prepare(`SELECT c.pseudo, c.email, d.offre, d.usd, d.le FROM depots d JOIN comptes c ON c.id = d.compte_id WHERE d.offre IN ('petit','grand') ORDER BY d.le`).all();
           const { results: ent } = await db.prepare(`SELECT e.nom, e.type, e.local AS quartier, e.cree_le, p.prenom || ' ' || p.nom AS proprietaire FROM entreprises e JOIN personnages p ON p.id = e.proprietaire_id ORDER BY e.cree_le`).all();
-          return json(h, 200, { lancement: await launch(db), parents, investisseurs: inv, entreprises: ent });
+          return json(h, 200, { lancement: await launch(db), parents, investisseurs: inv, entreprises: ent, elections: await elections(db, now) });
         }
         if (url.pathname === "/api/admin/parent" && req.method === "POST") {
           const r = await createAccount(db, body, now, OFFERS.find(o => o.id === "parent"), true);
@@ -330,6 +375,14 @@ export default {
           if ((await launch(db)).demarre) return fail(h, 409, "Le jeu a déjà démarré.");
           await db.prepare(`INSERT INTO jeu (cle, valeur) VALUES ('date_ouverture', ?) ON CONFLICT(cle) DO UPDATE SET valeur = excluded.valeur`).bind(String(Math.round(d))).run();
           return json(h, 200, { ok: true, lancement: await launch(db) });
+        }
+        if (url.pathname === "/api/admin/election" && req.method === "POST") {
+          const d = Number(body.date);
+          if (!Number.isFinite(d) || d < now) return fail(h, 400, "Choisis une date à venir.");
+          if (!(await launch(db)).demarre) return fail(h, 409, "Les élections commencent après le démarrage du jeu.");
+          await elections(db, now);
+          await db.prepare(`INSERT INTO jeu (cle, valeur) VALUES ('election_date', ?) ON CONFLICT(cle) DO UPDATE SET valeur = excluded.valeur`).bind(String(Math.round(d))).run();
+          return json(h, 200, { ok: true, elections: await elections(db, now) });
         }
         if (url.pathname === "/api/admin/demarrer" && req.method === "POST") {
           const L = await launch(db);
@@ -347,6 +400,53 @@ export default {
       const { p, tal } = ch;
 
       if (url.pathname === "/api/moi" && req.method === "GET") return json(h, 200, view(compte, ch, now));
+      if (inPrison(p.prison_jusqu, now) && PRISON_BLOCKED.includes(url.pathname))
+        return fail(h, 423, `Tu es en prison jusqu'au ${new Date(p.prison_jusqu).toLocaleString("fr-FR", { timeZone: "Africa/Kinshasa" })}. Paie la caution pour sortir plus tôt.`);
+
+      // ---- élections
+      if (url.pathname === "/api/voter" && req.method === "POST") {
+        const E = ch.elec;
+        if (!E.voteOuvert) return fail(h, 409, E.prochaine ? `Le vote ouvre le ${new Date(E.ouvertureVote).toLocaleDateString("fr-FR")}.` : "Les élections commencent après le démarrage du jeu.");
+        if (ageYears(p.ne_le, now) < VOTER_MIN_AGE) return fail(h, 409, `Il faut avoir ${VOTER_MIN_AGE} ans pour voter.`);
+        const c = await db.prepare(`SELECT 1 FROM candidatures WHERE personnage_id = ? AND poste = ?`).bind(body.candidat, body.poste).first();
+        if (!c) return fail(h, 404, "Candidat introuvable.");
+        if (E.mesVotes[body.poste]) return fail(h, 409, "Tu as déjà voté pour ce poste.");
+        await db.prepare(`INSERT INTO votes (electeur_id, poste, cycle, candidat_id, le) VALUES (?, ?, ?, ?, ?)`).bind(p.id, body.poste, E.cycle, body.candidat, now).run();
+        return json(h, 200, view(compte, await loadCharacter(db, p.id), now));
+      }
+
+      // ---- police : délits, amendes, prison
+      if (url.pathname === "/api/crime" && req.method === "POST") {
+        const cr = CRIMES.find(x => x.id === body.crime);
+        if (!cr) return fail(h, 404, "Action inconnue.");
+        if (ageYears(p.ne_le, now) < 12) return fail(h, 409, "Trop jeune.");
+        await settle(db, p, now);
+        if (Math.random() >= catchChance(cr, ch.policiers)) {
+          const gain = cr.gain[0] + Math.floor(Math.random() * (cr.gain[1] - cr.gain[0] + 1));
+          await db.batch([
+            db.prepare(`UPDATE personnages SET makuta = makuta + ? WHERE id = ?`).bind(gain, p.id),
+            db.prepare(`INSERT INTO transactions (id, de_id, vers_id, montant, motif, le) VALUES (?, NULL, ?, ?, ?, ?)`).bind(uid(), p.id, gain, "gain illégal : " + cr.nom, now),
+          ]);
+          return json(h, 200, { crime: { attrape: false, gain }, ...view(compte, await loadCharacter(db, p.id), now) });
+        }
+        const recent = ch.casier.filter(x => x.le > now - RECIDIVE.jours * 864e5).length;
+        const sn = sentence(cr, p.makuta, recent), until = sn.prison ? now + PRISON_HOURS * 36e5 : null;
+        await db.batch([
+          db.prepare(`UPDATE personnages SET makuta = makuta - ?, bonheur = MAX(0, bonheur - 10), prison_jusqu = COALESCE(?, prison_jusqu) WHERE id = ?`).bind(sn.amende, until, p.id),
+          db.prepare(`INSERT INTO infractions (id, personnage_id, type, amende, prison_heures, le) VALUES (?, ?, ?, ?, ?, ?)`).bind(uid(), p.id, cr.id, sn.amende, sn.heures, now),
+          ...taxTo(db, p.id, sn.amende, "amende (police) : " + cr.nom, now),
+        ]);
+        return json(h, 200, { crime: { attrape: true, ...sn }, ...view(compte, await loadCharacter(db, p.id), now) });
+      }
+      if (url.pathname === "/api/caution" && req.method === "POST") {
+        if (!inPrison(p.prison_jusqu, now)) return fail(h, 409, "Tu n'es pas en prison.");
+        if (p.makuta < BAIL) return fail(h, 409, `La caution coûte ${fmtMakuta(BAIL)}.`);
+        await db.batch([
+          db.prepare(`UPDATE personnages SET makuta = makuta - ?, prison_jusqu = ? WHERE id = ? AND makuta >= ?`).bind(BAIL, now, p.id, BAIL),
+          ...taxTo(db, p.id, BAIL, "caution", now),
+        ]);
+        return json(h, 200, view(compte, await loadCharacter(db, p.id), now));
+      }
 
       if (url.pathname === "/api/activite" && req.method === "POST") {
         const act = ACTIVITIES.find(a => a.id === body.activite);
@@ -448,7 +548,7 @@ export default {
         // 10 % du salaire pour les parents : aux parents joueurs s'il y en a, sinon à la famille du jeu
         pay.famille = familyShare(pay.montant);
         pay.impot = Math.round(pay.montant * TAX.salaire);   // IPR prélevé par la DGI
-        const fromState = PUBLIC_JOBS.some(j => j.id === job.id);
+        const fromState = PUBLIC_JOBS.some(j => j.id === job.id) || !!job.elu;
         const parents = ch.par.map(x => x.id), each = parents.length ? Math.floor(pay.famille / parents.length) : 0;
         const st = [
           db.prepare(`UPDATE personnages SET makuta = makuta + ?, energie = MAX(0, energie - ?), faim = MAX(0, faim - 10) WHERE id = ?`).bind(pay.montant - pay.famille - pay.impot, 35, p.id),

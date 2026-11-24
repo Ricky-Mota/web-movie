@@ -1,5 +1,5 @@
 // 2 Life : conditions de lancement en mode démo (sans serveur). Mêmes règles que le serveur (server/src/life.js).
-import { launchStatus, canSignupBeforeLaunch, OFFERS, rng, newIdentity, COMPANY_TYPES } from "../server/src/life.js";
+import { launchStatus, canSignupBeforeLaunch, OFFERS, rng, newIdentity, COMPANY_TYPES, POSTS, ELECTION_EVERY, electionCalendar } from "../server/src/life.js";
 
 const KEY = "twolife_launch";
 const read = () => { try { return JSON.parse(localStorage.getItem(KEY)) || null; } catch (e) { return null; } };
@@ -26,12 +26,40 @@ export const launchDemo = {
     const L = this.get(), o = OFFERS.find(x => x.id === offre);
     L.investisseurs.push({ pseudo, email, offre, usd: o.usd, le: Date.now() }); write(L);
   },
+  // élections en démo : candidats = parents fondateurs (+ le joueur), voix simulées, mêmes dates que le serveur
+  elections(me) {
+    const L = this.get(), now = Date.now(), S = this.status(L);
+    if (!S.demarre) return { ...electionCalendar(null, 0, now), candidats: [], elus: [], mesVotes: {} };
+    const E = L.elec || (L.elec = { date: S.demarreLe + ELECTION_EVERY, cycle: 1, votes: {}, elus: [] });
+    const cands = () => {
+      const list = L.parents.slice(0, 9).map((p, i) => ({ id: "fondateur-" + i, poste: POSTS[i % POSTS.length].id, nom: `${p.prenom} ${p.nom}`, quartier: p.quartier, voix: (i * 5 + E.cycle * 3) % 4 }));
+      if (me && me.candidature) list.push({ id: "moi", poste: me.candidature, nom: me.nom, quartier: me.quartier, voix: 0, moi: true });
+      return list.map(c => ({ ...c, voix: c.voix + (E.votes[c.poste] === c.id ? 1 : 0) })).sort((a, b) => b.voix - a.voix);
+    };
+    let depouille = false, gagne = null;
+    while (now >= E.date) {   // dépouillement
+      const list = cands();
+      E.elus = POSTS.flatMap(po => list.filter(c => c.poste === po.id && c.voix > 0).slice(0, po.places).map(c => ({ poste: po.id, voix: c.voix, nom: c.nom, moi: !!c.moi })));
+      gagne = (E.elus.find(x => x.moi) || {}).poste || null; depouille = true;
+      E.votes = {}; E.date += ELECTION_EVERY; E.cycle += 1; if (me) me = { ...me, candidature: null };
+    }
+    write(L);
+    return { ...electionCalendar(E.date, E.cycle, now), candidats: cands(), elus: E.elus, mesVotes: { ...E.votes }, depouille, gagne };
+  },
+  vote(poste, candidat) { const L = this.get(); if (L.elec) { L.elec.votes[poste] = candidat; write(L); } },
   addCompany(e) { const L = this.get(); L.entreprises.push(e); write(L); },
   // routes /api/admin/* simulées (en démo, l'espace administrateur est ouvert à tous)
   admin(path, body) {
     const L = this.get();
-    const etat = () => ({ lancement: this.status(L), parents: L.parents, investisseurs: L.investisseurs, entreprises: L.entreprises, demo: true });
-    if (path === "/api/admin/etat") return etat();
+    const etat = () => ({ lancement: this.status(L), elections: this.elections(), parents: L.parents, investisseurs: L.investisseurs, entreprises: L.entreprises, demo: true });
+    if (path === "/api/admin/etat") return { ...etat(), elections: this.elections() };
+    if (path === "/api/admin/election") {
+      const d = Number(body.date);
+      if (!Number.isFinite(d) || d < Date.now()) throw new Error("Choisis une date à venir.");
+      if (!this.status(L).demarre) throw new Error("Les élections commencent après le démarrage du jeu.");
+      this.elections(); const M = this.get(); M.elec.date = Math.round(d); write(M);
+      return { ok: true, elections: this.elections() };
+    }
     if (path === "/api/admin/parent") {
       const email = String(body.email || "").trim().toLowerCase(), pseudo = String(body.pseudo || "").trim().slice(0, 40);
       if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) throw new Error("Adresse e-mail invalide.");
