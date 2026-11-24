@@ -415,13 +415,28 @@
   const waxTex = canvasTex(64, 64, (c, w, h) => { c.fillStyle = "#fff"; c.fillRect(0, 0, w, h); c.fillStyle = "rgba(0,0,0,.35)"; for (let y = 0; y < h; y += 16) for (let x = (y / 16 % 2) * 8; x < w; x += 16) { c.beginPath(); c.arc(x, y, 5, 0, 6.3); c.fill(); } c.strokeStyle = "rgba(255,255,255,.6)"; c.lineWidth = 2; for (let y = 8; y < h; y += 16) { c.beginPath(); c.moveTo(0, y); c.lineTo(w, y); c.stroke(); } }, true);
   const pm = (o) => new THREE.MeshStandardMaterial(Object.assign({ roughness: .8 }, o));
   const cyl = (r1, r2, h, n, sx, sz) => { const g = new THREE.CylinderGeometry(r1, r2, h, n || 10); if (sx || sz) g.scale(sx || 1, 1, sz || 1); return g; };
+  // visage peint (sourcils, nez, bouche) multiplié par la couleur de peau ; le centre de la texture regarde vers l'avant (+x)
+  const faceTex = canvasTex(256, 128, (c, w, h) => {
+    c.fillStyle = "#fff"; c.fillRect(0, 0, w, h);
+    const cx = w / 2;
+    c.fillStyle = "rgba(20,10,6,.75)"; [-1, 1].forEach(k => { c.beginPath(); c.ellipse(cx + k * 6.5, 55, 4.6, 1.3, k * -.12, 0, 6.3); c.fill(); });
+    c.fillStyle = "rgba(40,20,12,.35)"; c.beginPath(); c.ellipse(cx, 71, 3.2, 2, 0, 0, 6.3); c.fill();
+    c.fillStyle = "rgba(70,28,26,.85)"; c.beginPath(); c.ellipse(cx, 81, 6.5, 1.9, 0, 0, 6.3); c.fill();
+    c.fillStyle = "rgba(25,10,8,.8)"; c.fillRect(cx - 6, 80.6, 12, .9);
+  });
+  function headGeo() { const g = new THREE.SphereGeometry(.115, 18, 14); g.scale(.95, 1.12, .86); return g; }
   const PART = {
     torso: new THREE.InstancedMesh(cyl(.15, .12, .6, 12, 1, 1.45), pm({}), PEDMAX),
     skirt: new THREE.InstancedMesh(cyl(.16, .3, .66, 12), pm({ map: waxTex }), PEDMAX),
-    head: new THREE.InstancedMesh(new THREE.SphereGeometry(.115, 14, 12), pm({ roughness: .55 }), PEDMAX),
+    head: new THREE.InstancedMesh(headGeo(), pm({ roughness: .55, map: faceTex }), PEDMAX),
+    nose: new THREE.InstancedMesh(new THREE.SphereGeometry(.024, 8, 6), pm({ roughness: .55 }), PEDMAX),
+    eye: new THREE.InstancedMesh(new THREE.SphereGeometry(.019, 8, 6), pm({ color: "#f2ede6", roughness: .2 }), PEDMAX * 2),
+    pupil: new THREE.InstancedMesh(new THREE.SphereGeometry(.011, 8, 6), pm({ color: "#120a06", roughness: .15 }), PEDMAX * 2),
+    hand: new THREE.InstancedMesh(new THREE.SphereGeometry(.045, 8, 6), pm({ roughness: .6 }), PEDMAX * 2),
     wrap: new THREE.InstancedMesh(new THREE.SphereGeometry(.14, 10, 8), pm({ map: waxTex }), PEDMAX),
     hair: new THREE.InstancedMesh(new THREE.SphereGeometry(.12, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2), pm({ color: "#120c0a", roughness: .9 }), PEDMAX),
-    leg: new THREE.InstancedMesh(cyl(.08, .06, .86, 8), pm({}), PEDMAX * 2),
+    thigh: new THREE.InstancedMesh(cyl(.085, .066, .46, 8), pm({}), PEDMAX * 2),
+    calf: new THREE.InstancedMesh(cyl(.064, .045, .44, 8), pm({}), PEDMAX * 2),
     shoe: new THREE.InstancedMesh(new THREE.BoxGeometry(.26, .08, .11), pm({ roughness: .5 }), PEDMAX * 2),
     arm: new THREE.InstancedMesh(cyl(.052, .042, .6, 8), pm({}), PEDMAX * 2),
   };
@@ -437,12 +452,15 @@
       wrap: woman && r() < .55 ? new THREE.Color(WAX[(r() * WAX.length) | 0]) : null,
       sleeve: r() < .5, h: .94 + r() * .12, shoe: new THREE.Color(["#111", "#f5f5f5", "#5b3a1e", "#1d4ed8"][(r() * 4) | 0]),
     };
+    // mêmes couleurs en espace linéaire pour les silhouettes simplifiées (sinon la peau sort beige à l'écran)
+    const L = q.lookC, lin = c => c && c.clone().convertSRGBToLinear();
+    L.fb = { skin: lin(L.skin), top: lin(L.top), low: lin(L.low), wrap: lin(L.wrap), shoe: lin(L.shoe) };
     return q.lookC;
   };
   // ------------------------------------------------------------ Personnages réalistes (Blender + MakeHuman CC0, riggés et animés)
   // Les piétons les plus proches de la caméra (et le chauffeur à pied) utilisent des modèles humains
   // animés ; les plus lointains gardent la version instanciée, bien plus légère.
-  const HUM = { ready: false, tpl: {}, clips: {}, pool: {}, byPed: new Map(), max: MOBILE ? 8 : 22, range: MOBILE ? 45 : 70 };
+  const HUM = { ready: false, tpl: {}, clips: {}, pool: {}, byPed: new Map(), max: MOBILE ? 12 : 24, range: MOBILE ? 55 : 75 };
   const BONE_SET = new Set(["Root", "pelvis", "spine_01", "spine_02", "spine_03", "neck_01", "head", "clavicle_l", "clavicle_r", "upperarm_l", "upperarm_r", "lowerarm_l", "lowerarm_r", "hand_l", "hand_r", "thigh_l", "thigh_r", "calf_l", "calf_r", "foot_l", "foot_r", "ball_l", "ball_r"]);
   const realName = n => (BONE_SET.has(n) ? n : BONE_SET.has(n.replace(/_\d+$/, "")) ? n.replace(/_\d+$/, "") : n);
   if (THREE.GLTFLoader && THREE.SkeletonUtils) {
@@ -556,21 +574,29 @@
       mP.makeRotationY(-q.a).setPosition(q.x * S, .02 + (q.state === "dodge" ? Math.sin((.55 - q.st) / .55 * Math.PI) * .35 : 0), q.y * S);
       mA.makeScale(sc, sc * crouch, sc); mP.multiply(mA);
       if (lean) { mA.makeRotationZ(-lean); mP.multiply(mA); }
-      // jambes (pivot à la hanche)
+      // jambes : cuisse + mollet (genou qui plie à la marche) + chaussure qui reste à plat
       [-1, 1].forEach((k, j) => {
-        mA.makeTranslation(0, .9, k * .1); mA.multiply(mB.makeRotationZ(sw * k * .7)); const hip = mA.clone();
-        mA.multiply(mB.makeTranslation(0, -.43, 0)); put(PART.leg, n * 2 + j, mA.clone(), L.woman && !q.player ? L.skin : L.low);
-        hip.multiply(mB.makeTranslation(.05, -.86, 0)); put(PART.shoe, n * 2 + j, hip, L.shoe);
+        const th = sw * k * .7, fw = Math.max(0, Math.cos(ph + (k > 0 ? 0 : Math.PI)));
+        const knee = q.state === "cower" ? -1.1 : walking ? -(.12 + .75 * fw * Math.min(1, Math.abs(sw) * 2 + .3)) : q.state === "dodge" ? -.6 : -.04;
+        const legC = L.woman && !q.player ? L.fb.skin : L.fb.low;
+        mA.makeTranslation(0, .9, k * .1); mA.multiply(mB.makeRotationZ(th)); const hip = mA.clone();
+        mA.multiply(mB.makeTranslation(0, -.23, 0)); put(PART.thigh, n * 2 + j, mA.clone(), legC);
+        hip.multiply(mB.makeTranslation(0, -.45, 0)); hip.multiply(mB.makeRotationZ(knee)); const kn = hip.clone();
+        hip.multiply(mB.makeTranslation(0, -.22, 0)); put(PART.calf, n * 2 + j, hip, L.woman && !q.player ? L.fb.skin : legC);
+        kn.multiply(mB.makeTranslation(0, -.43, 0)); kn.multiply(mB.makeRotationZ(-th - knee)); kn.multiply(mB.makeTranslation(.05, 0, 0)); put(PART.shoe, n * 2 + j, kn, L.fb.shoe);
       });
-      mA.makeTranslation(0, 1.22, 0); put(PART.torso, n, mA.clone(), L.top);
-      if (L.woman) { mA.makeTranslation(0, .78, 0); put(PART.skirt, n, mA.clone(), L.low); } else PART.skirt.setMatrixAt(n, HIDE);
-      mA.makeTranslation(.02, 1.66, 0); put(PART.head, n, mA.clone(), L.skin);
-      if (L.wrap) { mA.makeTranslation(-.01, 1.76, 0); mA.multiply(mB.makeScale(1, .75, 1)); put(PART.wrap, n, mA.clone(), L.wrap); PART.hair.setMatrixAt(n, HIDE); }
+      mA.makeTranslation(0, 1.22, 0); put(PART.torso, n, mA.clone(), L.fb.top);
+      if (L.woman) { mA.makeTranslation(0, .78, 0); put(PART.skirt, n, mA.clone(), L.fb.low); } else PART.skirt.setMatrixAt(n, HIDE);
+      mA.makeTranslation(.02, 1.66, 0); put(PART.head, n, mA.clone(), L.fb.skin);
+      mA.makeTranslation(.128, 1.645, 0); mA.multiply(mB.makeScale(.9, 1.1, .85)); put(PART.nose, n, mA.clone(), L.fb.skin);
+      [-1, 1].forEach((k, j) => { mA.makeTranslation(.103, 1.685, k * .038); put(PART.eye, n * 2 + j, mA.clone()); mA.makeTranslation(.117, 1.685, k * .038); put(PART.pupil, n * 2 + j, mA.clone()); });
+      if (L.fb.wrap) { mA.makeTranslation(-.01, 1.76, 0); mA.multiply(mB.makeScale(1, .75, 1)); put(PART.wrap, n, mA.clone(), L.fb.wrap); PART.hair.setMatrixAt(n, HIDE); }
       else { PART.wrap.setMatrixAt(n, HIDE); mA.makeTranslation(.0, 1.69, 0); put(PART.hair, n, mA.clone()); }
-      [-1, 1].forEach((k, j) => { mA.makeTranslation(0, 1.48, k * .27); mA.multiply(mB.makeRotationZ(-sw * k * .6 + (arms ? arms : 0))); if (arms) mA.multiply(mB.makeRotationX(k * .3)); mA.multiply(mB.makeTranslation(0, -.3, 0)); put(PART.arm, n * 2 + j, mA.clone(), L.sleeve ? L.top : L.skin); });
+      [-1, 1].forEach((k, j) => { mA.makeTranslation(0, 1.48, k * .27); mA.multiply(mB.makeRotationZ(-sw * k * .6 + (arms ? arms : 0))); if (arms) mA.multiply(mB.makeRotationX(k * .3)); mA.multiply(mB.makeTranslation(0, -.3, 0)); put(PART.arm, n * 2 + j, mA.clone(), L.sleeve ? L.fb.top : L.fb.skin); mA.multiply(mB.makeTranslation(0, -.34, 0)); put(PART.hand, n * 2 + j, mA.clone(), L.fb.skin); });
       n++;
     });
-    PART.torso.count = PART.head.count = PART.skirt.count = PART.wrap.count = PART.hair.count = n; PART.leg.count = PART.arm.count = PART.shoe.count = n * 2;
+    PART.torso.count = PART.head.count = PART.nose.count = PART.skirt.count = PART.wrap.count = PART.hair.count = n;
+    PART.thigh.count = PART.calf.count = PART.arm.count = PART.hand.count = PART.shoe.count = PART.eye.count = PART.pupil.count = n * 2;
     for (const k in PART) { PART[k].instanceMatrix.needsUpdate = true; if (PART[k].instanceColor) PART[k].instanceColor.needsUpdate = true; }
   }
 

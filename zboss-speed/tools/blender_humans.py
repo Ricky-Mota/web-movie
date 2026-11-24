@@ -309,7 +309,7 @@ def eye_image():
     y, x = (np.mgrid[0:S, 0:S] + .5) / S - .5
     r = np.hypot(x, y) * 2
     col = np.zeros((S, S, 3))
-    col[:] = [.82, .78, .74]                       # sclère légèrement teintée
+    col[:] = [.9, .87, .83]                         # sclère légèrement teintée
     iris = r < .55
     ang = np.arctan2(y, x)
     ir = np.array([.23, .13, .07]) * (0.75 + .25 * np.cos(ang * 23)[..., None] * (r[..., None] > .2))
@@ -380,7 +380,7 @@ def skin_image(maps, J):
     ao = maps["ao"][..., 0]
     cov = maps["pos"][..., 3] > .5
     S = TEX
-    base = np.array(srgb("#8a5a3e")[:3])
+    base = np.array(srgb("#9a6646")[:3])  # un peu plus clair : traits du visage lisibles en jeu
     col = np.ones((S, S, 3)) * base
     # variations basse et haute fréquence (grain de peau)
     rng = np.random.default_rng(3)
@@ -414,13 +414,13 @@ def skin_image(maps, J):
         dx = (pos[..., 0] - c[0]) * (1 if side == "l" else -1)      # >0 vers l'extérieur
         u = dx / .032
         zc = c[2] + .019 + .006 * (1 - u * u) - .004 * np.clip(u, 0, 1)
-        thick = .0055 * (1 - np.clip(u, -1, 1) * .35) * (np.abs(u) < 1.15)
+        thick = .0034 * (1 - np.clip(u, -1, 1) * .35)  # sourcils fins
         dz = np.abs(pos[..., 2] - zc)
         front = (nor[..., 1] < -.2) & (pos[..., 1] < c[1] + .02)
-        b = smooth(thick, thick * .45, dz) * front * smooth(1.2, .9, np.abs(u - .05))
+        b = smooth(thick, thick * .45, dz) * front * smooth(.85, .6, np.abs(u - .25))  # séparés au-dessus du nez
         hair = .65 + .35 * np.sin(pos[..., 0] * 2400 + pos[..., 2] * 900) ** 2
         b = (b * hair)[..., None]
-        col = col * (1 - b * .85) + np.array([.012, .008, .006]) * b * .85
+        col = col * (1 - b * .7) + np.array([.012, .008, .006]) * b * .7
     # occlusion ambiante cuite
     col *= (np.clip(ao, 0, 1) ** .7)[..., None] * .85 + .15
     col = np.clip(col, 0, 1)
@@ -507,7 +507,8 @@ def build_variant(P, mats):
     tsp = top_spec(P["top"])
     # poids saturés (évite le bruit entre bassin et cuisses) puis ourlet défini par la hauteur seule
     rt = smooth(.15, .55, region(B, J, tsp)) * smooth(J["thigh_l"][0][2] + .005, J["thigh_l"][0][2] + .035, B[:, 2])
-    parts.append(("shirt", faces_where("helper-tights", rt > .06), .010 if P["top"] != "tank" else .006, smooth(.3, .6, rt)))
+    # le haut reste nettement au-dessus du pantalon (sinon taches blanches à la taille)
+    parts.append(("shirt", faces_where("helper-tights", rt > .06), .017 if P["top"] != "tank" else .014, smooth(.3, .6, rt)))
     hide |= rt > .985
     # bas
     if P["bottom"] == "pagne":
@@ -580,9 +581,9 @@ def build_variant(P, mats):
         rel = (B - E) / HS
         y = rel[:, 1]  # <0 = devant
         if P["hair"] == "short":
-            line = np.interp(y, [-.12, -.07, 0, .05, .12], [.055, .05, .035, -.02, -.07])
+            line = np.interp(y, [-.12, -.07, 0, .05, .12], [.074, .066, .042, -.02, -.07])  # front dégagé au-dessus des sourcils
         else:
-            line = np.interp(y, [-.12, -.07, 0, .05, .12], [.04, .035, .01, -.03, -.085])
+            line = np.interp(y, [-.12, -.07, 0, .05, .12], [.066, .058, .03, -.03, -.085])
         z = rel[:, 2]
         if P["hair"] == "short":
             ear = smooth(.05, .065, np.abs(rel[:, 0])) * smooth(.025, .045, y) * smooth(.135, .115, y) * smooth(.05, .03, z)
@@ -607,7 +608,7 @@ def build_variant(P, mats):
             def wrap(c, n):
                 k = smooth(E[2] + .01, top, c[:, 2])
                 back = smooth(-.02, .09, c[:, 1] - E[1])
-                return HS * (-.004 + m * (.02 + .05 * k + .03 * k * back))
+                return HS * (-.004 + m * (.012 + .045 * k * (.35 + .65 * back) + .03 * k * back))  # volume en haut et derrière, jamais sur les yeux
             inflate(ob, wrap)
             c = vcos(ob)
             ang = np.arctan2(c[:, 0], -(c[:, 1] - E[1]))
