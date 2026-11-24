@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
   <title>2 Life — La ville en 3D</title>
-  <meta name="description" content="Visite Kinshasa en 3D dans ton navigateur : conduis, marche, entre dans les concessions de 2 Life.">
+  <meta name="description" content="Visite Kinshasa en 3D dans ton navigateur : promène-toi à pied, croise les habitants, prends le taxi.">
   <meta name="theme-color" content="#07080c">
   <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -102,6 +102,9 @@
       .msgs { top: 26%; } .msgs .m { font-size: 13px; }
       .touch button { width: 62px; height: 62px; font-size: 11px; } .touch button.big { width: 76px; height: 76px; }
     }
+    /* visite de la ville : pas de course, pas de police */
+    body.walk .p-heat, body.walk .p-score, body.walk .evade, body.walk .p-car, body.walk .p-speed { display: none !important; }
+    .pick-city { min-height: 64px; } .pick-city[disabled] { opacity: .45; cursor: not-allowed; }
   </style>
 </head>
 <body>
@@ -122,28 +125,28 @@
 
   <div class="touch" aria-hidden="true">
     <div class="grp"><button data-touch="left" class="big">◀</button><button data-touch="right" class="big">▶</button></div>
-    <div class="grp"><div class="col"><button data-touch="nitro">NITRO</button><button data-touch="hand">FREIN À MAIN</button></div><div class="col"><button data-touch="gas" class="big">GAZ</button><button data-touch="brake">FREIN</button></div></div>
+    <div class="grp"><div class="col"><button data-touch="nitro">COURIR</button><button data-touch="hand">FREIN</button></div><div class="col"><button data-touch="gas" class="big">AVANCER</button><button data-touch="brake">RECULER</button></div></div>
   </div>
 
   <section class="screen-ov" id="menu" hidden>
     <a class="back" href="index.html" onclick="if (history.length > 1) { history.back(); return false; }">← Retour</a>
     <div class="card">
-      <span class="tag"><span class="dot"></span> Démo jouable · navigateur</span>
+      <span class="tag"><span class="dot"></span> Visite de la ville · navigateur</span>
       <h1>2<b> LIFE</b></h1>
-      <p>Choisis ta voiture, fais monter la tension, puis disparais : casse la ligne de vue de la police assez longtemps pour encaisser ta prime.</p>
+      <p>Choisis ta ville et promène-toi à pied, comme dans la vraie vie. Croise les habitants, découvre les rues et prends le taxi jaune pour aller plus loin.</p>
       <div class="pick" id="pick"></div>
       <div class="keys">
-        <span><kbd>↑</kbd><kbd>W</kbd> accélérer</span><span><kbd>↓</kbd><kbd>S</kbd> freiner</span><span><kbd>←</kbd><kbd>→</kbd> diriger</span>
-        <span><kbd>Espace</kbd> frein à main</span><span><kbd>Maj</kbd> nitro</span><span><kbd>P</kbd> pause</span><span><kbd>M</kbd> son</span><span><kbd>C</kbd> caméra (poursuite / hélico / télé)</span><span><kbd>E</kbd> descendre, monter, choisir une voiture en concession</span>
+        <span><kbd>↑</kbd><kbd>W</kbd> avancer</span><span><kbd>↓</kbd><kbd>S</kbd> reculer</span><span><kbd>←</kbd><kbd>→</kbd> tourner</span>
+        <span><kbd>Maj</kbd> courir</span><span><kbd>E</kbd> prendre le taxi ou descendre</span><span><kbd>P</kbd> pause</span><span><kbd>M</kbd> son</span><span><kbd>C</kbd> caméra</span>
       </div>
-      <div class="row"><button class="btn btn-primary" id="go" type="button">Démarrer la course</button></div>
-      <p style="margin-top:16px;font-size:13px">Record sur cet appareil : <b id="best" style="color:var(--text)">0</b></p>
-      <p style="margin-top:6px;font-size:11px;opacity:.7">Circuit : la Gombe, Kinshasa. Carte © les contributeurs d'<a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener" style="color:inherit">OpenStreetMap</a> (ODbL), via Overture Maps.</p>
+      <div class="row"><button class="btn btn-primary" id="go" type="button">Commencer la visite</button></div>
+      <p style="margin-top:16px;font-size:13px" hidden>Record : <b id="best">0</b></p>
+      <p style="margin-top:6px;font-size:11px;opacity:.7">Quartier : la Gombe, Kinshasa. Carte © les contributeurs d'<a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener" style="color:inherit">OpenStreetMap</a> (ODbL), via Overture Maps.</p>
     </div>
   </section>
 
   <section class="screen-ov" id="pause" hidden>
-    <div class="card"><h1>Pause</h1><div class="row"><button class="btn btn-primary" id="resume" type="button">Reprendre</button><button class="btn btn-ghost" id="quit" type="button">Changer de voiture</button></div></div>
+    <div class="card"><h1>Pause</h1><div class="row"><button class="btn btn-primary" id="resume" type="button">Reprendre</button><button class="btn btn-ghost" id="quit" type="button">Changer de ville</button></div></div>
   </section>
 
   <section class="screen-ov" id="over" hidden>
@@ -154,10 +157,11 @@
       <div class="big-score" id="go-score">0</div>
       <p id="go-best"></p>
       <p id="go-stats" style="font-size:14px"></p>
-      <div class="row"><button class="btn btn-primary" id="again" type="button">Rejouer</button><button class="btn btn-ghost" id="garage" type="button">Changer de voiture</button><a class="btn btn-ghost" href="index.html#beta">Rejoindre la bêta</a></div>
+      <div class="row"><button class="btn btn-primary" id="again" type="button">Rejouer</button><button class="btn btn-ghost" id="garage" type="button">Changer de ville</button><a class="btn btn-ghost" href="index.html#beta">Rejoindre la bêta</a></div>
     </div>
   </section>
 
+  <script>window.TWOLIFE_WALK = true; document.body.classList.add("walk");</script>
   <script src="assets/cars.js"></script>
   <script>if (matchMedia("(pointer: coarse)").matches) document.body.classList.add("is-touch");</script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>

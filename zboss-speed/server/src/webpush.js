@@ -40,13 +40,21 @@ export async function vapidHeader(endpoint, publicKey, privateJwk, subject) {
 }
 
 // envoie une notification ; renvoie "ok", "expire" (abonnement à supprimer) ou "erreur"
-export async function sendPush(env, sub, message) {
-  if (!env.VAPID_PUBLIC || !env.VAPID_PRIVATE_JWK) return "erreur";
+// keys = { publique, privee (JWK), sujet }
+export async function sendPush(keys, sub, message) {
+  if (!keys || !keys.publique || !keys.privee) return "erreur";
   const body = await encryptPayload(JSON.stringify(message), sub.p256dh, sub.auth);
   const r = await fetch(sub.endpoint, {
     method: "POST", body,
     headers: { "Content-Encoding": "aes128gcm", "Content-Type": "application/octet-stream", TTL: "86400", Urgency: "normal",
-      Authorization: await vapidHeader(sub.endpoint, env.VAPID_PUBLIC, env.VAPID_PRIVATE_JWK, env.VAPID_SUBJECT || "https://2life.example") },
+      Authorization: await vapidHeader(sub.endpoint, keys.publique, keys.privee, keys.sujet || "https://2life.example") },
   });
   return r.ok ? "ok" : r.status === 404 || r.status === 410 ? "expire" : "erreur";
+}
+
+// crée une paire de clés VAPID (publique en base64url, privée en JWK)
+export async function newVapidKeys() {
+  const k = await crypto.subtle.generateKey({ name: "ECDSA", namedCurve: "P-256" }, true, ["sign", "verify"]);
+  const jwk = await crypto.subtle.exportKey("jwk", k.privateKey);
+  return { publique: b64u.enc(await crypto.subtle.exportKey("raw", k.publicKey)), privee: JSON.stringify({ kty: jwk.kty, crv: jwk.crv, x: jwk.x, y: jwk.y, d: jwk.d }) };
 }

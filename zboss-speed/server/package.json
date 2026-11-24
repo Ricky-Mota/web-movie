@@ -5,7 +5,8 @@
   "scripts": {
     "dev": "wrangler dev",
     "db:local": "wrangler d1 execute two-life --local --file=schema.sql",
-    "deploy": "wrangler deploy"
+    "deploy": "wrangler d1 execute two-life --remote --file=schema.sql && wrangler deploy",
+    "vapid": "node scripts/vapid.mjs"
   },
   "devDependencies": {
     "wrangler": "4.40.0"

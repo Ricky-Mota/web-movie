@@ -3,6 +3,8 @@
 // barrages, hélicoptère, évasion, nitro, trafic, score et sons synthétisés.
 (function () {
   "use strict";
+  // 2 Life : sur jouer.html, visite de la ville à pied (pas de course ni de police)
+  const WALK = !!window.TWOLIFE_WALK;
 
   // ---------------------------------------------------------------- Monde : la vraie Gombe (Kinshasa)
   // Carte issue d'OpenStreetMap (ODbL) via Overture Maps, préparée par tools/prep_kinshasa.py.
@@ -106,6 +108,7 @@
   const SHOPS = [];
   const SHOP_W = 360, SHOP_D = 240, SHOP_DOOR = 70;
   (function () {
+    if (WALK) return;   // visite de la ville : pas de concessions automobiles
     const M = (x, y) => (x < 0 || y < 0 || x >= W || y >= H) ? 3 : mask[(y / C | 0) * MW + (x / C | 0)];
     const lm = (MAP.landmarks || [])[0];
     const targets = [{ x: MAP.start.x + Math.cos(MAP.start.a) * 1400, y: MAP.start.y + Math.sin(MAP.start.a) * 1400 }];
@@ -323,10 +326,15 @@
       peds: [], foot: null, prompt: "", act: null,
     };
     for (let k = 0; k < 44; k++) spawnTraffic(true);
-    for (let k = 0; k < 2; k++) spawnCop(false);
+    if (!WALK) for (let k = 0; k < 2; k++) spawnCop(false);
     for (let k = 0; k < PED_N; k++) spawnPed(true);
     SHOPS.forEach(o => [-1, 1].forEach(k => G.peds.push({ x: o.x + o.ux * k * 150 + o.nx * 95, y: o.y + o.uy * k * 150 + o.ny * 95, a: o.a + Math.PI / 2, v: 0, t: rand() * 9, state: "idle", staff: true, look: 7 + k })));
-    msg("Roule. Les patrouilles te repèrent si tu dépasses 170 km/h devant elles.", 4.5);
+    if (WALK) { // visite de la ville : on commence à pied, à côté d'un taxi jaune
+      const rx = Math.sin(player.a), ry = -Math.cos(player.a);
+      let x = player.x + rx * 30, y = player.y + ry * 30; if (walkBlocked(x, y)) { x = player.x - rx * 30; y = player.y - ry * 30; }
+      G.foot = { x, y, a: player.a, v: 0, t: 0 };
+      msg("Bienvenue à la Gombe, Kinshasa ! Marche avec les flèches, Maj pour courir. Le taxi jaune t'attend.", 5);
+    } else msg("Roule. Les patrouilles te repèrent si tu dépasses 170 km/h devant elles.", 4.5);
   }
   function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
   function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) { } }
@@ -456,7 +464,7 @@
     const dist = Math.hypot(p.x - c.x, p.y - c.y);
     const sees = dist < 950 && los(c.x, c.y, p.x, p.y);
     if (c.mode === "patrol") {
-      if (sees && dist < 560 && Math.hypot(p.vx, p.vy) > 380 && !G.chase) startChase();
+      if (!WALK && sees && dist < 560 && Math.hypot(p.vx, p.vy) > 380 && !G.chase) startChase();
       if (sees && G.chase) c.mode = "chase";
     }
     if (c.mode === "leave") { const t = wander(c); c.inp.gas = 1; c.inp.brake = 0; c.inp.nitro = 0; c.inp.hand = 0; steerTo(c, t.x, t.y); return; }
@@ -588,11 +596,14 @@
     let txt = "", act = null;
     if (!G.foot) {
       const shop = SHOPS.find(o => Math.hypot(o.x - p.x, o.y - p.y) < 520);
-      if (sp < 60 && !G.chase) { txt = shop ? "Descendre et entrer dans la concession" : "Descendre de la voiture"; act = "exit"; }
+      if (WALK) { if (sp < 60) { txt = "Descendre du taxi"; act = "exit"; } }
+      else if (sp < 60 && !G.chase) { txt = shop ? "Descendre et entrer dans la concession" : "Descendre de la voiture"; act = "exit"; }
       else if (shop && !G.chase) txt = "Concession 2 Life Motors : arrête-toi pour entrer";
     } else {
-      const ns = nearSlot(G.foot.x, G.foot.y);
-      if (ns) { txt = ns.car.id === p.carDef.id ? ns.car.name + " : c'est déjà ta voiture" : "Prendre la " + ns.car.name + " (" + ns.car.cls + ")"; act = ns.car.id === p.carDef.id ? null : "pick"; }
+      const ns = WALK ? null : nearSlot(G.foot.x, G.foot.y);
+      if (WALK && Math.hypot(G.foot.x - p.x, G.foot.y - p.y) < 50) { txt = "Prendre le taxi"; act = "enter"; }
+      else if (WALK) txt = "Promenade à pied dans la Gombe. Le taxi jaune est sur la carte.";
+      else if (ns) { txt = ns.car.id === p.carDef.id ? ns.car.name + " : c'est déjà ta voiture" : "Prendre la " + ns.car.name + " (" + ns.car.cls + ")"; act = ns.car.id === p.carDef.id ? null : "pick"; }
       else if (Math.hypot(G.foot.x - p.x, G.foot.y - p.y) < 50) { txt = "Monter dans la voiture"; act = "enter"; }
       else txt = "À pied. Reviens à ta voiture pour repartir.";
     }
@@ -706,8 +717,9 @@
     } else {
       G.calmT += dt;
       const patrols = G.cops.filter(c => c.kind === "cop" && c.mode === "patrol").length;
-      if (patrols < 2 && G.calmT > 6 && rand() < dt * .5) spawnCop(false);
+      if (!WALK && patrols < 2 && G.calmT > 6 && rand() < dt * .5) spawnCop(false);
     }
+    if (WALK) p.health = 100;   // visite : pas d'accident fatal
     if (p.health <= 0) { p.health = 0; endGame("wrecked"); }
 
     // traces de pneus et fumée
@@ -937,12 +949,16 @@
   // ---------------------------------------------------------------- Menu
   const CARS = window.ZBOSS_CARS.list;
   let chosen = CARS[0];
-  try { const saved = lsGet("zboss_car"); if (saved) chosen = CARS.find(c => c.id === saved) || chosen; } catch (e) { }
+  if (WALK) chosen = CARS.find(c => c.id === "kivu") || CARS[0];   // le taxi jaune
+  try { const saved = !WALK && lsGet("zboss_car"); if (saved) chosen = CARS.find(c => c.id === saved) || chosen; } catch (e) { }
   const pick = $("pick");
-  pick.innerHTML = CARS.map(c => `<button type="button" class="pick-car" data-id="${c.id}" aria-pressed="${c === chosen}">
+  if (WALK) { // choix de la ville au lieu des voitures
+    const CITIES = [["Kinshasa", "La Gombe, le fleuve, les grands boulevards", true], ["Lubumbashi", "Bientôt", false], ["Goma", "Bientôt", false], ["Kisangani", "Bientôt", false], ["Matadi", "Bientôt", false], ["Le monde", "Bientôt", false]];
+    pick.innerHTML = CITIES.map(([n, d, ok], i) => `<button type="button" class="pick-car pick-city" aria-pressed="${i === 0}" ${ok ? "" : "disabled"}><b>${ok ? "🏙️" : "🔒"} ${n}</b><small>${d}</small></button>`).join("");
+  } else pick.innerHTML = CARS.map(c => `<button type="button" class="pick-car" data-id="${c.id}" aria-pressed="${c === chosen}">
       ${window.ZBOSS_CARS.svg(c, { view: "34" })}<b>${c.name}</b><small>${c.cls} · ${Math.round((560 + c.stats.vitesse * 2) * .45)} km/h</small></button>`).join("");
   pick.addEventListener("click", e => {
-    const b = e.target.closest(".pick-car"); if (!b) return;
+    const b = e.target.closest(".pick-car"); if (!b || WALK) return;
     chosen = CARS.find(c => c.id === b.dataset.id); lsSet("zboss_car", chosen.id);
     pick.querySelectorAll(".pick-car").forEach(x => x.setAttribute("aria-pressed", String(x === b)));
   });

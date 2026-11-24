@@ -339,7 +339,7 @@
   });
 
   // ------------------------------------------------------------ Concessions « Zboss Motors » (showrooms où l'on entre à pied)
-  const SHOPS = WORLD.SHOPS || [], shopCars = [];
+  const SHOPS = window.TWOLIFE_WALK ? [] : (WORLD.SHOPS || []), shopCars = [];   // visite de la ville : pas de concessions
   const shopLight = new THREE.PointLight("#fff4e6", 0, 46, 1.6); scene.add(shopLight);
   if (SHOPS.length) {
     const SW = WORLD.SHOP_W * S, SD = WORLD.SHOP_D * S, DOOR = WORLD.SHOP_DOOR * S, HT = 7;

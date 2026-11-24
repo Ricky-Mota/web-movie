@@ -195,3 +195,12 @@ CREATE TABLE IF NOT EXISTS abonnements_push (
   cree_le INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_push_compte ON abonnements_push (compte_id);
+
+-- alertes envoyées aux parents (une par enfant, par type et par jour)
+CREATE TABLE IF NOT EXISTS alertes (
+  personnage_id TEXT NOT NULL,
+  compte_id TEXT NOT NULL,
+  type TEXT NOT NULL,
+  jour TEXT NOT NULL,
+  PRIMARY KEY (personnage_id, compte_id, type, jour)
+);

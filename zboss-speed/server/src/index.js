@@ -5,7 +5,7 @@ import {
   needsAt, newIdentity, BIRTH_GIFT, SHOP, cannotBuy, OFFERS, USD_TO_MAKUTA, USD_UNITS, fmtMakuta, WITHDRAW_FEE, walletInfo, birthShiftMs, REAL_MONEY, shopView, familyOf, JOBS, payFor, cannotWork, workView, cannotApply, FORMATIONS, cannotEnroll, attendCourse, schoolView, SUPPORT_PER_DAY, HOST_MIN_AGE, MAX_CHILDREN, supportDue, unpaidEffect, familyShare, DAY, LAUNCH_RULES, launchStatus, canSignupBeforeLaunch, COMPANY_TYPES, cannotOpenCompany, companyName, companyView, companyAccrue, companyJob, EMPLOYEE_YIELD, RESELL_RATE, TAXI_FARE, TAXI_ENERGY, KINSHASA_QUARTIERS, OTHER_CITIES, STATE_ID, TAX, POSTS, PUBLIC_JOBS, BANKS, bankAccrue, INSURERS, CARE, careCost, OPERATORS, RECHARGES, CALL, stateView, ELECTION_EVERY, VOTER_MIN_AGE, electionCalendar, tally, CRIMES, catchChance, sentence, inPrison, PRISON_BLOCKED, PRISON_HOURS, BAIL, RECIDIVE, policeView,
   describeAction, ORDER_DONE, ORDERS, ORDERS_PER_DAY, ORDERS_CHECK_MS, dayKey, ordersToRun, cannotGiveOrder,
 } from "./life.js";
-import { sendPush } from "./webpush.js";
+import { sendPush, newVapidKeys } from "./webpush.js";
 
 const SESSION_DAYS = 30;
 const FOOD = { prix: 25, faim: 45 }; // un repas au maquis
@@ -211,11 +211,54 @@ async function loadCharacter(db, id) {
 }
 
 // ---------------------------------------------------------------- notifications sur le téléphone
+// clés VAPID : variables Cloudflare si présentes, sinon créées une fois et gardées dans la table jeu
+async function vapidKeys(env, db) {
+  if (env.VAPID_PUBLIC && env.VAPID_PRIVATE_JWK) return { publique: env.VAPID_PUBLIC, privee: env.VAPID_PRIVATE_JWK, sujet: env.VAPID_SUBJECT };
+  const kv = Object.fromEntries((await db.prepare(`SELECT cle, valeur FROM jeu WHERE cle IN ('vapid', 'site')`).all()).results.map(r => [r.cle, r.valeur]));
+  let k = kv.vapid && JSON.parse(kv.vapid);
+  if (!k) {
+    k = await newVapidKeys();
+    await db.prepare(`INSERT OR IGNORE INTO jeu (cle, valeur) VALUES ('vapid', ?)`).bind(JSON.stringify(k)).run();
+    k = JSON.parse((await db.prepare(`SELECT valeur FROM jeu WHERE cle = 'vapid'`).first()).valeur);   // si deux requêtes en même temps
+  }
+  return { ...k, sujet: env.VAPID_SUBJECT || kv.site || "https://2life.example" };
+}
 async function notify(env, db, compteId, message) {
+  const keys = await vapidKeys(env, db);
   const { results } = await db.prepare(`SELECT endpoint, p256dh, auth FROM abonnements_push WHERE compte_id = ?`).bind(compteId).all();
   for (const sub of results) {
-    try { if (await sendPush(env, sub, message) === "expire") await db.prepare(`DELETE FROM abonnements_push WHERE endpoint = ?`).bind(sub.endpoint).run(); }
+    try { if (await sendPush(keys, sub, message) === "expire") await db.prepare(`DELETE FROM abonnements_push WHERE endpoint = ?`).bind(sub.endpoint).run(); }
     catch (e) { console.error(e); }
+  }
+}
+
+// les parents joueurs sont prévenus des moments importants de la vie de leurs enfants
+const IMPORTANT_FOR_PARENTS = ["/api/postuler", "/api/crime", "/api/caution", "/api/entreprise/ouvrir", "/api/entreprise/acheter", "/api/ecole/inscription", "/api/candidature", "/api/soigner"];
+async function notifyParents(env, kidId, d) {
+  const db = env.DB;
+  const k = await db.prepare(`SELECT prenom, pere_id, mere_id FROM personnages WHERE id = ?`).bind(kidId).first();
+  if (!k) return;
+  const { results } = await db.prepare(`SELECT c.id FROM comptes c WHERE c.vie_id IN (?, ?)`).bind(k.pere_id || "", k.mere_id || "").all();
+  for (const c of results) await notify(env, db, c.id, { titre: `2 Life · ${k.prenom}`, texte: `${d.icone} ${d.texte}`, url: "vie.html#kids-card" });
+}
+// alertes de besoins (faim, santé, prison) : au plus une par enfant, par type et par jour
+const KID_ALERTS = [
+  { id: "faim", test: (n) => n.hunger < 30, texte: k => `${k.prenom} a très faim. Donne-lui à manger.` },
+  { id: "sante", test: (n) => n.health < 40, texte: k => `${k.prenom} est malade : il faut l'emmener au centre de santé.` },
+  { id: "prison", test: (n, k, now) => k.prison_jusqu && k.prison_jusqu > now, texte: k => `${k.prenom} est en prison. Tu peux payer sa caution.` },
+];
+async function kidAlerts(env, now) {
+  const db = env.DB, jour = dayKey(now);
+  const { results } = await db.prepare(`SELECT k.id, k.prenom, k.faim, k.energie, k.bonheur, k.sante, k.maj_le, k.prison_jusqu, c.id AS parent_compte
+      FROM personnages k JOIN comptes c ON c.vie_id IN (k.pere_id, k.mere_id)
+      WHERE k.mort_le IS NULL AND EXISTS (SELECT 1 FROM abonnements_push a WHERE a.compte_id = c.id) LIMIT 1000`).all();
+  for (const k of results) {
+    const n = needsAt({ hunger: k.faim, energy: k.energie, happiness: k.bonheur, health: k.sante, updatedAt: k.maj_le }, now);
+    for (const a of KID_ALERTS) {
+      if (!a.test(n, k, now)) continue;
+      const r = await db.prepare(`INSERT OR IGNORE INTO alertes (personnage_id, compte_id, type, jour) VALUES (?, ?, ?, ?)`).bind(k.id, k.parent_compte, a.id, jour).run();
+      if (r.meta && r.meta.changes) await notify(env, db, k.parent_compte, { titre: `2 Life · ${k.prenom}`, texte: a.texte(k), url: "vie.html#kids-card" });
+    }
   }
 }
 
@@ -363,6 +406,7 @@ const worker = {
   // toutes les 15 minutes (Cron Trigger gratuit) : les personnages suivent leurs consignes, même joueur déconnecté
   async scheduled(event, env, ctx) {
     const db = env.DB, now = Date.now();
+    try { await kidAlerts(env, now); } catch (e) { console.error(e); }
     const { results } = await db.prepare(`SELECT DISTINCT c.personnage_id AS pid, p.compte_id FROM consignes c JOIN personnages p ON p.id = c.personnage_id WHERE c.jour = ? AND p.mort_le IS NULL LIMIT 500`).bind(dayKey(now)).all();
     for (const r of results) {
       try {
@@ -382,10 +426,17 @@ const worker = {
       try {
         const path = new URL(req.url).pathname;
         if (!["/api/inscription", "/api/connexion"].includes(path) && !path.startsWith("/api/admin/")) {
-          const d = describeAction(path, await copy.json().catch(() => ({})), await res.clone().json().catch(() => ({})));
+          const out = await res.clone().json().catch(() => ({}));
+          const d = describeAction(path, await copy.json().catch(() => ({})), out);
           const compte = d && await auth(env.DB, req, Date.now());
-          if (compte) await env.DB.prepare(`INSERT INTO mouvements (id, personnage_id, icone, texte, par_consigne, le) VALUES (?, ?, ?, ?, ?, ?)`)
-            .bind(uid(), compte.vie_id, d.icone, d.texte, req.headers.get("X-Consigne") ? 1 : 0, Date.now()).run();
+          if (compte) {
+            const m = { icone: d.icone, texte: d.texte, par_consigne: req.headers.get("X-Consigne") ? 1 : 0, le: Date.now() };
+            await env.DB.prepare(`INSERT INTO mouvements (id, personnage_id, icone, texte, par_consigne, le) VALUES (?, ?, ?, ?, ?, ?)`)
+              .bind(uid(), compte.vie_id, m.icone, m.texte, m.par_consigne, m.le).run();
+            if (IMPORTANT_FOR_PARENTS.includes(path) && (path !== "/api/crime" || d.texte.startsWith("Attrapé"))) await notifyParents(env, compte.vie_id, d);
+            // la réponse montre tout de suite ce nouveau mouvement
+            if (Array.isArray(out.mouvements)) { out.mouvements = [m, ...out.mouvements].slice(0, 100); return new Response(JSON.stringify(out), { status: res.status, headers: res.headers }); }
+          }
         }
       } catch (e) { console.error(e); }
     }
@@ -403,7 +454,10 @@ const worker = {
     try {
       if (url.pathname === "/api/sante") return json(h, 200, { ok: true, jeu: "2 Life" });
 
-      if (url.pathname === "/api/push/cle" && req.method === "GET") return json(h, 200, { cle: env.VAPID_PUBLIC || null });
+      if (url.pathname === "/api/push/cle" && req.method === "GET") return json(h, 200, { cle: (await vapidKeys(env, db)).publique });
+      // site servi par ce Worker : config.js pointe vers l'API du même domaine (mode réel, pas démo)
+      if (url.pathname === "/config.js") return new Response(`// 2 Life : configuration générée par le serveur\nwindow.ZBOSS_CONFIG = { SUPABASE_URL: "", SUPABASE_ANON_KEY: "" };\nwindow.TWO_LIFE_API = ${JSON.stringify(url.origin)};\n`,
+        { headers: { "Content-Type": "application/javascript; charset=utf-8", "Cache-Control": "no-cache" } });
       if (url.pathname === "/api/lancement" && req.method === "GET") return json(h, 200, await launch(db));
 
       if (url.pathname === "/api/inscription" && req.method === "POST") {
@@ -485,6 +539,7 @@ const worker = {
       if (url.pathname === "/api/push/abonner" && req.method === "POST") {
         const ep = String(body.endpoint || ""), k = body.keys || {};
         if (!/^https:\/\//.test(ep) || ep.length > 1000 || !k.p256dh || !k.auth) return fail(h, 400, "Abonnement invalide.");
+        await db.prepare(`INSERT INTO jeu (cle, valeur) VALUES ('site', ?) ON CONFLICT(cle) DO UPDATE SET valeur = excluded.valeur`).bind(url.origin).run();
         await db.prepare(`INSERT INTO abonnements_push (endpoint, compte_id, p256dh, auth, cree_le) VALUES (?, ?, ?, ?, ?) ON CONFLICT(endpoint) DO UPDATE SET compte_id = excluded.compte_id, p256dh = excluded.p256dh, auth = excluded.auth`)
           .bind(ep, compte.id, String(k.p256dh).slice(0, 200), String(k.auth).slice(0, 100), now).run();
         return json(h, 200, view(compte, await loadCharacter(db, p.id), now));

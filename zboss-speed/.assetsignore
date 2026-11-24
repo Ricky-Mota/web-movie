@@ -1,0 +1,14 @@
+# fichiers non publiés par le Worker (voir server/wrangler.toml)
+# du dossier server, seul le module des règles (server/src/life.js) est public : le site l'importe
+server/*
+!server/src
+server/src/*
+!server/src/life.js
+docs
+shots
+supabase
+tools
+netlify.toml
+README.md
+.assetsignore
+.git

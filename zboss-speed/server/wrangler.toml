@@ -1,23 +1,25 @@
 # 2 Life : serveur du jeu sur Cloudflare (offre gratuite)
-# Déploiement : npx wrangler d1 create two-life  -> recopier database_id ci-dessous
-#               npx wrangler d1 execute two-life --remote --file=schema.sql
-#               npx wrangler deploy
-name = "two-life-api"
+# Déploiement : voir DEPLOIEMENT.md (base D1 « two-life », puis Workers Builds relié au dépôt GitHub,
+# dossier zboss-speed/server, commande de déploiement : npm run deploy)
+name = "two-life"
 main = "src/index.js"
 compatibility_date = "2025-06-01"
+# garde les variables saisies dans le tableau de bord Cloudflare (ADMIN_EMAILS) à chaque déploiement
+keep_vars = true
+
+# le même Worker sert le site (vie.html, admin.html, la ville en 3D...) et l'API du jeu
+[assets]
+directory = "../"
+run_worker_first = ["/api/*", "/config.js"]
 
 [vars]
 # adresses autorisées à appeler l'API, séparées par des virgules ("*" = toutes)
 ALLOWED_ORIGINS = "*"
 # e-mails des administrateurs (séparés par des virgules) : ils accèdent à admin.html.
 # Le dépôt est public : ne pas écrire l'adresse ici. La mettre dans le tableau de bord Cloudflare
-# (Worker > Settings > Variables, nom ADMIN_EMAILS) ou, en local, dans server/.dev.vars (ignoré par git).
-ADMIN_EMAILS = ""
-# notifications sur le téléphone : clé publique VAPID (node scripts/vapid.mjs). La clé privée va en secret :
-#   npx wrangler secret put VAPID_PRIVATE_JWK
-VAPID_PUBLIC = ""
-# adresse de contact demandée par les services de notification (ex. https://ton-site ou mailto:...)
-VAPID_SUBJECT = ""
+# (Worker > Settings > Variables and Secrets, nom ADMIN_EMAILS) ou, en local, dans server/.dev.vars (ignoré par git).
+# notifications sur le téléphone : les clés VAPID sont créées toutes seules au premier usage et gardées
+# dans la base. (Facultatif : VAPID_PUBLIC + secret VAPID_PRIVATE_JWK, voir scripts/vapid.mjs.)
 
 [[d1_databases]]
 binding = "DB"
