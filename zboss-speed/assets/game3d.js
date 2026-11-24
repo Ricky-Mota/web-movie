@@ -478,6 +478,20 @@
       }
       signBoard(g, foot ? "STADE DE QUARTIER" : "BASKET 2 LIFE", o.nom, 8, 3.4, front - .3, "#0d1a12", foot ? "#7dff8a" : "#ffb347");
       [-1, 1].forEach(k => pbox(g, .2, 3, .2, k * 3.6, 1.5, front - .3, PL.dark));
+    } else if (o.type === "parking") {
+      // parking : bitume, places tracées en épi sur deux rangées, borne et panneau P
+      const f = pplane(g, W2 - .6, D2 - .6, new THREE.MeshStandardMaterial({ roughness: .95, map: canvasTex(512, 300, (c, w, h) => {
+        noise(c, w, h, "#2b2d31", .12, 4000); c.strokeStyle = "rgba(255,255,255,.85)"; c.lineWidth = 3;
+        const sx = w / o.w, sy = h / o.d;
+        for (const row of [-1, 1]) { const y0 = h / 2 + row * (o.d / 2 - 14) * sy, y1 = h / 2 + row * (o.d / 2 - 66) * sy; for (let u = -o.w / 2 + 7; u <= o.w / 2 - 7; u += 34) { const x = w / 2 + u * sx; c.beginPath(); c.moveTo(x, y0); c.lineTo(x, y1); c.stroke(); } }
+        c.fillStyle = "rgba(255,255,255,.7)"; for (let x = 20; x < w; x += 60) c.fillRect(x, h / 2 - 2, 30, 4);
+      }) }), 0, .11, 0); f.rotation.x = -Math.PI / 2; f.receiveShadow = true;
+      [-1, 1].forEach(k => pbox(g, W2 - 1, .25, .3, 0, .12, k * (D2 / 2 - .2), PL.M("#c8c2b6")));
+      pbox(g, .2, 4, .2, -W2 / 2 + 1, 2, front + .3, PL.metal, true);
+      pplane(g, 1.6, 1.6, new THREE.MeshBasicMaterial({ map: PL.txt(256, 256, "#1d4fa0", [{ t: "P", f: "900 200px Inter, Arial, sans-serif", c: "#fff", y: .55 }]) }), -W2 / 2 + 1, 4.4, front + .18, Math.PI);
+      pbox(g, .6, 1.3, .5, W2 / 2 - 1.5, .65, front + .6, PL.M("#e8e8e8"), true);
+      signBoard(g, o.nom.toUpperCase(), "Parking public · 2 Life", 6, 3.6, front - .2, "#0d2a5c", "#ffffff");
+      [-1, 1].forEach(k => pbox(g, .18, 3.6, .18, k * 2.7, 1.8, front - .2, PL.dark));
     } else if (o.type === "jeux") {
       const f = pplane(g, W2 - 1, D2 - 1, new THREE.MeshStandardMaterial({ map: canvasTex(256, 256, (c, w, h) => { noise(c, w, h, "#d9b35c", .15, 3000); c.fillStyle = "rgba(220,60,60,.75)"; c.beginPath(); c.arc(w * .3, h * .55, 60, 0, 6.3); c.fill(); c.fillStyle = "rgba(60,140,220,.75)"; c.beginPath(); c.arc(w * .72, h * .4, 50, 0, 6.3); c.fill(); }), roughness: .95 }), 0, .12, 0); f.rotation.x = -Math.PI / 2;
       // balançoires
@@ -685,7 +699,13 @@
       L.fb = { skin: lin(L.skin), top: lin(L.top), low: lin(L.low), wrap: null, shoe: lin(L.shoe) };
       return L;
     }
-    const woman = q.player ? false : r() < .48;
+    const woman = q.player ? false : r() < (q.cop ? .25 : .48);
+    if (q.cop) { // police nationale : uniforme bleu marine, béret
+      q.lookC = { woman, cop: true, skin: new THREE.Color(SKIN[(r() * SKIN.length) | 0]), top: new THREE.Color("#22345c"), low: new THREE.Color("#1a2744"), wrap: null, sleeve: true, h: .98 + r() * .08, shoe: new THREE.Color("#0b0b0d"), biz: false };
+      const L = q.lookC, lin = c => c && c.clone().convertSRGBToLinear();
+      L.fb = { skin: lin(L.skin), top: lin(L.top), low: lin(L.low), wrap: null, shoe: lin(L.shoe) };
+      return L;
+    }
     const biz = !q.player && !q.staff && ((((q.look || 0) * 7919 + Math.floor((q.x0 || q.x) * 3)) >>> 0) % 100) < (window.TWOLIFE_WALK ? 40 : 18);
     if (biz) {
       const suit = SUIT[(r() * SUIT.length) | 0];
@@ -803,7 +823,7 @@
       const L = pedLook(q);
       if (!h) {
         const hash = ((q.look || 0) * 2654435761 + Math.floor((q.x0 || q.x) * 7)) >>> 0;
-        const v = q.player ? "m1" : q.kit ? (hash % 2 ? "m3" : "m1") : L.biz ? (L.woman ? "f2" : (hash % 3 ? "m4" : "m2")) : L.woman ? WOMEN[hash % WOMEN.length] : MEN[hash % MEN.length];
+        const v = q.player ? "m1" : q.kit ? (hash % 2 ? "m3" : "m1") : L.cop ? (L.woman ? "f2" : (hash % 2 ? "m2" : "m4")) : L.biz ? (L.woman ? "f2" : (hash % 3 ? "m4" : "m2")) : L.woman ? WOMEN[hash % WOMEN.length] : MEN[hash % MEN.length];
         if (!HUM.tpl[v]) return;
         h = humInstance(v); h.ped = q; h.cur = null; h.mixer.stopAllAction(); HUM.byPed.set(q, h); scene.add(h.obj);
         const m = h.mats;
@@ -812,10 +832,16 @@
         if (m.pants) m.pants.color.copy(L.low).convertSRGBToLinear();
         if (m.wax) m.wax.color.copy(humTmp.copy(WHITE).lerp(L.wrap || L.low, .45));
         if (m.shoes) m.shoes.color.copy(L.shoe).convertSRGBToLinear();
-        if (m.wax) { if (!m.wax.userData.map0) m.wax.userData.map0 = m.wax.map || "none"; const solid = L.biz; m.wax.map = solid ? null : (m.wax.userData.map0 === "none" ? null : m.wax.userData.map0); if (solid) m.wax.color.copy(L.low).convertSRGBToLinear(); m.wax.needsUpdate = true; }
+        if (m.wax) { if (!m.wax.userData.map0) m.wax.userData.map0 = m.wax.map || "none"; const solid = L.biz || L.cop; m.wax.map = solid ? null : (m.wax.userData.map0 === "none" ? null : m.wax.userData.map0); if (solid) m.wax.color.copy(L.low).convertSRGBToLinear(); m.wax.needsUpdate = true; }
         h.mixer.update(Math.random() * 2);
         if (h.acc) h.acc.forEach(o => { if (o.parent) o.parent.remove(o); });
         h.acc = null;
+        if (L.cop) { // béret de police sur la tête
+          if (!h.bones) { h.bones = {}; h.obj.traverse(b => { if (b.isBone) h.bones[realName(b.name)] = b; }); }
+          const cap = new THREE.Mesh(new THREE.CylinderGeometry(.11, .12, .07, 14), new THREE.MeshStandardMaterial({ color: new THREE.Color("#141c33").convertSRGBToLinear(), roughness: .7 }));
+          const badge = new THREE.Mesh(new THREE.BoxGeometry(.04, .04, .01), new THREE.MeshStandardMaterial({ color: "#d4af37", metalness: .8, roughness: .3 }));
+          h.acc = [cap, badge]; h.acc.forEach(o => { o.castShadow = !MOBILE; h.obj.add(o); }); h.cap = cap; h.badge = badge;
+        }
         if (L.biz) {
           // cravate (ou col blanc) fixée sur la poitrine, mallette dans la main droite
           if (!h.bones) { h.bones = {}; h.obj.traverse(b => { if (b.isBone) h.bones[realName(b.name)] = b; }); }
@@ -835,6 +861,7 @@
           h.knot.position.set(b.x, b.y - .09 / sc, b.z + TIE_Z / sc);
           h.tie.position.set((a.x + b.x) / 2, b.y - .3 / sc, Math.max(a.z, b.z) + (TIE_Z + .045) / sc); h.tie.rotation.x = -.18;
         }
+        if (h.cap) { const hd = h.bones && h.bones.head; if (hd) { const c = hd.getWorldPosition(humV1); h.obj.worldToLocal(c); const sc = h.obj.scale.x || 1; h.cap.position.set(c.x, c.y + .13 / sc, c.z); h.badge.position.set(c.x, c.y + .13 / sc, c.z + .11 / sc); } }
         if (h.bag && hr) { const c = hr.getWorldPosition(humV1); h.obj.worldToLocal(c); h.bag.position.set(c.x, c.y - .17, c.z); }
       }
       const sp = Math.abs(q.v || 0) * S * (q.player ? 1 : 1);
@@ -853,6 +880,23 @@
   }
 
   const mP = new THREE.Matrix4(), mA = new THREE.Matrix4(), mB = new THREE.Matrix4(), HIDE = new THREE.Matrix4().makeScale(0, 0, 0);
+  // bulles de conversation au-dessus des passants qui discutent
+  const BUB = [], bubTex = canvasTex(128, 96, (c, w, h) => {
+    c.fillStyle = "#ffffff"; c.strokeStyle = "#1b1e26"; c.lineWidth = 5;
+    c.beginPath(); c.moveTo(24, 8); c.lineTo(104, 8); c.quadraticCurveTo(120, 8, 120, 24); c.lineTo(120, 52); c.quadraticCurveTo(120, 68, 104, 68); c.lineTo(52, 68); c.lineTo(34, 88); c.lineTo(38, 68); c.lineTo(24, 68); c.quadraticCurveTo(8, 68, 8, 52); c.lineTo(8, 24); c.quadraticCurveTo(8, 8, 24, 8); c.closePath(); c.fill(); c.stroke();
+    c.fillStyle = "#1b1e26"; [40, 64, 88].forEach(x => { c.beginPath(); c.arc(x, 38, 7, 0, 6.3); c.fill(); });
+  });
+  const bubMat = new THREE.SpriteMaterial({ map: bubTex, depthTest: true, transparent: true });
+  function updateBubbles(G) {
+    const f = G.foot || G.player; let n = 0;
+    for (const q of G.peds) {
+      if (n >= 16) break;
+      if (!((q.chat && q.speak) || q.talk) || Math.abs(q.x - f.x) > 700 || Math.abs(q.y - f.y) > 700) continue;
+      let b = BUB[n]; if (!b) { b = new THREE.Sprite(bubMat); b.scale.set(.9, .68, 1); scene.add(b); BUB[n] = b; }
+      b.visible = true; b.position.set(q.x * S, 2.25 + Math.sin(G.t * 3 + q.id) * .04, q.y * S); n++;
+    }
+    for (let k = n; k < BUB.length; k++) BUB[k].visible = false;
+  }
   function updatePeds(G, camX, camZ, dt) {
     let list = G.peds.filter(q => Math.abs(q.x * S - camX) < 140 && Math.abs(q.y * S - camZ) < 140).slice(0, PEDMAX - 1);
     if (G.foot) list.push(Object.assign(G.foot, { player: true, state: G.foot.sit ? "sit" : Math.abs(G.foot.v) > 4 ? "walk" : "idle", look: 0, v: G.foot.v }));
@@ -1122,8 +1166,10 @@
     lastGame = performance.now(); frame++;
     animateWorld(dt);
     const p = G.player;
+    const fc = G.foot || p;
     const all = [p, ...G.cops, ...G.traffic];
-    for (const c of all) { if (Math.abs(c.x - p.x) > 2200 || Math.abs(c.y - p.y) > 2200) continue; placeCar(c, modelFor(c), G.t); }
+    for (const c of all) { if (c !== p && (Math.abs(c.x - fc.x) > 2200 || Math.abs(c.y - fc.y) > 2200)) continue; placeCar(c, modelFor(c), G.t); }
+    if (G.parked) for (const c of G.parked) { if (Math.abs(c.x - fc.x) > 1100 || Math.abs(c.y - fc.y) > 1100) continue; placeCar(c, modelFor(c), G.t); }
     for (const [c, m] of models) if (m.userData.seen !== frame) { scene.remove(m); models.delete(c); }
     // herses
     G.blocks.forEach(s => { let m = spikeModels.get(s); if (!m) { m = new THREE.Mesh(new THREE.BoxGeometry(.8, .15, 15), spikeMat); scene.add(m); spikeModels.set(s, m); } m.position.set(s.x * S, .12, s.y * S); m.rotation.y = -s.a; m.userData.seen = frame; });
@@ -1145,6 +1191,7 @@
     pGeo.setDrawRange(0, n); pGeo.attributes.position.needsUpdate = true; pGeo.attributes.color.needsUpdate = true;
     updateCamera(G, dt);
     updatePeds(G, camera.position.x, camera.position.z, dt);
+    updateBubbles(G);
     updateShops(G);
     updatePlaces(G);
     skyG.position.copy(camera.position); renderer.render(scene, camera);

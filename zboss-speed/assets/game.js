@@ -185,6 +185,9 @@
     { id: "dgi", type: "etat", nom: "DGI · Direction générale des impôts", icone: "🧾", w: 300, d: 220, h: 100, statut: "Impôts sur les salaires et les entreprises : ouvre après le lancement." },
     { id: "bcc", type: "etat", nom: "Banque centrale", icone: "🏦", w: 320, d: 230, h: 110, statut: "Émet l'e-makuta et surveille les banques : ouvre après le lancement." },
     { id: "hopital", type: "etat", nom: "Hôpital général", icone: "🏥", w: 360, d: 250, h: 100, statut: "Soins des personnages malades : ouvre après le lancement." },
+    { id: "park1", type: "parking", nom: "Parking du centre-ville", icone: "🅿️", w: 310, d: 180, open: true, near: "zboss", statut: "Parking public : les voitures des habitants y sont garées." },
+    { id: "park2", type: "parking", nom: "Parking du stade", icone: "🅿️", w: 310, d: 180, open: true, near: "foot", statut: "Parking public : les supporters s'y garent les jours de match." },
+    { id: "park3", type: "parking", nom: "Parking des institutions", icone: "🅿️", w: 310, d: 180, open: true, near: "mairie", statut: "Parking public réservé aux visiteurs des institutions." },
   ];
   // textes du guide (mode Tourisme)
   const GUIDE = {
@@ -201,7 +204,7 @@
     jeux: "L'aire de jeux, le lieu préféré des bébés et des enfants de 2 Life.",
     club1: "Le Mokili Club, une des boîtes de nuit les plus animées de Kin.",
   };
-  const PLACES = [], BILLBOARDS = [], BENCHES = [];
+  const PLACES = [], BILLBOARDS = [], BENCHES = [], PARKED = [];
   (function () {
     const M = (x, y) => (x < 0 || y < 0 || x >= W || y >= H) ? 3 : mask[(y / C | 0) * MW + (x / C | 0)];
     const segs = [];
@@ -209,8 +212,8 @@
     const st = MAP.start, taken = SHOPS.map(o => ({ x: o.x, y: o.y, R: 420 }));
     PLACE_SPECS.forEach((P, k) => {
       // répartis en spirale autour du point de départ, à distance de marche
-      const ang = st.a + k * 2.39996, dist = 700 + k * 190;
-      const T0 = { x: st.x + Math.cos(ang) * dist, y: st.y + Math.sin(ang) * dist };
+      const ang = st.a + k * 2.39996, dist = 700 + k * 190, nr = P.near && PLACES.find(o => o.id === P.near);
+      const T0 = nr ? { x: nr.x + Math.cos(ang) * 520, y: nr.y + Math.sin(ang) * 520 } : { x: st.x + Math.cos(ang) * dist, y: st.y + Math.sin(ang) * dist };
       const cand = segs.map(g => ({ g, d: Math.hypot((g.ax + g.bx) / 2 - T0.x, (g.ay + g.by) / 2 - T0.y) })).filter(o => o.d < 3500).sort((a, b) => a.d - b.d);
       for (const { g } of cand) {
         const L = Math.hypot(g.bx - g.ax, g.by - g.ay); if (L < P.w + 40) continue;
@@ -281,6 +284,28 @@
       const x = (g.ax + g.bx) / 2 + ux * 30 + nx * (g.r.w / 2 + 30), y = (g.ay + g.by) / 2 + uy * 30 + ny * (g.r.w / 2 + 30);
       if (!okBench(x, y) || BENCHES.some(b => Math.hypot(b.x - x, b.y - y) < 420)) continue;
       BENCHES.push({ x, y, a: Math.atan2(-ny, -nx) });   // face à la rue : on regarde passer les gens
+    }
+    // voitures garées : dans les parkings (en épi, deux rangées) et le long des trottoirs des grands boulevards
+    const pr = rng(9091);
+    PLACES.filter(o => o.type === "parking").forEach(o => {
+      for (const row of [-1, 1]) for (let u = -o.w / 2 + 24; u <= o.w / 2 - 24; u += 34) {
+        if (pr() > .72) continue;
+        const v = row * (o.d / 2 - 38), x = o.x + o.ux * u + o.nx * v, y = o.y + o.uy * u + o.ny * v;
+        PARKED.push({ x, y, a: Math.atan2(-o.ny * row, -o.nx * row) + (pr() - .5) * .06, t: (pr() * 99) | 0, taxi: pr() < .15, lot: o.id });
+      }
+    });
+    const curb = segs.filter(g => g.r.w >= 136).map(g => ({ g, d: Math.hypot((g.ax + g.bx) / 2 - st.x, (g.ay + g.by) / 2 - st.y) })).filter(o => o.d < 3600).sort((a, b) => a.d - b.d);
+    for (const { g } of curb) {
+      if (PARKED.length >= 150) break;
+      const L = Math.hypot(g.bx - g.ax, g.by - g.ay); if (L < 220) continue;
+      const ux = (g.bx - g.ax) / L, uy = (g.by - g.ay) / L;
+      for (const sd of [1, -1]) for (let t = 90; t < L - 90; t += 62) {
+        if (pr() > .38) continue;
+        const nx = -uy * sd, ny = ux * sd, off = g.r.w / 2 - 14, x = g.ax + ux * t + nx * off, y = g.ay + uy * t + ny * off;
+        if (M(x, y) !== 1 || nodesNear(x, y, 110).some(i => nodes[i].nb.length > 2)) continue;
+        if (PARKED.some(c => Math.hypot(c.x - x, c.y - y) < 55) || PLACES.some(o => Math.hypot(o.door.x - x, o.door.y - y) < 70)) continue;
+        PARKED.push({ x, y, a: Math.atan2(uy * sd, ux * sd), t: (pr() * 99) | 0, taxi: pr() < .2 });
+      }
     }
   })();
   // déplacement à pied : murs du showroom (porte côté rue), bâtiments et eau
@@ -449,10 +474,12 @@
       bounty: 0, banked: 0, dist: 0, nitro: 60, takedowns: 0, escapes: 0, nearCd: new Map(),
       cam: { x: player.x, y: player.y, z: 1, a: player.a }, over: false, paused: false, lastBlockT: 0, calmT: 0, shake: 0,
       best: +(lsGet("zboss_best") || 0),
-      peds: [], foot: null, prompt: "", act: null, energy: 100, auto: null, games: [],
+      peds: [], foot: null, prompt: "", act: null, energy: 100, auto: null, games: [], parked: [], chatT: 2,
     };
+    G.parked = PARKED.map(o => { const c = makeCar("parked", o.x, o.y, o.a, { maxSpeed: 0, accel: 0, steerMax: 0, dmgMul: 0, mass: 60, grip: 30 }); c.tIdx = o.t % TRAFFIC_SPRITES.length; c.sprite = TRAFFIC_SPRITES[c.tIdx]; c.taxi = o.taxi; c.x0 = o.x; c.y0 = o.y; c.a0 = o.a; c.parked = true; return c; });
     for (let k = 0; k < 44; k++) spawnTraffic(true);
-    if (!WALK) for (let k = 0; k < 2; k++) spawnCop(false);
+    for (let k = 0; k < (WALK ? 3 : 2); k++) spawnCop(false);
+    if (WALK) placeFootCops();
     for (let k = 0; k < PED_N; k++) spawnPed(true);
     SHOPS.forEach(o => [-1, 1].forEach(k => G.peds.push({ x: o.x + o.ux * k * 150 + o.nx * 95, y: o.y + o.uy * k * 150 + o.ny * 95, a: o.a + Math.PI / 2, v: 0, t: rand() * 9, state: "idle", staff: true, look: 7 + k })));
     if (WALK) setupGames();
@@ -468,7 +495,7 @@
   function msg(text, dur, kind) { G.msgs.push({ text, t: dur || 2.5, kind: kind || "" }); if (G.msgs.length > 3) G.msgs.shift(); }
 
   function spawnTraffic(anywhere) {
-    const p = G.player, cand = nodesNear(p.x, p.y, 2400);
+    const p = G.foot || G.player, cand = nodesNear(p.x, p.y, 2400);
     for (let tries = 0; tries < 20 && cand.length; tries++) {
       const from = cand[(rand() * cand.length) | 0], F = nodes[from]; if (!F.nb.length) continue;
       const d = Math.hypot(F.x - p.x, F.y - p.y);
@@ -484,7 +511,7 @@
     }
   }
   function spawnCop(chasing) {
-    const p = G.player, cand = nodesNear(p.x, p.y, 1500);
+    const p = WALK ? (G.foot || G.player) : G.player, cand = nodesNear(p.x, p.y, 1500);
     let best = null;
     for (let tries = 0; tries < 30 && cand.length; tries++) {
       const id = cand[(rand() * cand.length) | 0], q = nodes[id];
@@ -652,7 +679,61 @@
 
   // ---------------------------------------------------------------- Piétons et déplacement à pied
   const PED_N = 60;
-  let actPressed = false;
+  let actPressed = false, pedSeq = 0;
+  // ---- identité des habitants : nom, âge, métier, chez soi, caractère, goûts, forces et faiblesses
+  const COMMUNES = ["Gombe", "Lingwala", "Barumbu", "Kinshasa", "Kintambo", "Bandalungwa", "Kalamu", "Kasa-Vubu", "Limete", "Ngaliema", "Lemba", "Matete", "Masina", "Ngiri-Ngiri", "Selembao", "Kimbanseke"];
+  const METIERS = ["vendeuse au marché", "chauffeur de taxi", "étudiant à l'UNIKIN", "enseignant", "infirmière", "mécanicien", "couturière", "électricien", "commerçant", "maçon", "coiffeuse", "musicien", "agent de change", "cuisinière", "développeur", "comptable"];
+  const METIERS_BIZ = ["banquier", "avocate", "cadre dans une entreprise", "fonctionnaire", "directeur commercial", "notaire", "consultante"];
+  const CARACTERES = [
+    { t: "bavard", r: ["Ah mon ami, assieds-toi, je vais te raconter toute l'histoire du quartier !", "Tu as entendu la dernière nouvelle ? Tout le monde en parle à Matonge !"] },
+    { t: "timide", r: ["Euh… bonjour. Excuse-moi, je suis un peu pressé.", "Mbote… (il baisse les yeux et sourit)"] },
+    { t: "colérique", r: ["Quoi encore ? Ces embouteillages m'ont déjà énervé ce matin !", "Laisse-moi tranquille, je n'ai pas le temps."] },
+    { t: "généreux", r: ["Tu as faim ? Viens, je t'offre une brochette au coin de la rue.", "Si tu as besoin d'aide dans le quartier, demande-moi."] },
+    { t: "drôle", r: ["Tu sais pourquoi le taxi jaune klaxonne ? Parce qu'il ne sait pas chanter ! Ha ha !", "Mbote ! Toi aussi tu marches parce que le taxi est trop cher ? (il rit)"] },
+    { t: "ambitieux", r: ["Un jour, j'aurai ma propre entreprise sur le boulevard du 30 Juin.", "Je travaille dur : dans cinq ans je serai député !"] },
+    { t: "méfiant", r: ["On se connaît ? … Bon, bonjour quand même.", "Fais attention à ton téléphone par ici."] },
+    { t: "calme", r: ["Bonjour. Belle journée pour marcher, n'est-ce pas ?", "Doucement, doucement, on a le temps."] },
+    { t: "curieux", r: ["Tu viens d'où ? Tu es nouveau dans la Gombe ?", "Tu as déjà visité l'Assemblée nationale ? Moi j'aimerais bien."] },
+    { t: "fier", r: ["Moi, je suis un vrai Kinois, né ici !", "Regarde ma tenue : c'est la classe, non ?"] },
+  ];
+  const GOUTS = ["le football", "la rumba", "la mode (la sape)", "la cuisine (pondu, fumbwa)", "le basket", "la politique", "la religion", "les affaires", "le cinéma", "la lecture", "la danse", "les voitures"];
+  const FORCES = ["sait négocier", "très travailleur", "bon en calcul", "beau parleur", "très sportif", "bon cuisinier", "connaît tout le monde", "habile de ses mains", "patient", "bon conducteur"];
+  const FAIBLESSES = ["dépense trop", "toujours en retard", "s'énerve vite", "trop timide", "un peu paresseux", "fait trop confiance", "parle trop", "têtu", "mauvais en calcul", "oublie tout"];
+  const SUJETS = ["du match d'hier", "des prix au marché", "de la dernière chanson de rumba", "des embouteillages sur le boulevard", "du travail", "des élections à venir", "d'un mariage ce week-end", "de la famille", "d'un nouveau restaurant à Kintambo", "de la pluie qui arrive"];
+  function ident(q) {
+    if (q.idn) return q.idn;
+    if (!q.id) q.id = ++pedSeq;
+    const r = rng((q.id || 1) * 7919 + 13), pick = L => L[(r() * L.length) | 0];
+    const look = window.__pedLook ? window.__pedLook(q) : null, woman = look ? !!look.woman : r() < .48;
+    const N = woman ? NOMS_F : NOMS_H, nom = pick(N) + " " + pick(["Mbuyi", "Kabila", "Tshibanda", "Lukusa", "Nsimba", "Mukendi", "Ilunga", "Kanku", "Makiese", "Bokele", "Matondo", "Ngalula", "Mpiana", "Lokwa"]);
+    const age = q.kit ? 18 + ((r() * 14) | 0) : q.cop ? 24 + ((r() * 25) | 0) : 16 + ((r() * 56) | 0);
+    let home = null;
+    if (FILL.length) { for (let k = 0; k < 6 && !home; k++) { const f = FILL[(r() * FILL.length) | 0]; if (Math.hypot(f.x - q.x, f.y - q.y) < 4000) home = f; } if (!home) home = FILL[(r() * FILL.length) | 0]; }
+    const g1 = pick(GOUTS); let g2 = pick(GOUTS); if (g2 === g1) g2 = GOUTS[(GOUTS.indexOf(g1) + 3) % GOUTS.length];
+    const st = () => 2 + ((r() * 9) | 0);
+    q.idn = {
+      nom, woman, age, commune: pick(COMMUNES), home,
+      metier: q.cop ? (woman ? "policière (PNC)" : "policier (PNC)") : q.kit ? "joueur amateur du quartier" : q.staff ? "vendeur" : (look && look.biz) ? pick(METIERS_BIZ) : pick(METIERS),
+      car: CARACTERES[(r() * CARACTERES.length) | 0], gouts: [g1, g2], intel: st(), force: st(), charisme: st(),
+      forte: pick(FORCES), faible: pick(FAIBLESSES),
+    };
+    if (q.kit) q.idn.force = Math.max(q.idn.force, 7);
+    return q.idn;
+  }
+  // un habitant sur sept rentre chez lui : itinéraire par les rues jusqu'à sa maison
+  function planHome(q) {
+    const I = ident(q);
+    if (!I.home || Math.hypot(I.home.x - q.x, I.home.y - q.y) > 2500) { const near = FILL.filter(f => Math.abs(f.x - q.x) < 1800 && Math.abs(f.y - q.y) < 1800); if (!near.length) return; I.home = near[(rand() * near.length) | 0]; }
+    const h = I.home;
+    const path = findPath(q.to, nearestNode(h.x, h.y)); if (!path || path.length < 2) return;
+    q.route = path.slice(1); q.goHome = true;
+  }
+  // policiers à pied : devant le commissariat et les institutions
+  function placeFootCops() {
+    const spots = [];
+    PLACES.forEach(o => { const n = o.id === "police" ? 2 : ["mairie", "assemblee", "bcc", "justice", "zboss"].includes(o.id) ? 1 : 0; for (let k = 0; k < n; k++) { const u = (k ? 1 : -1) * (n > 1 ? 60 : 50), v = -o.d / 2 - 14; spots.push({ x: o.x + o.ux * u + o.nx * v, y: o.y + o.uy * u + o.ny * v, a: Math.atan2(-o.ny, -o.nx) }); } });
+    spots.forEach(sp => { if (!walkBlocked(sp.x, sp.y)) G.peds.push({ x: sp.x, y: sp.y, a: sp.a, v: 0, t: rand() * 9, state: "idle", staff: true, cop: true, look: 3, id: ++pedSeq }); });
+  }
   function spawnPed(anywhere) {
     const f = G.foot || G.player, ids = nodesNear(f.x, f.y, 1500).filter(i => nodes[i].nb.length);
     for (let tries = 0; tries < 8 && ids.length; tries++) {
@@ -663,7 +744,10 @@
       const d = Math.hypot(x - f.x, y - f.y);
       if (!anywhere && d < 900) continue;
       if (walkBlocked(x, y) || groundAt(x, y) === 1) continue;
-      G.peds.push({ x, y, a: Math.atan2(dy, dx), from: n, to: m, side, off, v: 11 + rand() * 7, t: rand() * 9, state: "walk", st: 0, look: (rand() * 7) | 0 });
+      const q = { x, y, a: Math.atan2(dy, dx), from: n, to: m, side, off, v: 11 + rand() * 7, t: rand() * 9, state: "walk", st: 0, look: (rand() * 7) | 0, id: ++pedSeq };
+      if (WALK && rand() < .07) { q.cop = true; q.v = 10; }
+      else if (WALK && rand() < .14) planHome(q);
+      G.peds.push(q);
       return;
     }
   }
@@ -674,6 +758,25 @@
   function pedStep(q, dt, cars) {
     if (q.play) return;
     q.t += dt;
+    if (q.talk) { // le joueur lui parle : il s'arrête et le regarde
+      q.talk -= dt; q.state = "idle"; const f = G.foot; if (f) { const da = angDiff(q.a, Math.atan2(f.y - q.y, f.x - q.x)); q.a += Math.max(-4 * dt, Math.min(4 * dt, da)); }
+      if (q.talk <= 0) { q.talk = 0; q.state = q.staff ? "idle" : "walk"; } return;
+    }
+    if (q.chat) { // conversation entre passants
+      const c = q.chat, o = c.with; c.t -= dt; q.state = "idle";
+      const da = angDiff(q.a, Math.atan2(o.y - q.y, o.x - q.x)); q.a += Math.max(-4 * dt, Math.min(4 * dt, da));
+      q.speak = Math.floor((G.t + c.ph) / 2.2) % 2 === 0;
+      if (c.t <= 0 || !G.peds.includes(o)) { q.chat = null; q.speak = false; q.chatCd = G.t + 25 + rand() * 20; q.state = q.staff ? "idle" : "walk"; }
+      return;
+    }
+    if (q.enter) { // arrivé devant chez lui : il entre et disparaît
+      const h = q.enter; q.state = "walk"; const tx = h.x, ty = h.y;
+      const da = angDiff(q.a, Math.atan2(ty - q.y, tx - q.x)); q.a += Math.max(-4 * dt, Math.min(4 * dt, da));
+      const nx = q.x + Math.cos(q.a) * q.v * dt, ny = q.y + Math.sin(q.a) * q.v * dt; q.enterT = (q.enterT || 0) + dt;
+      if (!walkBlocked(nx, ny)) { q.x = nx; q.y = ny; } else q.home = true;
+      if (q.home || q.enterT > 14) { q.gone = true; const f = G.foot; if (f && Math.hypot(f.x - q.x, f.y - q.y) < 260) msg("🏠 " + ident(q).nom + " rentre chez lui" + (ident(q).woman ? "… chez elle." : "."), 2.5); }
+      return;
+    }
     if (q.greet) { // un passant vient saluer le personnage assis
       const g = q.greet, f = G.foot;
       if (!f || !f.sit) { q.greet = null; q.state = "walk"; }
@@ -708,7 +811,10 @@
     if (q.state === "cower") { q.st -= dt; if (q.st <= 0) q.state = "walk"; return; }
     // marche sur le trottoir, de carrefour en carrefour
     let t = pedTarget(q);
-    if (Math.hypot(t.x - q.x, t.y - q.y) < 14) { const nx = nodes[q.to].nb.filter(m => m !== q.from); const m = nx.length ? nx[(rand() * nx.length) | 0] : q.from; q.from = q.to; q.to = m; t = pedTarget(q); }
+    if (Math.hypot(t.x - q.x, t.y - q.y) < 14) {
+      if (q.route && !q.route.length) { q.route = null; q.enter = ident(q).home; return; }
+      const nx = nodes[q.to].nb.filter(m => m !== q.from); const m = q.route ? q.route.shift() : nx.length ? nx[(rand() * nx.length) | 0] : q.from; q.from = q.to; q.to = m; t = pedTarget(q);
+    }
     const da = angDiff(q.a, Math.atan2(t.y - q.y, t.x - q.x)); q.a += Math.max(-4 * dt, Math.min(4 * dt, da));
     const nx = q.x + Math.cos(q.a) * q.v * dt, ny = q.y + Math.sin(q.a) * q.v * dt;
     if (!walkBlocked(nx, ny)) { q.x = nx; q.y = ny; }
@@ -727,7 +833,7 @@
     if (!walkBlocked(f.x, ny)) f.y = ny;
     f.t += dt * Math.abs(f.v) / 30;
     // les voitures poussent le piéton (pas de blessure)
-    for (const c of [G.player, ...G.traffic, ...G.cops]) { const dx = f.x - c.x, dy = f.y - c.y, d = Math.hypot(dx, dy); if (d < 20 && d > .1) { f.x = c.x + dx / d * 20; f.y = c.y + dy / d * 20; } }
+    for (const c of [G.player, ...G.traffic, ...G.cops, ...G.parked]) { if (Math.abs(f.x - c.x) > 40 || Math.abs(f.y - c.y) > 40) continue; const dx = f.x - c.x, dy = f.y - c.y, d = Math.hypot(dx, dy); if (d < 20 && d > .1) { f.x = c.x + dx / d * 20; f.y = c.y + dy / d * 20; } }
   }
   function nearSlot(x, y) {
     for (const o of SHOPS) for (const sl of o.slots || []) if (Math.hypot(x - sl.x, y - sl.y) < 48) return { o, sl, car: CARS[o.slots.indexOf(sl) % CARS.length] };
@@ -737,6 +843,57 @@
     let best = null, bd = 1e9;
     for (const o of PLACES) { if (!PLACES.inPlace(o, x, y, 70)) continue; const d = Math.hypot(o.x - x, o.y - y); if (d < bd) { bd = d; best = o; } }
     return best;
+  }
+  // ---- les habitants se parlent : deux ou trois passants s'arrêtent pour discuter
+  function chatUpdate(dt) {
+    G.chatT -= dt; if (G.chatT > 0) return; G.chatT = 1.2 + rand();
+    const f = G.foot || G.player, free = q => !q.play && !q.chat && !q.talk && !q.greet && !q.enter && !q.cop && q.state === "walk" && !(q.chatCd > G.t);
+    const cand = G.peds.filter(q => free(q) && Math.abs(q.x - f.x) < 800 && Math.abs(q.y - f.y) < 800);
+    if (G.peds.filter(q => q.chat).length >= 14) return;
+    for (const a of cand) {
+      const b = cand.find(o => o !== a && free(o) && Math.hypot(o.x - a.x, o.y - a.y) < 90);
+      if (!b) continue;
+      const t = 7 + rand() * 9, ph = rand() * 4;
+      a.chat = { with: b, t, ph }; b.chat = { with: a, t, ph: ph + 2.2 };
+      const c = cand.find(o => o !== a && o !== b && free(o) && Math.hypot(o.x - a.x, o.y - a.y) < 110 && rand() < .5);
+      if (c) c.chat = { with: a, t: t - 1, ph: ph + 1.1 };
+      if (Math.hypot(a.x - f.x, a.y - f.y) < 260 && G.foot && !(G.chatMsgT > G.t)) {
+        G.chatMsgT = G.t + 14; const A = ident(a), B = ident(b), com = A.gouts.find(x => B.gouts.includes(x));
+        msg("💬 " + A.nom.split(" ")[0] + " et " + B.nom.split(" ")[0] + (c ? " (avec " + ident(c).nom.split(" ")[0] + ")" : "") + " parlent " + (com ? "de " + com : SUJETS[(rand() * SUJETS.length) | 0]) + ".", 3.5);
+      }
+      return;
+    }
+  }
+  function nearPed() {
+    const f = G.foot; if (!f) return null;
+    let best = null, bd = 42;
+    for (const q of G.peds) { if (q.play || q.enter) continue; const d = Math.hypot(q.x - f.x, q.y - f.y); if (d < bd) { bd = d; best = q; } }
+    return best;
+  }
+  function talkTo(q) {
+    if (!q || $("pedpanel")) return;
+    const I = ident(q), f = G.foot; q.talk = 9; if (q.chat) { const o = q.chat.with; if (o && o.chat) { o.chat = null; o.state = "walk"; } q.chat = null; }
+    const R = relations.get(), known = R.find(r => r.pid === q.id);
+    if (!q.cop) meet(q);
+    const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+    const bar = (n, lab) => `<div class="pp-bar"><span>${lab}</span><i><b style="width:${n * 10}%"></b></i><em>${n}/10</em></div>`;
+    const dist = I.home ? Math.round(Math.hypot(I.home.x - q.x, I.home.y - q.y) / 10 / 100) / 10 : null;
+    const reply = q.cop ? ["Bonjour citoyen. Tout est calme dans le secteur, circulez.", "Respectez le code de la route et tout ira bien.", "Si vous voyez quelque chose de suspect, venez au commissariat."][(rand() * 3) | 0] : I.car.r[(rand() * I.car.r.length) | 0];
+    const wasPaused = G.paused; G.paused = true;
+    const d = document.createElement("div"); d.id = "pedpanel"; d.className = "bureau";
+    d.innerHTML = `<div class="bureau-box" role="dialog" aria-modal="true" aria-labelledby="pp-t"><button type="button" class="bureau-x" aria-label="Fermer">✕</button>
+      <p class="bureau-k">${q.cop ? "🚓 Police nationale" : known ? "🤝 " + relLevel(known.fois + 1) : "👋 Nouvelle rencontre"}</p><h2 id="pp-t">${esc(I.nom)}, ${I.age} ans</h2>
+      <p class="pp-say">« ${esc(reply)} »</p>
+      <div class="pp-grid"><p><b>Métier</b><br>${esc(I.metier)}</p><p><b>Chez soi</b><br>${esc(I.commune)}${dist !== null ? ` · à ${dist.toString().replace(".", ",")} km d'ici` : ""}</p>
+      <p><b>Caractère</b><br>${esc(I.car.t)}</p><p><b>Aime</b><br>${esc(I.gouts.join(" et "))}</p>
+      <p><b>Point fort</b><br>${esc(I.forte)}</p><p><b>Point faible</b><br>${esc(I.faible)}</p></div>
+      ${bar(I.intel, "Intelligence")}${bar(I.force, "Force")}${bar(I.charisme, "Charisme")}
+      <p style="font-size:12px;opacity:.7;margin-top:12px">Habitant non joueur. Les personnages des vrais joueurs auront aussi leur fiche, avec leurs talents découverts.</p></div>`;
+    document.body.appendChild(d);
+    const close = () => { d.remove(); if (G) G.paused = wasPaused; };
+    d.querySelector(".bureau-x").onclick = close; d.addEventListener("click", e => { if (e.target === d) close(); });
+    d.addEventListener("keydown", e => { e.stopPropagation(); if (e.key === "Escape") close(); });
+    d.querySelector(".bureau-x").focus();
   }
   function updatePrompt() {
     const p = G.player, sp = Math.hypot(p.vx, p.vy);
@@ -754,6 +911,7 @@
       else if (WALK && G.foot.sit) { txt = "🪑 Assis : il observe et rencontre des gens"; act = "stand"; }
       else if (WALK && Math.hypot(G.foot.x - p.x, G.foot.y - p.y) < 50) { txt = "Prendre le taxi"; act = "enter"; }
       else if (bench) { txt = "🪑 S'asseoir sur le banc"; act = "sit"; }
+      else if (WALK && (G.talkQ = nearPed())) { const I = ident(G.talkQ); txt = (G.talkQ.cop ? "🚓 Parler à l'agent " : "💬 Parler à ") + I.nom.split(" ")[0] + " (" + I.car.t + ")"; act = "talk"; }
       else if (WALK && (np = nearPlace(G.foot.x, G.foot.y)) && np.bureau) { txt = np.icone + " " + np.nom + " · entrer au guichet d'aide"; act = "bureau"; }
       else if (WALK && np) txt = np.icone + " " + np.nom + " · " + np.statut;
       else if (WALK) txt = "Promenade à pied dans la Gombe. Le taxi jaune est sur la carte.";
@@ -832,6 +990,8 @@
       autoToggle(false);
     } else if (G.act === "bureau") {
       openBureau();
+    } else if (G.act === "talk") {
+      talkTo(G.talkQ);
     } else if (G.act === "enter") {
       G.foot = null; msg("C'est reparti", 1.2, "ok");
     } else if (G.act === "pick") {
@@ -1099,15 +1259,14 @@
     }
   }
   function meet(q) {
-    const R = relations.get(), place = nearPlace(G.foot.x, G.foot.y), lieu = place ? place.nom : "un banc de la Gombe";
+    const R = relations.get(), place = nearPlace(G.foot.x, G.foot.y), lieu = place ? place.nom : G.foot.sit ? "un banc de la Gombe" : "une rue de la Gombe";
     const wq = window.__pedLook ? !!window.__pedLook(q).woman : null;
     const same = R.filter(x => wq === null || x.f === undefined || x.f === wq);
-    let r = same.length && rand() < .3 ? same[(rand() * same.length) | 0] : null;
+    let r = q.id ? R.find(x => x.pid === q.id) : same.length && rand() < .3 ? same[(rand() * same.length) | 0] : null;
     if (r) { r.fois++; r.le = Date.now(); r.lieu = lieu; msg(`🤝 Tu revois ${r.nom}. Vous êtes maintenant : ${relLevel(r.fois)}.`, 4, "ok"); }
     else {
-      const woman = window.__pedLook ? !!window.__pedLook(q).woman : rand() < .5, L = woman ? NOMS_F : NOMS_H;
-      const nom = L[(rand() * L.length) | 0] + " " + ["M.", "K.", "L.", "B.", "N.", "T."][(rand() * 6) | 0];
-      r = { id: Date.now().toString(36) + ((rand() * 1e4) | 0), nom, f: woman, fois: 1, lieu, le: Date.now() }; R.unshift(r);
+      const I = ident(q), woman = I.woman, nom = I.nom;
+      r = { id: Date.now().toString(36) + ((rand() * 1e4) | 0), pid: q.id, nom, f: woman, fois: 1, lieu, le: Date.now(), car: I.car.t, metier: I.metier }; R.unshift(r);
       msg(`👋 « Mbote ! Je m'appelle ${nom.split(" ")[0]}. » Nouvelle relation : ${nom}.`, 4.5, "ok");
     }
     relations.set(R); q.relName = r.nom;
@@ -1120,7 +1279,7 @@
     d.innerHTML = `<div class="bureau-box" role="dialog" aria-modal="true" aria-labelledby="rel-t"><button type="button" class="bureau-x" aria-label="Fermer">✕</button>
       <p class="bureau-k">👥 Mes relations</p><h2 id="rel-t">${R.length} personne${R.length > 1 ? "s" : ""} rencontrée${R.length > 1 ? "s" : ""}</h2>
       <p>Assieds-toi sur un banc public : les passants viennent se présenter. Plus tu revois quelqu'un, plus votre lien grandit.</p>
-      ${R.length ? R.map(r => `<details><summary>${esc(r.nom)} · ${relLevel(r.fois)}</summary><p>Rencontré${r.fois > 1 ? " " + r.fois + " fois" : ""}, dernière fois à ${esc(r.lieu)}, le ${new Date(r.le).toLocaleDateString("fr-FR")}.</p></details>`).join("") : "<p><b>Personne pour l'instant.</b></p>"}
+      ${R.length ? R.map(r => `<details><summary>${esc(r.nom)} · ${relLevel(r.fois)}</summary><p>${r.metier ? esc(r.metier) + ", " + esc(r.car || "") + ". " : ""}Rencontré${r.fois > 1 ? " " + r.fois + " fois" : ""}, dernière fois à ${esc(r.lieu)}, le ${new Date(r.le).toLocaleDateString("fr-FR")}.</p></details>`).join("") : "<p><b>Personne pour l'instant.</b></p>"}
       <p style="font-size:12px;opacity:.7">Aperçu : ces relations sont gardées dans ce navigateur. Elles seront liées à ton compte dans la version en ligne.</p></div>`;
     d.querySelector(".bureau-box").classList.add("bureau-faq");
     document.body.appendChild(d);
@@ -1234,6 +1393,7 @@
       if (G.energy > 30) G.tiredMsg = false;
       if (G.foot && G.foot.sit) sitUpdate(dt);
       G.games.forEach(g => gameStep(g, dt));
+      chatUpdate(dt);
     }
 
     G.seen = false;
@@ -1241,7 +1401,9 @@
     G.traffic.forEach(trafficAI);
     stepCar(p, dt); G.cops.forEach(c => stepCar(c, dt)); G.traffic.forEach(c => stepCar(c, dt));
     const near = [p, ...G.cops.filter(c => Math.abs(c.x - p.x) < 1400 && Math.abs(c.y - p.y) < 1400), ...G.traffic.filter(c => Math.abs(c.x - p.x) < 1400 && Math.abs(c.y - p.y) < 1400)];
-    collideCars(near);
+    const fcar = G.foot || p, pk = G.parked.filter(c => Math.abs(c.x - fcar.x) < 1400 && Math.abs(c.y - fcar.y) < 1400 || Math.abs(c.x - p.x) < 200 && Math.abs(c.y - p.y) < 200);
+    collideCars(near.concat(pk));
+    pk.forEach(c => { c.x = c.x0; c.y = c.y0; c.a = c.a0; c.vx = c.vy = 0; c.stun = 0; c.health = 100; });
 
     // herses
     G.blocks.forEach(s => { s.life -= dt; const dx = p.x - s.x, dy = p.y - s.y, ca = Math.cos(s.a), sa = Math.sin(s.a); if (Math.abs(dx * ca + dy * sa) < 14 && Math.abs(-dx * sa + dy * ca) < 75 && !(p.flat > 0)) { p.flat = 4; p.health -= 8; msg("Herse ! Pneus crevés pendant 4 s", 2.5, "alert"); } });
@@ -1263,15 +1425,16 @@
       }
       if (!c.alive) c.wreckT -= dt;
     });
+    const fcp = G.foot || p;
     G.cops = G.cops.filter(c => (c.kind !== "block" || c.life > 0) && (c.alive || c.wreckT > 0) &&
-      !(c.mode === "leave" && Math.hypot(c.x - p.x, c.y - p.y) > 1500));
+      !(c.mode === "leave" && Math.hypot(c.x - p.x, c.y - p.y) > 1500) && !(WALK && c.mode === "patrol" && Math.hypot(c.x - fcp.x, c.y - fcp.y) > 2800));
 
     // traffic renouvelé
-    G.traffic = G.traffic.filter(c => !c.dead && Math.hypot(c.x - p.x, c.y - p.y) < 2600);
+    G.traffic = G.traffic.filter(c => !c.dead && Math.hypot(c.x - fcar.x, c.y - fcar.y) < 2600);
     while (G.traffic.length < 44) spawnTraffic(false);
     // piétons
     const fc = G.foot || p;
-    G.peds = G.peds.filter(q => q.staff || Math.hypot(q.x - fc.x, q.y - fc.y) < 1900);
+    G.peds = G.peds.filter(q => !q.gone && (q.staff || Math.hypot(q.x - fc.x, q.y - fc.y) < 1900));
     for (let k = G.peds.filter(q => !q.staff).length; k < PED_N; k++) spawnPed(false);
     G.peds.forEach(q => pedStep(q, dt, near));
     updatePrompt();
@@ -1310,7 +1473,7 @@
     } else {
       G.calmT += dt;
       const patrols = G.cops.filter(c => c.kind === "cop" && c.mode === "patrol").length;
-      if (!WALK && patrols < 2 && G.calmT > 6 && rand() < dt * .5) spawnCop(false);
+      if (WALK ? patrols < 3 && rand() < dt * .3 : patrols < 2 && G.calmT > 6 && rand() < dt * .5) spawnCop(false);
     }
     if (WALK) p.health = 100;   // visite : pas d'accident fatal
     if (p.health <= 0) { p.health = 0; endGame("wrecked"); }
@@ -1409,7 +1572,7 @@
       ctx.restore();
       if (!c.alive && rand() < .4) G.parts.push({ x: c.x, y: c.y, vx: 0, vy: -20, life: 1, max: 1, kind: "fire", r: 6 });
     };
-    G.traffic.forEach(drawCar); G.cops.forEach(drawCar); drawCar(p);
+    G.parked.forEach(c => { if (Math.abs(c.x - G.cam.x) < 1400 && Math.abs(c.y - G.cam.y) < 1400) drawCar(c); }); G.traffic.forEach(drawCar); G.cops.forEach(drawCar); drawCar(p);
 
     // particules
     for (const q of G.parts) {
