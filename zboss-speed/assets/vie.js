@@ -4,7 +4,7 @@ import {
   ageYears, stageOf, STAGES, realMsUntil, TALENTS, ACTIVITIES, rng, drawTalents, doActivity, needsAt, newIdentity, BIRTH_GIFT,
   SHOP, cannotBuy, OFFERS, USD_TO_MAKUTA, USD_UNITS, fmtMakuta, WITHDRAW_FEE, walletInfo, birthShiftMs, shopView, familyOf, JOBS, payFor, cannotWork, workView, SHIFT_ENERGY, cannotApply, FORMATIONS, cannotEnroll, attendCourse, schoolView, STUDY_ENERGY, SUPPORT_PER_DAY, HOST_MIN_AGE, canSignupBeforeLaunch, COMPANY_TYPES, cannotOpenCompany, companyName, companyView, companyAccrue, companyJob, EMPLOYEE_YIELD, RESELL_RATE, TAXI_FARE, TAXI_ENERGY, KINSHASA_QUARTIERS, OTHER_CITIES, TAX, POSTS, PUBLIC_JOBS, BANKS, bankAccrue, INSURERS, CARE, careCost, OPERATORS, RECHARGES, CALL, stateView, supportDue, unpaidEffect, familyShare, FIRST_NAMES,
   describeAction, ORDER_DONE, ORDERS, ORDERS_PER_DAY, ORDERS_CHECK_MS, dayKey, ordersToRun, cannotGiveOrder,
-  VOTER_MIN_AGE, NEGLECT_DANGER_DAYS, NEGLECT_DANGER_HEALTH, splitEstate, deathCause, familyShareRate, REP, REP_BAD, REP_GOOD, repLabel, repDiscount, DOT_MAKUTA, MARRY_MIN_AGE, STREET_JOBS, cannotStreetJob, RENT, rentOf, houseOf, rentDue, HOUSING_MIN_AGE, SALE_TAX, CRIMES, catchChance, sentence, inPrison, PRISON_BLOCKED, BAIL, PRISON_HOURS, RECIDIVE, policeView,
+  VOTER_MIN_AGE, NEGLECT_DANGER_DAYS, NEGLECT_DANGER_HEALTH, splitEstate, deathCause, familyShareRate, REP, REP_BAD, REP_GOOD, repLabel, repDiscount, DOT_MAKUTA, MARRY_MIN_AGE, STREET_JOBS, cannotStreetJob, RENT, rentOf, houseOf, rentDue, HOUSING_MIN_AGE, SALE_TAX, LIFE_EVENTS, EVENT_EVERY_H, drawEvent, eventMoney, lifeAlbum, CRIMES, catchChance, sentence, inPrison, PRISON_BLOCKED, BAIL, PRISON_HOURS, RECIDIVE, policeView,
 } from "../server/src/life.js";
 import { launchDemo } from "./lancement-demo.js";
 
@@ -136,7 +136,11 @@ const demo = {
     const c = d.perso, now = Date.now(), total = c.makuta + (d.comptes || []).reduce((a, x) => a + bankAccrue(x, now), 0);
     const heirs = (d.enfants || []).length, sp = splitEstate(total, heirs);
     for (const k of d.enfants || []) k.makuta += sp.each;
-    d.mort = { prenom: c.firstName, nom: c.lastName, sexe: c.sex, neLe: c.neLe, mortLe: now, cause, age: Math.floor(ageYears(c.neLe, now)),
+    const job = d.boss ? companyJob(d.boss) : JOBS.find(j => j.id === d.job);
+    const album = lifeAlbum({ prenom: c.firstName, nom: c.lastName, sexe: c.sex, quartier: c.quartier, age: Math.floor(ageYears(c.neLe, now)), cause, metier: job && job.nom,
+      diplomes: (d.dip || []).length, talents: c.talents.filter(t => t.discovered).map(t => TALENTS.find(x => x.id === t.talent).label), conjoint: d.conjoint && d.conjoint.prenom,
+      enfants: (d.enfants || []).length + (d.deuils || []).length, entreprises: (d.ent || []).length, crimes: (d.casier || []).length, reputation: d.rep || 0, fortune: total });
+    d.mort = { prenom: c.firstName, nom: c.lastName, sexe: c.sex, neLe: c.neLe, mortLe: now, cause, age: Math.floor(ageYears(c.neLe, now)), album,
       partage: { report: sp.report, ville: sp.ville, heritiers: heirs ? sp.heritiers : 0, famille: heirs ? 0 : sp.heritiers } };
     d.report = (d.report || 0) + sp.report; c.makuta = 0; d.comptes = [];
     this.move(d, "✝️", `${c.firstName} ${c.lastName} est ${c.sex === "F" ? "morte" : "mort"} (${cause}).`);
@@ -157,6 +161,12 @@ const demo = {
       this.support(d);
       const cause = deathCause(needsAt(d.perso), 0); if (cause) this.die(d, cause);
       this.rent(d);
+      if (!d.lastEvent || Date.now() - d.lastEvent >= EVENT_EVERY_H * 36e5) {   // le destin (démo : même règle)
+        d.lastEvent = Date.now(); this.settle(d.perso); const e = drawEvent(), c0 = d.perso;
+        if (e) { let m = eventMoney(e); if (m < 0) m = -Math.min(-m, c0.makuta);
+          c0.health = Math.max(1, Math.min(100, c0.health + (e.sante || 0))); c0.energy = Math.max(0, Math.min(100, c0.energy + (e.energie || 0))); c0.happiness = Math.max(0, Math.min(100, c0.happiness + (e.bonheur || 0))); c0.makuta += m;
+          this.move(d, e.icone, `${c0.firstName} ${e.texte}${m ? ` (${m > 0 ? "+" : "−"}${fmtMakuta(Math.abs(m))})` : ""}.`); }
+      }
       // démo : un joueur simulé achète parfois tes annonces à un prix raisonnable
       for (const a of (d.market || []).filter(x => x.moi)) {
         const it = SHOP.find(x => x.id === a.objet);
@@ -429,7 +439,7 @@ const demo = {
       store.set(LS_DEMO, d); return { arrive: q, ...this.view(d) };
     }
     if (path === "/api/postuler") {
-      const job = JOBS.find(j => j.id === body.metier), no = cannotApply(job, ageYears(c.neLe), d.dip || []);
+      const job = JOBS.find(j => j.id === body.metier), no = cannotApply(job, ageYears(c.neLe), d.dip || [], c.talents.filter(t => t.discovered).map(t => t.talent));
       if (no) throw new Error(no);
       d.job = job.id; d.boss = null; store.set(LS_DEMO, d); return this.view(d);
     }
@@ -665,13 +675,23 @@ function renderDeath(v) {
     <h1>${esc(m.prenom)} ${esc(m.nom)} est ${m.sexe === "F" ? "morte" : "mort"}</h1>
     <p>À ${m.age} an${m.age > 1 ? "s" : ""}, le ${new Date(m.mortLe).toLocaleDateString("fr-FR")} · cause : <b>${esc(m.cause || "inconnue")}</b>. La mort est définitive : ce personnage ne reviendra pas.</p>
     ${P ? `<div class="row"><span>Gardé pour ta prochaine vie (20 %)</span><span>${mk(P.report)}</span></div>
-    <div class="row"><span>Frais de succession pour la ville (10 %)</span><span>${mk(P.ville)}</span></div>
-    <div class="row"><span>Héritiers : enfants et parents (70 %)</span><span>${mk(P.heritiers + P.famille)}</span></div>` : ""}
+    ${P.heritiers + P.famille > 0 ? `<div class="row"><span>Frais de succession pour la ville (10 %)</span><span>${mk(P.ville)}</span></div>
+    <div class="row"><span>Héritiers : enfants et parents (70 %)</span><span>${mk(P.heritiers + P.famille)}</span></div>`
+    : `<div class="row"><span>Pour la ville (10 % + 70 %, aucun héritier vivant)</span><span>${mk(P.ville)}</span></div>`}` : ""}
     <div class="row"><span>Tu repars avec</span><span><b>${mk(v.report)}</b></span></div>
+    ${m.album ? `<h2 style="font-size:17px;margin:16px 0 6px">📖 Album de vie</h2><div id="album" style="font-size:14px;line-height:1.6">${m.album.map(l => `<p style="margin:0 0 4px">${esc(l)}</p>`).join("")}</div>
+      <button class="btn ghost" id="b-share" type="button" style="margin-top:10px;background:none;border:1px solid var(--line);color:var(--muted)">Partager l'album</button>` : ""}
     <button class="btn" id="b-reborn" type="button">Renaître bébé · ${o.usd} $${v.demo ? " (simulé)" : ""}</button>
     <p style="font-size:13px;margin:10px 0 0">${esc(o.desc)} Les ${mk(v.report)} gardés de cette vie te sont rendus à la naissance.</p>`;
 }
-$("dead").onclick = e => { if (e.target.id === "b-reborn") act("/api/renaitre", {}, v => `Bienvenue dans ta nouvelle vie, ${v.perso.prenom} !`); };
+$("dead").onclick = e => {
+  if (e.target.id === "b-share") {
+    const m = state.mort, txt = `2 Life · la vie de ${m.prenom} ${m.nom}\n` + (m.album || []).join("\n");
+    if (navigator.share) navigator.share({ title: "Album de vie · 2 Life", text: txt }).catch(() => { });
+    else navigator.clipboard.writeText(txt).then(() => toast("Album copié : colle-le où tu veux."), () => toast("Copie impossible."));
+    return;
+  }
+  if (e.target.id === "b-reborn") act("/api/renaitre", {}, v => `Bienvenue dans ta nouvelle vie, ${v.perso.prenom} !`); };
 
 // ---------------------------------------------------------------- magasin, affaires, portefeuille
 const TYPES = [["nourriture", "Nourriture", "🍲"], ["vetement", "Vêtements", "👕"], ["telephone", "Téléphones", "📱"]];
@@ -721,8 +741,8 @@ function renderWork(v) {
     <p style="font-size:13px;margin:8px 0 0">${wait ? `Prochaine journée dans ${fmtWait(w.prochainTravail - Date.now())}.` : `Une journée fatigue (−${w.fatigueTravail} énergie).`}${disc.has(cur.talent) ? " Ton talent te donne +30 % de salaire." : ""}</p>`
     : `<p style="font-size:14px;margin:0 0 6px">Choisis un métier. Un métier lié à un talent découvert paie 30 % de plus.</p>`;
   const list = w.metiers.map(j => {
-    const lock = j.formation && !v.ecole.diplomes.includes(j.formation) ? `diplôme : ${j.diplome}` : p.age < j.minAge ? `dès ${j.minAge} ans` : "";
-    return `<div class="item"><span class="sw">${j.formation ? "🎓" : "🧰"}</span><div class="t">${j.nom}<small>${mk(j.salaire)} par journée${disc.has(j.talent) ? " · +30 % (ton talent)" : ""}${lock ? " · " + lock : ""}</small></div>
+    const lock = j.talentRequis && !disc.has(j.talent) ? "talent à découvrir" : j.formation && !v.ecole.diplomes.includes(j.formation) ? `diplôme : ${j.diplome}` : p.age < j.minAge ? `dès ${j.minAge} ans` : "";
+    return `<div class="item"><span class="sw">${j.talentRequis ? "⭐" : j.formation ? "🎓" : "🧰"}</span><div class="t">${j.nom}<small>${mk(j.salaire)} par journée${disc.has(j.talent) ? " · +30 % (ton talent)" : ""}${lock ? " · " + lock : ""}</small></div>
       ${j.id === w.metier && !w.emploiEntreprise ? `<span class="mini" style="border-color:var(--ok);color:var(--ok)">Ton métier</span>` : `<button class="mini fill" data-job="${j.id}" type="button" ${lock ? "disabled" : ""}>Postuler</button>`}</div>`;
   }).join("");
   const co = p.age >= 18 && v.entreprises.offres.length ? `<h2 style="font-size:16px;margin:16px 0 4px">Les entreprises des joueurs embauchent</h2>` + v.entreprises.offres.map(e => `<div class="item"><span class="sw">${e.icone || "🏢"}</span><div class="t">${esc(e.emploi.nom)}<small>${mk(e.emploi.salaire)} par journée · ${esc(e.quartier || "")}${disc.has(e.emploi.talent) ? " · +30 % (ton talent)" : ""}</small></div>

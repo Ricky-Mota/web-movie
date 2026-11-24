@@ -1645,7 +1645,25 @@
     note("🚪 Il sort du commissariat. " + (me.honnete >= 50 ? "Il jure qu'on ne l'y reprendra plus." : "Il en veut à la police…"), "ok");
     G.life = newLife(); G.life.wake = G.hour; atHome("🏠 De retour à la maison");
   }
-  function newLife() { G.plan = loadPlan(); return { orders: [], refused: [], done: [], later: null, cur: null, until: 0, wake: 5 + 1 + rand() * 1.5 }; }
+  function newLife() { G.plan = loadPlan(); return { orders: [], refused: [], done: [], later: null, cur: null, until: 0, wake: 5 + 1 + rand() * 1.5, evt: rand() < .6 ? 9 + rand() * 9 : 99 }; }
+  // événements de la vie à Kinshasa : un au plus par jour, à une heure au hasard
+  const CITY_EVENTS = [
+    { ic: "🦟", p: 3, t: "Il a de la fièvre : paludisme. Il achète des médicaments à la pharmacie.", m: -15, e: -30 },
+    { ic: "🌧️", p: 2, t: "Grosse pluie : la route est inondée, il rentre trempé et épuisé.", e: -20 },
+    { ic: "💡", p: 3, t: "Coupure de courant chez lui : la nourriture du frigo est perdue.", m: -5 },
+    { ic: "🛺", p: 1, t: "Petit accident de taxi-moto. Il s'en sort avec des bleus.", m: -10, e: -25 },
+    { ic: "🎁", p: 2, t: "Un oncle de passage lui donne un petit cadeau.", m: 20 },
+    { ic: "🎉", p: 2, t: "Fête dans le quartier : il danse la rumba, le moral remonte.", e: 15, r: 2 },
+    { ic: "🧾", p: 1, t: "Un voisin lui rappelle une vieille dette. Il rembourse.", m: -12 },
+  ];
+  function cityEvent() {
+    const me = G.me, tot = CITY_EVENTS.reduce((n, x) => n + x.p, 0); let k = rand() * tot, ev = CITY_EVENTS[0];
+    for (const x of CITY_EVENTS) { k -= x.p; if (k < 0) { ev = x; break; } }
+    if (ev.m > 0) earn(ev.m, ev.ic + " " + ev.t); else { note(ev.ic + " " + ev.t, ev.m || ev.e < 0 ? "alert" : "ok"); if (ev.m) me.argent = Math.max(0, me.argent + ev.m); }
+    if (ev.e) G.energy = Math.max(5, Math.min(100, G.energy + ev.e));
+    if (ev.r) repute(ev.r, "fête du quartier");
+    saveMe();
+  }
   function phaseChange(old, ph) {
     if (jailed()) { jailSpot(); G.life = null; const b = $("planbtn"); if (b) b.disabled = true; if (!old) msg("🔒 Ton personnage est en cellule au commissariat jusqu'à " + hh(G.me.prisonT % 24) + ". Tu ne peux que l'observer.", 6, "alert"); return; }
     if (!old) { // ouverture du jeu : le personnage est chez lui
@@ -1759,6 +1777,7 @@
       if (!G.auto || G.auto.mode !== "maison") atHome("☕ Il se prépare à la maison");
       G.lifeMsg = "☕ Il se réveille, se lave et prend son petit-déjeuner"; if (G.auto) G.auto.doing = G.lifeMsg; return;
     }
+    if (L.evt && G.hour >= L.evt) { L.evt = 0; cityEvent(); }
     if (G.auto && G.auto.phase === "ride") return;
     if (G.hour >= 21.5 && (!L.cur || L.cur.id !== "rentrer")) { goHomeTonight(); return; }
     if (L.cur && L.cur.id === "rentrer") return;

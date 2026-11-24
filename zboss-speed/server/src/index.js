@@ -2,7 +2,7 @@
 // Le serveur est l'arbitre : il décide de l'âge, des talents et de l'argent ; le téléphone ne fait qu'afficher.
 import {
   ageYears, stageOf, STAGES, realMsUntil, TALENTS, ACTIVITIES, rng, drawTalents, doActivity,
-  needsAt, newIdentity, BIRTH_GIFT, BIRTH_USD, ADMIN_FEE_USD, NEGLECT_STEAL_AGE, neglectStealChance, NEGLECT_DANGER_DAYS, NEGLECT_DANGER_HEALTH, splitEstate, deathCause, familyShareRate, REP, REP_BAD, REP_GOOD, repLabel, repDiscount, DOT_MAKUTA, cannotMarry, STREET_JOBS, cannotStreetJob, RENT, rentOf, houseOf, rentDue, HOUSING_MIN_AGE, SALE_TAX, SHOP, cannotBuy, OFFERS, USD_TO_MAKUTA, USD_UNITS, fmtMakuta, WITHDRAW_FEE, walletInfo, birthShiftMs, REAL_MONEY, shopView, familyOf, JOBS, payFor, cannotWork, workView, cannotApply, FORMATIONS, cannotEnroll, attendCourse, schoolView, SUPPORT_PER_DAY, HOST_MIN_AGE, MAX_CHILDREN, supportDue, unpaidEffect, familyShare, DAY, LAUNCH_RULES, launchStatus, canSignupBeforeLaunch, COMPANY_TYPES, cannotOpenCompany, companyName, companyView, companyAccrue, companyJob, EMPLOYEE_YIELD, RESELL_RATE, TAXI_FARE, TAXI_ENERGY, KINSHASA_QUARTIERS, OTHER_CITIES, STATE_ID, TAX, POSTS, PUBLIC_JOBS, BANKS, bankAccrue, INSURERS, CARE, careCost, OPERATORS, RECHARGES, CALL, stateView, ELECTION_EVERY, VOTER_MIN_AGE, electionCalendar, tally, CRIMES, catchChance, sentence, inPrison, PRISON_BLOCKED, PRISON_HOURS, BAIL, RECIDIVE, policeView,
+  needsAt, newIdentity, BIRTH_GIFT, BIRTH_USD, ADMIN_FEE_USD, NEGLECT_STEAL_AGE, neglectStealChance, NEGLECT_DANGER_DAYS, NEGLECT_DANGER_HEALTH, splitEstate, deathCause, familyShareRate, REP, REP_BAD, REP_GOOD, repLabel, repDiscount, DOT_MAKUTA, cannotMarry, STREET_JOBS, cannotStreetJob, RENT, rentOf, houseOf, rentDue, HOUSING_MIN_AGE, SALE_TAX, LIFE_EVENTS, EVENT_EVERY_H, drawEvent, eventMoney, lifeAlbum, SHOP, cannotBuy, OFFERS, USD_TO_MAKUTA, USD_UNITS, fmtMakuta, WITHDRAW_FEE, walletInfo, birthShiftMs, REAL_MONEY, shopView, familyOf, JOBS, payFor, cannotWork, workView, cannotApply, FORMATIONS, cannotEnroll, attendCourse, schoolView, SUPPORT_PER_DAY, HOST_MIN_AGE, MAX_CHILDREN, supportDue, unpaidEffect, familyShare, DAY, LAUNCH_RULES, launchStatus, canSignupBeforeLaunch, COMPANY_TYPES, cannotOpenCompany, companyName, companyView, companyAccrue, companyJob, EMPLOYEE_YIELD, RESELL_RATE, TAXI_FARE, TAXI_ENERGY, KINSHASA_QUARTIERS, OTHER_CITIES, STATE_ID, TAX, POSTS, PUBLIC_JOBS, BANKS, bankAccrue, INSURERS, CARE, careCost, OPERATORS, RECHARGES, CALL, stateView, ELECTION_EVERY, VOTER_MIN_AGE, electionCalendar, tally, CRIMES, catchChance, sentence, inPrison, PRISON_BLOCKED, PRISON_HOURS, BAIL, RECIDIVE, policeView,
   describeAction, ORDER_DONE, ORDERS, ORDERS_PER_DAY, ORDERS_CHECK_MS, dayKey, ordersToRun, cannotGiveOrder,
 } from "./life.js";
 import { sendPush, newVapidKeys } from "./webpush.js";
@@ -423,6 +423,22 @@ async function collectRent(db, pid, now) {
     db.prepare(`UPDATE personnages SET bonheur = MAX(0, bonheur - 20) WHERE id = ?`).bind(pid),
     repSt(db, pid, -5, now), M("🚪", `Loyer impayé : expulsé du logement à ${L.quartier}. Retour chez les parents.`)]);
 }
+// le destin : au plus un événement toutes les 20 heures réelles par personnage
+async function dailyEvent(db, pid, now) {
+  const last = await db.prepare(`SELECT MAX(le) AS le FROM activites WHERE personnage_id = ? AND activite LIKE 'evenement:%'`).bind(pid).first();
+  if (last && last.le && now - last.le < EVENT_EVERY_H * 36e5) return;
+  const p = await db.prepare(`SELECT * FROM personnages WHERE id = ? AND mort_le IS NULL`).bind(pid).first(); if (!p) return;
+  await settle(db, p, now);
+  const e = drawEvent(), st = [db.prepare(`INSERT INTO activites (id, personnage_id, activite, score, resultat, le) VALUES (?, ?, ?, 0, '', ?)`).bind(uid(), pid, "evenement:" + (e ? e.id : "calme"), now)];
+  if (e) {
+    let m = eventMoney(e); if (m < 0) m = -Math.min(-m, p.makuta);
+    st.push(db.prepare(`UPDATE personnages SET sante = MAX(1, MIN(100, sante + ?)), energie = MAX(0, MIN(100, energie + ?)), bonheur = MAX(0, MIN(100, bonheur + ?)), makuta = makuta + ? WHERE id = ?`)
+      .bind(e.sante || 0, e.energie || 0, e.bonheur || 0, m, pid),
+      db.prepare(`INSERT INTO mouvements (id, personnage_id, icone, texte, par_consigne, le) VALUES (?, ?, ?, ?, 0, ?)`).bind(uid(), pid, e.icone, `${p.prenom} ${e.texte}${m ? ` (${m > 0 ? "+" : "−"}${fmtMakuta(Math.abs(m))})` : ""}.`, now));
+    if (m) st.push(db.prepare(`INSERT INTO transactions (id, de_id, vers_id, montant, motif, le) VALUES (?, ?, ?, ?, ?, ?)`).bind(uid(), m < 0 ? pid : null, m > 0 ? pid : null, Math.abs(m), "destin : " + e.id, now));
+  }
+  await db.batch(st);
+}
 // réputation : une ligne à ajouter au lot d'écritures
 const repSt = (db, id, d, now) => db.prepare(`INSERT INTO reputations (personnage_id, points, maj_le) VALUES (?, ?, ?) ON CONFLICT(personnage_id) DO UPDATE SET points = MAX(-100, MIN(100, points + excluded.points)), maj_le = excluded.maj_le`).bind(id, d, now);
 async function repOf(db, id) { const r = await db.prepare(`SELECT points FROM reputations WHERE personnage_id = ?`).bind(id).first(); return r ? r.points : 0; }
@@ -465,9 +481,25 @@ async function die(env, db, p, cause, now) {
   await db.batch(st);
   if (env) for (const hr of heirs) if (hr.compte_id) try { await notify(env, db, hr.compte_id, { titre: "2 Life · décès", texte: `${p.prenom} ${p.nom} est ${p.sexe === "F" ? "morte" : "mort"} (${cause}). Tu hérites de ${fmtMakuta(sp.each)}.`, url: "vie.html#moves" }); } catch (e) { console.error(e); }
 }
-function deadView(compte, p, report, now) {
+function deadView(compte, p, report, now, album = null) {
   return { compte: { pseudo: compte.pseudo, reputation: compte.reputation }, mort: { prenom: p.prenom, nom: p.nom, sexe: p.sexe, neLe: p.ne_le, mortLe: p.mort_le, cause: p.cause_mort,
-    age: Math.floor(ageYears(p.ne_le, p.mort_le || now)) }, report: report ? report.makuta : 0, renaissance: OFFERS.find(o => o.id === "bebe") };
+    age: Math.floor(ageYears(p.ne_le, p.mort_le || now)), album }, report: report ? report.makuta : 0, renaissance: OFFERS.find(o => o.id === "bebe") };
+}
+// album de vie : résumé d'une vie terminée
+async function albumOf(db, p) {
+  const one = async (q, ...b) => (await db.prepare(q).bind(...b).first()) || {};
+  const job = await one(`SELECT metier_id FROM emplois WHERE personnage_id = ? ORDER BY depuis DESC LIMIT 1`, p.id);
+  const { results: tl } = await db.prepare(`SELECT talent_id FROM talents_personnage WHERE personnage_id = ? AND decouvert = 1`).bind(p.id).all();
+  const sp = p.conjoint_id ? await one(`SELECT prenom || ' ' || nom AS n FROM personnages WHERE id = ?`, p.conjoint_id) : {};
+  const lastSpouse = sp.n || (await one(`SELECT q.prenom || ' ' || q.nom AS n FROM demandes_mariage d JOIN personnages q ON q.id = CASE WHEN d.de_id = ? THEN d.vers_id ELSE d.de_id END WHERE (d.de_id = ? OR d.vers_id = ?) AND d.statut = 'acceptee' ORDER BY d.le DESC LIMIT 1`, p.id, p.id, p.id)).n;
+  return lifeAlbum({ prenom: p.prenom, nom: p.nom, sexe: p.sexe, quartier: p.quartier, age: Math.floor(ageYears(p.ne_le, p.mort_le)), cause: p.cause_mort,
+    metier: job.metier_id ? (JOBS.find(j => j.id === job.metier_id) || { nom: job.metier_id }).nom : null,
+    diplomes: (await one(`SELECT COUNT(*) AS n FROM diplomes_obtenus WHERE personnage_id = ?`, p.id)).n,
+    talents: tl.map(t => (TALENTS.find(x => x.id === t.talent_id) || {}).label).filter(Boolean), conjoint: lastSpouse,
+    enfants: (await one(`SELECT COUNT(*) AS n FROM personnages WHERE pere_id = ? OR mere_id = ?`, p.id, p.id)).n,
+    entreprises: (await one(`SELECT COUNT(*) AS n FROM entreprises WHERE proprietaire_id = ?`, p.id)).n,
+    crimes: (await one(`SELECT COUNT(*) AS n FROM infractions WHERE personnage_id = ?`, p.id)).n,
+    reputation: await repOf(db, p.id), fortune: (await one(`SELECT COALESCE(SUM(montant), 0) AS n FROM successions WHERE defunt_id = ?`, p.id)).n });
 }
 
 // ---------------------------------------------------------------- lancement
@@ -619,7 +651,7 @@ const worker = {
         const token = await newSession(db, c.id, now);
         await checkDeath(env, db, c.vie_id, now);
         const chc = await loadCharacter(db, c.vie_id);
-        if (chc.p.mort_le) return json(h, 200, { token, ...deadView(c, chc.p, await db.prepare(`SELECT makuta FROM reports WHERE compte_id = ?`).bind(c.id).first(), now), admin: isAdmin(env, c) });
+        if (chc.p.mort_le) return json(h, 200, { token, ...deadView(c, chc.p, await db.prepare(`SELECT makuta FROM reports WHERE compte_id = ?`).bind(c.id).first(), now, await albumOf(db, chc.p)), admin: isAdmin(env, c) });
         return json(h, 200, { token, ...view(c, chc, now), admin: isAdmin(env, c) });
       }
 
@@ -687,6 +719,7 @@ const worker = {
       await supportFamily(db, compte.vie_id, now, env);
       await checkDeath(env, db, compte.vie_id, now);
       try { await collectRent(db, compte.vie_id, now); } catch (e) { console.error(e); }
+      try { await dailyEvent(db, compte.vie_id, now); } catch (e) { console.error(e); }
       const ch = await loadCharacter(db, compte.vie_id);
       if (!ch) return fail(h, 404, "Personnage introuvable.");
       // personnage mort : on ne peut que voir son décès et renaître (en payant une nouvelle naissance)
@@ -701,7 +734,7 @@ const worker = {
           const c2 = await db.prepare(`SELECT * FROM comptes WHERE id = ?`).bind(compte.id).first();
           return json(h, 200, { ...view(c2, await loadCharacter(db, pid), now), renaissance: true });
         }
-        if (url.pathname === "/api/moi") return json(h, 200, deadView(compte, ch.p, rep, now));
+        if (url.pathname === "/api/moi") return json(h, 200, deadView(compte, ch.p, rep, now, await albumOf(db, ch.p)));
         return fail(h, 409, "Ton personnage est mort. Tu peux renaître depuis la page Ma vie.");
       }
       const { p, tal } = ch;
@@ -979,7 +1012,7 @@ const worker = {
 
       if (url.pathname === "/api/postuler" && req.method === "POST") {
         const job = JOBS.find(j => j.id === body.metier);
-        const no = cannotApply(job, ageYears(p.ne_le, now), ch.dip);
+        const no = cannotApply(job, ageYears(p.ne_le, now), ch.dip, tal.filter(t => t.decouvert).map(t => t.talent_id));
         if (no) return fail(h, 409, no);
         await db.batch([
           db.prepare(`UPDATE emplois SET fin = ? WHERE personnage_id = ? AND fin IS NULL`).bind(now, p.id),

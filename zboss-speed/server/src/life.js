@@ -264,9 +264,19 @@ export const JOBS = [
   { id: "ingenieur", nom: "Ingénieur", talent: "technique", salaire: 500, minAge: 22, formation: "ingenieur", diplome: "Diplôme d'ingénieur civil" },
   { id: "avocat", nom: "Avocat", talent: "parole", salaire: 550, minAge: 22, formation: "droit", diplome: "Licence en droit" },
   { id: "enseignant", nom: "Enseignant au secondaire", talent: "etudes", salaire: 260, minAge: 18, formation: "secondaire", diplome: "Diplôme d'État" },
+  // carrières de talent : réservées à ceux dont le talent a été découvert par leurs parents
+  { id: "footballeur", nom: "Footballeur professionnel", talent: "sport", salaire: 420, minAge: 17, talentRequis: true },
+  { id: "star-rumba", nom: "Chanteur de rumba (vedette)", talent: "art", salaire: 450, minAge: 18, talentRequis: true },
+  { id: "chef", nom: "Grand chef cuisinier", talent: "cuisine", salaire: 340, minAge: 18, talentRequis: true },
+  { id: "grossiste", nom: "Commerçant grossiste", talent: "commerce", salaire: 380, minAge: 20, talentRequis: true },
+  { id: "journaliste", nom: "Journaliste vedette à la télé", talent: "parole", salaire: 380, minAge: 20, talentRequis: true },
+  { id: "inventeur", nom: "Inventeur (atelier d'innovation)", talent: "technique", salaire: 400, minAge: 20, talentRequis: true },
+  { id: "chercheur", nom: "Chercheur à l'université", talent: "etudes", salaire: 420, minAge: 22, talentRequis: true },
+  { id: "infirmier-chef", nom: "Infirmier chef", talent: "soin", salaire: 360, minAge: 20, talentRequis: true },
 ];
-export function cannotApply(job, age, diplomas) {
+export function cannotApply(job, age, diplomas, talents = []) {
   if (!job) return "Métier inconnu.";
+  if (job.talentRequis && !talents.includes(job.talent)) return `Carrière réservée aux talents découverts : ${(TALENTS.find(t => t.id === job.talent) || {}).label || job.talent}.`;
   if (job.elu) return "Ce poste s'obtient par élection.";
   if (job.formation && !diplomas.includes(job.formation)) return `Il faut d'abord le diplôme : ${job.diplome}.`;
   if (age < job.minAge) return `Ce métier est ouvert dès ${job.minAge} ans.`;
@@ -411,6 +421,39 @@ export function rentDue(paidUntil, now = Date.now()) {
 }
 // Marché aux annonces : les joueurs se vendent leurs objets ; 5 % de taxe sur la vente pour la ville.
 export const SALE_TAX = 0.05;
+// ---------------------------------------------------------------- vague 5 : le destin
+// Une fois par jour réel, le destin peut frapper : maladie, pluie, cadeau... (montants en makuta)
+export const LIFE_EVENTS = [
+  { id: "paludisme", icone: "🦟", texte: "a attrapé le paludisme : il faut se soigner au centre de santé", sante: -35, energie: -30, p: .16 },
+  { id: "inondation", icone: "🌧️", texte: "la pluie a inondé la maison, il a fallu réparer", bonheur: -10, makuta: [-150, -50], p: .12 },
+  { id: "coupure", icone: "🔌", texte: "coupure de courant toute la soirée dans le quartier", bonheur: -5, p: .14 },
+  { id: "accident", icone: "🛵", texte: "petit accident de moto-taxi, quelques bleus", sante: -20, p: .06 },
+  { id: "oncle", icone: "🎁", texte: "un oncle de Mbandaka a envoyé un cadeau", makuta: [100, 400], bonheur: 8, p: .08 },
+  { id: "fete", icone: "🎉", texte: "grande fête dans le quartier, tout le monde a dansé", bonheur: 12, p: .12 },
+  { id: "dette", icone: "🤝", texte: "un ami a remboursé une vieille dette", makuta: [60, 200], p: .06 },
+];
+export const EVENT_EVERY_H = 20;
+export function drawEvent(r = Math.random) {
+  let x = r();
+  for (const e of LIFE_EVENTS) { if (x < e.p) return e; x -= e.p; }
+  return null;   // journée calme
+}
+export function eventMoney(e, r = Math.random) { return e.makuta ? Math.round(e.makuta[0] + r() * (e.makuta[1] - e.makuta[0])) : 0; }
+// Album de vie : le résumé d'une vie, montré à la mort et partageable
+export function lifeAlbum(a) {
+  const L = [];
+  L.push(`${a.prenom} ${a.nom}, ${a.age} an${a.age > 1 ? "s" : ""}, ${a.quartier && a.quartier !== "Kinshasa" ? "de " + a.quartier + ", " : "de "}Kinshasa.`);
+  if (a.metier) L.push(`Métier : ${a.metier}.`);
+  if (a.diplomes) L.push(`${a.diplomes} diplôme${a.diplomes > 1 ? "s" : ""} obtenu${a.diplomes > 1 ? "s" : ""}.`);
+  if (a.talents && a.talents.length) L.push(`Talents découverts : ${a.talents.join(", ")}.`);
+  L.push(a.conjoint ? `Marié${a.sexe === "F" ? "e" : ""} à ${a.conjoint}.` : "Jamais marié" + (a.sexe === "F" ? "e" : "") + ".");
+  L.push(a.enfants ? `${a.enfants} enfant${a.enfants > 1 ? "s" : ""}.` : "Pas d'enfant.");
+  if (a.entreprises) L.push(`${a.entreprises} entreprise${a.entreprises > 1 ? "s" : ""} fondée${a.entreprises > 1 ? "s" : ""}.`);
+  if (a.crimes) L.push(`${a.crimes} infraction${a.crimes > 1 ? "s" : ""} à la police.`);
+  L.push(`Réputation : ${repLabel(a.reputation || 0)}. Fortune laissée : ${fmtMakuta(a.fortune || 0)}.`);
+  L.push(`Cause de la mort : ${a.cause}.`);
+  return L;
+}
 export const NEGLECT_STEAL_AGE = 8;
 // Après 7 jours réels de négligence (cumulés), l'enfant est en danger de mort : sa santé chute vite.
 export const NEGLECT_DANGER_DAYS = 7, NEGLECT_DANGER_HEALTH = 15;
