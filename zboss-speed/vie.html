@@ -82,10 +82,23 @@
     .mini { flex: none; border: 1px solid var(--accent); background: none; color: var(--accent); border-radius: 10px; padding: 8px 12px; font-size: 13px; font-weight: 600; }
     .mini.fill { background: var(--accent); color: #1b120b; }
     .mini:disabled { opacity: .4; border-color: var(--line); color: var(--muted); background: none; }
+    [aria-disabled="true"] { opacity: .5; cursor: help; }
+    .mini[aria-disabled="true"] { border-color: var(--line); color: var(--muted); background: none; }
+    .guichet { margin-top: 16px; padding: 14px; border: 1px solid var(--line); border-radius: 14px; background: var(--panel-2); }
+    .paygrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 6px; }
+    .pay { margin: 0; display: block; cursor: pointer; }
+    .pay input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+    .pay span { display: block; padding: 10px; border: 1px solid var(--line); border-radius: 10px; font-size: 14px; color: var(--text); text-align: center; }
+    .pay input:checked + span { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); }
+    .pay input:focus-visible + span { outline: 2px solid var(--accent); }
+    .g-row { display: flex; gap: 10px; align-items: center; margin-top: 10px; font-size: 14px; }
+    .g-row input { width: 120px; flex: none; }
+    .g-tel { margin-top: 8px; }
+    .g-note { font-size: 12px; color: var(--muted); margin: 8px 0 0; }
     .launch { border: 1px solid var(--accent); border-radius: 12px; padding: 12px 14px; margin: 6px 0 4px; background: #2a1d12; }
     .launch > b { font-family: var(--font-d); font-size: 17px; display: block; margin-bottom: 4px; }
     .launch .need { margin-top: 10px; }
-    .offer.closed { opacity: .5; cursor: not-allowed; }
+    .offer.closed { opacity: .5; cursor: help; }
     .offer.closed small::after { content: " Ouvre au démarrage du jeu."; color: var(--warn); }
     .back { width: 36px; height: 36px; border-radius: 12px; border: 1px solid var(--line); background: var(--panel); color: var(--text); font-size: 18px; line-height: 1; margin-right: 2px; }
     .quick { display: flex; gap: 8px; overflow-x: auto; margin: 0 0 14px; padding-bottom: 4px; scrollbar-width: none; }

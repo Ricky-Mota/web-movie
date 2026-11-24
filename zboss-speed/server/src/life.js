@@ -208,11 +208,12 @@ export function walletInfo(deposits, makuta, now = Date.now()) {
 }
 
 // vue envoyée au joueur : catalogue, inventaire, portefeuille (même forme côté serveur et mode démo)
-export function shopView(inv, dep, ret, makuta, now) {
+export function shopView(inv, dep, ret, makuta, now, gui = []) {
   return {
     boutique: SHOP,
     inventaire: inv.map(x => ({ id: x.id, objet: x.objet_id, porte: !!x.porte, le: x.acquis_le })),
-    portefeuille: { ...walletInfo(dep, makuta, now), offres: OFFERS, depots: dep, retraits: ret },
+    portefeuille: { ...walletInfo(dep, makuta, now), offres: OFFERS, depots: dep, retraits: ret,
+      moyens: PAY_METHODS, guichet: gui, depot: DEPOSIT_USD, retraitAge: WITHDRAW_MIN_AGE },
   };
 }
 
@@ -861,4 +862,37 @@ export function dashboard({ makuta, banque = 0, biens = 0, entreprises = 0, mais
     etudes: { niveau: eduLevel(diplomas), label: eduLabel(eduLevel(diplomas)), bonus: EDU_LEVELS[eduRank(eduLevel(diplomas))].bonus },
     maturite: { points: maturityOf(origine, now), max: MATURE_AT, arriveAdulte: !!(origine && origine.adulte) },
   };
+}
+
+// ---------------------------------------------------------------- guichet : dépôt et retrait d'argent
+// SIMULATION tant que REAL_MONEY est faux : rien n'est encaissé ni versé. Plus tard, un partenaire de paiement agréé
+// (Banque Centrale du Congo, vérification d'identité) fera le vrai transfert. Noms en texte seulement, sans logo.
+export const PAY_METHODS = [
+  { id: "mpesa", nom: "M-Pesa", type: "mobile", icone: "📱" },
+  { id: "orange", nom: "Orange Money", type: "mobile", icone: "📱" },
+  { id: "airtel", nom: "Airtel Money", type: "mobile", icone: "📱" },
+  { id: "carte", nom: "Carte bancaire", type: "carte", icone: "💳" },
+  { id: "agent", nom: "Espèces chez un agent", type: "especes", icone: "💵", depotSeulement: true },
+];
+export const DEPOSIT_USD = { min: 1, max: 500 };
+export const WITHDRAW_MIN_AGE = 18;
+// on ne garde jamais le numéro complet : seulement les 3 derniers chiffres pour l'historique
+export function maskPhone(s) { const d = String(s || "").replace(/\D/g, ""); return d.length >= 9 && d.length <= 12 ? "•••• " + d.slice(-3) : null; }
+export const withdrawUsd = mk => Math.floor(mk / USD_UNITS * (1 - WITHDRAW_FEE) * 100) / 100;
+export function cannotDeposit(moyen, usd, phone) {
+  const m = PAY_METHODS.find(x => x.id === moyen);
+  if (!m) return "Choisis un moyen de paiement.";
+  if (!(usd >= DEPOSIT_USD.min && usd <= DEPOSIT_USD.max)) return `Dépôt entre ${DEPOSIT_USD.min} $ et ${DEPOSIT_USD.max} $.`;
+  if (m.type === "mobile" && !maskPhone(phone)) return "Numéro de téléphone invalide (9 à 12 chiffres).";
+  return null;
+}
+export function cannotWithdraw(w, age, makuta, mk, moyen, phone) {
+  const m = PAY_METHODS.find(x => x.id === moyen);
+  if (age < WITHDRAW_MIN_AGE) return `Le retrait est réservé aux adultes (${WITHDRAW_MIN_AGE} ans).`;
+  if (!w.retraitPossible) return w.retraitPossibleLe ? `Retrait possible à partir du ${new Date(w.retraitPossibleLe).toLocaleDateString("fr-FR")} (argent bloqué ${LOCK_DAYS} jours après le premier dépôt).` : "Il faut d'abord un dépôt.";
+  if (!m || m.depotSeulement) return "Choisis où recevoir l'argent.";
+  if (!(mk >= USD_UNITS)) return `Minimum ${USD_TO_MAKUTA} e-makuta (1 $).`;
+  if (mk > makuta) return "Tu n'as pas assez d'e-makuta en poche.";
+  if (m.type === "mobile" && !maskPhone(phone)) return "Numéro de téléphone invalide (9 à 12 chiffres).";
+  return null;
 }

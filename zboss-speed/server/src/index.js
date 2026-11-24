@@ -4,6 +4,7 @@ import {
   ageYears, stageOf, STAGES, realMsUntil, TALENTS, ACTIVITIES, rng, drawTalents, doActivity,
   needsAt, newIdentity, BIRTH_GIFT, BIRTH_USD, ADMIN_FEE_USD, NEGLECT_STEAL_AGE, neglectStealChance, NEGLECT_DANGER_DAYS, NEGLECT_DANGER_HEALTH, splitEstate, deathCause, familyShareRate, REP, REP_BAD, REP_GOOD, repLabel, repDiscount, DOT_MAKUTA, cannotMarry, STREET_JOBS, cannotStreetJob, RENT, rentOf, houseOf, rentDue, HOUSING_MIN_AGE, SALE_TAX, LIFE_EVENTS, EVENT_EVERY_H, drawEntry, classOfWealth, classLabel, eduLabel, MATURITY_GAIN, BIG_DECISIONS, cannotDecide, dashboard, SETTINGS, SET, applySettings, food, drawEvent, eventMoney, lifeAlbum, SHOP, cannotBuy, OFFERS, USD_TO_MAKUTA, USD_UNITS, fmtMakuta, WITHDRAW_FEE, walletInfo, birthShiftMs, REAL_MONEY, shopView, familyOf, JOBS, payFor, cannotWork, workView, cannotApply, FORMATIONS, cannotEnroll, attendCourse, schoolView, SUPPORT_PER_DAY, HOST_MIN_AGE, MAX_CHILDREN, supportDue, unpaidEffect, familyShare, DAY, LAUNCH_RULES, launchStatus, canSignupBeforeLaunch, COMPANY_TYPES, cannotOpenCompany, companyName, companyView, companyAccrue, companyJob, EMPLOYEE_YIELD, RESELL_RATE, TAXI_FARE, TAXI_ENERGY, KINSHASA_QUARTIERS, OTHER_CITIES, STATE_ID, TAX, POSTS, PUBLIC_JOBS, BANKS, bankAccrue, INSURERS, CARE, careCost, OPERATORS, RECHARGES, CALL, stateView, ELECTION_EVERY, VOTER_MIN_AGE, electionCalendar, tally, CRIMES, catchChance, sentence, inPrison, PRISON_BLOCKED, PRISON_HOURS, BAIL, RECIDIVE, policeView,
   describeAction, ORDER_DONE, ORDERS, ORDERS_PER_DAY, ORDERS_CHECK_MS, dayKey, ordersToRun, cannotGiveOrder,
+  PAY_METHODS, cannotDeposit, cannotWithdraw, maskPhone, withdrawUsd,
 } from "./life.js";
 import { sendPush, newVapidKeys } from "./webpush.js";
 
@@ -190,6 +191,7 @@ async function loadCharacter(db, id) {
   const { results: inv } = await db.prepare(`SELECT id, objet_id, porte, acquis_le FROM possessions WHERE proprietaire_id = ? ORDER BY acquis_le`).bind(id).all();
   const { results: dep } = await db.prepare(`SELECT offre, usd, makuta, le FROM depots WHERE compte_id = ? ORDER BY le`).bind(p.compte_id).all();
   const { results: ret } = await db.prepare(`SELECT makuta, usd, statut, le FROM retraits WHERE compte_id = ? ORDER BY le`).bind(p.compte_id).all();
+  const { results: gui } = await db.prepare(`SELECT sens, moyen, numero, usd, makuta, statut, le FROM guichet WHERE compte_id = ? ORDER BY le DESC LIMIT 30`).bind(p.compte_id).all();
   const job = await db.prepare(`SELECT id, metier_id, entreprise_id FROM emplois WHERE personnage_id = ? AND fin IS NULL ORDER BY depuis DESC LIMIT 1`).bind(id).first();
   const last = await db.prepare(`SELECT MAX(le) AS le FROM activites WHERE personnage_id = ? AND activite LIKE 'travail:%'`).bind(id).first();
   const enr = await db.prepare(`SELECT formation_id AS formation, annee, cours, points, dernier FROM inscriptions WHERE personnage_id = ?`).bind(id).first();
@@ -237,7 +239,7 @@ async function loadCharacter(db, id) {
   const conjoint = p.conjoint_id ? await db.prepare(`SELECT p.prenom, p.nom, p.sexe, c.pseudo FROM personnages p LEFT JOIN comptes c ON c.id = p.compte_id WHERE p.id = ?`).bind(p.conjoint_id).first() : null;
   const { results: dmIn } = await db.prepare(`SELECT d.id, d.le, p.prenom, p.nom, p.sexe, c.pseudo FROM demandes_mariage d JOIN personnages p ON p.id = d.de_id LEFT JOIN comptes c ON c.id = p.compte_id WHERE d.vers_id = ? AND d.statut = 'attente' ORDER BY d.le DESC`).bind(id).all();
   const { results: dmOut } = await db.prepare(`SELECT d.id, d.le, p.prenom, p.nom, c.pseudo FROM demandes_mariage d JOIN personnages p ON p.id = d.vers_id LEFT JOIN comptes c ON c.id = p.compte_id WHERE d.de_id = ? AND d.statut = 'attente' ORDER BY d.le DESC`).bind(id).all();
-  return { origine, flux, logement, lastStreet: lastStreet && lastStreet.le, annonces, reputation, couple: { conjoint, recues: dmIn, envoyees: dmOut }, p, tal, inv, dep, ret, job, lastShift: last && last.le, enr, dip: dip.map(d => d.formation_id), kids, par, sibs, ent, aVendre, offres, boss, comptes, cand, pub, elec, policiers: pol.n, casier,
+  return { origine, flux, logement, lastStreet: lastStreet && lastStreet.le, annonces, reputation, couple: { conjoint, recues: dmIn, envoyees: dmOut }, p, tal, inv, dep, ret, gui, job, lastShift: last && last.le, enr, dip: dip.map(d => d.formation_id), kids, par, sibs, ent, aVendre, offres, boss, comptes, cand, pub, elec, policiers: pol.n, casier,
     consignes: { jour, liste: ord.map(o => o.ordre), journal }, mouvements: mv, notifications: notif.n };
 }
 
@@ -318,7 +320,7 @@ async function applyOrders(env, db, compte, ch, now, force) {
   return true;
 }
 
-function view(compte, { origine = null, flux = {}, logement = null, lastStreet = null, annonces = [], reputation = 0, couple = { conjoint: null, recues: [], envoyees: [] }, p, tal, inv = [], dep = [], ret = [], job = null, lastShift = null, enr = null, dip = [], kids = [], par = [], sibs = [], ent = [], aVendre = [], offres = [], boss = null, comptes = [], cand = null, pub = {}, elec = null, policiers = 0, casier = [], consignes = { jour: dayKey(now), liste: [], journal: [] }, mouvements = [], notifications = 0 }, now) {
+function view(compte, { origine = null, flux = {}, logement = null, lastStreet = null, annonces = [], reputation = 0, couple = { conjoint: null, recues: [], envoyees: [] }, p, tal, inv = [], dep = [], ret = [], gui = [], job = null, lastShift = null, enr = null, dip = [], kids = [], par = [], sibs = [], ent = [], aVendre = [], offres = [], boss = null, comptes = [], cand = null, pub = {}, elec = null, policiers = 0, casier = [], consignes = { jour: dayKey(now), liste: [], journal: [] }, mouvements = [], notifications = 0 }, now) {
   const age = ageYears(p.ne_le, now);
   const st = stageOf(age);
   const next = STAGES[STAGES.indexOf(st) + 1];
@@ -347,7 +349,7 @@ function view(compte, { origine = null, flux = {}, logement = null, lastStreet =
     petitsBoulots: { liste: STREET_JOBS, dernier: lastStreet },
     logement: { actuel: logement, quartiers: Object.keys(RENT).map(q => ({ quartier: q, loyer: rentOf(q), prix: houseOf(q) })), minAge: HOUSING_MIN_AGE },
     annonces: annonces.map(a => ({ id: a.id, prix: a.prix, le: a.cree_le, vendeur: a.vendeur, moi: a.vendeur_id === p.id, objet: SHOP.find(x => x.id === a.objet_id) || { nom: a.objet_id } })),
-    ...shopView(inv, dep, ret, p.makuta, now),
+    ...shopView(inv, dep, ret, p.makuta, now, gui),
     travail: { ...workView(job && job.metier_id, lastShift, now), emploiEntreprise: boss ? companyJob(boss) : null },
     ecole: schoolView(enr, dip, now),
     enfants: kids.map(k => childView(k, now)),
@@ -1304,13 +1306,29 @@ const worker = {
         return json(h, 200, view(compte, await loadCharacter(db, p.id), now));
       }
 
+      // guichet : dépôt d'argent (mobile money, carte, espèces chez un agent) converti en e-makuta
+      if (url.pathname === "/api/guichet/deposer" && req.method === "POST") {
+        const usdIn = Math.round(Number(body.usd) * 100) / 100, no = cannotDeposit(body.moyen, usdIn, body.telephone);
+        if (no) return fail(h, 400, no);
+        if (REAL_MONEY) return fail(h, 501, "Le paiement réel passe par le partenaire agréé.");
+        const mk = Math.round(usdIn * USD_UNITS), num = maskPhone(body.telephone);
+        await db.batch([
+          db.prepare(`INSERT INTO depots (id, compte_id, offre, usd, makuta, simule, le) VALUES (?, ?, 'recharge', ?, ?, 1, ?)`).bind(uid(), compte.id, usdIn, mk, now),
+          db.prepare(`INSERT INTO guichet (id, compte_id, sens, moyen, numero, usd, makuta, statut, simule, le) VALUES (?, ?, 'depot', ?, ?, ?, ?, 'simule', 1, ?)`).bind(uid(), compte.id, body.moyen, num, usdIn, mk, now),
+          db.prepare(`UPDATE personnages SET makuta = makuta + ? WHERE id = ?`).bind(mk, p.id),
+          db.prepare(`INSERT INTO transactions (id, de_id, vers_id, montant, motif, le) VALUES (?, NULL, ?, ?, ?, ?)`).bind(uid(), p.id, mk, "dépôt simulé au guichet", now),
+        ]);
+        return json(h, 200, view(compte, await loadCharacter(db, p.id), now));
+      }
+
       if (url.pathname === "/api/retirer" && req.method === "POST") {
         const mk = Math.floor(Number(body.makuta) || 0);
         const w = walletInfo(ch.dep, p.makuta, now);
-        if (!w.retraitPossible) return fail(h, 409, w.retraitPossibleLe ? `Retrait possible à partir du ${new Date(w.retraitPossibleLe).toLocaleDateString("fr-FR")}.` : "Aucun dépôt.");
-        if (mk < USD_UNITS || mk > p.makuta) return fail(h, 400, "Montant invalide.");
-        const usd = Math.floor(mk / USD_UNITS * (1 - WITHDRAW_FEE) * 100) / 100;
+        const no = cannotWithdraw(w, ageYears(p.ne_le, now), p.makuta, mk, body.moyen, body.telephone);
+        if (no) return fail(h, 409, no);
+        const usd = withdrawUsd(mk);
         await db.batch([
+          db.prepare(`INSERT INTO guichet (id, compte_id, sens, moyen, numero, usd, makuta, statut, simule, le) VALUES (?, ?, 'retrait', ?, ?, ?, ?, ?, ?, ?)`).bind(uid(), compte.id, body.moyen, maskPhone(body.telephone), usd, mk, REAL_MONEY ? "demande" : "simule", REAL_MONEY ? 0 : 1, now),
           db.prepare(`UPDATE personnages SET makuta = makuta - ? WHERE id = ? AND makuta >= ?`).bind(mk, p.id, mk),
           db.prepare(`INSERT INTO retraits (id, compte_id, makuta, usd, simule, le) VALUES (?, ?, ?, ?, ?, ?)`).bind(uid(), compte.id, mk, usd, REAL_MONEY ? 0 : 1, now),
           db.prepare(`INSERT INTO transactions (id, de_id, vers_id, montant, motif, le) VALUES (?, ?, NULL, ?, ?, ?)`).bind(uid(), p.id, mk, "retrait vers l'argent réel" + (REAL_MONEY ? "" : " (simulé)"), now),
