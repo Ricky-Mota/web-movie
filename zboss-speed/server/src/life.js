@@ -130,7 +130,11 @@ export function newIdentity(r, sex) {
   };
 }
 
-export const BIRTH_GIFT = 500; // makuta (25 e-makuta) offerts à la naissance (épargne des parents)
+// Naissance (parcours normal) : 15 $ payés une seule fois à l'inscription.
+// 5 $ restent à l'administrateur pour faire vivre le jeu ; les 10 $ restants (50 e-makuta) sont confiés aux parents,
+// qui gèrent l'argent de l'enfant et sont libres de le lui donner ou non.
+export const BIRTH_USD = 15, ADMIN_FEE_USD = 5;
+export const BIRTH_GIFT = (BIRTH_USD - ADMIN_FEE_USD) * 100; // makuta (100 par $) : 1 000 makuta = 50 e-makuta
 
 // ---------------------------------------------------------------- magasin
 // prix en e-makuta ; les vêtements se portent et changent l'apparence 3D, la nourriture se mange tout de suite
@@ -179,7 +183,7 @@ export const fmtMakuta = n => (n / UNITS_PER_MAKUTA).toLocaleString("fr-FR", { m
 export const WITHDRAW_FEE = 0.10;          // 10 % de frais au retrait (finance la ville et le service)
 export const LOCK_DAYS = 90;               // argent bloqué 3 mois réels avant tout retrait
 export const OFFERS = [
-  { id: "bebe", nom: "Naissance (parcours normal)", type: "entree", usd: 5, desc: "Tu nais bébé dans une famille et tu grandis normalement." },
+  { id: "bebe", nom: "Naissance (parcours normal)", type: "entree", usd: BIRTH_USD, fraisAdmin: ADMIN_FEE_USD, desc: "Tu nais bébé dans une famille et tu grandis normalement. Sur les 15 $, 5 $ font vivre le jeu et 10 $ (50 e-makuta) sont confiés à tes parents, qui gèrent ton argent." },
   { id: "parent", nom: "Naître parent", type: "entree", usd: 5000, desc: "Tu nais adulte (25 ans), tes talents sont déjà connus et tu reçois 250 e-makuta d'épargne.", age: 25, epargne: 5000 },
   { id: "petit", nom: "Petit investisseur", type: "investissement", usd: 1500, age: 30, desc: "1 500 $ convertis en e-makuta pour acheter et créer des entreprises." },
   { id: "grand", nom: "Grand investisseur", type: "investissement", usd: 30000, age: 35, desc: "30 000 $ convertis en e-makuta pour racheter de grandes entreprises." },
@@ -354,6 +358,13 @@ export function supportDue(lastPaid, bornAt, now = Date.now()) {
 // effet d'un entretien impayé : bonheur et santé baissent
 export function unpaidEffect(days) { return { bonheur: 12 * days, sante: 4 * days }; }
 export function familyShare(amount) { return Math.round(amount * FAMILY_SHARE); }
+// Un enfant dont on ne s'occupe pas (entretien impayé, faim) peut voler pour survivre, dès NEGLECT_STEAL_AGE ans.
+// C'est au joueur réel responsable de s'assurer qu'il ne manque de rien.
+export const NEGLECT_STEAL_AGE = 8;
+export function neglectStealChance(unpaidDays, hunger) {
+  if (unpaidDays < 1) return 0;
+  return Math.min(0.6, 0.12 * unpaidDays + (hunger < 30 ? 0.15 : 0));
+}
 
 // ---------------------------------------------------------------- lancement du jeu
 // Le jeu ne s'ouvre aux naissances qu'une fois toutes les conditions réunies ; l'administrateur appuie alors sur « Démarrer ».

@@ -42,6 +42,11 @@ function render(e) {
       <p style="font-size:13px">Les joueurs de 18 ans et plus votent pendant 7 jours. À la date de l'élection, les voix sont comptées et les élus prennent leur poste (payés par le Trésor).</p>`;
   $("f-elec").hidden = $("b-vote-now").hidden = !L.demarre;
   $("demo-tools").hidden = !e.demo;
+  const B = e.naissances || { n: 0, usd: 0, fraisAdmin: 0, parents: 0 };
+  $("n-births").textContent = B.n;
+  $("births").innerHTML = `<p style="font-size:14px">Chaque naissance coûte 15 $ : <b>5 $ pour l'administrateur</b> (faire vivre le jeu) et 10 $ (50 e-makuta) confiés aux parents de l'enfant.</p>
+    <div class="cond"><div class="need">Part administrateur <b>${B.fraisAdmin.toLocaleString("fr-FR")} $</b></div><small class="wait-badge">simulé</small></div>
+    <div class="cond"><div class="need">Confié aux parents <b>${B.parents.toLocaleString("fr-FR")} $</b></div><small class="wait-badge">simulé</small></div>`;
   $("n-parents").textContent = e.parents.length; $("n-inv").textContent = e.investisseurs.length;
   $("parents").innerHTML = e.parents.length ? e.parents.map(p => `<div class="item"><span class="sw">${p.sexe === "F" ? "👩🏾" : "👨🏾"}</span><div class="t">${esc(p.prenom)} ${esc(p.nom)} · ${esc(p.quartier)}<small>${esc(p.pseudo)} · ${esc(p.email)} · ajouté le ${day(p.cree_le)}</small></div></div>`).join("") : `<p>Aucun parent fondateur pour l'instant.</p>`;
   $("investors").innerHTML = e.investisseurs.length ? e.investisseurs.map(i => `<div class="item"><span class="sw">💼</span><div class="t">${esc(i.pseudo)} · ${(OFFERS.find(o => o.id === i.offre) || {}).nom || esc(i.offre)}<small>${Number(i.usd).toLocaleString("fr-FR")} $ (simulé) · ${esc(i.email)} · ${day(i.le)}</small></div></div>`).join("") : `<p>Aucun investisseur pour l'instant. Ils s'inscrivent eux-mêmes depuis la page Ma vie.</p>`;

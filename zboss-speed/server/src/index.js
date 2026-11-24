@@ -2,7 +2,7 @@
 // Le serveur est l'arbitre : il décide de l'âge, des talents et de l'argent ; le téléphone ne fait qu'afficher.
 import {
   ageYears, stageOf, STAGES, realMsUntil, TALENTS, ACTIVITIES, rng, drawTalents, doActivity,
-  needsAt, newIdentity, BIRTH_GIFT, SHOP, cannotBuy, OFFERS, USD_TO_MAKUTA, USD_UNITS, fmtMakuta, WITHDRAW_FEE, walletInfo, birthShiftMs, REAL_MONEY, shopView, familyOf, JOBS, payFor, cannotWork, workView, cannotApply, FORMATIONS, cannotEnroll, attendCourse, schoolView, SUPPORT_PER_DAY, HOST_MIN_AGE, MAX_CHILDREN, supportDue, unpaidEffect, familyShare, DAY, LAUNCH_RULES, launchStatus, canSignupBeforeLaunch, COMPANY_TYPES, cannotOpenCompany, companyName, companyView, companyAccrue, companyJob, EMPLOYEE_YIELD, RESELL_RATE, TAXI_FARE, TAXI_ENERGY, KINSHASA_QUARTIERS, OTHER_CITIES, STATE_ID, TAX, POSTS, PUBLIC_JOBS, BANKS, bankAccrue, INSURERS, CARE, careCost, OPERATORS, RECHARGES, CALL, stateView, ELECTION_EVERY, VOTER_MIN_AGE, electionCalendar, tally, CRIMES, catchChance, sentence, inPrison, PRISON_BLOCKED, PRISON_HOURS, BAIL, RECIDIVE, policeView,
+  needsAt, newIdentity, BIRTH_GIFT, BIRTH_USD, ADMIN_FEE_USD, NEGLECT_STEAL_AGE, neglectStealChance, SHOP, cannotBuy, OFFERS, USD_TO_MAKUTA, USD_UNITS, fmtMakuta, WITHDRAW_FEE, walletInfo, birthShiftMs, REAL_MONEY, shopView, familyOf, JOBS, payFor, cannotWork, workView, cannotApply, FORMATIONS, cannotEnroll, attendCourse, schoolView, SUPPORT_PER_DAY, HOST_MIN_AGE, MAX_CHILDREN, supportDue, unpaidEffect, familyShare, DAY, LAUNCH_RULES, launchStatus, canSignupBeforeLaunch, COMPANY_TYPES, cannotOpenCompany, companyName, companyView, companyAccrue, companyJob, EMPLOYEE_YIELD, RESELL_RATE, TAXI_FARE, TAXI_ENERGY, KINSHASA_QUARTIERS, OTHER_CITIES, STATE_ID, TAX, POSTS, PUBLIC_JOBS, BANKS, bankAccrue, INSURERS, CARE, careCost, OPERATORS, RECHARGES, CALL, stateView, ELECTION_EVERY, VOTER_MIN_AGE, electionCalendar, tally, CRIMES, catchChance, sentence, inPrison, PRISON_BLOCKED, PRISON_HOURS, BAIL, RECIDIVE, policeView,
   describeAction, ORDER_DONE, ORDERS, ORDERS_PER_DAY, ORDERS_CHECK_MS, dayKey, ordersToRun, cannotGiveOrder,
 } from "./life.js";
 import { sendPush, newVapidKeys } from "./webpush.js";
@@ -65,15 +65,19 @@ async function birth(db, compteId, now, offer, fondateur = false) {
     who.father = host.sexe === "M" ? host.prenom + " " + host.nom : other + " " + host.nom;
     who.mother = host.sexe === "F" ? host.prenom + " " + host.nom : other + " " + host.nom;
   }
+  // bébé chez un parent joueur : les 10 $ (après les 5 $ de l'administrateur) sont confiés au parent, qui gère l'argent de l'enfant
+  const toParent = !!host && !parent && !invest;
   const stmts = [
     db.prepare(`INSERT INTO personnages (id, compte_id, ville_id, prenom, nom, sexe, quartier, apparence, ne_le, maj_le, makuta, pere_nom, mere_nom, pere_id, mere_id, accueille_enfants, entretien_le, fondateur)
                 VALUES (?, ?, 'kinshasa', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
-      .bind(id, compteId, who.firstName, who.lastName, who.sex, who.quartier, who.look, born, now, gift, who.father, who.mother,
+      .bind(id, compteId, who.firstName, who.lastName, who.sex, who.quartier, who.look, born, now, toParent ? 0 : gift, who.father, who.mother,
         host && host.sexe === "M" ? host.id : null, host && host.sexe === "F" ? host.id : null, parent ? 1 : 0, now, fondateur ? 1 : 0),
+    ...(toParent ? [db.prepare(`UPDATE personnages SET makuta = makuta + ? WHERE id = ?`).bind(gift, host.id)] : []),
     db.prepare(`INSERT INTO transactions (id, de_id, vers_id, montant, motif, le) VALUES (?, NULL, ?, ?, ?, ?)`)
-      .bind(uid(), id, gift, parent ? "épargne de départ (naître parent)" : invest ? "investissement simulé : " + offer.nom : "naissance : épargne des parents", now),
+      .bind(uid(), toParent ? host.id : id, gift, parent ? "épargne de départ (naître parent)" : invest ? "investissement simulé : " + offer.nom
+        : toParent ? `naissance de ${who.firstName} : argent de l'enfant confié aux parents` : "naissance : argent de l'enfant (géré par la famille)", now),
     db.prepare(`INSERT INTO depots (id, compte_id, offre, usd, makuta, simule, le) VALUES (?, ?, ?, ?, ?, ?, ?)`)
-      .bind(uid(), compteId, fondateur ? "fondateur" : offer ? offer.id : "bebe", fondateur ? 0 : offer ? offer.usd : 0, invest ? gift : 0, REAL_MONEY ? 0 : 1, now),
+      .bind(uid(), compteId, fondateur ? "fondateur" : offer ? offer.id : "bebe", fondateur ? 0 : offer ? offer.usd : BIRTH_USD, invest ? gift : 0, REAL_MONEY ? 0 : 1, now),
     db.prepare(`UPDATE comptes SET vie_id = ? WHERE id = ?`).bind(id, compteId),
     // « naître parent » : talents déjà connus (apprentissage accéléré)
     ...talents.map(t => db.prepare(`INSERT INTO talents_personnage (personnage_id, talent_id, niveau, decouvert, decouvert_par, decouvert_le) VALUES (?, ?, ?, ?, ?, ?)`)
@@ -346,7 +350,7 @@ async function settle(db, p, now) {
 
 // entretien des enfants : calculé à la demande, pour le personnage et ses enfants mineurs
 async function supportFamily(db, pid, now) {
-  const { results: kids } = await db.prepare(`SELECT id, ne_le, entretien_le, pere_id, mere_id FROM personnages
+  const { results: kids } = await db.prepare(`SELECT id, prenom, ne_le, entretien_le, pere_id, mere_id, faim, energie, bonheur, sante, maj_le FROM personnages
       WHERE mort_le IS NULL AND (id = ? OR pere_id = ? OR mere_id = ?)`).bind(pid, pid, pid).all();
   for (const k of kids) {
     const par = k.pere_id || k.mere_id;
@@ -361,6 +365,23 @@ async function supportFamily(db, pid, now) {
       db.prepare(`UPDATE personnages SET makuta = makuta - ? WHERE id = ? AND makuta >= ?`).bind(pay, par, pay),
       db.prepare(`UPDATE personnages SET makuta = makuta + ? WHERE id = ?`).bind(pay, k.id),
       db.prepare(`INSERT INTO transactions (id, de_id, vers_id, montant, motif, le) VALUES (?, ?, ?, ?, ?, ?)`).bind(uid(), par, k.id, pay, `entretien de l'enfant (${days} j)`, now));
+    // enfant négligé : il peut voler pour survivre (le joueur responsable doit veiller à ce qu'il ne manque de rien)
+    const hunger = needsAt({ hunger: k.faim, energy: k.energie, happiness: k.bonheur, health: k.sante, updatedAt: k.maj_le }, now).hunger;
+    if (unpaid > 0 && ageYears(k.ne_le, now) >= NEGLECT_STEAL_AGE && Math.random() < neglectStealChance(unpaid, hunger)) {
+      const cr = CRIMES.find(c => c.id === "vol-marche"), caught = Math.random() < catchChance(cr, 0);
+      if (caught) {
+        const fine = Math.min(cr.amende, Math.max(0, (pr ? pr.makuta : 0) - pay));
+        st.push(db.prepare(`INSERT INTO infractions (id, personnage_id, type, amende, prison_heures, le) VALUES (?, ?, ?, ?, 0, ?)`).bind(uid(), k.id, cr.id, fine, now),
+          db.prepare(`INSERT INTO mouvements (id, personnage_id, icone, texte, par_consigne, le) VALUES (?, ?, ?, ?, 0, ?)`).bind(uid(), k.id, "🚓", `${k.prenom}, affamé et sans entretien, a volé au marché et s'est fait attraper. Amende payée par les parents : ${fmtMakuta(fine)}.`, now));
+        if (fine > 0) st.push(db.prepare(`UPDATE personnages SET makuta = makuta - ? WHERE id = ? AND makuta >= ?`).bind(fine, par, fine),
+          db.prepare(`INSERT INTO transactions (id, de_id, vers_id, montant, motif, le) VALUES (?, ?, ?, ?, ?, ?)`).bind(uid(), par, STATE_ID, fine, `amende : vol de l'enfant ${k.prenom}`, now));
+      } else {
+        const gain = cr.gain[0] + Math.floor(Math.random() * (cr.gain[1] - cr.gain[0]));
+        st.push(db.prepare(`UPDATE personnages SET makuta = makuta + ? WHERE id = ?`).bind(gain, k.id),
+          db.prepare(`INSERT INTO transactions (id, de_id, vers_id, montant, motif, le) VALUES (?, NULL, ?, ?, ?, ?)`).bind(uid(), k.id, gain, "vol au marché (enfant négligé)", now),
+          db.prepare(`INSERT INTO mouvements (id, personnage_id, icone, texte, par_consigne, le) VALUES (?, ?, ?, ?, 0, ?)`).bind(uid(), k.id, "🫳", `${k.prenom}, livré à lui-même, a volé ${fmtMakuta(gain)} au marché pour manger.`, now));
+      }
+    }
     await db.batch(st);
   }
 }
@@ -523,7 +544,8 @@ const worker = {
           const { results: ent } = await db.prepare(`SELECT e.nom, e.type, e.local AS quartier, e.cree_le, p.prenom || ' ' || p.nom AS proprietaire FROM entreprises e JOIN personnages p ON p.id = e.proprietaire_id ORDER BY e.cree_le`).all();
           const { results: beta } = await db.prepare(`SELECT pseudo, email, pays, plateforme, newsletter, source, cree_le FROM beta_inscrits ORDER BY cree_le DESC LIMIT 2000`).all();
           const { results: support } = await db.prepare(`SELECT id, pseudo, email, categorie, message, statut, cree_le, resolu_le FROM support_demandes ORDER BY statut = 'ouvert' DESC, cree_le DESC LIMIT 300`).all();
-          return json(h, 200, { lancement: await launch(db), parents, investisseurs: inv, entreprises: ent, elections: await elections(db, now), beta, support });
+          const nb = await db.prepare(`SELECT COUNT(*) AS n, COALESCE(SUM(usd), 0) AS usd FROM depots WHERE offre = 'bebe'`).first();
+          return json(h, 200, { lancement: await launch(db), naissances: { n: nb.n, usd: nb.usd, fraisAdmin: nb.n * ADMIN_FEE_USD, parents: nb.usd - nb.n * ADMIN_FEE_USD }, parents, investisseurs: inv, entreprises: ent, elections: await elections(db, now), beta, support });
         }
         if (url.pathname === "/api/admin/support" && req.method === "POST") {
           const st = body.statut === "resolu" ? "resolu" : "ouvert";

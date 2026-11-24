@@ -1232,6 +1232,7 @@
         note("🚓 Il essaie de voler à " + d.nom + "… et se fait attraper par la police ! Amende : " + fine + " e-makuta.", "alert");
         shiftMind(15, "après cette arrestation");
         if (me.arrest >= 2 && me.car !== "méfiant") changeChar("méfiant", "il a été arrêté plusieurs fois");
+        if (me.arrest % JAIL_AFTER === 0) { jail(); return; }
         A.phase = "visit"; A.wait = 10; A.doing = "🚓 Arrêté par la police"; return;
       }
       const gain = 8 + ((rand() * 20) | 0); me.argent += gain;
@@ -1298,7 +1299,7 @@
       autoWalk(dt);
     } else if (A.phase === "visit") { A.wait -= dt; if (A.wait <= 0) { A.phase = "walk"; A.path = null; } }
     else if (A.phase === "sit") { A.sitT -= dt; if (A.sitT <= 0 || (G.energy > 98 && A.sitT < 8)) { standUp(true); A.phase = "walk"; A.path = null; } }
-    else if (A.phase === "home") { if (G.phase === "nuit") { A.doing = "😴 Il dort à la maison"; } else if (G.energy >= 100 && A.mode !== "maison") { msg("Ton personnage est reposé et repart se promener.", 3, "ok"); A.phase = "walk"; A.path = null; } }
+    else if (A.phase === "home") { if (A.mode === "prison") { A.doing = G.lifeMsg; } else if (G.phase === "nuit") { A.doing = "😴 Il dort à la maison"; } else if (G.energy >= 100 && A.mode !== "maison") { msg("Ton personnage est reposé et repart se promener.", 3, "ok"); A.phase = "walk"; A.path = null; } }
     else if (A.phase === "board") {
       A.wait -= dt;
       if (A.wait <= 0) {
@@ -1554,8 +1555,33 @@
     const h = G.hour, ph = h >= 22 || h < 5 ? "nuit" : h < 10 ? "matin" : "jour";
     if (ph !== G.phase) { const old = G.phase; G.phase = ph; phaseChange(old, ph); }
   }
+  // prison : comme sur le serveur, la 3e arrestation mène 24 h en cellule au commissariat (il ne peut rien faire)
+  const JAIL_AFTER = 3, JAIL_HOURS = 24;
+  const gameT = () => G.day * 24 + G.hour;
+  const jailed = () => !!(G.me && G.me.prisonT && gameT() < G.me.prisonT);
+  function jailSpot() {
+    const o = PLACES.find(o => o.id === "police"); if (!o) return;
+    if (G.foot && G.foot.sit) standUp(true);
+    const d = o.door || { x: o.x, y: o.y };
+    G.foot = { x: d.x, y: d.y, a: 0, v: 0, t: 0 };
+    G.auto = { phase: "home", path: null, mode: "prison", seen: [], doing: "🔒 En cellule", dest: { home: true, place: o } };
+    G.lifeMsg = "🔒 En cellule au commissariat jusqu'à " + hh(G.me.prisonT % 24);
+  }
+  function jail() {
+    const me = G.me; me.prisonT = gameT() + JAIL_HOURS; me.prisons = (me.prisons || 0) + 1;
+    note("🔒 Troisième arrestation : il passe " + JAIL_HOURS + " h en cellule au commissariat. Il ne peut rien faire et tes consignes sont suspendues.", "alert");
+    shiftMind(10, "la prison");
+    if (G.life) G.life.cur = null;
+    jailSpot(); saveMe();
+  }
+  function unjail() {
+    const me = G.me; me.prisonT = 0; saveMe();
+    note("🚪 Il sort du commissariat. " + (me.honnete >= 50 ? "Il jure qu'on ne l'y reprendra plus." : "Il en veut à la police…"), "ok");
+    G.life = newLife(); G.life.wake = G.hour; atHome("🏠 De retour à la maison");
+  }
   function newLife() { G.plan = loadPlan(); return { orders: [], refused: [], done: [], later: null, cur: null, until: 0, wake: 5 + 1 + rand() * 1.5 }; }
   function phaseChange(old, ph) {
+    if (jailed()) { jailSpot(); G.life = null; const b = $("planbtn"); if (b) b.disabled = true; if (!old) msg("🔒 Ton personnage est en cellule au commissariat jusqu'à " + hh(G.me.prisonT % 24) + ". Tu ne peux que l'observer.", 6, "alert"); return; }
     if (!old) { // ouverture du jeu : le personnage est chez lui
       if (ph === "nuit") { atHome("😴 Il dort à la maison"); G.lifeMsg = "😴 Il dort à la maison"; msg("🌙 " + hh(G.hour) + " : ton personnage dort chez lui. Il se réveillera vers 5 h.", 5); }
       else { atHome("🏠 À la maison"); G.life = newLife(); G.life.wake = Math.min(G.life.wake, G.hour + .3);
@@ -1653,6 +1679,7 @@
     note(G.lifeMsg + ".");
   }
   function lifeUpdate() {
+    if (G.me && G.me.prisonT) { if (jailed()) { G.me.faim = Math.min(G.me.faim, 60); G.lifeMsg = "🔒 En cellule au commissariat jusqu'à " + hh(G.me.prisonT % 24); return; } unjail(); }
     if (G.phase === "nuit" || !G.life) return;
     const L = G.life;
     if (G.hour < L.wake && !L.orders.length) { // réveil : il prend son temps à la maison
@@ -1687,6 +1714,7 @@
   // consignes : 3 par jour au plus, à donner le matin ; il les suit… ou pas
   function openPlan() {
     if (!G || !WALK || $("planpanel")) return;
+    if (jailed()) { msg("🔒 Il est en cellule : pas de consignes avant sa sortie.", 3.5, "alert"); return; }
     if (G.phase !== "matin") { msg("📋 Les consignes se donnent le matin, entre 5 h et 10 h. Pour l'instant, tu observes.", 3.5); return; }
     const wasPaused = G.paused; G.paused = true;
     const given = (G.plan || []).slice(); let sel = [];
