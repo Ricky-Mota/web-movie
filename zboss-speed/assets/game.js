@@ -157,6 +157,94 @@
     }
     SHOPS.inShop = inShop;
   })();
+  // lieux de la ville (2 Life) : sport, loisirs, commerces, espaces partenaires, institutions de l'État.
+  // Chaque lieu occupe un terrain au bord d'une rue (les bâtiments de la carte y sont retirés).
+  // Masque : 2 = bâtiment (plein), 4 = terrain ouvert (marchable, solide pour les voitures).
+  // Noms inventés ; les espaces partenaires restent sans logo tant qu'aucun accord écrit n'est signé.
+  const PLACE_SPECS = [
+    { id: "foot", type: "foot", nom: "Terrain de football de la Gombe", icone: "⚽", w: 520, d: 340, open: true, statut: "Matchs entre joueurs après le lancement." },
+    { id: "jeux", type: "jeux", nom: "Aire de jeux des enfants", icone: "🛝", w: 240, d: 200, open: true, statut: "Les bébés et enfants joueurs y gagneront de la joie." },
+    { id: "basket", type: "basket", nom: "Terrain de basket", icone: "🏀", w: 300, d: 190, open: true, statut: "Ouvert à tous les joueurs." },
+    { id: "club1", type: "club", nom: "Mokili Club", icone: "🪩", w: 240, d: 190, h: 70, statut: "Boîte de nuit : réservée aux joueurs de 18 ans et plus, ouvre après le lancement." },
+    { id: "club2", type: "club", nom: "Kin Lumière Lounge", icone: "🪩", w: 220, d: 180, h: 60, statut: "Boîte de nuit : réservée aux joueurs de 18 ans et plus, ouvre après le lancement." },
+    { id: "alim1", type: "alim", nom: "Alimentation Mama Kitoko", icone: "🛒", w: 220, d: 170, h: 80, statut: "Alimentation : nourriture et boissons pour ton personnage." },
+    { id: "alim2", type: "alim", nom: "Super Alimentation du Boulevard", icone: "🛒", w: 260, d: 190, h: 85, statut: "Alimentation : nourriture et boissons pour ton personnage." },
+    { id: "mode", type: "magasin", nom: "Galerie Mode Kin", icone: "👗", w: 260, d: 190, h: 75, statut: "Magasin de vêtements : habille ton personnage." },
+    { id: "phones", type: "magasin", nom: "Kin Phones", icone: "📱", w: 200, d: 170, h: 75, statut: "Téléphones et accessoires." },
+    { id: "p-telecom", type: "partenaire", nom: "Espace partenaire · Télécom", icone: "📶", w: 240, d: 180, h: 70, partenaire: "Vodacom", statut: "Réservé à Vodacom (partenaire pressenti). Logo et services après la signature d'un accord." },
+    { id: "p-banque", type: "partenaire", nom: "Espace partenaire · Banque", icone: "🏦", w: 240, d: 180, h: 80, partenaire: "Equity BCDC", statut: "Réservé à Equity BCDC (partenaire pressenti). Logo et services après la signature d'un accord." },
+    { id: "p-boisson1", type: "partenaire", nom: "Espace partenaire · Boissons", icone: "🥤", w: 240, d: 180, h: 75, partenaire: "Bralima", statut: "Réservé à Bralima (partenaire pressenti). Logo et services après la signature d'un accord." },
+    { id: "p-boisson2", type: "partenaire", nom: "Espace partenaire · Boissons", icone: "🥤", w: 240, d: 180, h: 75, partenaire: "Bracongo", statut: "Réservé à Bracongo (partenaire pressenti). Logo et services après la signature d'un accord." },
+    { id: "mairie", type: "etat", nom: "Hôtel de ville de Kinshasa", icone: "🏛️", w: 380, d: 260, h: 120, statut: "Institution de l'État : ouvrira après le lancement du jeu." },
+    { id: "assemblee", type: "etat", nom: "Assemblée nationale", icone: "🗳️", w: 400, d: 270, h: 110, statut: "Les députés élus y voteront les lois du jeu, après la première élection." },
+    { id: "police", type: "etat", nom: "Commissariat de la Police nationale", icone: "🚓", w: 300, d: 220, h: 90, statut: "Amendes, prison et recrutement de policiers : ouvre après le lancement." },
+    { id: "justice", type: "etat", nom: "Palais de justice", icone: "⚖️", w: 320, d: 230, h: 100, statut: "Cours et tribunaux : ouvre après le lancement." },
+    { id: "dgi", type: "etat", nom: "DGI · Direction générale des impôts", icone: "🧾", w: 300, d: 220, h: 100, statut: "Impôts sur les salaires et les entreprises : ouvre après le lancement." },
+    { id: "bcc", type: "etat", nom: "Banque centrale", icone: "🏦", w: 320, d: 230, h: 110, statut: "Émet l'e-makuta et surveille les banques : ouvre après le lancement." },
+    { id: "hopital", type: "etat", nom: "Hôpital général", icone: "🏥", w: 360, d: 250, h: 100, statut: "Soins des personnages malades : ouvre après le lancement." },
+  ];
+  const PLACES = [], BILLBOARDS = [];
+  (function () {
+    const M = (x, y) => (x < 0 || y < 0 || x >= W || y >= H) ? 3 : mask[(y / C | 0) * MW + (x / C | 0)];
+    const segs = [];
+    ROADS.forEach(r => { if (r.w < 90) return; for (let i = 0; i + 3 < r.p.length; i += 2) segs.push({ r, ax: r.p[i], ay: r.p[i + 1], bx: r.p[i + 2], by: r.p[i + 3] }); });
+    const st = MAP.start, taken = SHOPS.map(o => ({ x: o.x, y: o.y, R: 420 }));
+    PLACE_SPECS.forEach((P, k) => {
+      // répartis en spirale autour du point de départ, à distance de marche
+      const ang = st.a + k * 2.39996, dist = 700 + k * 190;
+      const T0 = { x: st.x + Math.cos(ang) * dist, y: st.y + Math.sin(ang) * dist };
+      const cand = segs.map(g => ({ g, d: Math.hypot((g.ax + g.bx) / 2 - T0.x, (g.ay + g.by) / 2 - T0.y) })).filter(o => o.d < 3500).sort((a, b) => a.d - b.d);
+      for (const { g } of cand) {
+        const L = Math.hypot(g.bx - g.ax, g.by - g.ay); if (L < P.w + 40) continue;
+        const ux = (g.bx - g.ax) / L, uy = (g.by - g.ay) / L, a = Math.atan2(uy, ux);
+        let done = false;
+        for (const sd of [1, -1]) {
+          const nx = -uy * sd, ny = ux * sd, off = g.r.w / 2 + 45 + P.d / 2;
+          const cx = (g.ax + g.bx) / 2 + nx * off, cy = (g.ay + g.by) / 2 + ny * off, R = Math.hypot(P.w, P.d) / 2;
+          if (taken.some(o => Math.hypot(o.x - cx, o.y - cy) < o.R + R + 60)) continue;
+          if (Math.hypot(cx - st.x, cy - st.y) < 260) continue;
+          let ok = true;
+          for (let v = -P.d / 2 - 15; v <= P.d / 2 + 15 && ok; v += 12) for (let u = -P.w / 2 - 15; u <= P.w / 2 + 15 && ok; u += 12) {
+            const m = M(cx + ux * sd * u + nx * v, cy + uy * sd * u + ny * v); if (m === 1 || m === 3 || m === 4) ok = false;
+          }
+          if (!ok) continue;
+          PLACES.push({ ...P, x: cx, y: cy, a: Math.atan2(uy * sd, ux * sd), ux: ux * sd, uy: uy * sd, nx, ny, R });
+          taken.push({ x: cx, y: cy, R }); done = true; break;
+        }
+        if (done) break;
+      }
+    });
+    const inPlace = (o, x, y, m) => { const dx = x - o.x, dy = y - o.y, u = dx * o.ux + dy * o.uy, v = dx * o.nx + dy * o.ny; return Math.abs(u) < o.w / 2 + m && Math.abs(v) < o.d / 2 + m; };
+    const pip = (b, x, y) => { let c = false; for (let i = 1, j = b.length - 2; i < b.length; j = i, i += 2) { const xi = b[i], yi = b[i + 1], xj = b[j], yj = b[j + 1]; if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) c = !c; } return c; };
+    if (PLACES.length) {
+      MAP.buildings = MAP.buildings.filter(b => {
+        let hit = false; for (let i = 1; i < b.length && !hit; i += 2) if (PLACES.some(o => inPlace(o, b[i], b[i + 1], 30))) hit = true;
+        if (!hit) return true;
+        let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9; for (let i = 1; i < b.length; i += 2) { x0 = Math.min(x0, b[i]); x1 = Math.max(x1, b[i]); y0 = Math.min(y0, b[i + 1]); y1 = Math.max(y1, b[i + 1]); }
+        for (let y = y0; y <= y1 + C; y += C) for (let x = x0; x <= x1 + C; x += C) { const k = (y / C | 0) * MW + (x / C | 0); if (mask[k] === 2 && pip(b, x, y)) mask[k] = 0; }
+        return false;
+      });
+      for (let i = FILL.length - 1; i >= 0; i--) { const f = FILL[i]; if (!PLACES.some(o => inPlace(o, f.x, f.y, Math.max(f.w, f.d) / 2 + 20))) continue; FILL.splice(i, 1); for (let yy = f.y - f.d / 2 - C; yy < f.y + f.d / 2 + C; yy += C) for (let xx = f.x - f.w / 2 - C; xx < f.x + f.w / 2 + C; xx += C) { const k = (yy / C | 0) * MW + (xx / C | 0); if (mask[k] === 2) mask[k] = 0; } }
+      PLACES.forEach(o => {
+        // terrain ouvert : marchable ; bâtiment : plein (on s'arrête devant la façade, côté rue)
+        const m = o.open ? 4 : 2;
+        for (let v = -o.d / 2; v <= o.d / 2; v += C / 2) for (let u = -o.w / 2; u <= o.w / 2; u += C / 2) { const k = ((o.y + o.uy * u + o.ny * v) / C | 0) * MW + ((o.x + o.ux * u + o.nx * v) / C | 0); mask[k] = m; }
+        o.door = { x: o.x - o.nx * (o.d / 2 + 30), y: o.y - o.ny * (o.d / 2 + 30) };
+      });
+    }
+    PLACES.inPlace = inPlace;
+    // panneaux publicitaires LED au bord des grands axes, autour du départ
+    const big = segs.filter(g => g.r.w >= 130).map(g => ({ g, d: Math.hypot((g.ax + g.bx) / 2 - st.x, (g.ay + g.by) / 2 - st.y) })).filter(o => o.d < 5200).sort((a, b) => a.d - b.d);
+    for (const { g } of big) {
+      if (BILLBOARDS.length >= 26) break;
+      const L = Math.hypot(g.bx - g.ax, g.by - g.ay); if (L < 160) continue;
+      const ux = (g.bx - g.ax) / L, uy = (g.by - g.ay) / L, sd = BILLBOARDS.length % 2 ? 1 : -1, nx = -uy * sd, ny = ux * sd;
+      const x = (g.ax + g.bx) / 2 + nx * (g.r.w / 2 + 28), y = (g.ay + g.by) / 2 + ny * (g.r.w / 2 + 28);
+      if (M(x, y) !== 0) continue;
+      if (BILLBOARDS.some(b => Math.hypot(b.x - x, b.y - y) < 650) || PLACES.some(o => inPlace(o, x, y, 40)) || Math.hypot(x - st.x, y - st.y) < 200) continue;
+      BILLBOARDS.push({ x, y, a: Math.atan2(uy, ux), i: BILLBOARDS.length });
+    }
+  })();
   // déplacement à pied : murs du showroom (porte côté rue), bâtiments et eau
   function walkBlocked(x, y) {
     const g = (x < 0 || y < 0 || x >= W || y >= H) ? 2 : mask[(y / C | 0) * MW + (x / C | 0)];
@@ -591,17 +679,23 @@
     for (const o of SHOPS) for (const sl of o.slots || []) if (Math.hypot(x - sl.x, y - sl.y) < 48) return { o, sl, car: CARS[o.slots.indexOf(sl) % CARS.length] };
     return null;
   }
+  function nearPlace(x, y) {
+    let best = null, bd = 1e9;
+    for (const o of PLACES) { if (!PLACES.inPlace(o, x, y, 70)) continue; const d = Math.hypot(o.x - x, o.y - y); if (d < bd) { bd = d; best = o; } }
+    return best;
+  }
   function updatePrompt() {
     const p = G.player, sp = Math.hypot(p.vx, p.vy);
-    let txt = "", act = null;
+    let txt = "", act = null, np = null;
     if (!G.foot) {
       const shop = SHOPS.find(o => Math.hypot(o.x - p.x, o.y - p.y) < 520);
-      if (WALK) { if (sp < 60) { txt = "Descendre du taxi"; act = "exit"; } }
+      if (WALK) { if (sp < 60) { txt = "Descendre du taxi"; act = "exit"; } else if ((np = nearPlace(p.x, p.y))) txt = np.icone + " " + np.nom; }
       else if (sp < 60 && !G.chase) { txt = shop ? "Descendre et entrer dans la concession" : "Descendre de la voiture"; act = "exit"; }
       else if (shop && !G.chase) txt = "Concession 2 Life Motors : arrête-toi pour entrer";
     } else {
       const ns = WALK ? null : nearSlot(G.foot.x, G.foot.y);
       if (WALK && Math.hypot(G.foot.x - p.x, G.foot.y - p.y) < 50) { txt = "Prendre le taxi"; act = "enter"; }
+      else if (WALK && (np = nearPlace(G.foot.x, G.foot.y))) txt = np.icone + " " + np.nom + " · " + np.statut;
       else if (WALK) txt = "Promenade à pied dans la Gombe. Le taxi jaune est sur la carte.";
       else if (ns) { txt = ns.car.id === p.carDef.id ? ns.car.name + " : c'est déjà ta voiture" : "Prendre la " + ns.car.name + " (" + ns.car.cls + ")"; act = ns.car.id === p.carDef.id ? null : "pick"; }
       else if (Math.hypot(G.foot.x - p.x, G.foot.y - p.y) < 50) { txt = "Monter dans la voiture"; act = "enter"; }
@@ -861,6 +955,8 @@
     const X = x => ox + x * s, Y = y => oy + y * s;
     G.blocks.forEach(b => { mctx.fillStyle = "#c9ccd6"; mctx.fillRect(X(b.x) - 2, Y(b.y) - 2, 4, 4); });
     SHOPS.forEach(o => { const x = Math.max(6, Math.min(MM - 6, X(o.x))), y = Math.max(6, Math.min(MM - 6, Y(o.y))); mctx.fillStyle = "#ff5a1f"; mctx.fillRect(x - 5, y - 5, 10, 10); mctx.fillStyle = "#fff"; mctx.font = "bold 8px sans-serif"; mctx.textAlign = "center"; mctx.fillText("Z", x, y + 3); });
+    const PCOL = { foot: "#3fbf5a", jeux: "#3fbf5a", basket: "#3fbf5a", club: "#c04bff", alim: "#ffb21f", magasin: "#ffb21f", partenaire: "#2fa8ff", etat: "#f2f2f2" };
+    PLACES.forEach(o => { const x = X(o.x), y = Y(o.y); if (x < -4 || y < -4 || x > MM + 4 || y > MM + 4) return; mctx.fillStyle = PCOL[o.type] || "#fff"; mctx.beginPath(); mctx.arc(x, y, 3.4, 0, 6.283); mctx.fill(); mctx.strokeStyle = "rgba(0,0,0,.6)"; mctx.lineWidth = 1; mctx.stroke(); });
     if (G.foot) { mctx.fillStyle = "#7ff0a8"; mctx.beginPath(); mctx.arc(X(G.foot.x), Y(G.foot.y), 3, 0, 6.283); mctx.fill(); }
     G.cops.forEach(c => { if (!c.alive || c.mode === "leave") return; mctx.fillStyle = c.mode === "patrol" ? "#8a93a8" : (Math.floor(G.t * 4) % 2 ? "#ff2d4a" : "#2d7bff"); const x = Math.max(4, Math.min(MM - 4, X(c.x))), y = Math.max(4, Math.min(MM - 4, Y(c.y))); mctx.beginPath(); mctx.arc(x, y, 3.2, 0, 6.283); mctx.fill(); });
     if (G.heli) { mctx.strokeStyle = "rgba(220,235,255,.8)"; mctx.beginPath(); mctx.arc(X(G.heli.x), Y(G.heli.y), 170 * s + 2, 0, 6.283); mctx.stroke(); }
@@ -982,6 +1078,6 @@
   resize(); show("menu");
 
   // Accès pour les tests automatisés
-  window.ZBOSS_WORLD = { W, H, C, MW, MH, mask, MAP, ROADS, FILL, walkBlocked, SHOPS, SHOP_W, SHOP_D, SHOP_DOOR, nodes, nodesNear, nearestNode, solidAt, groundAt, angDiff, rand };
+  window.ZBOSS_WORLD = { W, H, C, MW, MH, mask, MAP, ROADS, FILL, walkBlocked, SHOPS, PLACES, BILLBOARDS, SHOP_W, SHOP_D, SHOP_DOOR, nodes, nodesNear, nearestNode, solidAt, groundAt, angDiff, rand };
   window.__zboss = { get state() { return G; }, start: () => start(chosen), spawnCop, keys, touch, act: () => { actPressed = true; } };
 })();

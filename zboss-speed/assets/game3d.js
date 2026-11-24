@@ -406,6 +406,181 @@
     if (near && nd < 700) { shopLight.position.set(near.x * S, 5.5, near.y * S); shopLight.intensity = 1.6; } else shopLight.intensity = 0;
   }
 
+  // ------------------------------------------------------------ Lieux de la ville (sport, loisirs, commerces, partenaires, État) et panneaux LED
+  const PLACES3 = WORLD.PLACES || [], BOARDS3 = WORLD.BILLBOARDS || [], placeGroups = [];
+  const PL = (() => {
+    const M = (c, o) => new THREE.MeshStandardMaterial(Object.assign({ color: c, roughness: .7 }, o || {}));
+    const txt = (w, h, bg, lines) => canvasTex(w, h, (c, W_, H_) => {
+      if (typeof bg === "function") bg(c, W_, H_); else { c.fillStyle = bg; c.fillRect(0, 0, W_, H_); }
+      c.textAlign = "center"; c.textBaseline = "middle";
+      lines.forEach(l => { c.font = l.f; c.fillStyle = l.c; if (l.glow) { c.shadowColor = l.c; c.shadowBlur = l.glow; } else c.shadowBlur = 0; c.fillText(l.t, W_ / 2, H_ * l.y, W_ * .94); });
+    });
+    return {
+      txt, M, white: M("#f1eee8"), cream: M("#efe2c4"), dark: M("#1b1c21", { roughness: .45, metalness: .4 }), black: M("#0c0c10", { roughness: .5 }),
+      metal: M("#9aa1aa", { roughness: .35, metalness: .7 }), wood: M("#8a5a35"), red: M("#c0392b"), yellow: M("#f2c230"), blue: M("#2b6cb0"), green: M("#2f8f46"),
+      glass: new THREE.MeshStandardMaterial({ color: "#9fc3d8", roughness: .05, metalness: .6, transparent: true, opacity: .45 }),
+      glow: c => new THREE.MeshBasicMaterial({ color: c }),
+    };
+  })();
+  const pbox = (g, w, h, d, x, y, z, m, sh) => { const o = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m); o.position.set(x, y, z); if (sh && !MOBILE) o.castShadow = o.receiveShadow = true; g.add(o); return o; };
+  const pplane = (g, w, h, mat, x, y, z, ry) => { const o = new THREE.Mesh(new THREE.PlaneGeometry(w, h), mat); o.position.set(x, y, z); o.rotation.y = ry || 0; g.add(o); return o; };
+  const flagTex = canvasTex(192, 128, (c, w, h) => {   // drapeau de la RD Congo
+    c.fillStyle = "#007fff"; c.fillRect(0, 0, w, h);
+    c.save(); c.translate(0, h); c.rotate(-Math.atan2(h, w));
+    const L = Math.hypot(w, h); c.fillStyle = "#f7d618"; c.fillRect(0, -h * .2, L, h * .4); c.fillStyle = "#ce1021"; c.fillRect(0, -h * .13, L, h * .26); c.restore();
+    c.fillStyle = "#f7d618"; c.beginPath(); for (let i = 0; i < 10; i++) { const r = i % 2 ? 9 : 22, a = -Math.PI / 2 + i * Math.PI / 5; c.lineTo(34 + Math.cos(a) * r, 30 + Math.sin(a) * r); } c.fill();
+  });
+  function fence(g, W2, D2, gap) {   // clôture basse sur 4 côtés, ouverture côté rue
+    const m = P_FENCE;
+    pbox(g, W2, .9, .12, 0, .45, D2 / 2, m); [-1, 1].forEach(k => pbox(g, .12, .9, D2, k * W2 / 2, .45, 0, m));
+    const s = (W2 - gap) / 2; [-1, 1].forEach(k => pbox(g, s, .9, .12, k * (gap / 2 + s / 2), .45, -D2 / 2, m));
+    for (let x = -W2 / 2; x <= W2 / 2 + .01; x += 4) pbox(g, .14, 1.3, .14, x, .65, D2 / 2, PL.metal);
+  }
+  const P_FENCE = new THREE.MeshStandardMaterial({ color: "#6b7a6f", roughness: .5, metalness: .5, transparent: true, opacity: .55 });
+  function signBoard(g, text, sub, w, y, z, bg, fg) {
+    const t = PL.txt(1024, 256, bg, [{ t: text, f: "900 96px 'Chakra Petch', Impact, sans-serif", c: fg, y: sub ? .38 : .5, glow: 18 }].concat(sub ? [{ t: sub, f: "700 46px Inter, Arial, sans-serif", c: bg === "#ffffff" ? "#2a2d35" : "#ffffff", y: .78 }] : []));
+    pplane(g, w, w / 4, new THREE.MeshBasicMaterial({ map: t }), 0, y, z, Math.PI);
+  }
+  function buildPlace(o) {
+    const g = new THREE.Group(); g.position.set(o.x * S, 0, o.y * S); g.rotation.y = -o.a;
+    const W2 = o.w * S, D2 = o.d * S, H2 = (o.h || 60) * S, front = -D2 / 2;
+    pbox(g, W2 + 1.2, .1, D2 + 1.2, 0, .05, 0, PL.M("#b9b2a6"));   // dalle
+    if (o.type === "foot" || o.type === "basket") {
+      const foot = o.type === "foot";
+      const t = canvasTex(1024, 640, (c, w, h) => {
+        if (foot) { for (let i = 0; i < 12; i++) { c.fillStyle = i % 2 ? "#3f9a45" : "#46a64c"; c.fillRect(i * w / 12, 0, w / 12 + 1, h); } } else { c.fillStyle = "#1f5f99"; c.fillRect(0, 0, w, h); c.fillStyle = "#d9792b"; c.fillRect(40, 40, w - 80, h - 80); }
+        c.strokeStyle = "#fff"; c.lineWidth = 8; c.strokeRect(40, 40, w - 80, h - 80); c.beginPath(); c.moveTo(w / 2, 40); c.lineTo(w / 2, h - 40); c.stroke();
+        c.beginPath(); c.arc(w / 2, h / 2, h * .16, 0, 6.3); c.stroke();
+        if (foot) { [40, w - 40].forEach((x, k) => { const s = k ? -1 : 1; c.strokeRect(Math.min(x, x + s * 150), h / 2 - 160, 150, 320); c.strokeRect(Math.min(x, x + s * 55), h / 2 - 80, 55, 160); }); }
+        else { [40, w - 40].forEach((x, k) => { const s = k ? -1 : 1; c.fillStyle = "rgba(31,95,153,.85)"; c.fillRect(Math.min(x, x + s * 190), h / 2 - 70, 190, 140); c.beginPath(); c.arc(x, h / 2, 250, k ? Math.PI / 2 : -Math.PI / 2, k ? Math.PI * 1.5 : Math.PI / 2); c.stroke(); }); }
+      });
+      const f = pplane(g, W2 - 2, D2 - 2, new THREE.MeshStandardMaterial({ map: t, roughness: .9 }), 0, .12, 0); f.rotation.x = -Math.PI / 2; f.receiveShadow = true;
+      const L = W2 - 2;
+      [-1, 1].forEach(k => {
+        if (foot) {   // buts
+          const gz = 7.3;
+          const x = k * (L / 2 - .4);
+          [-1, 1].forEach(s => pbox(g, .12, 2.44, .12, x, 1.22, s * gz / 2, PL.white, true)); pbox(g, .12, .12, gz, x, 2.44, 0, PL.white, true);
+          const net = new THREE.Mesh(new THREE.BoxGeometry(1.6, 2.4, gz), new THREE.MeshStandardMaterial({ color: "#fff", transparent: true, opacity: .25, wireframe: true })); net.position.set(x + k * .8, 1.2, 0); g.add(net);
+        } else {   // paniers
+          const x = k * (L / 2 + .2);
+          pbox(g, .2, 3.4, .2, x, 1.7, 0, PL.dark, true); pbox(g, .1, 1.05, 1.8, x - k * .9, 3.4, 0, PL.white, true);
+          const ring = new THREE.Mesh(new THREE.TorusGeometry(.23, .025, 6, 20), PL.glow("#ff6a00")); ring.rotation.x = Math.PI / 2; ring.position.set(x - k * 1.25, 3.05, 0); g.add(ring);
+        }
+      });
+      fence(g, W2, D2, 6);
+      // gradins côté intérieur
+      for (let i = 0; i < 3; i++) pbox(g, W2 * .5, .4, .8, 0, .2 + i * .4, D2 / 2 - 1.2 - i * .8 + 1.6, PL.M(["#c0392b", "#f2c230", "#2b6cb0"][i]), true);
+      signBoard(g, foot ? "STADE DE QUARTIER" : "BASKET 2 LIFE", o.nom, 8, 3.4, front - .3, "#0d1a12", foot ? "#7dff8a" : "#ffb347");
+      [-1, 1].forEach(k => pbox(g, .2, 3, .2, k * 3.6, 1.5, front - .3, PL.dark));
+    } else if (o.type === "jeux") {
+      const f = pplane(g, W2 - 1, D2 - 1, new THREE.MeshStandardMaterial({ map: canvasTex(256, 256, (c, w, h) => { noise(c, w, h, "#d9b35c", .15, 3000); c.fillStyle = "rgba(220,60,60,.75)"; c.beginPath(); c.arc(w * .3, h * .55, 60, 0, 6.3); c.fill(); c.fillStyle = "rgba(60,140,220,.75)"; c.beginPath(); c.arc(w * .72, h * .4, 50, 0, 6.3); c.fill(); }), roughness: .95 }), 0, .12, 0); f.rotation.x = -Math.PI / 2;
+      // balançoires
+      const sx = -W2 * .25; [-1, 1].forEach(s => { const l = pbox(g, .12, 2.8, .12, sx + s * 2, 1.4, -1, PL.red, true); l.rotation.x = .25; const l2 = pbox(g, .12, 2.8, .12, sx + s * 2, 1.4, 1, PL.red, true); l2.rotation.x = -.25; });
+      pbox(g, 4.2, .12, .12, sx, 2.7, 0, PL.red, true);
+      [-1, 1].forEach(s => { [-.25, .25].forEach(dx => pbox(g, .03, 2, .03, sx + s * 1 + dx, 1.65, 0, PL.metal)); pbox(g, .6, .06, .3, sx + s, .65, 0, PL.yellow, true); });
+      // toboggan
+      const tx = W2 * .2; pbox(g, 1.4, 1.8, 1.4, tx, .9, 1.5, PL.blue, true); pbox(g, 1.5, .1, 1.5, tx, 1.85, 1.5, PL.yellow, true);
+      const sl = pbox(g, .9, .1, 3.6, tx, .95, -.5, PL.M("#e74c3c", { roughness: .3 }), true); sl.rotation.x = -.5;
+      for (let i = 0; i < 5; i++) pbox(g, 1, .06, .06, tx, .3 + i * .36, 2.3, PL.metal);
+      // tape-cul (bascule) et tourniquet
+      pbox(g, .3, .5, .3, 0, .25, D2 * .25, PL.dark); const sw = pbox(g, 3.4, .1, .3, 0, .55, D2 * .25, PL.green, true); sw.rotation.z = .12;
+      const mg = new THREE.Mesh(new THREE.CylinderGeometry(1.3, 1.3, .15, 20), PL.yellow); mg.position.set(-W2 * .25, .3, D2 * .25); g.add(mg);
+      // bancs et arbres
+      [-1, 1].forEach(k => pbox(g, 2, .45, .5, k * (W2 / 2 - 2), .25, 0, PL.wood, true));
+      fence(g, W2, D2, 4);
+      signBoard(g, "AIRE DE JEUX", "Pour les bébés et enfants de 2 Life", 7, 3.2, front - .3, "#2a1240", "#ffd23f");
+      [-1, 1].forEach(k => pbox(g, .2, 2.8, .2, k * 3.2, 1.4, front - .3, PL.dark));
+    } else {
+      // bâtiments : corps, toit, façade côté rue (z = -D2/2)
+      const T = o.type;
+      const body = T === "club" ? PL.black : T === "alim" ? PL.M(o.id === "alim1" ? "#f4b63f" : "#3aa77a") : T === "etat" ? PL.cream : T === "partenaire" ? PL.white : PL.M("#e9e6e0");
+      pbox(g, W2, H2, D2, 0, H2 / 2, 0, body, true);
+      pbox(g, W2 + .6, .5, D2 + .6, 0, H2 + .25, 0, T === "etat" ? PL.M("#b5a37c") : PL.dark, true);
+      const fz = front - .05;
+      if (T === "club") {
+        const nc = o.id === "club1" ? "#ff2bd6" : "#18e0ff";
+        [H2 * .35, H2 * .7].forEach(y => pbox(g, W2 + .1, .15, D2 + .1, 0, y, 0, PL.glow(nc)));
+        pbox(g, 3, 3, .2, 0, 1.5, fz, PL.glow("#2a0830")); pbox(g, 3.6, .2, .4, 0, 3.1, fz - .1, PL.glow(nc));
+        { const sw = Math.min(W2 * .85, 14); signBoard(g, o.nom.toUpperCase(), "Boîte de nuit · 18+", sw, Math.max(H2 - sw / 8 - .4, 3.4 + sw / 8), fz - .06, "#0a0010", nc); }
+        // corde et poteaux de l'entrée VIP
+        [-2.2, -1, 1, 2.2].forEach(x => pbox(g, .12, 1, .12, x, .5, fz - 1.6, PL.yellow));
+        pbox(g, 4.4, .05, .05, 0, .9, fz - 1.6, PL.red);
+        o.light = nc;
+      } else if (T === "alim" || T === "magasin" || T === "partenaire") {
+        const sh = T !== "alim";
+        pbox(g, W2 * .8, Math.min(3.4, H2 * .55), .15, 0, Math.min(3.4, H2 * .55) / 2 + .1, fz, PL.glass);
+        pbox(g, 2.2, 2.6, .2, 0, 1.3, fz - .02, PL.dark);
+        if (T === "alim") {
+          const aw = canvasTex(256, 64, (c, w, h) => { for (let i = 0; i < 16; i++) { c.fillStyle = i % 2 ? "#fff" : (o.id === "alim1" ? "#d63031" : "#0b7a4b"); c.fillRect(i * w / 16, 0, w / 16 + 1, h); } });
+          const a = new THREE.Mesh(new THREE.BoxGeometry(W2 * .9, .1, 2.4), new THREE.MeshStandardMaterial({ map: aw })); a.position.set(0, 3.7, fz - 1.1); a.rotation.x = -.25; g.add(a);
+          const CR = ["#e67e22", "#27ae60", "#f1c40f", "#c0392b"];
+          for (let i = 0; i < 6; i++) { const x = -W2 * .38 + i * W2 * .15; if (Math.abs(x) < 1.6) continue; pbox(g, 1, .6, .7, x, .3, fz - 1, PL.wood, true); pbox(g, .9, .25, .6, x, .72, fz - 1, PL.M(CR[i % 4])); }
+          signBoard(g, o.nom.replace("Alimentation", "ALIMENTATION").replace("Super", "SUPER"), "Nourriture · boissons · produits du quotidien", Math.min(W2 * .8, 12), H2 - Math.min(W2 * .8, 12) / 8 - .3, fz - .06, o.id === "alim1" ? "#7a1010" : "#063d26", "#fff3b0");
+        } else if (T === "magasin") {
+          const sc = o.id === "mode" ? "#ff4f9a" : "#3fa9ff";
+          pbox(g, W2, .35, .3, 0, 3.7, fz - .1, PL.glow(sc));
+          signBoard(g, o.nom.toUpperCase(), o.id === "mode" ? "Vêtements · chaussures · wax" : "Téléphones · accessoires · réparations", Math.min(W2 * .8, 12), H2 - Math.min(W2 * .8, 12) / 8 - .3, fz - .06, "#111318", sc);
+          for (let i = 0; i < 4; i++) pbox(g, .5, 1.7, .5, -W2 * .3 + i * W2 * .2 + (i > 1 ? 1.6 : -1.6) * 0, .95, fz + 1.2, PL.M(["#ff4f9a", "#f2c230", "#3fa9ff", "#2ecc71"][i]));
+        } else {
+          // espace partenaire : panneau neutre, aucun logo ni nom tant qu'aucun accord n'est signé
+          const cat = o.nom.split("·")[1].trim().toUpperCase();
+          pbox(g, W2 + .2, .25, D2 + .2, 0, H2 * .5, 0, PL.glow("#ff5a1f"));
+          signBoard(g, "ESPACE PARTENAIRE", cat + " · bientôt disponible", Math.min(W2 * .8, 12), H2 - Math.min(W2 * .8, 12) / 8 - .3, fz - .06, "#ffffff", "#ff5a1f");
+          pplane(g, 3, 1.1, new THREE.MeshBasicMaterial({ map: PL.txt(512, 192, "#1b1c21", [{ t: "Bientôt ouvert", f: "800 64px Inter, Arial, sans-serif", c: "#ffffff", y: .5 }]) }), 0, 3, fz - .08, Math.PI);
+        }
+        if (sh) o.light = "#fff1dc";
+      } else if (T === "etat") {
+        // marches, colonnes, fronton, drapeau, bannière « ouvre après le lancement »
+        for (let i = 0; i < 3; i++) pbox(g, W2 * .7 - i * .8, .3, 1.2, 0, .15 + i * .3, fz - 2.6 + i * .6, PL.M("#dcd3c0"), true);
+        pbox(g, W2 * .75, .5, 3.6, 0, H2 * .82, fz - 1.8, PL.cream, true);
+        const nC = Math.max(4, Math.round(W2 * .7 / 3));
+        for (let i = 0; i < nC; i++) { const c = new THREE.Mesh(new THREE.CylinderGeometry(.42, .5, H2 * .82 - .9, 14), PL.white); c.position.set(-W2 * .35 + i * W2 * .7 / (nC - 1), .9 + (H2 * .82 - .9) / 2, fz - 3.1); if (!MOBILE) c.castShadow = true; g.add(c); }
+        const pg = new THREE.Mesh(new THREE.BoxGeometry(W2 * .78, 1.4, 3.8), PL.M("#d8c9a6")); pg.position.set(0, H2 * .82 + .95, fz - 1.8); g.add(pg);
+        const nt = PL.txt(1024, 160, "#d8c9a6", [{ t: o.nom.toUpperCase(), f: "800 70px Georgia, serif", c: "#3b2f1e", y: .52 }]);
+        pplane(g, W2 * .76, W2 * .76 * 160 / 1024, new THREE.MeshBasicMaterial({ map: nt }), 0, H2 * .82 + .95, fz - 3.75, Math.PI);
+        const bn = PL.txt(1024, 192, "#7a1515", [{ t: "OUVRE APRÈS LE LANCEMENT", f: "900 80px Inter, Arial, sans-serif", c: "#fff", y: .4 }, { t: "Institution de l'État · 2 Life", f: "600 44px Inter, Arial, sans-serif", c: "#ffd27a", y: .8 }]);
+        pplane(g, 7, 1.3, new THREE.MeshBasicMaterial({ map: bn }), 0, 2.3, fz - 3.6, Math.PI);
+        const px = W2 / 2 + 1.5; pbox(g, .15, 10, .15, px, 5, fz - 3, PL.metal, true);
+        const fl = new THREE.Mesh(new THREE.PlaneGeometry(2.4, 1.6), new THREE.MeshStandardMaterial({ map: flagTex, side: THREE.DoubleSide })); fl.position.set(px - 1.25, 9.1, fz - 3); fl.rotation.y = Math.PI; g.add(fl); o.flag = fl;
+        o.light = "#ffe2b0";
+      }
+    }
+    scene.add(g); o.g3 = g; placeGroups.push(o);
+  }
+  PLACES3.forEach(buildPlace);
+  // panneaux LED doubles faces (publicités inventées, aucune marque réelle)
+  const ADS = [
+    ["2 LIFE", "Nais avant tout le monde", "#ff5a1f", "#120806"],
+    ["MOKILI CLUB", "Ce soir · 18+ · entrée libre", "#ff2bd6", "#0a0010"],
+    ["MAMA KITOKO", "Alimentation · prix doux", "#ffd23f", "#4a0f0f"],
+    ["VOTRE PUB ICI", "Espace partenaire · contactez 2 Life", "#18e0ff", "#04161c"],
+    ["ÉLECTIONS 2 LIFE", "Vote tous les 6 mois · 18 ans et +", "#7dff8a", "#06210e"],
+    ["KIN PHONES", "Téléphones et accessoires", "#3fa9ff", "#071426"],
+  ].map(([a, b, c, bg]) => new THREE.MeshBasicMaterial({ map: canvasTex(768, 384, (x, w, h) => {
+    const gr = x.createLinearGradient(0, 0, w, h); gr.addColorStop(0, bg); gr.addColorStop(1, "#000"); x.fillStyle = gr; x.fillRect(0, 0, w, h);
+    x.strokeStyle = c; x.lineWidth = 10; x.strokeRect(14, 14, w - 28, h - 28);
+    x.textAlign = "center"; x.textBaseline = "middle"; x.shadowColor = c; x.shadowBlur = 24; x.fillStyle = c; x.font = "900 104px 'Chakra Petch', Impact, sans-serif"; x.fillText(a, w / 2, h * .42, w * .9);
+    x.shadowBlur = 0; x.fillStyle = "#fff"; x.font = "600 40px Inter, Arial, sans-serif"; x.fillText(b, w / 2, h * .74, w * .9);
+    x.fillStyle = "rgba(255,255,255,.06)"; for (let y = 0; y < h; y += 4) x.fillRect(0, y, w, 1);   // trame LED
+  }) }));
+  const ledBoards = BOARDS3.map(b => {
+    const g = new THREE.Group(); g.position.set(b.x * S, 0, b.y * S); g.rotation.y = -b.a;
+    pbox(g, .45, 6, .45, 0, 3, 0, PL.metal, true);
+    pbox(g, 8.4, 4.4, .5, 0, 7.6, 0, PL.dark, true);
+    const fA = pplane(g, 8, 4, ADS[b.i % ADS.length], 0, 7.6, -.26, Math.PI), fB = pplane(g, 8, 4, ADS[(b.i + 3) % ADS.length], 0, 7.6, .26, 0);
+    scene.add(g); return { b, g, fA, fB };
+  });
+  const placeLight = new THREE.PointLight("#fff1dc", 0, 60, 1.6); scene.add(placeLight);
+  function updatePlaces(G) {
+    const focus = G.foot || G.player, t = performance.now() / 1000;
+    let near = null, nd = 1e9;
+    placeGroups.forEach(o => { const d = Math.hypot(o.x - focus.x, o.y - focus.y); o.g3.visible = d < 4200; if (d < nd) { nd = d; near = o; } if (o.flag && o.g3.visible) o.flag.rotation.y = Math.PI + Math.sin(t * 2 + o.x) * .15; });
+    const k = Math.floor(t / 7);
+    ledBoards.forEach(q => { const d = Math.hypot(q.b.x - focus.x, q.b.y - focus.y); q.g.visible = d < 4200; if (!q.g.visible) return; q.fA.material = ADS[(q.b.i + k) % ADS.length]; q.fB.material = ADS[(q.b.i + k + 3) % ADS.length]; });
+    if (near && near.light && nd < 800) { placeLight.color.set(near.light); placeLight.position.set((near.x - near.nx * (near.d / 2 + 40)) * S, 5, (near.y - near.ny * (near.d / 2 + 40)) * S); placeLight.intensity = 1.4; } else placeLight.intensity = 0;
+  }
+
   // ------------------------------------------------------------ Piétons (instanciés : 1 appel de dessin par partie du corps)
   const PEDMAX = 96;
   const SKIN = ["#3b2219", "#4a2c1f", "#5a3826", "#6b4430", "#2f1b14", "#7a4e36"];
@@ -833,6 +1008,7 @@
     updateCamera(G, dt);
     updatePeds(G, camera.position.x, camera.position.z, dt);
     updateShops(G);
+    updatePlaces(G);
     skyG.position.copy(camera.position); renderer.render(scene, camera);
   }
 
