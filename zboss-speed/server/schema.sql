@@ -242,3 +242,6 @@ CREATE TABLE IF NOT EXISTS reputations (personnage_id TEXT PRIMARY KEY, points I
 -- demandes en mariage entre joueurs
 CREATE TABLE IF NOT EXISTS demandes_mariage (id TEXT PRIMARY KEY, de_id TEXT NOT NULL, vers_id TEXT NOT NULL, statut TEXT NOT NULL DEFAULT 'attente', le INTEGER NOT NULL);
 CREATE INDEX IF NOT EXISTS idx_mariage_vers ON demandes_mariage (vers_id, statut);
+
+-- logement : location (loyer chaque semaine) ou parcelle achetée
+CREATE TABLE IF NOT EXISTS logements (personnage_id TEXT PRIMARY KEY, statut TEXT NOT NULL, quartier TEXT NOT NULL, loyer INTEGER NOT NULL DEFAULT 0, paye_jusqu INTEGER, depuis INTEGER NOT NULL);

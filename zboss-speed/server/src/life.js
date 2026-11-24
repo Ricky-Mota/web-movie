@@ -382,6 +382,35 @@ export function cannotMarry(a, b, ageA, ageB) {
   if (a.pere_id && (a.pere_id === b.pere_id || a.mere_id === b.mere_id)) return "Vous êtes de la même famille.";
   return null;
 }
+// ---------------------------------------------------------------- vague 4 : petits boulots, logement, annonces
+// Petits boulots de rue : sans patron ni diplôme, payés tout de suite. Personne n'est bloqué sans revenu.
+export const STREET_JOBS = [
+  { id: "cireur", nom: "Cireur de chaussures", icone: "👞", gain: [30, 70], minAge: 10, energie: 15 },
+  { id: "eau", nom: "Vendeur d'eau en sachet", icone: "💧", gain: [40, 80], minAge: 10, energie: 20 },
+  { id: "porteur", nom: "Porteur au marché", icone: "📦", gain: [60, 110], minAge: 14, energie: 30 },
+  { id: "lavage", nom: "Laveur de voitures", icone: "🚿", gain: [50, 100], minAge: 14, energie: 25 },
+];
+export const STREET_COOLDOWN_H = 3;   // un petit boulot toutes les 3 heures réelles
+export function cannotStreetJob(j, age, energy, last, now = Date.now()) {
+  if (!j) return "Petit boulot inconnu.";
+  if (age < j.minAge) return `Possible dès ${j.minAge} ans.`;
+  if (energy < j.energie) return "Trop fatigué : repose-toi d'abord.";
+  if (last && now - last < STREET_COOLDOWN_H * 36e5) return `Prochain petit boulot dans ${Math.ceil((last + STREET_COOLDOWN_H * 36e5 - now) / 6e4)} min.`;
+  return null;
+}
+// Logement : à partir de 18 ans on loue (loyer prélevé chaque semaine réelle) ou on achète sa parcelle.
+// Un loyer impayé = expulsion (retour chez les parents) et réputation en baisse.
+export const RENT = { Gombe: 900, Ngaliema: 700, Limete: 500, Lingwala: 400, Kinshasa: 400, Barumbu: 350, Kalamu: 350, "Kasa-Vubu": 350, Bandalungwa: 350, Matonge: 300, Lemba: 300, Masina: 250 };
+export const HOUSE_WEEKS = 40;          // une parcelle coûte 40 semaines de loyer
+export const HOUSING_MIN_AGE = 18;
+export const rentOf = q => RENT[q] || 350;
+export const houseOf = q => rentOf(q) * HOUSE_WEEKS;
+export function rentDue(paidUntil, now = Date.now()) {
+  if (!paidUntil || now < paidUntil) return 0;
+  return 1 + Math.floor((now - paidUntil) / (7 * DAY));   // semaines dues
+}
+// Marché aux annonces : les joueurs se vendent leurs objets ; 5 % de taxe sur la vente pour la ville.
+export const SALE_TAX = 0.05;
 export const NEGLECT_STEAL_AGE = 8;
 // Après 7 jours réels de négligence (cumulés), l'enfant est en danger de mort : sa santé chute vite.
 export const NEGLECT_DANGER_DAYS = 7, NEGLECT_DANGER_HEALTH = 15;
@@ -687,6 +716,13 @@ export function describeAction(path, body = {}, r = {}) {
     "/api/mariage/demander": () => ["💍", "Demande en mariage envoyée à " + (body.pseudo || "un joueur")],
     "/api/mariage/repondre": () => body.accepte ? ["💒", "A dit oui : mariage célébré"] : ["🙅", "A refusé une demande en mariage"],
     "/api/divorce": () => ["💔", "A demandé le divorce"],
+    "/api/petitboulot": () => ["🧹", r.boulot ? `Petit boulot (${r.boulot.nom}) : +${fmtMakuta(r.boulot.gain)}` : "Petit boulot"],
+    "/api/logement/louer": () => ["🏠", "A loué un logement à " + body.quartier],
+    "/api/logement/acheter": () => ["🏡", "A acheté sa parcelle à " + body.quartier],
+    "/api/logement/quitter": () => ["🧳", "A quitté son logement"],
+    "/api/annonce/publier": () => ["🏷️", "A mis un objet en vente pour " + fmtMakuta(Number(body.prix) || 0)],
+    "/api/annonce/retirer": () => ["🏷️", "A retiré une annonce"],
+    "/api/annonce/acheter": () => ["🤝", "A acheté à un joueur : " + (r.achete || "un objet")],
   };
   const f = D[path]; if (!f) return null;
   const [icone, texte] = f(); return { icone, texte };

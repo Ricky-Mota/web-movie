@@ -1129,6 +1129,7 @@
       if (o) return Object.assign(toPlace(o), { date: true });
       const bs = BENCHES.filter(b => !b.taken); const b = bs[(rand() * bs.length) | 0]; if (b) return { x: b.x, y: b.y, nom: "un banc en amoureux", icone: "🌹", bench: b, date: true };
     }
+    if (mode === "petitboulot") { const o = nearestOpen(["marche", "alim", "magasin"]); if (o) return Object.assign(toPlace(o), { street: true }); }
     if (mode === "aider") { const o = nearestOpen(["marche", "alim"]); if (o) return Object.assign(toPlace(o), { help: true }); }
     if (mode === "draguer") {
       if (G.hour >= 20) { const o = nearestOpen(["club"]); if (o) return Object.assign(toPlace(o), { flirt: true }); }
@@ -1219,6 +1220,12 @@
       if ((G.me.rep || 0) <= -30) earn(15, "salaire réduit : son patron se méfie de lui (mauvaise réputation)"); else earn(25, "salaire de la journée à " + d.nom);
       if (rand() < .5) repute(1, "un travailleur sérieux"); A.phase = "visit"; A.wait = 1e9; A.doing = "💼 Au travail à " + d.nom; return; }
     if (d.date) { date(); A.phase = "visit"; A.wait = 10; A.doing = "🌹 En rendez-vous à " + d.nom; return; }
+    if (d.street) {
+      const j = [["cireur de chaussures", 5, 9], ["porteur au marché", 7, 13], ["vendeur d'eau en sachet", 5, 10], ["laveur de voitures", 6, 11]][(rand() * 4) | 0];
+      earn(j[1] + ((rand() * (j[2] - j[1])) | 0), "petit boulot : " + j[0] + " à " + d.nom); G.energy = Math.max(0, G.energy - 15);
+      if (rand() < .3) repute(1, "un débrouillard courageux");
+      A.phase = "visit"; A.wait = 1e9; A.doing = "🧹 Petit boulot : " + j[0]; return;
+    }
     if (d.help) {
       const g = 3 + ((rand() * 4) | 0);
       if (pay(g, "il aide " + ["une maman du marché", "un enfant des rues", "un vieux du quartier", "un vendeur malchanceux"][(rand() * 4) | 0])) { repute(4, "sa générosité"); shiftMind(3, "aider fait du bien"); }
@@ -1522,6 +1529,7 @@
     { id: "vol", ic: "🕵️", nom: "Voler", dur: .7, mode: "vol", hidden: true },
     { id: "rendezvous", ic: "🌹", nom: "Voir sa chérie", dur: 1.5, mode: "rendezvous", hidden: true },
     { id: "aider", ic: "🤲", nom: "Aider quelqu'un", dur: .8, mode: "aider", hidden: true },
+    { id: "petitboulot", ic: "🧹", nom: "Petit boulot", dur: 2, mode: "petitboulot", hidden: true },
     { id: "rentrer", ic: "🏠", nom: "Rentrer chez lui", dur: 1, mode: "maison", hidden: true },
   ];
   // journal du jour : tout ce que fait le personnage, à relire
@@ -1647,7 +1655,9 @@
     } else if (ph === "matin") {
       atHome("☕ Il se réveille et se prépare"); G.life = newLife(); G.lifeMsg = "☕ Il se réveille et se prépare";
       { const me = G.me; me.faim = Math.min(me.faim, 25);
-        const fi = relations.get().find(r => r.fiance); if (fi && !me.conjoint && me.argent >= DOT) marry(fi); me.journal = me.journal.filter(j => j.d >= G.day - 1); shiftMind(rand() * 6 - 3, "la nuit porte conseil");
+        const fi = relations.get().find(r => r.fiance); if (fi && !me.conjoint && me.argent >= DOT) marry(fi);
+        if (G.day % 7 === 0 && me.loyerJour !== G.day) { me.loyerJour = G.day;   // loyer de la semaine
+          if (!pay(15, "loyer de la semaine")) { repute(-3, "il ne paie pas son loyer"); note("🏠 Il n'a pas de quoi payer le loyer. Le propriétaire s'impatiente.", "alert"); } } me.journal = me.journal.filter(j => j.d >= G.day - 1); shiftMind(rand() * 6 - 3, "la nuit porte conseil");
         if (rand() < .06) { const t = CARACTERES[(rand() * CARACTERES.length) | 0].t; changeChar(t, "le destin en a décidé ainsi"); } }
       msg("☀️ " + hh(G.hour) + " : ton personnage se réveille. Jusqu'à 10 h, tu peux lui donner des consignes (📋). Il les suivra… ou pas.", 6, "ok");
     } else if (ph === "jour") {
@@ -1687,9 +1697,11 @@
     if (me.faim >= 60) {
       if (me.argent >= 4) return { a: ACT("manger"), why: "il a faim" };
       if (me.honnete < 35 && rand() < .6) return { a: ACT("vol"), why: "il a faim et plus un franc en poche" };
+      if (h < 18 && rand() < .5) return { a: ACT("petitboulot"), why: "il a faim et plus d'argent : il cherche un petit boulot" };
       return { a: ACT("repos"), why: "il a faim mais pas d'argent : il rentre manger chez lui" };
     }
     if (me.argent < 12 && me.honnete < 30) add("vol", 3, "il manque d'argent et n'a pas beaucoup de scrupules");
+    if (me.argent < 15 && me.honnete >= 30 && h < 18) add("petitboulot", 5, "il n'a presque plus d'argent : il cherche un petit boulot");
     if (me.argent < 25 && h < 17) add("business", 3, "il veut gagner un peu d'argent");
     if (me.car === "ambitieux" || likes("affaires")) add("business", 4, "il a le sens des affaires");
     if (h >= 11 && (me.charisme >= 6 || ["drôle", "fier", "bavard"].includes(me.car))) add("draguer", (me.conjoint ? (me.honnete < 40 ? .8 : .2) : 2.5) / (1 + 2 * relations.get().filter(r => r.amour && !r.epouse).length), relations.get().some(r => r.amour) ? "il a déjà quelqu'un, mais il aime plaire" : "il veut séduire quelqu'un");

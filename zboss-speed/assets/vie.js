@@ -4,7 +4,7 @@ import {
   ageYears, stageOf, STAGES, realMsUntil, TALENTS, ACTIVITIES, rng, drawTalents, doActivity, needsAt, newIdentity, BIRTH_GIFT,
   SHOP, cannotBuy, OFFERS, USD_TO_MAKUTA, USD_UNITS, fmtMakuta, WITHDRAW_FEE, walletInfo, birthShiftMs, shopView, familyOf, JOBS, payFor, cannotWork, workView, SHIFT_ENERGY, cannotApply, FORMATIONS, cannotEnroll, attendCourse, schoolView, STUDY_ENERGY, SUPPORT_PER_DAY, HOST_MIN_AGE, canSignupBeforeLaunch, COMPANY_TYPES, cannotOpenCompany, companyName, companyView, companyAccrue, companyJob, EMPLOYEE_YIELD, RESELL_RATE, TAXI_FARE, TAXI_ENERGY, KINSHASA_QUARTIERS, OTHER_CITIES, TAX, POSTS, PUBLIC_JOBS, BANKS, bankAccrue, INSURERS, CARE, careCost, OPERATORS, RECHARGES, CALL, stateView, supportDue, unpaidEffect, familyShare, FIRST_NAMES,
   describeAction, ORDER_DONE, ORDERS, ORDERS_PER_DAY, ORDERS_CHECK_MS, dayKey, ordersToRun, cannotGiveOrder,
-  VOTER_MIN_AGE, NEGLECT_DANGER_DAYS, NEGLECT_DANGER_HEALTH, splitEstate, deathCause, familyShareRate, REP, REP_BAD, REP_GOOD, repLabel, repDiscount, DOT_MAKUTA, MARRY_MIN_AGE, CRIMES, catchChance, sentence, inPrison, PRISON_BLOCKED, BAIL, PRISON_HOURS, RECIDIVE, policeView,
+  VOTER_MIN_AGE, NEGLECT_DANGER_DAYS, NEGLECT_DANGER_HEALTH, splitEstate, deathCause, familyShareRate, REP, REP_BAD, REP_GOOD, repLabel, repDiscount, DOT_MAKUTA, MARRY_MIN_AGE, STREET_JOBS, cannotStreetJob, RENT, rentOf, houseOf, rentDue, HOUSING_MIN_AGE, SALE_TAX, CRIMES, catchChance, sentence, inPrison, PRISON_BLOCKED, BAIL, PRISON_HOURS, RECIDIVE, policeView,
 } from "../server/src/life.js";
 import { launchDemo } from "./lancement-demo.js";
 
@@ -47,6 +47,9 @@ const demo = {
       repas: { ...FOOD, prix: Math.round(FOOD.prix * repDiscount(d.rep || 0)) },
       reputation: { points: d.rep || 0, label: repLabel(d.rep || 0), mauvaise: (d.rep || 0) <= REP_BAD, bonne: (d.rep || 0) >= REP_GOOD },
       couple: { conjoint: d.conjoint || null, recues: [], envoyees: [], dot: DOT_MAKUTA },
+      petitsBoulots: { liste: STREET_JOBS, dernier: d.lastStreet || null },
+      logement: { actuel: d.logement || null, quartiers: Object.keys(RENT).map(q => ({ quartier: q, loyer: rentOf(q), prix: houseOf(q) })), minAge: HOUSING_MIN_AGE },
+      annonces: this.market(d).map(a => ({ id: a.id, prix: a.prix, le: a.le, vendeur: a.vendeur, moi: !!a.moi, objet: SHOP.find(x => x.id === a.objet) })),
       ...shopView(d.inv || [], d.dep || [], d.ret || [], c.makuta, now),
       travail: { ...workView(d.job, d.lastShift, now), emploiEntreprise: d.boss ? companyJob(d.boss) : null },
       ecole: schoolView(d.enr || null, d.dip || [], now),
@@ -111,6 +114,21 @@ const demo = {
       this.move(d, "✝️", `${k.prenom} est ${k.sex === "F" ? "morte" : "mort"} (${cause}). Tu hérites de ${fmtMakuta(sp.each)}.`);
     }
   },
+  // démo : quelques annonces d'autres joueurs (simulés), et tes propres annonces
+  market(d) {
+    if (!d.market) {
+      const items = SHOP.filter(x => x.type !== "nourriture"), sellers = ["Glody M.", "Ornella K.", "Fiston B.", "Gloria T."];
+      d.market = sellers.map((v, i) => { const it = items[(i * 3 + 1) % items.length]; return { id: "ann" + i, objet: it.id, prix: Math.round(it.prix * (.6 + i * .1)), vendeur: v, le: Date.now() - i * 36e5 }; });
+    }
+    return d.market;
+  },
+  rent(d) {
+    const L = d.logement; if (!L || L.statut !== "loue") return;
+    const weeks = rentDue(L.paye_jusqu); if (!weeks) return;
+    const due = weeks * L.loyer, c = d.perso;
+    if (c.makuta >= due) { c.makuta -= due; L.paye_jusqu += weeks * 7 * 864e5; this.move(d, "🏠", `Loyer payé : ${fmtMakuta(due)} (${L.quartier}).`); }
+    else { d.logement = null; c.happiness = Math.max(0, c.happiness - 20); this.addRep(d, -5); this.move(d, "🚪", `Loyer impayé : expulsé du logement à ${L.quartier}. Retour chez les parents.`); }
+  },
   addRep(d, n) { d.rep = Math.max(-100, Math.min(100, (d.rep || 0) + n)); },
   move(d, icone, texte) { d.mouvements = [{ icone, texte, par_consigne: 0, le: Date.now() }, ...(d.mouvements || [])].slice(0, 100); },
   // ton personnage meurt : 20 % gardés pour ta prochaine vie, 10 % à la ville, 70 % aux héritiers (ici la famille du jeu)
@@ -138,6 +156,15 @@ const demo = {
     if (d && d.perso && !d.mort) {
       this.support(d);
       const cause = deathCause(needsAt(d.perso), 0); if (cause) this.die(d, cause);
+      this.rent(d);
+      // démo : un joueur simulé achète parfois tes annonces à un prix raisonnable
+      for (const a of (d.market || []).filter(x => x.moi)) {
+        const it = SHOP.find(x => x.id === a.objet);
+        if (Date.now() - a.le > 60e3 && a.prix <= it.prix * 1.2 && Math.random() < .5) {
+          const net = a.prix - Math.round(a.prix * SALE_TAX); d.perso.makuta += net; d.market = d.market.filter(x => x !== a);
+          this.move(d, "🤝", `Un joueur a acheté ton annonce : ${it.nom} (${fmtMakuta(net)} après taxe).`);
+        }
+      }
       const el = launchDemo.elections(this.me(d));   // dépouillement : un joueur élu prend son poste
       if (el.depouille) { d.candidature = null; if (el.gagne) { d.job = "elu-" + el.gagne; d.boss = null; } }
       store.set(LS_DEMO, d);
@@ -260,6 +287,44 @@ const demo = {
       store.set(LS_DEMO, d); return this.view(d);
     }
     if (path === "/api/postuler" && (d.rep || 0) <= REP_BAD) throw new Error("L'employeur refuse : ta réputation dans le quartier est trop mauvaise (vols, prison…). Travaille ta réputation d'abord.");
+    if (path === "/api/petitboulot") {
+      this.settle(c);
+      const j = STREET_JOBS.find(x => x.id === body.boulot), no = cannotStreetJob(j, ageYears(c.neLe), c.energy, d.lastStreet);
+      if (no) throw new Error(no);
+      const gain = j.gain[0] + Math.floor(Math.random() * (j.gain[1] - j.gain[0] + 1));
+      c.makuta += gain; c.energy = Math.max(0, c.energy - j.energie); d.lastStreet = Date.now();
+      store.set(LS_DEMO, d); return { boulot: { nom: j.nom, gain }, ...this.view(d) };
+    }
+    if (path === "/api/logement/louer" || path === "/api/logement/acheter") {
+      const q = String(body.quartier || ""), buy = path.endsWith("acheter");
+      if (!RENT[q]) throw new Error("Quartier inconnu.");
+      if (ageYears(c.neLe) < HOUSING_MIN_AGE) throw new Error(`Possible à partir de ${HOUSING_MIN_AGE} ans.`);
+      if (d.logement && d.logement.statut === "proprio" && !buy) throw new Error("Tu as déjà ta propre parcelle.");
+      const cost = buy ? houseOf(q) : rentOf(q); if (c.makuta < cost) throw new Error(`Il faut ${fmtMakuta(cost)}.`);
+      c.makuta -= cost; c.happiness = Math.min(100, c.happiness + 10); c.quartier = q;
+      d.logement = { statut: buy ? "proprio" : "loue", quartier: q, loyer: buy ? 0 : cost, paye_jusqu: buy ? null : Date.now() + 7 * 864e5, depuis: Date.now() };
+      store.set(LS_DEMO, d); return this.view(d);
+    }
+    if (path === "/api/logement/quitter") { if (d.logement && d.logement.statut === "loue") d.logement = null; store.set(LS_DEMO, d); return this.view(d); }
+    if (path === "/api/annonce/publier") {
+      const own = (d.inv || []).find(x => x.id === body.possession), prix = Math.round(Number(body.prix));
+      if (!own) throw new Error("Objet introuvable."); if (!(prix >= 1)) throw new Error("Prix invalide.");
+      if (this.market(d).some(a => a.poss === own.id)) throw new Error("Cet objet est déjà en vente.");
+      own.porte = 0; d.market.unshift({ id: "moi" + Date.now(), objet: own.objet_id, poss: own.id, prix, vendeur: c.firstName + " " + c.lastName, moi: true, le: Date.now() });
+      d.inv = d.inv.filter(x => x !== own);   // l'objet part au marché
+      store.set(LS_DEMO, d); return this.view(d);
+    }
+    if (path === "/api/annonce/retirer") {
+      const a = this.market(d).find(x => x.id === body.id && x.moi); if (a) { d.market = d.market.filter(x => x !== a); (d.inv = d.inv || []).push({ id: a.poss, objet_id: a.objet, porte: 0, acquis_le: Date.now() }); }
+      store.set(LS_DEMO, d); return this.view(d);
+    }
+    if (path === "/api/annonce/acheter") {
+      const a = this.market(d).find(x => x.id === body.id); if (!a) throw new Error("Annonce introuvable ou déjà vendue.");
+      if (a.moi) throw new Error("C'est ton annonce."); if (c.makuta < a.prix) throw new Error("Pas assez d'e-makuta.");
+      c.makuta -= a.prix; d.tresor = (d.tresor || 0) + Math.round(a.prix * SALE_TAX); d.market = d.market.filter(x => x !== a);
+      (d.inv = d.inv || []).push({ id: "p" + this.seed(), objet_id: a.objet, porte: 0, acquis_le: Date.now() });
+      store.set(LS_DEMO, d); return { achete: SHOP.find(x => x.id === a.objet).nom, ...this.view(d) };
+    }
     // démo : pas d'autre joueur sur cet appareil, la personne demandée répond tout de suite (elle accepte 2 fois sur 3)
     if (path === "/api/mariage/demander") {
       const nm = String(body.pseudo || "").trim(); if (!nm) throw new Error("Écris le pseudo de la personne.");
@@ -529,12 +594,45 @@ function render(v) {
   ] : []).concat([["Joueur", v.compte.pseudo], ["Né le", new Date(p.neLe).toLocaleDateString("fr-FR")]])
     .map(([a, b]) => `<div class="row"><span>${a}</span><span style="text-align:right">${b}</span></div>`).join("")
     + (v.demo ? `<button class="mini" id="b-demo-die" type="button" style="margin-top:12px">💀 Simuler la mort (démo)</button>` : "");
-  renderCouple(v);
+  renderCouple(v); renderCity(v);
   renderShop(v); renderWallet(v); renderWork(v); renderSchool(v); renderKids(v); renderCompanies(v); renderTravel(v); renderState(v); renderTips(v); renderOrders(v); renderMoves(v);
   if (!render.hashDone && location.hash === "#moves") { render.hashDone = true; setTimeout(() => goTo("moves"), 300); }
   portrait(p);
   dress(v);
 }
+
+// ---------------------------------------------------------------- logement, petits boulots, annonces
+function renderCity(v) {
+  const p = v.perso, B = v.petitsBoulots, Lg = v.logement, A = v.annonces || [];
+  if (!B || !Lg) return;
+  const wait = B.dernier && Date.now() - B.dernier < 3 * 36e5 ? B.dernier + 3 * 36e5 - Date.now() : 0;
+  $("street").innerHTML = `<p style="font-size:13px;margin:0 0 6px">Sans patron ni diplôme, payé tout de suite. Un petit boulot toutes les 3 heures.${wait ? ` Prochain dans ${fmtWait(wait)}.` : ""}</p>`
+    + B.liste.map(j => { const why = p.age < j.minAge ? `dès ${j.minAge} ans` : p.besoins.energy < j.energie ? "trop fatigué" : wait ? "patiente" : "";
+      return `<div class="item"><span class="sw">${j.icone}</span><div class="t">${j.nom}<small>${mk(j.gain[0])} à ${mk(j.gain[1])} · −${j.energie} énergie${why ? " · " + why : ""}</small></div><button class="mini fill" data-street="${j.id}" type="button" ${why ? "disabled" : ""}>Y aller</button></div>`; }).join("");
+  const cur = Lg.actuel;
+  $("home").innerHTML = (cur ? `<div class="item"><span class="sw">${cur.statut === "proprio" ? "🏡" : "🏠"}</span><div class="t">${cur.statut === "proprio" ? "Ta parcelle" : "Location"} à ${esc(cur.quartier)}<small>${cur.statut === "proprio" ? "Tu es chez toi : plus de loyer." : `Loyer ${mk(cur.loyer)} par semaine, payé jusqu'au ${new Date(cur.paye_jusqu).toLocaleDateString("fr-FR")}. Impayé = expulsion.`}</small></div>${cur.statut === "loue" ? `<button class="mini" id="b-leave" type="button">Quitter</button>` : ""}</div>`
+      : `<p style="font-size:13px;margin:0 0 8px">${p.age < Lg.minAge ? `Tu vis chez tes parents. Possible de louer à partir de ${Lg.minAge} ans.` : "Tu vis encore chez tes parents. Loue un logement (loyer chaque semaine) ou achète ta parcelle."}</p>`)
+    + (p.age >= Lg.minAge && (!cur || cur.statut !== "proprio") ? `<details style="margin-top:8px"><summary style="cursor:pointer;font-size:14px">Voir les quartiers et les prix</summary>${Lg.quartiers.map(q => `<div class="item"><span class="sw">📍</span><div class="t">${esc(q.quartier)}<small>Loyer ${mk(q.loyer)}/semaine · parcelle ${mk(q.prix)}</small></div>
+        <button class="mini" data-rent="${esc(q.quartier)}" type="button" ${p.makuta < q.loyer ? "disabled" : ""}>Louer</button><button class="mini fill" data-house="${esc(q.quartier)}" type="button" ${p.makuta < q.prix ? "disabled" : ""}>Acheter</button></div>`).join("")}</details>` : "");
+  const mine = A.filter(a => a.moi), others = A.filter(a => !a.moi);
+  const inv = (v.inventaire || []).map(x => ({ ...x, it: v.boutique.find(b => b.id === x.objet) })).filter(x => x.it && x.it.type !== "nourriture");
+  $("market").innerHTML = `<p style="font-size:13px;margin:0 0 6px">Achète et vends entre joueurs. La ville prend 5 % de taxe sur chaque vente.</p>`
+    + (others.length ? others.map(a => `<div class="item">${swatch(a.objet)}<div class="t">${esc(a.objet.nom)}<small>${mk(a.prix)} · vendu par ${esc(a.vendeur)}${a.objet.prix ? ` · neuf ${mk(a.objet.prix)}` : ""}</small></div><button class="mini fill" data-annbuy="${esc(a.id)}" type="button" ${p.makuta < a.prix ? "disabled" : ""}>Acheter</button></div>`).join("") : `<p style="font-size:13px">Aucune annonce pour l'instant.</p>`)
+    + (mine.length ? `<h2 style="font-size:16px;margin:14px 0 4px">Mes annonces</h2>` + mine.map(a => `<div class="item">${swatch(a.objet)}<div class="t">${esc(a.objet.nom)}<small>${mk(a.prix)} · en attente d'un acheteur</small></div><button class="mini" data-annoff="${esc(a.id)}" type="button">Retirer</button></div>`).join("") : "")
+    + (inv.length ? `<h2 style="font-size:16px;margin:14px 0 4px">Mettre en vente</h2><div style="display:flex;gap:8px;flex-wrap:wrap"><select id="ann-obj" style="flex:2;min-width:150px;padding:10px;border-radius:10px">${inv.map(x => `<option value="${esc(x.id)}">${esc(x.it.nom)}</option>`).join("")}</select>
+        <input id="ann-prix" type="number" min="1" placeholder="prix (e-makuta)" style="flex:1;min-width:110px"><button class="mini fill" id="b-ann" type="button">Publier</button></div>` : "");
+}
+$("street").onclick = e => { const b = e.target.closest("[data-street]"); if (b) act("/api/petitboulot", { boulot: b.dataset.street }, v => `${v.boulot.nom} : +${mk(v.boulot.gain)}.`); };
+$("home").onclick = e => {
+  if (e.target.id === "b-leave") return act("/api/logement/quitter", {}, () => "Tu as rendu les clés.");
+  const r = e.target.closest("[data-rent]"); if (r) return act("/api/logement/louer", { quartier: r.dataset.rent }, v => `Bienvenue chez toi à ${v.logement.actuel.quartier} !`);
+  const h = e.target.closest("[data-house]"); if (h) return act("/api/logement/acheter", { quartier: h.dataset.house }, v => `Tu es propriétaire de ta parcelle à ${v.logement.actuel.quartier} !`);
+};
+$("market").onclick = e => {
+  if (e.target.id === "b-ann") return act("/api/annonce/publier", { possession: $("ann-obj").value, prix: Math.round(Number($("ann-prix").value) * 20) }, () => "Annonce publiée.");
+  const b = e.target.closest("[data-annbuy]"); if (b) return act("/api/annonce/acheter", { id: b.dataset.annbuy }, v => `Acheté : ${v.achete}.`);
+  const o = e.target.closest("[data-annoff]"); if (o) return act("/api/annonce/retirer", { id: o.dataset.annoff }, () => "Annonce retirée.");
+};
 
 // ---------------------------------------------------------------- couple et réputation
 function renderCouple(v) {
