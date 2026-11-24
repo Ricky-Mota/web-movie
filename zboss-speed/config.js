@@ -8,3 +8,7 @@ window.ZBOSS_CONFIG = {
   SUPABASE_URL: "",        // ex. "https://abcd1234.supabase.co"
   SUPABASE_ANON_KEY: "",   // ex. "sb_publishable_..." ou la clé "anon"
 };
+
+// 2 Life — adresse du serveur du jeu (Cloudflare Worker, voir server/wrangler.toml).
+// Vide = mode démo : la vie du personnage est simulée dans le navigateur.
+window.TWO_LIFE_API = "";   // ex. "https://two-life-api.<ton-compte>.workers.dev"

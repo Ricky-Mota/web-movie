@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+  <title>2 Life — La ville en 3D</title>
+  <meta name="description" content="Visite Kinshasa en 3D dans ton navigateur : promène-toi à pied, croise les habitants, prends le taxi.">
+  <meta name="theme-color" content="#07080c">
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@600;700&family=Inter:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/styles.css">
+  <style>
+    html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
+    body { touch-action: none; user-select: none; -webkit-user-select: none; }
+    #game { position: fixed; inset: 0; width: 100vw; height: 100vh; height: 100dvh; display: block; background: #0b0c12; }
+    .hud { position: fixed; inset: 0; pointer-events: none; font-family: var(--font-display); color: #fff; display: none; }
+    body.playing .hud { display: block; }
+    .panel { position: absolute; background: rgba(5,7,12,.62); border: 1px solid rgba(255,255,255,.12); border-radius: 12px; backdrop-filter: blur(4px); padding: 10px 14px; }
+    .lbl { font-size: 11px; letter-spacing: .16em; color: #aab3c6; text-transform: uppercase; }
+    .p-heat { top: max(14px, env(safe-area-inset-top)); left: 14px; }
+    .chev { display: flex; gap: 4px; margin: 6px 0 4px; }
+    .chev i { width: 22px; height: 10px; background: rgba(255,255,255,.14); clip-path: polygon(0 0, 70% 0, 100% 50%, 70% 100%, 0 100%, 30% 50%); }
+    .chev i.on { background: var(--siren-red); animation: chev 1s infinite; }
+    .chev i.on:nth-child(2n) { animation-delay: .5s; }
+    @keyframes chev { 50% { background: var(--siren-blue); } }
+    .p-score { top: max(14px, env(safe-area-inset-top)); right: 14px; text-align: right; min-width: 150px; }
+    .p-score b { display: block; font-size: 24px; line-height: 1.1; font-variant-numeric: tabular-nums; }
+    .p-score .bounty { color: var(--accent-2); font-size: 16px; }
+    #minimap { position: absolute; right: 14px; top: calc(max(14px, env(safe-area-inset-top)) + 106px); width: 150px; height: 150px; border-radius: 12px; border: 1px solid rgba(255,255,255,.14); }
+    .p-car { bottom: max(14px, env(safe-area-inset-bottom)); left: 14px; width: 220px; }
+    .bar { height: 8px; border-radius: 4px; background: rgba(255,255,255,.1); overflow: hidden; margin: 4px 0 8px; }
+    .bar i { display: block; height: 100%; width: 100%; background: linear-gradient(90deg, #2fd27a, #a6f06a); transition: width .15s; }
+    .bar.n i { background: linear-gradient(90deg, #3fd0ff, var(--accent)); }
+    .p-speed { bottom: max(14px, env(safe-area-inset-bottom)); right: 14px; text-align: right; min-width: 130px; }
+    .p-speed b { font-size: 48px; line-height: 1; font-variant-numeric: tabular-nums; display: block; }
+    .evade { position: absolute; top: max(14px, env(safe-area-inset-top)); left: 50%; transform: translateX(-50%); width: min(380px, 50vw); text-align: center; }
+    .evade span { font-size: 14px; }
+    .evade .bar i { width: 0; }
+    .evade.seen { border-color: rgba(255,45,74,.6); }
+    .evade.hiding { border-color: rgba(47,210,122,.6); }
+    .evade.hiding .bar i { background: linear-gradient(90deg, #2fd27a, #a6f06a); }
+    .evade.busted { border-color: #ff2d4a; background: rgba(60,6,14,.75); }
+    .evade.busted .bar i { background: #ff2d4a; }
+    .msgs { position: absolute; top: 34%; left: 50%; transform: translateX(-50%); display: grid; gap: 6px; justify-items: center; width: 92vw; }
+    .msgs .m { padding: 6px 14px; border-radius: 8px; background: rgba(5,7,12,.7); font-size: 16px; text-align: center; animation: pop .25s; }
+    .prompt { position: absolute; left: 50%; bottom: max(26px, env(safe-area-inset-bottom)); transform: translateX(-50%); display: flex; gap: 10px; align-items: center; padding: 8px 8px 8px 16px; border-radius: 14px; background: rgba(5,7,12,.78); border: 1px solid rgba(255,255,255,.16); font: 600 15px var(--font-body); pointer-events: auto; max-width: 92vw; }
+    .prompt button { background: #ff5a1f; color: #fff; border: 0; border-radius: 10px; padding: 8px 14px; font: 700 14px var(--font-body); cursor: pointer; }
+    .prompt button[hidden] { display: none; }
+    .prompt kbd { font: inherit; background: rgba(0,0,0,.25); border-radius: 5px; padding: 0 5px; margin-right: 4px; }
+    body.playing.is-touch .prompt { bottom: 150px; }
+    .msgs .m.alert { color: #ff8a96; } .msgs .m.ok { color: #7ff0a8; }
+    @keyframes pop { from { transform: scale(.8); opacity: 0; } }
+    .top-btns { position: absolute; top: calc(max(14px, env(safe-area-inset-top)) + 96px); left: 14px; display: flex; gap: 8px; pointer-events: auto; }
+    .top-btns button { background: rgba(5,7,12,.62); color: #fff; border: 1px solid rgba(255,255,255,.18); border-radius: 10px; padding: 7px 12px; font: 600 13px var(--font-body); cursor: pointer; }
+
+    /* Contrôles tactiles */
+    .touch { position: fixed; inset: auto 0 0 0; display: none; justify-content: space-between; padding: 0 14px max(18px, env(safe-area-inset-bottom)); pointer-events: none; }
+    body.playing.is-touch .touch { display: flex; }
+    body.playing.is-touch .p-car, body.playing.is-touch .p-speed { bottom: 150px; }
+    .touch .grp { display: flex; gap: 10px; align-items: flex-end; pointer-events: auto; }
+    .touch button { width: 72px; height: 72px; border-radius: 50%; border: 2px solid rgba(255,255,255,.25); background: rgba(10,12,20,.55); color: #fff; font: 700 13px var(--font-display); touch-action: none; }
+    .touch button.big { width: 86px; height: 86px; }
+    .touch button.down { background: rgba(255,90,31,.55); border-color: var(--accent); }
+    .touch .col { display: grid; gap: 10px; }
+
+    /* Écrans */
+    .screen-ov { position: fixed; inset: 0; z-index: 10; display: grid; place-items: center; padding: 20px; overflow-y: auto; background: radial-gradient(80% 80% at 50% 0%, rgba(255,90,31,.18), transparent 60%), rgba(5,6,10,.92); }
+    .screen-ov[hidden] { display: none; }
+    .card { width: min(980px, 100%); text-align: center; }
+    .card h1 { font-family: var(--font-display); text-transform: uppercase; font-size: clamp(34px, 6vw, 64px); margin: 6px 0 8px; line-height: 1; }
+    .card h1 b { color: var(--accent); }
+    .card p { color: var(--muted); margin: 0 auto 18px; max-width: 640px; }
+    .pick { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 18px 0; }
+    @media (max-width: 720px) { .pick { grid-template-columns: repeat(2, 1fr); } }
+    .pick-car { background: var(--panel); border: 2px solid var(--line); border-radius: 14px; padding: 10px 10px 12px; color: var(--text); cursor: pointer; display: grid; gap: 2px; text-align: center; }
+    .pick-car[aria-pressed="true"] { border-color: var(--accent); box-shadow: 0 0 0 4px rgba(255,90,31,.18); }
+    .pick-car b { font-family: var(--font-display); text-transform: uppercase; font-size: 15px; }
+    .pick-car small { color: var(--muted); font-size: 12px; }
+    .keys { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px 18px; font-size: 13px; color: var(--muted); margin: 14px 0 20px; }
+    kbd { display: inline-block; padding: 2px 7px; border-radius: 6px; border: 1px solid var(--line); background: #0a0c12; color: var(--text); font: 600 12px var(--font-body); }
+    .row { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+    .big-score { font-family: var(--font-display); font-size: clamp(44px, 8vw, 80px); color: var(--accent-2); line-height: 1; margin: 10px 0; font-variant-numeric: tabular-nums; }
+    .back { position: fixed; top: 14px; left: 14px; z-index: 11; font-size: 14px; color: var(--muted); text-decoration: none; }
+    .back:hover { color: var(--text); }
+    .rotate { display: none; }
+    @media (orientation: portrait) and (max-width: 600px) { body.playing .rotate { display: block; position: fixed; bottom: 210px; left: 50%; transform: translateX(-50%); font-size: 12px; color: var(--muted); background: rgba(5,7,12,.7); padding: 4px 10px; border-radius: 8px; } }
+    @media (max-width: 600px) { .p-car { width: 160px; } .p-speed b { font-size: 36px; } #minimap { width: 110px; height: 110px; } .p-score b { font-size: 18px; } .evade { top: 120px; width: 70vw; } }
+    @media (max-height: 520px) {
+      .panel { padding: 6px 10px; border-radius: 10px; }
+      .lbl { font-size: 9px; }
+      .chev i { width: 16px; height: 8px; }
+      .p-score { min-width: 110px; } .p-score b { font-size: 16px; } .p-score .bounty { font-size: 13px; }
+      #minimap { display: none; }
+      .top-btns { top: 84px; } .top-btns button { padding: 5px 9px; font-size: 12px; }
+      body.playing .p-car, body.playing.is-touch .p-car { bottom: auto; top: 122px; width: 150px; }
+      .bar { height: 6px; margin: 3px 0 5px; }
+      body.playing .p-speed, body.playing.is-touch .p-speed { bottom: auto; top: 94px; min-width: 86px; }
+      .p-speed b { font-size: 28px; }
+      .evade { top: 10px; width: 40vw; } .evade span { font-size: 12px; }
+      .msgs { top: 26%; } .msgs .m { font-size: 13px; }
+      .touch button { width: 62px; height: 62px; font-size: 11px; } .touch button.big { width: 76px; height: 76px; }
+    }
+    /* visite de la ville : pas de course, pas de police */
+    body.walk .p-heat, body.walk .p-score, body.walk .evade, body.walk .p-car, body.walk .p-speed { display: none !important; }
+    .pick-city { min-height: 64px; } .pick-city[disabled] { opacity: .45; cursor: not-allowed; }
+  </style>
+</head>
+<body>
+  <canvas id="game" aria-label="Jeu 2 Life"></canvas>
+
+  <div class="hud" aria-hidden="true">
+    <div class="panel p-heat"><div class="lbl">Recherché</div><div class="chev" id="h-heat"></div><span id="h-status">Calme</span></div>
+    <div class="top-btns"><button type="button" onclick="history.length > 1 ? history.back() : location.href = 'index.html'" aria-label="Retour à la page précédente">← Retour</button><button type="button" id="pausebtn">Pause</button><button type="button" id="mute" aria-pressed="false">Son</button><button type="button" id="cambtn">Caméra</button></div>
+    <div class="panel evade" id="h-evade" hidden><span></span><div class="bar"><i></i></div></div>
+    <div class="panel p-score"><div class="lbl">Score</div><b id="h-score">0</b><div class="lbl">Prime en jeu</div><b class="bounty" id="h-bounty">0</b></div>
+    <canvas id="minimap" width="180" height="180"></canvas>
+    <div class="msgs" id="h-msgs"></div>
+    <div class="prompt" id="h-prompt" hidden><span></span><button type="button" id="actbtn"><kbd>E</kbd> OK</button></div>
+    <div class="panel p-car"><div class="lbl">Carrosserie</div><div class="bar"><i id="h-health"></i></div><div class="lbl">Nitro</div><div class="bar n"><i id="h-nitro"></i></div></div>
+    <div class="panel p-speed"><b id="h-speed">0</b><span class="lbl">km/h</span></div>
+    <div class="rotate">Tourne ton téléphone pour mieux voir</div>
+  </div>
+
+  <div class="touch" aria-hidden="true">
+    <div class="grp"><button data-touch="left" class="big">◀</button><button data-touch="right" class="big">▶</button></div>
+    <div class="grp"><div class="col"><button data-touch="nitro">COURIR</button><button data-touch="hand">FREIN</button></div><div class="col"><button data-touch="gas" class="big">AVANCER</button><button data-touch="brake">RECULER</button></div></div>
+  </div>
+
+  <section class="screen-ov" id="menu" hidden>
+    <a class="back" href="index.html" onclick="if (history.length > 1) { history.back(); return false; }">← Retour</a>
+    <div class="card">
+      <span class="tag"><span class="dot"></span> Visite de la ville · navigateur</span>
+      <h1>2<b> LIFE</b></h1>
+      <p>Choisis ta ville et promène-toi à pied, comme dans la vraie vie. Croise les habitants, découvre les rues et prends le taxi jaune pour aller plus loin.</p>
+      <div class="pick" id="pick"></div>
+      <div class="keys">
+        <span><kbd>↑</kbd><kbd>W</kbd> avancer</span><span><kbd>↓</kbd><kbd>S</kbd> reculer</span><span><kbd>←</kbd><kbd>→</kbd> tourner</span>
+        <span><kbd>Maj</kbd> courir</span><span><kbd>E</kbd> prendre le taxi ou descendre</span><span><kbd>P</kbd> pause</span><span><kbd>M</kbd> son</span><span><kbd>C</kbd> caméra</span>
+      </div>
+      <div class="row"><button class="btn btn-primary" id="go" type="button">Commencer la visite</button></div>
+      <p style="margin-top:16px;font-size:13px" hidden>Record : <b id="best">0</b></p>
+      <p style="margin-top:6px;font-size:11px;opacity:.7">Quartier : la Gombe, Kinshasa. Carte © les contributeurs d'<a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener" style="color:inherit">OpenStreetMap</a> (ODbL), via Overture Maps.</p>
+    </div>
+  </section>
+
+  <section class="screen-ov" id="pause" hidden>
+    <div class="card"><h1>Pause</h1><div class="row"><button class="btn btn-primary" id="resume" type="button">Reprendre</button><button class="btn btn-ghost" id="quit" type="button">Changer de ville</button></div></div>
+  </section>
+
+  <section class="screen-ov" id="over" hidden>
+    <div class="card">
+      <h1 id="go-title">Arrêté !</h1>
+      <p id="go-reason"></p>
+      <div class="lbl" style="font-family:var(--font-display);letter-spacing:.16em;color:var(--muted);text-transform:uppercase;font-size:12px">Score final</div>
+      <div class="big-score" id="go-score">0</div>
+      <p id="go-best"></p>
+      <p id="go-stats" style="font-size:14px"></p>
+      <div class="row"><button class="btn btn-primary" id="again" type="button">Rejouer</button><button class="btn btn-ghost" id="garage" type="button">Changer de ville</button><a class="btn btn-ghost" href="index.html#beta">Rejoindre la bêta</a></div>
+    </div>
+  </section>
+
+  <script>window.TWOLIFE_WALK = true; document.body.classList.add("walk");</script>
+  <script src="assets/cars.js"></script>
+  <script>if (matchMedia("(pointer: coarse)").matches) document.body.classList.add("is-touch");</script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/libs/meshopt_decoder.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/utils/SkeletonUtils.js"></script>
+  <script src="assets/kinshasa.js"></script>
+  <script src="assets/game.js"></script>
+  <script src="assets/cars3d.js"></script>
+  <script src="assets/game3d.js"></script>
+</body>
+</html>

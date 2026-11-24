@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="fr"><head><meta charset="utf-8"><title>2 Life — studio des personnages</title>
+<style>html,body{margin:0;background:#cfc6bb}canvas{display:block}</style></head>
+<body>
+<!-- Outil interne : affiche les personnages de assets/models/humans.glb de face, de profil et en gros plan.
+     Usage : tools/humans.html?view=front|side|face|back&clip=idle|walk&t=0.3 -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/libs/meshopt_decoder.js"></script>
+<script>
+(function () {
+  const q = new URLSearchParams(location.search), view = q.get("view") || "front", clip = q.get("clip") || "", t = +(q.get("t") || 0);
+  const W = 1600, H = view === "face" ? 420 : 700;
+  const r = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+  r.setPixelRatio(1); r.setSize(W, H); r.outputEncoding = THREE.sRGBEncoding; r.toneMapping = THREE.ACESFilmicToneMapping;
+  document.body.appendChild(r.domElement);
+  const sc = new THREE.Scene(); sc.background = new THREE.Color("#cfc6bb");
+  sc.add(new THREE.HemisphereLight("#ffffff", "#5a4a40", .9));
+  const key = new THREE.DirectionalLight("#fff1e0", 1.6); key.position.set(2, 4, 6); sc.add(key);
+  const ld = new THREE.GLTFLoader(); if (window.MeshoptDecoder) ld.setMeshoptDecoder(window.MeshoptDecoder);
+  ld.load("../assets/models/humans" + (q.get("ext") || ".glb"), gl => {
+    const only = q.get("only");
+    const vs = gl.scene.children.filter(o => o.userData && o.userData.variant && (!only || only.split(",").includes(o.userData.variant)));
+    const n = vs.length, gap = view === "face" ? .5 : .8;
+    vs.forEach((o, i) => {
+      o.position.set((i - (n - 1) / 2) * gap, 0, 0);
+      o.rotation.y = view === "side" ? Math.PI / 2 : view === "back" ? Math.PI : 0;
+      o.traverse(m => { if (m.isMesh) m.frustumCulled = false; });
+      sc.add(o);
+      if (clip) {
+        // three.js renomme les os en double (spine_01_2...) : on cible les os de ce personnage par leur objet
+        const c = gl.animations.find(a => a.name === clip && a.tracks.some(tr => o.getObjectByName(tr.name.split(".")[0])));
+        if (c) { const mx = new THREE.AnimationMixer(o); mx.clipAction(c).play(); mx.update(t); }
+      }
+    });
+    window.variants = vs.map(o => o.userData.variant);
+    const cam = new THREE.PerspectiveCamera(view === "face" ? 10 : 20, W / H, .05, 100);
+    if (view === "face") { vs.forEach(o => { o.updateMatrixWorld(true); const b = new THREE.Box3().setFromObject(o); o.position.y += 1.8 - b.max.y; }); cam.position.set(0, 1.66, 9); cam.lookAt(0, 1.66, 0); cam.fov = 2 * Math.atan(n * gap / (2 * 9 * W / H)) * 180 / Math.PI; cam.updateProjectionMatrix(); }
+    else { cam.position.set(0, .95, 16); cam.lookAt(0, .9, 0); }
+    r.render(sc, cam); window.done = true;
+  }, undefined, e => { window.err = String(e); window.done = true; });
+})();
+</script>
+</body></html>

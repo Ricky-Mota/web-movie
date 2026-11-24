@@ -214,3 +214,7 @@ footer a { color: var(--muted); }
 .reveal { opacity: 0; transform: translateY(18px); transition: opacity .7s ease, transform .7s ease; }
 .reveal.in { opacity: 1; transform: none; }
 @media (prefers-reduced-motion: reduce) { .reveal { opacity: 1; transform: none; transition: none; } }
+
+/* rendus 3D des voitures */
+.car-img { width: 100%; height: auto; }
+.car-img.car-34 { aspect-ratio: 16 / 7; object-fit: contain; filter: drop-shadow(0 10px 14px rgba(0,0,0,.45)); }

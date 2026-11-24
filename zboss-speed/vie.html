@@ -1,0 +1,251 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>2 Life — ta vie à Kinshasa</title>
+  <meta name="description" content="2 Life : naître bébé à Kinshasa, grandir, découvrir ses talents, étudier, travailler et construire sa vie avec d'autres joueurs.">
+  <meta name="theme-color" content="#120d0a">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="assets/icons/2life.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="assets/icons/2life-192.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #120d0a; --panel: #1d1612; --panel-2: #261d17; --line: #3a2d24;
+      --text: #f7efe7; --muted: #bfae9f; --accent: #f2a33a; --accent-2: #e0603a; --ok: #4fc58a; --warn: #f2c94c; --bad: #e5484d;
+      --r: 16px; --font-d: "Fraunces", Georgia, serif; --font-b: "Inter", system-ui, sans-serif;
+    }
+    * { box-sizing: border-box; }
+    [hidden] { display: none !important; }
+    html, body { margin: 0; background: var(--bg); color: var(--text); font-family: var(--font-b); -webkit-font-smoothing: antialiased; }
+    body { min-height: 100dvh; padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom); }
+    .wrap { width: min(560px, 100% - 32px); margin: 0 auto; padding: 20px 0 40px; }
+    header.top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px; }
+    .brand { display: flex; align-items: center; gap: 10px; font-family: var(--font-d); font-size: 26px; font-weight: 700; letter-spacing: .2px; }
+    .brand img { width: 34px; height: 34px; }
+    .pill { font-size: 12px; color: var(--muted); border: 1px solid var(--line); border-radius: 99px; padding: 4px 10px; }
+    .card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); padding: 18px; margin-bottom: 14px; }
+    h1 { font-family: var(--font-d); font-size: 30px; line-height: 1.15; margin: 4px 0 8px; }
+    h2 { font-family: var(--font-d); font-size: 20px; margin: 0 0 12px; }
+    p { color: var(--muted); line-height: 1.55; margin: 0 0 12px; }
+    label { display: block; font-size: 13px; color: var(--muted); margin: 10px 0 6px; }
+    input { width: 100%; padding: 13px 14px; border-radius: 12px; border: 1px solid var(--line); background: var(--panel-2); color: var(--text); font: inherit; font-size: 16px; }
+    input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+    button { font: inherit; cursor: pointer; }
+    .btn { width: 100%; margin-top: 16px; padding: 14px; border: 0; border-radius: 12px; background: var(--accent); color: #1b120b; font-weight: 600; font-size: 16px; }
+    .btn:disabled { opacity: .6; }
+    .link { background: none; border: 0; color: var(--accent); padding: 0; text-decoration: underline; }
+    .err { color: var(--bad); font-size: 14px; min-height: 20px; margin-top: 10px; }
+    .hero { position: relative; height: 320px; border-radius: var(--r); overflow: hidden; background: radial-gradient(120% 90% at 50% 20%, #4a3324 0%, #241a14 55%, #140f0c 100%); border: 1px solid var(--line); margin-bottom: 14px; }
+    .hero canvas { width: 100%; height: 100%; display: block; }
+    .hero::after { content: ""; position: absolute; inset: auto 0 0 0; height: 45%; background: linear-gradient(to top, rgba(18,13,10,.85), rgba(18,13,10,0)); pointer-events: none; }
+    .hero .who { z-index: 1; }
+    .hero .who { position: absolute; left: 16px; bottom: 14px; right: 16px; text-shadow: 0 1px 8px rgba(0,0,0,.6); }
+    .hero .who b { font-family: var(--font-d); font-size: 26px; display: block; }
+    .hero .who span { color: #e9d9c9; font-size: 14px; }
+    .hero .stage { position: absolute; top: 14px; left: 14px; background: rgba(18,13,10,.7); border: 1px solid var(--line); border-radius: 99px; padding: 5px 12px; font-size: 13px; }
+    .hero .money { position: absolute; top: 14px; right: 14px; background: rgba(18,13,10,.7); border: 1px solid var(--line); border-radius: 99px; padding: 5px 12px; font-size: 13px; font-weight: 600; color: var(--accent); }
+    .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .need { font-size: 13px; color: var(--muted); }
+    .bar { height: 8px; border-radius: 9px; background: var(--panel-2); margin-top: 6px; overflow: hidden; }
+    .bar i { display: block; height: 100%; border-radius: 9px; background: var(--ok); transition: width .5s; }
+    .bar i.mid { background: var(--warn); } .bar i.low { background: var(--bad); }
+    .row { display: flex; justify-content: space-between; gap: 12px; font-size: 14px; padding: 8px 0; border-bottom: 1px solid var(--line); }
+    .row:last-child { border-bottom: 0; } .row span:first-child { color: var(--muted); }
+    .talents { display: flex; flex-wrap: wrap; gap: 8px; }
+    .tal { border-radius: 99px; padding: 6px 12px; font-size: 13px; border: 1px solid var(--line); background: var(--panel-2); }
+    .tal.on { border-color: var(--accent); color: var(--accent); }
+    .hint { font-size: 13px; color: #e9d9c9; margin-top: 10px; padding-left: 10px; border-left: 2px solid var(--accent); }
+    .acts { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .act { text-align: left; padding: 12px; border-radius: 12px; border: 1px solid var(--line); background: var(--panel-2); color: var(--text); font-size: 14px; min-height: 64px; }
+    .act small { display: block; color: var(--muted); margin-top: 4px; font-size: 12px; }
+    .act:disabled { opacity: .45; }
+    .toast { position: fixed; left: 50%; bottom: calc(18px + env(safe-area-inset-bottom)); transform: translateX(-50%); width: min(520px, 100% - 32px); background: #2c2119; border: 1px solid var(--accent); color: var(--text); border-radius: 14px; padding: 12px 14px; font-size: 14px; box-shadow: 0 12px 30px rgba(0,0,0,.4); }
+    .foot { text-align: center; font-size: 12px; color: var(--muted); margin-top: 18px; }
+    .foot a { color: var(--muted); }
+    .offers { display: grid; gap: 8px; margin-top: 12px; }
+    .offer { display: flex; gap: 10px; align-items: flex-start; padding: 12px; border-radius: 12px; border: 1px solid var(--line); background: var(--panel-2); cursor: pointer; }
+    .offer input { width: auto; margin-top: 3px; accent-color: var(--accent); }
+    .offer b { display: block; font-size: 15px; } .offer b em { font-style: normal; color: var(--accent); }
+    .offer small { color: var(--muted); font-size: 12px; line-height: 1.4; }
+    .offer:has(input:checked) { border-color: var(--accent); }
+    .sim { font-size: 12px; color: var(--warn); border: 1px dashed var(--warn); border-radius: 10px; padding: 8px 10px; margin: 10px 0 0; line-height: 1.45; }
+    .tabs { display: flex; gap: 6px; margin-bottom: 10px; overflow-x: auto; }
+    .tab { flex: none; border: 1px solid var(--line); background: var(--panel-2); color: var(--muted); border-radius: 99px; padding: 7px 13px; font-size: 13px; }
+    .tab.on { border-color: var(--accent); color: var(--accent); }
+    .item { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+    .item:last-child { border-bottom: 0; }
+    .sw { flex: none; width: 34px; height: 34px; border-radius: 10px; border: 1px solid var(--line); display: grid; place-items: center; font-size: 17px; background: var(--panel-2); }
+    .item .t { flex: 1; min-width: 0; font-size: 14px; } .item .t small { display: block; color: var(--muted); font-size: 12px; margin-top: 2px; }
+    .mini { flex: none; border: 1px solid var(--accent); background: none; color: var(--accent); border-radius: 10px; padding: 8px 12px; font-size: 13px; font-weight: 600; }
+    .mini.fill { background: var(--accent); color: #1b120b; }
+    .mini:disabled { opacity: .4; border-color: var(--line); color: var(--muted); background: none; }
+    .launch { border: 1px solid var(--accent); border-radius: 12px; padding: 12px 14px; margin: 6px 0 4px; background: #2a1d12; }
+    .launch > b { font-family: var(--font-d); font-size: 17px; display: block; margin-bottom: 4px; }
+    .launch .need { margin-top: 10px; }
+    .offer.closed { opacity: .5; cursor: not-allowed; }
+    .offer.closed small::after { content: " Ouvre au démarrage du jeu."; color: var(--warn); }
+    .back { width: 36px; height: 36px; border-radius: 12px; border: 1px solid var(--line); background: var(--panel); color: var(--text); font-size: 18px; line-height: 1; margin-right: 2px; }
+    .quick { display: flex; gap: 8px; overflow-x: auto; margin: 0 0 14px; padding-bottom: 4px; scrollbar-width: none; }
+    .quick::-webkit-scrollbar { display: none; }
+    .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+    .chip { flex: none; border: 1px solid var(--line); background: var(--panel-2); color: var(--text); border-radius: 99px; padding: 8px 13px; font-size: 13px; }
+    .chip:disabled { color: var(--muted); opacity: .6; }
+    .tips-card { border-color: var(--accent); background: linear-gradient(180deg, #2a1d12, var(--panel)); }
+    .co { border: 1px solid var(--line); border-radius: 12px; padding: 6px 12px 12px; margin-bottom: 10px; }
+    .two-btn { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+    @media (max-width: 380px) { .acts { grid-template-columns: 1fr; } .hero { height: 280px; } }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header class="top">
+      <div class="brand"><button class="back" type="button" onclick="history.length > 1 ? history.back() : location.href = 'index.html'" aria-label="Retour à la page précédente">←</button><img src="assets/icons/2life.svg" alt=""> 2 Life</div>
+      <span class="pill" id="mode">Mode démo</span>
+    </header>
+
+    <!-- Accueil : inscription / connexion -->
+    <section id="v-auth" hidden>
+      <div class="card">
+        <h1>Nais à Kinshasa.<br>Construis ta vie.</h1>
+        <p>Tu commences bébé, dans une famille. Tes parents découvrent tes talents, tu grandis, tu étudies, tu travailles, tu crées ton entreprise. Ta monnaie : l'e-makuta.</p>
+        <div class="launch" id="launch" hidden></div>
+        <form id="f-auth" novalidate>
+          <div id="f-pseudo"><label for="pseudo">Pseudo</label><input id="pseudo" autocomplete="nickname" maxlength="40"></div>
+          <label for="email">E-mail</label><input id="email" type="email" autocomplete="email" inputmode="email">
+          <label for="pass">Mot de passe (8 caractères minimum)</label><input id="pass" type="password" autocomplete="new-password">
+          <div id="f-formule">
+            <label>Ta formule d'entrée</label>
+            <div class="offers">
+              <label class="offer"><input type="radio" name="formule" value="bebe" checked><span><b>Naître bébé · <em>100 $</em></b><small>Le parcours normal : tu grandis dans une famille qui découvre tes talents.</small></span></label>
+              <label class="offer"><input type="radio" name="formule" value="parent"><span><b>Naître parent · <em>5 000 $</em></b><small>Tu arrives adulte (25 ans), tes talents sont connus et tu reçois 250 e-makuta d'épargne.</small></span></label>
+              <label class="offer"><input type="radio" name="formule" value="petit"><span><b>Petit investisseur · <em>1 500 $</em></b><small>Tu arrives adulte (30 ans) avec 7 500 e-makuta pour créer ou racheter des entreprises. Retrait possible après 3 mois.</small></span></label>
+              <label class="offer"><input type="radio" name="formule" value="grand"><span><b>Grand investisseur · <em>30 000 $</em></b><small>Tu arrives adulte (35 ans) avec 150 000 e-makuta pour racheter de grandes entreprises. Retrait possible après 3 mois.</small></span></label>
+            </div>
+            <p class="sim">Simulation : aucun paiement n'est encaissé. L'argent réel (M-Pesa, carte) sera activé après les autorisations légales.</p>
+          </div>
+          <button class="btn" id="b-auth" type="submit">Naître à Kinshasa</button>
+          <div class="err" id="auth-err" role="alert"></div>
+        </form>
+        <p style="margin:6px 0 0; font-size:14px"><span id="sw-text">Déjà un compte ?</span> <button class="link" id="sw" type="button">Se connecter</button></p>
+      </div>
+    </section>
+
+    <!-- Profil du personnage -->
+    <section id="v-life" hidden>
+      <div class="hero" id="hero">
+        <canvas id="cv" aria-label="Ton personnage en 3D"></canvas>
+        <span class="stage" id="h-stage">Bébé</span>
+        <span class="money" id="h-money">0 e-makuta</span>
+        <div class="who"><b id="h-name"></b><span id="h-age"></span></div>
+      </div>
+
+      <nav class="quick" aria-label="Aller à">
+        <button class="chip" data-to="orders" type="button">📋 Consignes</button><button class="chip" data-to="moves" type="button">👣 Mouvements</button><button class="chip" data-to="needs" type="button">🍲 Manger</button><button class="chip" data-to="work" type="button">💼 Travail</button><button class="chip" data-to="school" type="button">🎓 École</button><button class="chip" data-to="companies" type="button">🏪 Entreprises</button><button class="chip" data-to="shop" type="button">🛍️ Magasin</button><button class="chip" data-to="inv" type="button">🏷️ Vendre</button><button class="chip" data-to="travel" type="button">🚕 Voyager</button><button class="chip" data-to="wallet" type="button">💰 Argent</button><button class="chip" data-to="state" type="button">🏛️ État et banques</button>
+      </nav>
+
+      <div class="card tips-card">
+        <h2>Que faire maintenant ?</h2>
+        <div id="tips"></div>
+      </div>
+
+      <div class="card">
+        <h2>Mes consignes du jour</h2>
+        <div id="orders"></div>
+      </div>
+
+      <div class="card">
+        <h2>Tous mes mouvements</h2>
+        <div class="tabs" id="moves-tabs"></div>
+        <div id="moves"></div>
+      </div>
+
+      <div class="card">
+        <h2>Besoins</h2>
+        <div class="grid2" id="needs"></div>
+        <button class="btn" id="b-eat" type="button" style="margin-top:14px">Manger au maquis</button>
+      </div>
+
+      <div class="card">
+        <h2>Talents</h2>
+        <div class="talents" id="talents"></div>
+        <div id="hints"></div>
+      </div>
+
+      <div class="card">
+        <h2>Activités en famille</h2>
+        <p style="font-size:14px">Chaque activité fatigue un peu. Si elle touche un talent caché, tes parents peuvent le découvrir.</p>
+        <div class="acts" id="acts"></div>
+      </div>
+
+      <div class="card" id="kids-card" hidden>
+        <h2>Mes enfants</h2>
+        <div id="kids"></div>
+      </div>
+
+      <div class="card">
+        <h2>École et diplômes</h2>
+        <div id="school"></div>
+      </div>
+
+      <div class="card">
+        <h2>Travail</h2>
+        <div id="work"></div>
+      </div>
+
+      <div class="card">
+        <h2>Mes entreprises</h2>
+        <div id="companies"></div>
+      </div>
+
+      <div class="card">
+        <h2>Magasin</h2>
+        <div class="tabs" id="shop-tabs"></div>
+        <div id="shop"></div>
+      </div>
+
+      <div class="card">
+        <h2>Mes affaires</h2>
+        <div id="inv"></div>
+      </div>
+
+      <div class="card">
+        <h2>Portefeuille</h2>
+        <div id="wallet"></div>
+        <p class="sim">Simulation : ces montants servent à présenter le modèle. Aucun dollar n'est encaissé ni versé tant que les autorisations (Banque Centrale, vérification d'identité, partenaire de paiement agréé) ne sont pas obtenues.</p>
+      </div>
+
+      <div class="card">
+        <h2>L'État et les services</h2>
+        <div class="tabs" id="state-tabs"></div>
+        <div id="state"></div>
+      </div>
+
+      <div class="card">
+        <h2>Voyager</h2>
+        <div id="travel"></div>
+      </div>
+
+      <div class="card">
+        <h2>Ma famille et ma maison</h2>
+        <div id="ident"></div>
+      </div>
+
+      <button class="link" id="b-out" type="button" style="display:block;margin:4px auto">Se déconnecter</button>
+    </section>
+
+    <p class="foot">2 Life · <a href="index.html">site</a> · <a href="jouer.html">la ville en 3D</a></p>
+  </div>
+  <div class="toast" id="toast" hidden role="status"></div>
+
+  <script src="config.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/libs/meshopt_decoder.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/utils/SkeletonUtils.js"></script>
+  <script type="module" src="assets/vie.js"></script>
+  <script>if ("serviceWorker" in navigator) addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch(() => {}));</script>
+</body>
+</html>
