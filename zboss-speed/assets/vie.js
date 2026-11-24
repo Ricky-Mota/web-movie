@@ -2,7 +2,7 @@
 // simule la même vie dans le navigateur (mode démo).
 import {
   ageYears, stageOf, STAGES, realMsUntil, TALENTS, ACTIVITIES, rng, drawTalents, doActivity, needsAt, newIdentity, BIRTH_GIFT,
-  SHOP, cannotBuy, OFFERS, USD_TO_MAKUTA, WITHDRAW_FEE, walletInfo, birthShiftMs, shopView,
+  SHOP, cannotBuy, OFFERS, USD_TO_MAKUTA, WITHDRAW_FEE, walletInfo, birthShiftMs, shopView, familyOf, JOBS, payFor, cannotWork, workView, SHIFT_ENERGY,
 } from "../server/src/life.js";
 
 const API = (window.TWO_LIFE_API || "").replace(/\/$/, "");
@@ -26,7 +26,7 @@ const demo = {
       perso: {
         prenom: c.firstName, nom: c.lastName, sexe: c.sex, quartier: c.quartier, ville: "Kinshasa", apparence: c.look, neLe: c.neLe,
         age, etape: st.id, etapeLabel: st.label, prochaineEtape: next ? { label: next.label, dansMs: realMsUntil(c.neLe, next.from, now) } : null,
-        besoins: Object.fromEntries(Object.entries(n).map(([k, v]) => [k, Math.round(v)])), makuta: c.makuta, pere: c.father, mere: c.mother, vivant: true,
+        besoins: Object.fromEntries(Object.entries(n).map(([k, v]) => [k, Math.round(v)])), makuta: c.makuta, pere: c.father, mere: c.mother, vivant: true, famille: familyOf(c, age),
         talents: c.talents.filter(t => t.discovered).map(t => ({ id: t.talent, label: TALENTS.find(x => x.id === t.talent).label, niveau: t.level })),
         talentsCaches: c.talents.filter(t => !t.discovered).length,
         indices: c.talents.filter(t => !t.discovered && t.hints > 0).map(t => TALENTS.find(x => x.id === t.talent).hint),
@@ -34,6 +34,7 @@ const demo = {
       activites: ACTIVITIES.map(a => ({ id: a.id, label: a.label, minAge: a.minAge, energie: a.energy })),
       repas: FOOD,
       ...shopView(d.inv || [], d.dep || [], d.ret || [], c.makuta, now),
+      travail: workView(d.job, d.lastShift, now),
     };
   },
   settle(c) { const n = needsAt(c); Object.assign(c, n, { updatedAt: Date.now() }); },
@@ -45,7 +46,7 @@ const demo = {
       d = {
         pseudo: body.pseudo, email: String(body.email || "").trim().toLowerCase(), inv: [], ret: [],
         dep: [{ offre: offer.id, usd: offer.usd, makuta: 0, le: now }],
-        perso: { ...who, neLe: parent ? now - birthShiftMs(offer.age) : now, updatedAt: now, hunger: 100, energy: 100, happiness: 80, health: 100,
+        perso: { ...who, neLe: parent ? now - birthShiftMs(offer.age + .01) : now, updatedAt: now, hunger: 100, energy: 100, happiness: 80, health: 100,
           makuta: parent ? offer.epargne : BIRTH_GIFT, talents: drawTalents(r).map(t => ({ ...t, discovered: parent, hints: 0 })) },
       };
       store.set(LS_DEMO, d); store.set(LS_TOKEN, "demo");
@@ -98,6 +99,21 @@ const demo = {
       d.inv.forEach(x => { if (SHOP.find(y => y.id === x.objet_id).slot === item.slot) x.porte = 0; });
       own.porte = was ? 0 : 1;
       store.set(LS_DEMO, d); return this.view(d);
+    }
+    if (path === "/api/postuler") {
+      const job = JOBS.find(j => j.id === body.metier);
+      if (!job) throw new Error("Métier inconnu.");
+      if (job.diplome) throw new Error(`Il faut d'abord le diplôme : ${job.diplome}.`);
+      if (ageYears(c.neLe) < job.minAge) throw new Error(`Ce métier est ouvert dès ${job.minAge} ans.`);
+      d.job = job.id; store.set(LS_DEMO, d); return this.view(d);
+    }
+    if (path === "/api/travailler") {
+      this.settle(c);
+      const job = JOBS.find(j => j.id === d.job), no = cannotWork(job, ageYears(c.neLe), c.energy, d.lastShift);
+      if (no) throw new Error(no);
+      const pay = payFor(job, c.talents);
+      c.makuta += pay.montant; c.energy = Math.max(0, c.energy - SHIFT_ENERGY); c.hunger = Math.max(0, c.hunger - 10); d.lastShift = Date.now();
+      store.set(LS_DEMO, d); return { paie: pay, ...this.view(d) };
     }
     if (path === "/api/investir") {
       const o = OFFERS.find(x => x.id === body.offre && x.type === "investissement");
@@ -165,9 +181,15 @@ function render(v) {
     const why = p.age < a.minAge ? `dès ${a.minAge} ans` : `−${a.energie} énergie`;
     return `<button class="act" data-a="${a.id}" type="button" ${off ? "disabled" : ""}>${a.label}<small>${why}</small></button>`;
   }).join("");
-  $("ident").innerHTML = [["Joueur", v.compte.pseudo], ["Mère", p.mere], ["Père", p.pere], ["Quartier", `${p.quartier}, ${p.ville}`],
-    ["Né le", new Date(p.neLe).toLocaleDateString("fr-FR")]].map(([a, b]) => `<div class="row"><span>${a}</span><span>${b}</span></div>`).join("");
-  renderShop(v); renderWallet(v);
+  const f = p.famille, ag = n => `${n} an${n > 1 ? "s" : ""}`;
+  $("ident").innerHTML = (f ? [
+    ["Père", `${f.pere.nom}, ${ag(f.pere.age)} · ${f.pere.metier}`],
+    ["Mère", `${f.mere.nom}, ${ag(f.mere.age)} · ${f.mere.metier}`],
+    ["Frères et sœurs", f.fratrie.length ? f.fratrie.map(x => `${x.prenom} (${x.age < 1 ? "bébé" : ag(x.age)})`).join(", ") : "Enfant unique"],
+    ["Maison", `${f.maison.type}, ${f.maison.pieces} pièces à ${f.maison.quartier} : ${f.maison.desc}`],
+  ] : []).concat([["Joueur", v.compte.pseudo], ["Né le", new Date(p.neLe).toLocaleDateString("fr-FR")]])
+    .map(([a, b]) => `<div class="row"><span>${a}</span><span style="text-align:right">${b}</span></div>`).join("");
+  renderShop(v); renderWallet(v); renderWork(v);
   portrait(p);
   dress(v);
 }
@@ -210,6 +232,26 @@ function renderWallet(v) {
     `<button class="btn" id="b-withdraw" type="button" ${w.retraitPossible && p.makuta >= w.taux ? "" : "disabled"}>Retirer vers M-Pesa ou carte</button>` +
     (hist ? `<h2 style="font-size:16px;margin:16px 0 4px">Historique</h2>${hist}` : "");
 }
+function renderWork(v) {
+  const p = v.perso, w = v.travail, cur = w.metiers.find(j => j.id === w.metier);
+  if (p.age < 16) { $("work").innerHTML = `<p style="font-size:14px;margin:0">${p.prenom} pourra travailler à partir de 16 ans. En attendant, ce sont ses parents qui paient la nourriture et les habits.</p>`; return; }
+  const disc = new Set(p.talents.map(t => t.id)), wait = w.prochainTravail && w.prochainTravail > Date.now();
+  const head = cur ? `<div class="row"><span>Métier</span><span style="text-align:right">${cur.nom}</span></div>
+    <button class="btn" id="b-work" type="button" ${wait || p.besoins.energy < w.fatigueTravail ? "disabled" : ""}>Travailler une journée (+${mk(Math.round(cur.salaire * (disc.has(cur.talent) ? 1.3 : 1)))})</button>
+    <p style="font-size:13px;margin:8px 0 0">${wait ? `Prochaine journée dans ${fmtWait(w.prochainTravail - Date.now())}.` : `Une journée fatigue (−${w.fatigueTravail} énergie).`}${disc.has(cur.talent) ? " Ton talent te donne +30 % de salaire." : ""}</p>`
+    : `<p style="font-size:14px;margin:0 0 6px">Choisis un métier. Un métier lié à un talent découvert paie 30 % de plus.</p>`;
+  const list = w.metiers.map(j => {
+    const lock = j.diplome ? `diplôme : ${j.diplome}` : p.age < j.minAge ? `dès ${j.minAge} ans` : "";
+    return `<div class="item"><span class="sw">${j.diplome ? "🎓" : "🧰"}</span><div class="t">${j.nom}<small>${mk(j.salaire)} par journée${disc.has(j.talent) ? " · +30 % (ton talent)" : ""}${lock ? " · " + lock : ""}</small></div>
+      ${j.id === w.metier ? `<span class="mini" style="border-color:var(--ok);color:var(--ok)">Ton métier</span>` : `<button class="mini fill" data-job="${j.id}" type="button" ${lock ? "disabled" : ""}>Postuler</button>`}</div>`;
+  }).join("");
+  $("work").innerHTML = head + `<h2 style="font-size:16px;margin:16px 0 4px">Offres d'emploi</h2>` + list;
+}
+$("work").onclick = e => {
+  const b = e.target.closest("[data-job]");
+  if (b) return act("/api/postuler", { metier: b.dataset.job }, v => `Embauché : ${v.travail.metiers.find(j => j.id === v.travail.metier).nom}.`);
+  if (e.target.id === "b-work") act("/api/travailler", {}, v => `Journée terminée : +${mk(v.paie.montant)}${v.paie.bonus ? " (bonus talent)" : ""}.`);
+};
 $("shop-tabs").onclick = e => { const b = e.target.closest(".tab"); if (!b) return; shopTab = b.dataset.t; renderShop(state); };
 async function act(path, body, ok) { try { const v = await call(path, body); render(v); if (ok) toast(ok(v)); } catch (err) { toast(err.message); } }
 $("shop").onclick = e => {
@@ -295,7 +337,7 @@ function initPortrait() {
     const w = cv.clientWidth, h = cv.clientHeight;
     if (cv.width !== Math.round(w * r.getPixelRatio()) || cv.height !== Math.round(h * r.getPixelRatio())) { r.setSize(w, h, false); cam.aspect = w / h; cam.updateProjectionMatrix(); frame(); }
     const dt = P3.clock.getDelta();
-    if (P3.mixer) P3.mixer.update(dt);
+    (P3.mixers || []).forEach(m => m.update(dt));
     if (P3.obj) P3.obj.rotation.y = Math.sin(performance.now() / 4000) * .35;
     r.render(scene, cam);
   };
@@ -307,42 +349,88 @@ const BY_STAGE = {
   bebe: { F: ["bb"], M: ["bb"] }, enfant: { F: ["cf"], M: ["cm"] }, ado: { F: ["tf"], M: ["tm"] },
   adulte: { F: ["f1", "f3", "f2"], M: ["m1", "m4", "m2", "m3"] }, senior: { F: ["of", "f2"], M: ["om", "m2"] },
 };
-function portrait(p) {
-  if (!P3.ready) return;
-  const list = (BY_STAGE[p.etape] || BY_STAGE.adulte)[p.sexe].filter(v => P3.tpl[v]);
-  const adults = BY_STAGE.adulte[p.sexe].filter(v => P3.tpl[v]);
-  const v = (list.length ? list : adults)[p.apparence % (list.length || adults.length)];
-  const key = v + ":" + p.etape;
-  if (P3.key === key) return;
-  P3.key = key;
-  const T = P3.T;
-  if (P3.obj) P3.scene.remove(P3.obj);
-  const obj = T.SkeletonUtils.clone(P3.tpl[v]);
-  obj.position.set(0, 0, 0);
-  P3.mats = {};
-  obj.traverse(o => { if (o.isMesh) { o.frustumCulled = false; o.material = o.material.clone(); const n = o.material.name.replace(/\..*$/, ""); P3.mats[n] = o.material; o.material.userData.base = o.material.color.clone(); } });
-  // repli : un adulte réduit si le modèle d'enfant n'existe pas encore
-  const fallback = !list.length, s = fallback ? { bebe: .42, enfant: .62, ado: .88 }[p.etape] || 1 : 1;
-  obj.scale.setScalar(s);
-  P3.scene.add(obj); P3.obj = obj;
-  P3.mixer = new T.AnimationMixer(obj);
-  const clip = P3.clips[v] && P3.clips[v].idle;
-  if (clip) P3.mixer.clipAction(clip).play();
-  // cadrage : on mesure le squelette animé (la géométrie au repos n'est pas à sa place réelle)
-  P3.mixer.update(0); obj.updateMatrixWorld(true);
+// un personnage 3D animé (idle), recentré sur son bassin ; renvoie l'objet et sa hauteur
+function person(v) {
+  const T = P3.T, obj = T.SkeletonUtils.clone(P3.tpl[v]), mats = {};
+  obj.traverse(o => { if (o.isMesh) { o.frustumCulled = false; o.material = o.material.clone(); const n = o.material.name.replace(/\..*$/, ""); mats[n] = o.material; o.material.userData.base = o.material.color.clone(); } });
+  const mixer = new T.AnimationMixer(obj), clip = P3.clips[v] && P3.clips[v].idle;
+  if (clip) mixer.clipAction(clip).play();
+  mixer.update(Math.random() * 2); obj.updateMatrixWorld(true);
   const wp = new T.Vector3(); let lo = 1e9, hi = -1e9, head = null, pel = null;
   obj.traverse(b => { if (!b.isBone) return; b.getWorldPosition(wp); lo = Math.min(lo, wp.y); hi = Math.max(hi, wp.y); if (b.name === "head") head = wp.clone(); if (b.name === "pelvis") pel = wp.clone(); });
+  const inner = new T.Group(); inner.add(obj);
   if (pel) { obj.position.x -= pel.x; obj.position.z -= pel.z; }
-  const top = head ? head.y + (head.y - lo) * .16 : hi, box = { min: { y: Math.max(0, lo - (top - lo) * .03) } }, h = Math.max(.3, top - box.min.y);
-  P3.box = { min: box.min.y, h };
+  const top = head ? head.y + (head.y - lo) * .16 : hi;
+  P3.mixers.push(mixer);
+  return { obj: inner, mats, lo: Math.max(0, lo - (top - lo) * .03), top };
+}
+
+// la maison familiale : murs crépis, toit en tôle, porte, fenêtres, cour en terre et manguier
+function house(m) {
+  const T = P3.T, g = new T.Group(), std = (c, r = .9) => new T.MeshStandardMaterial({ color: new T.Color(c).convertSRGBToLinear().multiplyScalar(.72), roughness: r });
+  const box = (w, h, d, mat, x, y, z) => { const o = new T.Mesh(new T.BoxGeometry(w, h, d), mat); o.position.set(x, y, z); g.add(o); return o; };
+  const W = 7, H = m.etage ? 5 : 2.9, D = 4, z0 = -5.5;
+  const ground = new T.Mesh(new T.CircleGeometry(16, 48), std("#8a5a3c", 1)); ground.rotation.x = -Math.PI / 2; g.add(ground);
+  box(W, H, D, std(m.mur), 0, H / 2, z0 - D / 2);
+  box(W + .2, .12, D + .2, std("#e9dccb"), 0, H, z0 - D / 2);                          // bandeau
+  const roof = box(W + .8, .08, D * .62, std(m.toit, .5), 0, H + .55, z0 - D * .25); roof.rotation.x = -.42;
+  const roof2 = box(W + .8, .08, D * .62, std(m.toit, .5), 0, H + .55, z0 - D * .75); roof2.rotation.x = .42;
+  box(.9, 1.9, .06, std(m.porte, .6), 0, .95, z0 + .01);
+  [-2.3, 2.3].forEach(x => { box(1.1, .9, .05, std("#2a3440", .3), x, 1.45, z0 + .01); box(1.24, .08, .08, std("#e9dccb"), x, .97, z0 + .03); });
+  if (m.etage) [-2.3, 0, 2.3].forEach(x => box(1, .8, .05, std("#2a3440", .3), x, 3.7, z0 + .01));
+  box(W + 1.2, .25, .5, std("#b9a48a"), 0, .12, z0 + .25);                              // perron
+  // manguier
+  const trunk = new T.Mesh(new T.CylinderGeometry(.12, .18, 2.2, 8), std("#5b3e2b")); trunk.position.set(4.6, 1.1, -3.2); g.add(trunk);
+  [[4.6, 2.6, -3.2, 1.2], [4.1, 2.3, -2.9, .8], [5.1, 2.4, -3.5, .85]].forEach(([x, y, z, r]) => { const f = new T.Mesh(new T.SphereGeometry(r, 14, 10), std("#2f6b34", .8)); f.position.set(x, y, z); g.add(f); });
+  return g;
+}
+
+// variante 3D selon l'étape de vie et le sexe ; repli sur un adulte si la variante manque
+function variantOf(stage, sex, seed) {
+  const list = (BY_STAGE[stage] || BY_STAGE.adulte)[sex].filter(v => P3.tpl[v]);
+  const adults = BY_STAGE.adulte[sex].filter(v => P3.tpl[v]);
+  const l = list.length ? list : adults;
+  return { v: l[seed % l.length], fallback: !list.length };
+}
+
+function portrait(p) {
+  if (!P3.ready) return;
+  const T = P3.T, fam = p.famille, child = ["bebe", "enfant", "ado"].includes(p.etape);
+  const me = variantOf(p.etape, p.sexe, p.apparence);
+  const key = [me.v, p.etape, fam && fam.maison.type].join(":");
+  if (P3.key === key) return;
+  P3.key = key;
+  if (P3.root) P3.scene.remove(P3.root);
+  P3.mixers = [];
+  const root = new T.Group(); P3.root = root;
+  if (fam) { const hs = house(fam.maison); hs.rotation.y = .5; hs.position.set(-1.2, 0, -1); root.add(hs); }
+  const main = person(me.v);
+  if (me.fallback) main.obj.scale.setScalar({ bebe: .42, enfant: .62, ado: .88 }[p.etape] || 1);
+  root.add(main.obj); P3.obj = main.obj; P3.mats = main.mats;
+  let lo = main.lo, top = main.top, w = .9;
+  // l'enfant grandit entouré de ses parents (pris parmi les adultes, d'après la graine de la famille)
+  if (child && fam) {
+    const dad = person(variantOf("adulte", "M", p.apparence >> 3).v), mum = person(variantOf("adulte", "F", p.apparence >> 5).v);
+    dad.obj.position.set(-.8, 0, -.35); dad.obj.rotation.y = .3;
+    mum.obj.position.set(.8, 0, -.35); mum.obj.rotation.y = -.3;
+    // tenues des parents : couleurs tirées de la famille
+    const TOPS = ["#2f5d8a", "#8a2f3c", "#3c6e47", "#c58a2b", "#5b4a8a", "#e9e4da"], LOWS = ["#2b2f3a", "#5a4632", "#33476b", "#c9b28c"];
+    if (dad.mats.shirt) dad.mats.shirt.color.set(TOPS[p.apparence % 6]).convertSRGBToLinear();
+    if (dad.mats.pants) dad.mats.pants.color.set(LOWS[(p.apparence >> 2) % 4]).convertSRGBToLinear();
+    if (mum.mats.shirt) mum.mats.shirt.color.set(TOPS[(p.apparence >> 4) % 6]).convertSRGBToLinear();
+    root.add(dad.obj, mum.obj);
+    top = Math.max(top, dad.top, mum.top); lo = Math.min(lo, dad.lo, mum.lo); w = 2.6;
+  }
+  P3.scene.add(root);
+  P3.box = { min: lo, h: Math.max(.3, top - lo), w };
   frame();
 }
 function frame() {
   if (!P3.box) return;
-  const { min, h } = P3.box, cam = P3.cam, half = Math.tan(cam.fov * Math.PI / 360);
-  const need = h * 1.26 / 2, d = Math.max(need / half, need / (half * Math.min(1, cam.aspect)) * .6);
+  const { min, h, w } = P3.box, cam = P3.cam, half = Math.tan(cam.fov * Math.PI / 360);
+  const need = h * 1.26 / 2, d = Math.max(need / half, (w * 1.15 / 2) / (half * cam.aspect));
   const cy = min + h * .52;
-  cam.position.set(0, cy + h * .04, d);
+  cam.position.set(0, cy + h * .22, d);
   cam.lookAt(0, cy, 0);
 }
 

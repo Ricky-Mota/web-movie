@@ -589,7 +589,7 @@
     if (!G.foot) {
       const shop = SHOPS.find(o => Math.hypot(o.x - p.x, o.y - p.y) < 520);
       if (sp < 60 && !G.chase) { txt = shop ? "Descendre et entrer dans la concession" : "Descendre de la voiture"; act = "exit"; }
-      else if (shop && !G.chase) txt = "Concession Zboss Motors : arrête-toi pour entrer";
+      else if (shop && !G.chase) txt = "Concession 2 Life Motors : arrête-toi pour entrer";
     } else {
       const ns = nearSlot(G.foot.x, G.foot.y);
       if (ns) { txt = ns.car.id === p.carDef.id ? ns.car.name + " : c'est déjà ta voiture" : "Prendre la " + ns.car.name + " (" + ns.car.cls + ")"; act = ns.car.id === p.carDef.id ? null : "pick"; }

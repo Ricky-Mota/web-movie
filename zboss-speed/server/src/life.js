@@ -205,3 +205,65 @@ export function shopView(inv, dep, ret, makuta, now) {
   };
 }
 
+
+// ---------------------------------------------------------------- famille et maison
+// Tirées de la graine d'apparence : toujours la même famille pour un personnage, sans rien stocker de plus.
+const JOBS_M = ["Enseignant", "Chauffeur de taxi", "Mécanicien", "Fonctionnaire", "Électricien", "Commerçant", "Pharmacien", "Maçon"];
+const JOBS_F = ["Commerçante au marché", "Infirmière", "Couturière", "Enseignante", "Vendeuse de pagnes", "Coiffeuse", "Comptable", "Restauratrice"];
+const HOUSES = [
+  { type: "Maison en briques", pieces: 3, desc: "une parcelle avec une cour, un manguier et un portail bleu", mur: "#d9a066", toit: "#8a8f96", porte: "#2f5d8a" },
+  { type: "Maison familiale", pieces: 4, desc: "une grande parcelle partagée avec les oncles, une cour en terre et un puits", mur: "#e6cf9f", toit: "#9b4a2c", porte: "#3c6e47" },
+  { type: "Petite maison", pieces: 2, desc: "deux chambres et un salon, une petite cour avec des pots de fleurs", mur: "#c98b62", toit: "#7d8288", porte: "#7a3b2e" },
+  { type: "Maison à étage", pieces: 5, desc: "une maison à étage avec un balcon et une clôture blanche", mur: "#efe6d6", toit: "#6b6f75", porte: "#1f4f7a", etage: true },
+];
+export function familyOf(c, age) {
+  const r = rng((c.look ^ 0x5bd1e995) >>> 0);
+  const pick = a => a[Math.floor(r() * a.length)];
+  const fa = Math.floor(age + 26 + r() * 10), ma = Math.floor(age + 22 + r() * 8);
+  const n = Math.floor(r() * 4);  // 0 à 3 frères et sœurs
+  const sib = [];
+  for (let i = 0; i < n; i++) {
+    const f = r() < .5, d = Math.round((r() * 12 - 4) * 10) / 10;
+    sib.push({ prenom: pick(f ? FIRST_F : FIRST_M), sexe: f ? "F" : "M", age: Math.max(0, Math.floor(age + (d === 0 ? 2 : d))), aine: d > 0 });
+  }
+  return {
+    pere: { nom: c.father, age: fa, metier: pick(JOBS_M) },
+    mere: { nom: c.mother, age: ma, metier: pick(JOBS_F) },
+    fratrie: sib.sort((a, b) => b.age - a.age),
+    maison: { ...pick(HOUSES), quartier: c.quartier },
+  };
+}
+
+// ---------------------------------------------------------------- travail et salaires
+// salaire = e-makuta par journée de travail ; une journée par tranche de 8 h réelles, elle fatigue.
+// Un talent découvert dans le domaine du métier ajoute TALENT_BONUS au salaire.
+export const SHIFT_HOURS = 8;
+export const SHIFT_ENERGY = 35;
+export const JOBS = [
+  { id: "vendeur", nom: "Vendeur au marché de la Liberté", talent: "commerce", salaire: 120, minAge: 16 },
+  { id: "taxi-moto", nom: "Chauffeur de taxi-moto", talent: "sport", salaire: 150, minAge: 18 },
+  { id: "cuisinier", nom: "Cuisinier dans un maquis", talent: "cuisine", salaire: 140, minAge: 16 },
+  { id: "aide-soignant", nom: "Aide-soignant au centre de santé", talent: "soin", salaire: 160, minAge: 18 },
+  { id: "musicien", nom: "Musicien dans un orchestre", talent: "art", salaire: 130, minAge: 16 },
+  { id: "mecanicien", nom: "Mécanicien au garage", talent: "technique", salaire: 170, minAge: 18 },
+  { id: "animateur", nom: "Animateur à la radio", talent: "parole", salaire: 150, minAge: 18 },
+  { id: "repetiteur", nom: "Répétiteur (cours du soir)", talent: "etudes", salaire: 140, minAge: 16 },
+  // carrières qui demandent des études (ouvertes avec l'école et l'université)
+  { id: "medecin", nom: "Médecin", talent: "soin", salaire: 600, minAge: 25, diplome: "Doctorat en médecine (7 ans)" },
+  { id: "ingenieur", nom: "Ingénieur", talent: "technique", salaire: 500, minAge: 23, diplome: "Diplôme d'ingénieur (5 ans)" },
+  { id: "avocat", nom: "Avocat", talent: "parole", salaire: 550, minAge: 23, diplome: "Licence en droit + barreau" },
+];
+export function payFor(job, talents) {
+  const t = talents.find(x => x.talent === job.talent && x.discovered);
+  return { montant: Math.round(job.salaire * (t ? 1 + TALENT_BONUS : 1)), bonus: !!t };
+}
+export function cannotWork(job, age, energy, lastShift, now = Date.now()) {
+  if (!job) return "Choisis d'abord un métier.";
+  if (age < job.minAge) return `Ce métier est ouvert dès ${job.minAge} ans.`;
+  if (lastShift && now - lastShift < SHIFT_HOURS * 36e5) return `Prochaine journée de travail dans ${Math.ceil((lastShift + SHIFT_HOURS * 36e5 - now) / 36e5)} h.`;
+  if (energy < SHIFT_ENERGY) return "Trop fatigué pour travailler : repose-toi ou mange.";
+  return null;
+}
+export function workView(jobId, lastShift, now = Date.now()) {
+  return { metiers: JOBS, metier: jobId || null, prochainTravail: lastShift ? lastShift + SHIFT_HOURS * 36e5 : null, fatigueTravail: SHIFT_ENERGY };
+}

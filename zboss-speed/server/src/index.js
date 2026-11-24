@@ -2,7 +2,7 @@
 // Le serveur est l'arbitre : il décide de l'âge, des talents et de l'argent ; le téléphone ne fait qu'afficher.
 import {
   ageYears, stageOf, STAGES, realMsUntil, TALENTS, ACTIVITIES, rng, drawTalents, doActivity,
-  needsAt, newIdentity, BIRTH_GIFT, SHOP, cannotBuy, OFFERS, USD_TO_MAKUTA, WITHDRAW_FEE, walletInfo, birthShiftMs, REAL_MONEY, shopView,
+  needsAt, newIdentity, BIRTH_GIFT, SHOP, cannotBuy, OFFERS, USD_TO_MAKUTA, WITHDRAW_FEE, walletInfo, birthShiftMs, REAL_MONEY, shopView, familyOf, JOBS, payFor, cannotWork, workView,
 } from "./life.js";
 
 const SESSION_DAYS = 30;
@@ -49,7 +49,7 @@ async function birth(db, compteId, now, offer) {
   const who = newIdentity(r);
   const talents = drawTalents(r);
   const parent = offer && offer.id === "parent";
-  const born = parent ? now - birthShiftMs(offer.age) : now;     // « naître parent » : on arrive adulte
+  const born = parent ? now - birthShiftMs(offer.age + .01) : now;     // « naître parent » : on arrive adulte
   const gift = parent ? offer.epargne : BIRTH_GIFT;
   const stmts = [
     db.prepare(`INSERT INTO personnages (id, compte_id, ville_id, prenom, nom, sexe, quartier, apparence, ne_le, maj_le, makuta, pere_nom, mere_nom)
@@ -76,10 +76,12 @@ async function loadCharacter(db, id) {
   const { results: inv } = await db.prepare(`SELECT id, objet_id, porte, acquis_le FROM possessions WHERE proprietaire_id = ? ORDER BY acquis_le`).bind(id).all();
   const { results: dep } = await db.prepare(`SELECT offre, usd, makuta, le FROM depots WHERE compte_id = ? ORDER BY le`).bind(p.compte_id).all();
   const { results: ret } = await db.prepare(`SELECT makuta, usd, statut, le FROM retraits WHERE compte_id = ? ORDER BY le`).bind(p.compte_id).all();
-  return { p, tal, inv, dep, ret };
+  const job = await db.prepare(`SELECT id, metier_id FROM emplois WHERE personnage_id = ? AND fin IS NULL ORDER BY depuis DESC LIMIT 1`).bind(id).first();
+  const last = await db.prepare(`SELECT MAX(le) AS le FROM activites WHERE personnage_id = ? AND activite LIKE 'travail:%'`).bind(id).first();
+  return { p, tal, inv, dep, ret, job, lastShift: last && last.le };
 }
 
-function view(compte, { p, tal, inv = [], dep = [], ret = [] }, now) {
+function view(compte, { p, tal, inv = [], dep = [], ret = [], job = null, lastShift = null }, now) {
   const age = ageYears(p.ne_le, now);
   const st = stageOf(age);
   const next = STAGES[STAGES.indexOf(st) + 1];
@@ -92,6 +94,7 @@ function view(compte, { p, tal, inv = [], dep = [], ret = [] }, now) {
       prochaineEtape: next ? { label: next.label, dansMs: realMsUntil(p.ne_le, next.from, now) } : null,
       besoins: Object.fromEntries(Object.entries(needs).map(([k, v]) => [k, Math.round(v)])),
       makuta: p.makuta, pere: p.pere_nom, mere: p.mere_nom, vivant: !p.mort_le,
+      famille: familyOf({ look: p.apparence, father: p.pere_nom, mother: p.mere_nom, quartier: p.quartier }, age),
       // les talents non découverts restent secrets : seul leur nombre et les indices sont envoyés
       talents: tal.filter(t => t.decouvert).map(t => ({ id: t.talent_id, label: TALENTS.find(x => x.id === t.talent_id).label, niveau: t.niveau })),
       talentsCaches: tal.filter(t => !t.decouvert).length,
@@ -100,6 +103,7 @@ function view(compte, { p, tal, inv = [], dep = [], ret = [] }, now) {
     activites: ACTIVITIES.map(a => ({ id: a.id, label: a.label, minAge: a.minAge, energie: a.energy })),
     repas: FOOD,
     ...shopView(inv, dep, ret, p.makuta, now),
+    travail: workView(job && job.metier_id, lastShift, now),
   };
 }
 
@@ -234,6 +238,32 @@ export default {
           db.prepare(`UPDATE possessions SET porte = ? WHERE id = ?`).bind(own.porte ? 0 : 1, own.id),
         ]);
         return json(h, 200, view(compte, await loadCharacter(db, p.id), now));
+      }
+
+      if (url.pathname === "/api/postuler" && req.method === "POST") {
+        const job = JOBS.find(j => j.id === body.metier);
+        if (!job) return fail(h, 400, "Métier inconnu.");
+        if (job.diplome) return fail(h, 409, `Il faut d'abord le diplôme : ${job.diplome}.`);
+        if (ageYears(p.ne_le, now) < job.minAge) return fail(h, 409, `Ce métier est ouvert dès ${job.minAge} ans.`);
+        await db.batch([
+          db.prepare(`UPDATE emplois SET fin = ? WHERE personnage_id = ? AND fin IS NULL`).bind(now, p.id),
+          db.prepare(`INSERT INTO emplois (id, personnage_id, metier_id, poste, salaire, depuis) VALUES (?, ?, ?, ?, ?, ?)`).bind(uid(), p.id, job.id, job.nom, job.salaire, now),
+        ]);
+        return json(h, 200, view(compte, await loadCharacter(db, p.id), now));
+      }
+
+      if (url.pathname === "/api/travailler" && req.method === "POST") {
+        await settle(db, p, now);
+        const job = ch.job && JOBS.find(j => j.id === ch.job.metier_id);
+        const no = cannotWork(job, ageYears(p.ne_le, now), p.energie, ch.lastShift, now);
+        if (no) return fail(h, 409, no);
+        const pay = payFor(job, tal.map(t => ({ talent: t.talent_id, discovered: !!t.decouvert })));
+        await db.batch([
+          db.prepare(`UPDATE personnages SET makuta = makuta + ?, energie = MAX(0, energie - ?), faim = MAX(0, faim - 10) WHERE id = ?`).bind(pay.montant, 35, p.id),
+          db.prepare(`INSERT INTO transactions (id, de_id, vers_id, montant, motif, le) VALUES (?, NULL, ?, ?, ?, ?)`).bind(uid(), p.id, pay.montant, "salaire : " + job.nom, now),
+          db.prepare(`INSERT INTO activites (id, personnage_id, activite, score, resultat, le) VALUES (?, ?, ?, ?, ?, ?)`).bind(uid(), p.id, "travail:" + job.id, pay.montant, pay.bonus ? "bonus talent" : "", now),
+        ]);
+        return json(h, 200, { paie: pay, ...view(compte, await loadCharacter(db, p.id), now) });
       }
 
       // investissement : SIMULATION tant que REAL_MONEY est faux (aucun paiement encaissé)

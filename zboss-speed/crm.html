@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex, nofollow">
-  <title>Zboss-speed — CRM bêta</title>
+  <title>2 Life — CRM bêta</title>
   <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -47,7 +47,7 @@
 <body>
   <div class="top">
     <div class="wrap">
-      <a class="logo" href="index.html"><span>ZBOSS<b>-SPEED</b></span> <span style="color:var(--muted);font-size:13px;letter-spacing:.1em">CRM</span></a>
+      <a class="logo" href="index.html"><span>2<b> LIFE</b></span> <span style="color:var(--muted);font-size:13px;letter-spacing:.1em">CRM</span></a>
       <div class="who" id="who" hidden><span id="who-email"></span><button class="btn btn-ghost btn-sm" id="logout">Se déconnecter</button></div>
     </div>
   </div>
@@ -187,7 +187,7 @@
     const csv = "﻿" + [cols.join(";"), ...filtered().map(r => cols.map(c => cell(r[c])).join(";"))].join("\r\n");
     const a = document.createElement("a");
     a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
-    a.download = "zboss-speed-inscrits-" + new Date().toISOString().slice(0, 10) + ".csv";
+    a.download = "2life-inscrits-" + new Date().toISOString().slice(0, 10) + ".csv";
     document.body.appendChild(a); a.click(); a.remove();
     setTimeout(() => URL.revokeObjectURL(a.href), 1000);
   });

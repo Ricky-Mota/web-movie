@@ -262,7 +262,7 @@
   { const t = towers.reduce((a, b) => b.h > a.h ? b : a, towers[0]); if (t) { const m = new THREE.Mesh(new THREE.CylinderGeometry(.3, .5, 18, 6), new THREE.MeshStandardMaterial({ color: "#ddd" })); m.position.set(t.x, t.h + 9, t.z); scene.add(m); const l = new THREE.Mesh(new THREE.SphereGeometry(.8), new THREE.MeshBasicMaterial({ color: "#ff3030" })); l.position.set(t.x, t.h + 18.5, t.z); scene.add(l); } }
   {
     const st = MAP.start, near = towers.filter(t => t.h > 30).sort((a, b) => Math.hypot(a.x - st.x * S, a.z - st.y * S) - Math.hypot(b.x - st.x * S, b.z - st.y * S)).slice(0, 10);
-    near.forEach(t => boards.push({ x: t.x, z: t.z, y: t.h + .2, w: Math.min(16, Math.max(t.w, t.d) * .8), ry: t.w > t.d ? 0 : Math.PI / 2, top: true, text: pick([["ZBOSS-SPEED", "Fonce. Sème-les."], ["BÊTA OUVERTE", "Inscris-toi sur le site"], ["TA MARQUE ICI", "Espace partenaire"], ["KIN LA BELLE", "Roule prudemment"]]) }));
+    near.forEach(t => boards.push({ x: t.x, z: t.z, y: t.h + .2, w: Math.min(16, Math.max(t.w, t.d) * .8), ry: t.w > t.d ? 0 : Math.PI / 2, top: true, text: pick([["2 LIFE", "Nais à Kinshasa"], ["BÊTA OUVERTE", "Inscris-toi sur le site"], ["TA MARQUE ICI", "Espace partenaire"], ["KIN LA BELLE", "Roule prudemment"]]) }));
   }
   boards.forEach(b => {
     const m = new THREE.Mesh(new THREE.PlaneGeometry(b.w, b.w * .31), new THREE.MeshBasicMaterial({ map: boardTex(b.text), side: THREE.DoubleSide }));
@@ -351,7 +351,7 @@
     const whiteM = new THREE.MeshStandardMaterial({ color: "#f2f1ee", roughness: .6 });
     const glassM = new THREE.MeshStandardMaterial({ color: "#a9c7dc", roughness: .05, metalness: .6, transparent: true, opacity: .28, depthWrite: false, side: THREE.DoubleSide });
     const ledM = new THREE.MeshBasicMaterial({ color: "#fff6e8" }), orangeM = new THREE.MeshBasicMaterial({ color: "#ff5a1f" });
-    const signTex = (w, h, big) => canvasTex(w, h, (c, W_, H_) => { c.fillStyle = "#0d0f14"; c.fillRect(0, 0, W_, H_); c.fillStyle = "#ff5a1f"; c.font = `900 ${H_ * .5}px sans-serif`; c.textAlign = "center"; c.textBaseline = "middle"; c.fillText("ZBOSS", W_ / 2, H_ * (big ? .36 : .5)); if (big) { c.fillStyle = "#fff"; c.font = `700 ${H_ * .2}px sans-serif`; c.fillText("M O T O R S", W_ / 2, H_ * .76); } });
+    const signTex = (w, h, big) => canvasTex(w, h, (c, W_, H_) => { c.fillStyle = "#0d0f14"; c.fillRect(0, 0, W_, H_); c.fillStyle = "#ff5a1f"; c.font = `900 ${H_ * .5}px sans-serif`; c.textAlign = "center"; c.textBaseline = "middle"; c.fillText("2 LIFE", W_ / 2, H_ * (big ? .36 : .5)); if (big) { c.fillStyle = "#fff"; c.font = `700 ${H_ * .2}px sans-serif`; c.fillText("M O T O R S", W_ / 2, H_ * .76); } });
     const sign = new THREE.MeshBasicMaterial({ map: signTex(1024, 256, true) });
     const box = (g, w, h, d, x, y, z, m, sh) => { const o = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m); o.position.set(x, y, z); if (sh) o.castShadow = o.receiveShadow = true; g.add(o); return o; };
     SHOPS.forEach(o => {
@@ -383,7 +383,7 @@
       // totem extérieur
       const tot = new THREE.Group(); tot.position.set(SW / 2 + 2, 0, -SD / 2 - 4); g.add(tot);
       box(tot, 1.4, 10, .8, 0, 5, 0, darkM, true);
-      const ts = new THREE.Mesh(new THREE.PlaneGeometry(1.2, 4.8), new THREE.MeshBasicMaterial({ map: canvasTex(128, 512, (c, W_, H_) => { c.fillStyle = "#0d0f14"; c.fillRect(0, 0, W_, H_); c.fillStyle = "#ff5a1f"; c.font = "900 86px sans-serif"; c.textAlign = "center"; "ZBOSS".split("").forEach((ch, k) => c.fillText(ch, W_ / 2, 96 + k * 92)); }) }));
+      const ts = new THREE.Mesh(new THREE.PlaneGeometry(1.2, 4.8), new THREE.MeshBasicMaterial({ map: canvasTex(128, 512, (c, W_, H_) => { c.fillStyle = "#0d0f14"; c.fillRect(0, 0, W_, H_); c.fillStyle = "#ff5a1f"; c.font = "900 86px sans-serif"; c.textAlign = "center"; "2LIFE".split("").forEach((ch, k) => c.fillText(ch, W_ / 2, 96 + k * 92)); }) }));
       ts.position.set(0, 6.6, -.41); ts.rotation.y = Math.PI; tot.add(ts); const ts2 = ts.clone(); ts2.position.z = .41; ts2.rotation.y = 0; tot.add(ts2);
       scene.add(g); o.g3 = g;
     });
