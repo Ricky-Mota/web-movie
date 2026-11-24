@@ -2,7 +2,7 @@
 // Le serveur est l'arbitre : il décide de l'âge, des talents et de l'argent ; le téléphone ne fait qu'afficher.
 import {
   ageYears, stageOf, STAGES, realMsUntil, TALENTS, ACTIVITIES, rng, drawTalents, doActivity,
-  needsAt, newIdentity, BIRTH_GIFT,
+  needsAt, newIdentity, BIRTH_GIFT, SHOP, cannotBuy, OFFERS, USD_TO_MAKUTA, WITHDRAW_FEE, walletInfo, birthShiftMs, REAL_MONEY, shopView,
 } from "./life.js";
 
 const SESSION_DAYS = 30;
@@ -43,19 +43,26 @@ const json = (h, status, body) => new Response(JSON.stringify(body), { status, h
 const fail = (h, status, message) => json(h, status, { erreur: message });
 
 // ---------------------------------------------------------------- naissance
-async function birth(db, compteId, now) {
+async function birth(db, compteId, now, offer) {
   const r = rng(seedOf());
   const id = uid();
   const who = newIdentity(r);
   const talents = drawTalents(r);
+  const parent = offer && offer.id === "parent";
+  const born = parent ? now - birthShiftMs(offer.age) : now;     // « naître parent » : on arrive adulte
+  const gift = parent ? offer.epargne : BIRTH_GIFT;
   const stmts = [
     db.prepare(`INSERT INTO personnages (id, compte_id, ville_id, prenom, nom, sexe, quartier, apparence, ne_le, maj_le, makuta, pere_nom, mere_nom)
                 VALUES (?, ?, 'kinshasa', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
-      .bind(id, compteId, who.firstName, who.lastName, who.sex, who.quartier, who.look, now, now, BIRTH_GIFT, who.father, who.mother),
-    db.prepare(`INSERT INTO transactions (id, de_id, vers_id, montant, motif, le) VALUES (?, NULL, ?, ?, 'naissance : épargne des parents', ?)`)
-      .bind(uid(), id, BIRTH_GIFT, now),
+      .bind(id, compteId, who.firstName, who.lastName, who.sex, who.quartier, who.look, born, now, gift, who.father, who.mother),
+    db.prepare(`INSERT INTO transactions (id, de_id, vers_id, montant, motif, le) VALUES (?, NULL, ?, ?, ?, ?)`)
+      .bind(uid(), id, gift, parent ? "épargne de départ (naître parent)" : "naissance : épargne des parents", now),
+    db.prepare(`INSERT INTO depots (id, compte_id, offre, usd, makuta, simule, le) VALUES (?, ?, ?, ?, 0, ?, ?)`)
+      .bind(uid(), compteId, offer ? offer.id : "bebe", offer ? offer.usd : 0, REAL_MONEY ? 0 : 1, now),
     db.prepare(`UPDATE comptes SET vie_id = ? WHERE id = ?`).bind(id, compteId),
-    ...talents.map(t => db.prepare(`INSERT INTO talents_personnage (personnage_id, talent_id, niveau) VALUES (?, ?, ?)`).bind(id, t.talent, t.level)),
+    // « naître parent » : talents déjà connus (apprentissage accéléré)
+    ...talents.map(t => db.prepare(`INSERT INTO talents_personnage (personnage_id, talent_id, niveau, decouvert, decouvert_par, decouvert_le) VALUES (?, ?, ?, ?, ?, ?)`)
+      .bind(id, t.talent, t.level, parent ? 1 : 0, parent ? "formule parent" : null, parent ? now : null)),
   ];
   await db.batch(stmts);
   return id;
@@ -66,10 +73,13 @@ async function loadCharacter(db, id) {
   const p = await db.prepare(`SELECT * FROM personnages WHERE id = ?`).bind(id).first();
   if (!p) return null;
   const { results: tal } = await db.prepare(`SELECT talent_id, niveau, decouvert, indices FROM talents_personnage WHERE personnage_id = ?`).bind(id).all();
-  return { p, tal };
+  const { results: inv } = await db.prepare(`SELECT id, objet_id, porte, acquis_le FROM possessions WHERE proprietaire_id = ? ORDER BY acquis_le`).bind(id).all();
+  const { results: dep } = await db.prepare(`SELECT offre, usd, makuta, le FROM depots WHERE compte_id = ? ORDER BY le`).bind(p.compte_id).all();
+  const { results: ret } = await db.prepare(`SELECT makuta, usd, statut, le FROM retraits WHERE compte_id = ? ORDER BY le`).bind(p.compte_id).all();
+  return { p, tal, inv, dep, ret };
 }
 
-function view(compte, p, tal, now) {
+function view(compte, { p, tal, inv = [], dep = [], ret = [] }, now) {
   const age = ageYears(p.ne_le, now);
   const st = stageOf(age);
   const next = STAGES[STAGES.indexOf(st) + 1];
@@ -89,6 +99,7 @@ function view(compte, p, tal, now) {
     },
     activites: ACTIVITIES.map(a => ({ id: a.id, label: a.label, minAge: a.minAge, energie: a.energy })),
     repas: FOOD,
+    ...shopView(inv, dep, ret, p.makuta, now),
   };
 }
 
@@ -137,11 +148,11 @@ export default {
         const { hash, salt } = await hashPassword(pass);
         const id = uid();
         await db.prepare(`INSERT INTO comptes (id, email, pseudo, pass_hash, pass_salt, cree_le) VALUES (?, ?, ?, ?, ?, ?)`).bind(id, email, pseudo, hash, salt, now).run();
-        const pid = await birth(db, id, now);
+        const offer = OFFERS.find(o => o.id === body.formule && o.type === "entree") || OFFERS[0];
+        const pid = await birth(db, id, now, offer);
         const token = await newSession(db, id, now);
         const compte = await db.prepare(`SELECT * FROM comptes WHERE id = ?`).bind(id).first();
-        const { p, tal } = await loadCharacter(db, pid);
-        return json(h, 201, { token, ...view(compte, p, tal, now), naissance: true });
+        return json(h, 201, { token, ...view(compte, await loadCharacter(db, pid), now), naissance: true });
       }
 
       if (url.pathname === "/api/connexion" && req.method === "POST") {
@@ -151,8 +162,7 @@ export default {
         const { hash } = await hashPassword(String(body.motdepasse || ""), c.pass_salt);
         if (!sameText(hash, c.pass_hash)) return fail(h, 401, "E-mail ou mot de passe incorrect.");
         const token = await newSession(db, c.id, now);
-        const { p, tal } = await loadCharacter(db, c.vie_id);
-        return json(h, 200, { token, ...view(c, p, tal, now) });
+        return json(h, 200, { token, ...view(c, await loadCharacter(db, c.vie_id), now) });
       }
 
       // ---- routes réservées aux joueurs connectés
@@ -162,7 +172,7 @@ export default {
       if (!ch) return fail(h, 404, "Personnage introuvable.");
       const { p, tal } = ch;
 
-      if (url.pathname === "/api/moi" && req.method === "GET") return json(h, 200, view(compte, p, tal, now));
+      if (url.pathname === "/api/moi" && req.method === "GET") return json(h, 200, view(compte, ch, now));
 
       if (url.pathname === "/api/activite" && req.method === "POST") {
         const act = ACTIVITIES.find(a => a.id === body.activite);
@@ -180,7 +190,7 @@ export default {
         if (res.hint) st.push(db.prepare(`UPDATE talents_personnage SET indices = indices + 1 WHERE personnage_id = ? AND talent_id = ?`).bind(p.id, res.hint));
         await db.batch(st);
         const again = await loadCharacter(db, p.id);
-        return json(h, 200, { resultat: { score: res.score, message: res.message, talent: res.discovered ? TALENTS.find(x => x.id === res.discovered).label : null }, ...view(compte, again.p, again.tal, now) });
+        return json(h, 200, { resultat: { score: res.score, message: res.message, talent: res.discovered ? TALENTS.find(x => x.id === res.discovered).label : null }, ...view(compte, again, now) });
       }
 
       if (url.pathname === "/api/manger" && req.method === "POST") {
@@ -191,7 +201,67 @@ export default {
           db.prepare(`INSERT INTO transactions (id, de_id, vers_id, montant, motif, le) VALUES (?, ?, NULL, ?, 'repas au maquis', ?)`).bind(uid(), p.id, FOOD.prix, now),
         ]);
         const again = await loadCharacter(db, p.id);
-        return json(h, 200, view(compte, again.p, again.tal, now));
+        return json(h, 200, view(compte, again, now));
+      }
+
+      if (url.pathname === "/api/acheter" && req.method === "POST") {
+        const item = SHOP.find(x => x.id === body.objet);
+        await settle(db, p, now);
+        const no = cannotBuy(item, p.makuta, ageYears(p.ne_le, now));
+        if (no) return fail(h, 409, no);
+        const e = item.effet || {};
+        const st = [
+          db.prepare(`UPDATE personnages SET makuta = makuta - ?, faim = MIN(100, faim + ?), bonheur = MIN(100, bonheur + ?), energie = MIN(100, energie + ?) WHERE id = ? AND makuta >= ?`)
+            .bind(item.prix, e.faim || 0, e.bonheur || 0, e.energie || 0, p.id, item.prix),
+          db.prepare(`INSERT INTO transactions (id, de_id, vers_id, montant, motif, le) VALUES (?, ?, NULL, ?, ?, ?)`).bind(uid(), p.id, item.prix, "achat : " + item.nom, now),
+        ];
+        if (item.type !== "nourriture") {
+          // un vêtement acheté est porté tout de suite (il remplace celui du même emplacement)
+          if (item.slot) st.push(db.prepare(`UPDATE possessions SET porte = 0 WHERE proprietaire_id = ? AND objet_id IN (${SHOP.filter(x => x.slot === item.slot).map(() => "?").join(",")})`).bind(p.id, ...SHOP.filter(x => x.slot === item.slot).map(x => x.id)));
+          st.push(db.prepare(`INSERT INTO possessions (id, proprietaire_id, objet_id, acquis_le, porte) VALUES (?, ?, ?, ?, ?)`).bind(uid(), p.id, item.id, now, item.slot ? 1 : 0));
+        }
+        await db.batch(st);
+        return json(h, 200, view(compte, await loadCharacter(db, p.id), now));
+      }
+
+      if (url.pathname === "/api/porter" && req.method === "POST") {
+        const own = ch.inv.find(x => x.id === body.possession);
+        const item = own && SHOP.find(x => x.id === own.objet_id);
+        if (!item || !item.slot) return fail(h, 400, "Vêtement introuvable.");
+        const same = SHOP.filter(x => x.slot === item.slot).map(x => x.id);
+        await db.batch([
+          db.prepare(`UPDATE possessions SET porte = 0 WHERE proprietaire_id = ? AND objet_id IN (${same.map(() => "?").join(",")})`).bind(p.id, ...same),
+          db.prepare(`UPDATE possessions SET porte = ? WHERE id = ?`).bind(own.porte ? 0 : 1, own.id),
+        ]);
+        return json(h, 200, view(compte, await loadCharacter(db, p.id), now));
+      }
+
+      // investissement : SIMULATION tant que REAL_MONEY est faux (aucun paiement encaissé)
+      if (url.pathname === "/api/investir" && req.method === "POST") {
+        const o = OFFERS.find(x => x.id === body.offre && x.type === "investissement");
+        if (!o) return fail(h, 400, "Offre inconnue.");
+        if (REAL_MONEY) return fail(h, 501, "Le paiement réel passe par le partenaire agréé.");
+        const mk = o.usd * USD_TO_MAKUTA;
+        await db.batch([
+          db.prepare(`INSERT INTO depots (id, compte_id, offre, usd, makuta, simule, le) VALUES (?, ?, ?, ?, ?, 1, ?)`).bind(uid(), compte.id, o.id, o.usd, mk, now),
+          db.prepare(`UPDATE personnages SET makuta = makuta + ? WHERE id = ?`).bind(mk, p.id),
+          db.prepare(`INSERT INTO transactions (id, de_id, vers_id, montant, motif, le) VALUES (?, NULL, ?, ?, ?, ?)`).bind(uid(), p.id, mk, "investissement simulé : " + o.nom, now),
+        ]);
+        return json(h, 200, view(compte, await loadCharacter(db, p.id), now));
+      }
+
+      if (url.pathname === "/api/retirer" && req.method === "POST") {
+        const mk = Math.floor(Number(body.makuta) || 0);
+        const w = walletInfo(ch.dep, p.makuta, now);
+        if (!w.retraitPossible) return fail(h, 409, w.retraitPossibleLe ? `Retrait possible à partir du ${new Date(w.retraitPossibleLe).toLocaleDateString("fr-FR")}.` : "Aucun dépôt.");
+        if (mk < USD_TO_MAKUTA || mk > p.makuta) return fail(h, 400, "Montant invalide.");
+        const usd = Math.floor(mk / USD_TO_MAKUTA * (1 - WITHDRAW_FEE) * 100) / 100;
+        await db.batch([
+          db.prepare(`UPDATE personnages SET makuta = makuta - ? WHERE id = ? AND makuta >= ?`).bind(mk, p.id, mk),
+          db.prepare(`INSERT INTO retraits (id, compte_id, makuta, usd, simule, le) VALUES (?, ?, ?, ?, ?, ?)`).bind(uid(), compte.id, mk, usd, REAL_MONEY ? 0 : 1, now),
+          db.prepare(`INSERT INTO transactions (id, de_id, vers_id, montant, motif, le) VALUES (?, ?, NULL, ?, ?, ?)`).bind(uid(), p.id, mk, "retrait vers l'argent réel" + (REAL_MONEY ? "" : " (simulé)"), now),
+        ]);
+        return json(h, 200, view(compte, await loadCharacter(db, p.id), now));
       }
 
       return fail(h, 404, "Route inconnue.");

@@ -65,6 +65,23 @@
     .toast { position: fixed; left: 50%; bottom: calc(18px + env(safe-area-inset-bottom)); transform: translateX(-50%); width: min(520px, 100% - 32px); background: #2c2119; border: 1px solid var(--accent); color: var(--text); border-radius: 14px; padding: 12px 14px; font-size: 14px; box-shadow: 0 12px 30px rgba(0,0,0,.4); }
     .foot { text-align: center; font-size: 12px; color: var(--muted); margin-top: 18px; }
     .foot a { color: var(--muted); }
+    .offers { display: grid; gap: 8px; margin-top: 12px; }
+    .offer { display: flex; gap: 10px; align-items: flex-start; padding: 12px; border-radius: 12px; border: 1px solid var(--line); background: var(--panel-2); cursor: pointer; }
+    .offer input { width: auto; margin-top: 3px; accent-color: var(--accent); }
+    .offer b { display: block; font-size: 15px; } .offer b em { font-style: normal; color: var(--accent); }
+    .offer small { color: var(--muted); font-size: 12px; line-height: 1.4; }
+    .offer:has(input:checked) { border-color: var(--accent); }
+    .sim { font-size: 12px; color: var(--warn); border: 1px dashed var(--warn); border-radius: 10px; padding: 8px 10px; margin: 10px 0 0; line-height: 1.45; }
+    .tabs { display: flex; gap: 6px; margin-bottom: 10px; overflow-x: auto; }
+    .tab { flex: none; border: 1px solid var(--line); background: var(--panel-2); color: var(--muted); border-radius: 99px; padding: 7px 13px; font-size: 13px; }
+    .tab.on { border-color: var(--accent); color: var(--accent); }
+    .item { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+    .item:last-child { border-bottom: 0; }
+    .sw { flex: none; width: 34px; height: 34px; border-radius: 10px; border: 1px solid var(--line); display: grid; place-items: center; font-size: 17px; background: var(--panel-2); }
+    .item .t { flex: 1; min-width: 0; font-size: 14px; } .item .t small { display: block; color: var(--muted); font-size: 12px; margin-top: 2px; }
+    .mini { flex: none; border: 1px solid var(--accent); background: none; color: var(--accent); border-radius: 10px; padding: 8px 12px; font-size: 13px; font-weight: 600; }
+    .mini.fill { background: var(--accent); color: #1b120b; }
+    .mini:disabled { opacity: .4; border-color: var(--line); color: var(--muted); background: none; }
     @media (max-width: 380px) { .acts { grid-template-columns: 1fr; } .hero { height: 280px; } }
   </style>
 </head>
@@ -84,6 +101,14 @@
           <div id="f-pseudo"><label for="pseudo">Pseudo</label><input id="pseudo" autocomplete="nickname" maxlength="40"></div>
           <label for="email">E-mail</label><input id="email" type="email" autocomplete="email" inputmode="email">
           <label for="pass">Mot de passe (8 caractères minimum)</label><input id="pass" type="password" autocomplete="new-password">
+          <div id="f-formule">
+            <label>Ta formule d'entrée</label>
+            <div class="offers">
+              <label class="offer"><input type="radio" name="formule" value="bebe" checked><span><b>Naître bébé · <em>100 $</em></b><small>Le parcours normal : tu grandis dans une famille qui découvre tes talents.</small></span></label>
+              <label class="offer"><input type="radio" name="formule" value="parent"><span><b>Naître parent · <em>5 000 $</em></b><small>Tu arrives adulte (25 ans), tes talents sont connus et tu reçois 5 000 e-makuta d'épargne.</small></span></label>
+            </div>
+            <p class="sim">Simulation : aucun paiement n'est encaissé. L'argent réel (M-Pesa, carte) sera activé après les autorisations légales.</p>
+          </div>
           <button class="btn" id="b-auth" type="submit">Naître à Kinshasa</button>
           <div class="err" id="auth-err" role="alert"></div>
         </form>
@@ -116,6 +141,23 @@
         <h2>Activités en famille</h2>
         <p style="font-size:14px">Chaque activité fatigue un peu. Si elle touche un talent caché, tes parents peuvent le découvrir.</p>
         <div class="acts" id="acts"></div>
+      </div>
+
+      <div class="card">
+        <h2>Magasin</h2>
+        <div class="tabs" id="shop-tabs"></div>
+        <div id="shop"></div>
+      </div>
+
+      <div class="card">
+        <h2>Mes affaires</h2>
+        <div id="inv"></div>
+      </div>
+
+      <div class="card">
+        <h2>Portefeuille</h2>
+        <div id="wallet"></div>
+        <p class="sim">Simulation : ces montants servent à présenter le modèle. Aucun dollar n'est encaissé ni versé tant que les autorisations (Banque Centrale, vérification d'identité, partenaire de paiement agréé) ne sont pas obtenues.</p>
       </div>
 
       <div class="card">

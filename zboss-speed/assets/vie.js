@@ -2,6 +2,7 @@
 // simule la même vie dans le navigateur (mode démo).
 import {
   ageYears, stageOf, STAGES, realMsUntil, TALENTS, ACTIVITIES, rng, drawTalents, doActivity, needsAt, newIdentity, BIRTH_GIFT,
+  SHOP, cannotBuy, OFFERS, USD_TO_MAKUTA, WITHDRAW_FEE, walletInfo, birthShiftMs, shopView,
 } from "../server/src/life.js";
 
 const API = (window.TWO_LIFE_API || "").replace(/\/$/, "");
@@ -32,14 +33,21 @@ const demo = {
       },
       activites: ACTIVITIES.map(a => ({ id: a.id, label: a.label, minAge: a.minAge, energie: a.energy })),
       repas: FOOD,
+      ...shopView(d.inv || [], d.dep || [], d.ret || [], c.makuta, now),
     };
   },
   settle(c) { const n = needsAt(c); Object.assign(c, n, { updatedAt: Date.now() }); },
   async call(path, body) {
     let d = store.get(LS_DEMO);
     if (path === "/api/inscription") {
-      const r = rng(this.seed()), who = newIdentity(r);
-      d = { pseudo: body.pseudo, email: body.email, perso: { ...who, neLe: Date.now(), updatedAt: Date.now(), hunger: 100, energy: 100, happiness: 80, health: 100, makuta: BIRTH_GIFT, talents: drawTalents(r).map(t => ({ ...t, discovered: false, hints: 0 })) } };
+      const r = rng(this.seed()), who = newIdentity(r), now = Date.now();
+      const offer = OFFERS.find(o => o.id === body.formule && o.type === "entree") || OFFERS[0], parent = offer.id === "parent";
+      d = {
+        pseudo: body.pseudo, email: String(body.email || "").trim().toLowerCase(), inv: [], ret: [],
+        dep: [{ offre: offer.id, usd: offer.usd, makuta: 0, le: now }],
+        perso: { ...who, neLe: parent ? now - birthShiftMs(offer.age) : now, updatedAt: now, hunger: 100, energy: 100, happiness: 80, health: 100,
+          makuta: parent ? offer.epargne : BIRTH_GIFT, talents: drawTalents(r).map(t => ({ ...t, discovered: parent, hints: 0 })) },
+      };
       store.set(LS_DEMO, d); store.set(LS_TOKEN, "demo");
       return { token: "demo", ...this.view(d), naissance: true };
     }
@@ -67,6 +75,44 @@ const demo = {
       if (c.makuta < FOOD.prix) throw new Error("Pas assez d'e-makuta pour un repas.");
       c.makuta -= FOOD.prix; c.hunger = Math.min(100, c.hunger + FOOD.faim); store.set(LS_DEMO, d);
       return this.view(d);
+    }
+    if (path === "/api/acheter") {
+      const item = SHOP.find(x => x.id === body.objet);
+      this.settle(c);
+      const no = cannotBuy(item, c.makuta, ageYears(c.neLe));
+      if (no) throw new Error(no);
+      const e = item.effet || {};
+      c.makuta -= item.prix;
+      c.hunger = Math.min(100, c.hunger + (e.faim || 0)); c.happiness = Math.min(100, c.happiness + (e.bonheur || 0)); c.energy = Math.min(100, c.energy + (e.energie || 0));
+      d.inv = d.inv || [];
+      if (item.type !== "nourriture") {
+        if (item.slot) d.inv.forEach(x => { if (SHOP.find(y => y.id === x.objet_id).slot === item.slot) x.porte = 0; });
+        d.inv.push({ id: "p" + this.seed(), objet_id: item.id, porte: item.slot ? 1 : 0, acquis_le: Date.now() });
+      }
+      store.set(LS_DEMO, d); return this.view(d);
+    }
+    if (path === "/api/porter") {
+      const own = (d.inv || []).find(x => x.id === body.possession), item = own && SHOP.find(x => x.id === own.objet_id);
+      if (!item || !item.slot) throw new Error("Vêtement introuvable.");
+      const was = own.porte;
+      d.inv.forEach(x => { if (SHOP.find(y => y.id === x.objet_id).slot === item.slot) x.porte = 0; });
+      own.porte = was ? 0 : 1;
+      store.set(LS_DEMO, d); return this.view(d);
+    }
+    if (path === "/api/investir") {
+      const o = OFFERS.find(x => x.id === body.offre && x.type === "investissement");
+      if (!o) throw new Error("Offre inconnue.");
+      const mk = o.usd * USD_TO_MAKUTA;
+      (d.dep = d.dep || []).push({ offre: o.id, usd: o.usd, makuta: mk, le: Date.now() });
+      c.makuta += mk; store.set(LS_DEMO, d); return this.view(d);
+    }
+    if (path === "/api/retirer") {
+      const mk = Math.floor(Number(body.makuta) || 0), w = walletInfo(d.dep || [], c.makuta);
+      if (!w.retraitPossible) throw new Error(w.retraitPossibleLe ? `Retrait possible à partir du ${new Date(w.retraitPossibleLe).toLocaleDateString("fr-FR")}.` : "Aucun dépôt.");
+      if (mk < USD_TO_MAKUTA || mk > c.makuta) throw new Error("Montant invalide.");
+      c.makuta -= mk;
+      (d.ret = d.ret || []).push({ makuta: mk, usd: Math.floor(mk / USD_TO_MAKUTA * (1 - WITHDRAW_FEE) * 100) / 100, statut: "demande", le: Date.now() });
+      store.set(LS_DEMO, d); return this.view(d);
     }
     throw new Error("Action inconnue.");
   },
@@ -121,12 +167,66 @@ function render(v) {
   }).join("");
   $("ident").innerHTML = [["Joueur", v.compte.pseudo], ["Mère", p.mere], ["Père", p.pere], ["Quartier", `${p.quartier}, ${p.ville}`],
     ["Né le", new Date(p.neLe).toLocaleDateString("fr-FR")]].map(([a, b]) => `<div class="row"><span>${a}</span><span>${b}</span></div>`).join("");
+  renderShop(v); renderWallet(v);
   portrait(p);
+  dress(v);
 }
+
+// ---------------------------------------------------------------- magasin, affaires, portefeuille
+const TYPES = [["nourriture", "Nourriture", "🍲"], ["vetement", "Vêtements", "👕"], ["telephone", "Téléphones", "📱"]];
+let shopTab = "nourriture";
+const mk = n => `${Math.round(n).toLocaleString("fr-FR")} e-makuta`;
+const usd = n => `${n.toLocaleString("fr-FR", { maximumFractionDigits: 2 })} $`;
+const SLOT = { haut: "Haut", bas: "Bas", pieds: "Chaussures" };
+function swatch(it) {
+  return it.couleur ? `<span class="sw" style="background:${it.couleur}"></span>` : `<span class="sw">${(TYPES.find(t => t[0] === it.type) || [, , "•"])[2]}</span>`;
+}
+function renderShop(v) {
+  const p = v.perso;
+  $("shop-tabs").innerHTML = TYPES.map(([id, label]) => `<button class="tab ${id === shopTab ? "on" : ""}" data-t="${id}" type="button">${label}</button>`).join("");
+  $("shop").innerHTML = v.boutique.filter(it => it.type === shopTab).map(it => {
+    const why = it.minAge && p.age < it.minAge ? `dès ${it.minAge} ans` : it.maxAge && p.age > it.maxAge ? "pour les tout-petits" : p.makuta < it.prix ? "trop cher" : "";
+    const fx = it.effet ? Object.entries(it.effet).map(([k, x]) => `+${x} ${{ faim: "satiété", bonheur: "bonheur", energie: "énergie" }[k]}`).join(" · ") : SLOT[it.slot] || "";
+    return `<div class="item">${swatch(it)}<div class="t">${it.nom}<small>${mk(it.prix)}${fx ? " · " + fx : ""}${why ? " · " + why : ""}</small></div>
+      <button class="mini fill" data-buy="${it.id}" type="button" ${why ? "disabled" : ""}>${it.type === "nourriture" ? "Manger" : "Acheter"}</button></div>`;
+  }).join("");
+  const inv = v.inventaire.map(x => ({ ...x, it: v.boutique.find(b => b.id === x.objet) })).filter(x => x.it);
+  $("inv").innerHTML = inv.length ? inv.map(x => `<div class="item">${swatch(x.it)}<div class="t">${x.it.nom}<small>${x.it.slot ? (x.porte ? "Porté · " : "") + SLOT[x.it.slot] : "Téléphone : tu peux appeler ta famille"}</small></div>
+      ${x.it.slot ? `<button class="mini ${x.porte ? "" : "fill"}" data-wear="${x.id}" type="button">${x.porte ? "Retirer" : "Porter"}</button>` : ""}</div>`).join("")
+    : `<p style="font-size:14px;margin:0">Rien pour l'instant. Les vêtements achetés apparaissent ici et sur ton personnage.</p>`;
+}
+function renderWallet(v) {
+  const w = v.portefeuille, p = v.perso;
+  const lock = w.retraitPossibleLe ? (w.retraitPossible ? "Retrait possible" : `Retrait possible à partir du ${new Date(w.retraitPossibleLe).toLocaleDateString("fr-FR")}`) : "Aucun dépôt";
+  const rows = [["Solde", mk(p.makuta)], ["Valeur au retrait", `${usd(w.valeurUsd)} (après ${Math.round(w.frais * 100)} % de frais)`], ["Taux", `1 $ = ${w.taux} e-makuta`],
+    ["Total déposé", usd(w.deposeUsd)], ["Blocage", `${w.blocageJours} jours après le premier dépôt · ${lock}`]];
+  const inv = w.offres.filter(o => o.type === "investissement").map(o => `<div class="item"><span class="sw">💼</span><div class="t">${o.nom} · ${usd(o.usd)}<small>${o.desc} Tu reçois ${mk(o.usd * w.taux)}.</small></div>
+      <button class="mini fill" data-inv="${o.id}" type="button">Investir</button></div>`).join("");
+  const hist = [...w.depots.map(d => [d.le, `${(w.offres.find(o => o.id === d.offre) || {}).nom || d.offre} : ${usd(d.usd)}`]),
+    ...w.retraits.map(r => [r.le, `Retrait demandé : ${mk(r.makuta)} → ${usd(r.usd)}`])].sort((a, b) => b[0] - a[0])
+    .map(([t, x]) => `<div class="row"><span>${new Date(t).toLocaleDateString("fr-FR")}</span><span>${x}</span></div>`).join("");
+  $("wallet").innerHTML = rows.map(([a, b]) => `<div class="row"><span>${a}</span><span style="text-align:right">${b}</span></div>`).join("") +
+    `<h2 style="font-size:16px;margin:16px 0 4px">Investir</h2>${inv}` +
+    `<button class="btn" id="b-withdraw" type="button" ${w.retraitPossible && p.makuta >= w.taux ? "" : "disabled"}>Retirer vers M-Pesa ou carte</button>` +
+    (hist ? `<h2 style="font-size:16px;margin:16px 0 4px">Historique</h2>${hist}` : "");
+}
+$("shop-tabs").onclick = e => { const b = e.target.closest(".tab"); if (!b) return; shopTab = b.dataset.t; renderShop(state); };
+async function act(path, body, ok) { try { const v = await call(path, body); render(v); if (ok) toast(ok(v)); } catch (err) { toast(err.message); } }
+$("shop").onclick = e => {
+  const b = e.target.closest("[data-buy]"); if (!b) return;
+  const it = state.boutique.find(x => x.id === b.dataset.buy); b.disabled = true;
+  act("/api/acheter", { objet: it.id }, () => it.type === "nourriture" ? `Bon appétit : ${it.nom}.` : it.slot ? `${it.nom} acheté et porté.` : `${it.nom} acheté. Il est dans tes affaires.`);
+};
+$("inv").onclick = e => { const b = e.target.closest("[data-wear]"); if (b) act("/api/porter", { possession: b.dataset.wear }); };
+$("wallet").onclick = e => {
+  const b = e.target.closest("[data-inv]");
+  if (b) { const o = state.portefeuille.offres.find(x => x.id === b.dataset.inv); return act("/api/investir", { offre: o.id }, v => `Investissement simulé : ${mk(o.usd * v.portefeuille.taux)} ajoutés. Retrait possible après 3 mois.`); }
+  if (e.target.id === "b-withdraw") act("/api/retirer", { makuta: state.perso.makuta }, v => `Demande de retrait simulée : ${usd(v.portefeuille.retraits.at(-1).usd)}.`);
+};
 
 function showAuth() {
   $("v-life").hidden = true; $("v-auth").hidden = false;
-  $("f-pseudo").hidden = !signup;
+  $("f-pseudo").hidden = !signup; $("f-formule").hidden = !signup;
   $("b-auth").textContent = signup ? "Naître à Kinshasa" : "Se connecter";
   $("sw-text").textContent = signup ? "Déjà un compte ?" : "Pas encore de vie ?";
   $("sw").textContent = signup ? "Se connecter" : "Créer un compte";
@@ -138,13 +238,13 @@ $("f-auth").onsubmit = async e => {
   e.preventDefault();
   const b = $("b-auth"); b.disabled = true; $("auth-err").textContent = "";
   try {
-    const body = { email: $("email").value, motdepasse: $("pass").value, pseudo: $("pseudo").value };
+    const body = { email: $("email").value, motdepasse: $("pass").value, pseudo: $("pseudo").value, formule: (document.querySelector("input[name=formule]:checked") || {}).value };
     if (!API && signup && body.motdepasse.length < 8) throw new Error("Le mot de passe doit faire au moins 8 caractères.");
     if (!API && signup && body.pseudo.trim().length < 2) throw new Error("Choisis un pseudo d'au moins 2 caractères.");
     const v = await call(signup ? "/api/inscription" : "/api/connexion", body);
     store.set(LS_TOKEN, v.token);
     render(v);
-    if (v.naissance) toast(`Félicitations ! ${v.perso.prenom} vient de naître à ${v.perso.quartier}. Ses parents lui offrent ${v.perso.makuta} e-makuta.`);
+    if (v.naissance) toast(v.perso.age >= 18 ? `Bienvenue ! ${v.perso.prenom} arrive à ${v.perso.quartier} à ${Math.floor(v.perso.age)} ans, avec ${mk(v.perso.makuta)} d'épargne.` : `Félicitations ! ${v.perso.prenom} vient de naître à ${v.perso.quartier}. Ses parents lui offrent ${v.perso.makuta} e-makuta.`);
   } catch (err) { $("auth-err").textContent = err.message; }
   b.disabled = false;
 };
@@ -188,7 +288,7 @@ function initPortrait() {
       }
     });
     P3.ready = true;
-    if (state) portrait(state.perso);
+    if (state) { portrait(state.perso); dress(state); }
   });
   const loop = () => {
     requestAnimationFrame(loop);
@@ -219,7 +319,8 @@ function portrait(p) {
   if (P3.obj) P3.scene.remove(P3.obj);
   const obj = T.SkeletonUtils.clone(P3.tpl[v]);
   obj.position.set(0, 0, 0);
-  obj.traverse(o => { if (o.isMesh) { o.frustumCulled = false; o.material = o.material.clone(); } });
+  P3.mats = {};
+  obj.traverse(o => { if (o.isMesh) { o.frustumCulled = false; o.material = o.material.clone(); const n = o.material.name.replace(/\..*$/, ""); P3.mats[n] = o.material; o.material.userData.base = o.material.color.clone(); } });
   // repli : un adulte réduit si le modèle d'enfant n'existe pas encore
   const fallback = !list.length, s = fallback ? { bebe: .42, enfant: .62, ado: .88 }[p.etape] || 1 : 1;
   obj.scale.setScalar(s);
@@ -243,6 +344,17 @@ function frame() {
   const cy = min + h * .52;
   cam.position.set(0, cy + h * .04, d);
   cam.lookAt(0, cy, 0);
+}
+
+// vêtements portés : teinte des matériaux « shirt », « pants » et « shoes » du modèle 3D
+const SLOT_MAT = { haut: "shirt", bas: "pants", pieds: "shoes" };
+function dress(v) {
+  if (!P3.mats || !v) return;
+  for (const slot in SLOT_MAT) {
+    const m = P3.mats[SLOT_MAT[slot]]; if (!m) continue;
+    const worn = v.inventaire.map(x => v.boutique.find(b => b.id === x.objet && x.porte)).find(it => it && it.slot === slot);
+    if (worn) m.color.set(worn.couleur).convertSRGBToLinear(); else m.color.copy(m.userData.base);
+  }
 }
 
 // ---------------------------------------------------------------- démarrage

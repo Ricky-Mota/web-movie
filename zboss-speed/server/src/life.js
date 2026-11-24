@@ -129,3 +129,79 @@ export function newIdentity(r, sex) {
 }
 
 export const BIRTH_GIFT = 500; // e-makuta offerts à la naissance (épargne des parents)
+
+// ---------------------------------------------------------------- magasin
+// prix en e-makuta ; les vêtements se portent et changent l'apparence 3D, la nourriture se mange tout de suite
+export const SHOP = [
+  // nourriture
+  { id: "beignets", nom: "Beignets et thé", type: "nourriture", prix: 10, effet: { faim: 20, bonheur: 2 } },
+  { id: "fufu", nom: "Fufu, poisson salé, pondu", type: "nourriture", prix: 25, effet: { faim: 45, bonheur: 4 } },
+  { id: "poulet", nom: "Poulet mayo et chikwangue", type: "nourriture", prix: 60, effet: { faim: 70, bonheur: 10 } },
+  { id: "lait", nom: "Lait et bouillie pour bébé", type: "nourriture", prix: 15, effet: { faim: 40, bonheur: 3 }, maxAge: 4 },
+  // vêtements (slot = partie du corps ; couleur = teinte du vêtement en 3D)
+  { id: "tshirt-blanc", nom: "T-shirt blanc", type: "vetement", slot: "haut", prix: 60, couleur: "#f2efe9" },
+  { id: "tshirt-leopards", nom: "Maillot des Léopards", type: "vetement", slot: "haut", prix: 120, couleur: "#1f8a4c" },
+  { id: "chemise-bleue", nom: "Chemise bleu ciel", type: "vetement", slot: "haut", prix: 150, couleur: "#7fb2e5" },
+  { id: "haut-rouge", nom: "Haut rouge", type: "vetement", slot: "haut", prix: 90, couleur: "#c8322f" },
+  { id: "haut-jaune", nom: "Haut jaune soleil", type: "vetement", slot: "haut", prix: 90, couleur: "#f2c230" },
+  { id: "jean", nom: "Jean bleu", type: "vetement", slot: "bas", prix: 120, couleur: "#33476b" },
+  { id: "pantalon-noir", nom: "Pantalon noir", type: "vetement", slot: "bas", prix: 140, couleur: "#1d1d22" },
+  { id: "pantalon-beige", nom: "Pantalon beige", type: "vetement", slot: "bas", prix: 130, couleur: "#c9b28c" },
+  { id: "baskets-blanches", nom: "Baskets blanches", type: "vetement", slot: "pieds", prix: 180, couleur: "#eeeeee" },
+  { id: "sandales", nom: "Sandales", type: "vetement", slot: "pieds", prix: 40, couleur: "#6b4a2f" },
+  // téléphones
+  { id: "tel-simple", nom: "Téléphone simple", type: "telephone", prix: 300, effet: { bonheur: 8 }, minAge: 10 },
+  { id: "smartphone", nom: "Smartphone", type: "telephone", prix: 1500, effet: { bonheur: 15 }, minAge: 12 },
+  { id: "smartphone-pro", nom: "Smartphone haut de gamme", type: "telephone", prix: 6000, effet: { bonheur: 25 }, minAge: 12 },
+];
+
+// vérifie un achat : renvoie un message d'erreur ou null
+export function cannotBuy(item, makuta, age) {
+  if (!item) return "Article inconnu.";
+  if (item.minAge && age < item.minAge) return `Réservé aux ${item.minAge} ans et plus.`;
+  if (item.maxAge && age > item.maxAge) return "Cet article est pour les tout-petits.";
+  if (makuta < item.prix) return "Pas assez d'e-makuta.";
+  return null;
+}
+
+// ---------------------------------------------------------------- argent réel (SIMULATION)
+// Tant que REAL_MONEY est faux, aucun paiement n'est encaissé : les montants servent à présenter le modèle.
+// L'activation demande l'avis d'un juriste, les autorisations (BCC, KYC, lutte anti-blanchiment) et un partenaire de paiement agréé.
+export const REAL_MONEY = false;
+export const USD_TO_MAKUTA = 100;          // 1 $ = 100 e-makuta à l'achat (à fixer)
+export const WITHDRAW_FEE = 0.10;          // 10 % de frais au retrait (finance la ville et le service)
+export const LOCK_DAYS = 90;               // argent bloqué 3 mois réels avant tout retrait
+export const OFFERS = [
+  { id: "bebe", nom: "Naissance (parcours normal)", type: "entree", usd: 100, desc: "Tu nais bébé dans une famille et tu grandis normalement." },
+  { id: "parent", nom: "Naître parent", type: "entree", usd: 5000, desc: "Tu nais adulte (25 ans), tes talents sont déjà connus et tu reçois une épargne de départ.", age: 25, epargne: 5000 },
+  { id: "petit", nom: "Petit investisseur", type: "investissement", usd: 1500, desc: "1 500 $ convertis en e-makuta pour acheter et créer des entreprises." },
+  { id: "grand", nom: "Grand investisseur", type: "investissement", usd: 30000, desc: "30 000 $ convertis en e-makuta pour racheter de grandes entreprises." },
+];
+
+// âge réel (ms) à soustraire à la date de naissance pour naître à un âge donné
+export function birthShiftMs(years) {
+  const d = years <= CHILD_YEARS ? years / CHILD_YEARS * CHILD_REAL_DAYS : CHILD_REAL_DAYS + (years - CHILD_YEARS) / ADULT_YEARS_PER_REAL_DAY;
+  return d * DAY;
+}
+
+// état du portefeuille : quand le retrait devient possible et combien on recevrait
+export function walletInfo(deposits, makuta, now = Date.now()) {
+  const first = deposits.length ? Math.min(...deposits.map(d => d.le)) : null;
+  const unlock = first == null ? null : first + LOCK_DAYS * DAY;
+  return {
+    simulation: !REAL_MONEY, taux: USD_TO_MAKUTA, frais: WITHDRAW_FEE, blocageJours: LOCK_DAYS,
+    deposeUsd: deposits.reduce((s, d) => s + d.usd, 0),
+    retraitPossibleLe: unlock, retraitPossible: unlock != null && now >= unlock,
+    valeurUsd: Math.floor(makuta / USD_TO_MAKUTA * (1 - WITHDRAW_FEE) * 100) / 100,
+  };
+}
+
+// vue envoyée au joueur : catalogue, inventaire, portefeuille (même forme côté serveur et mode démo)
+export function shopView(inv, dep, ret, makuta, now) {
+  return {
+    boutique: SHOP,
+    inventaire: inv.map(x => ({ id: x.id, objet: x.objet_id, porte: !!x.porte, le: x.acquis_le })),
+    portefeuille: { ...walletInfo(dep, makuta, now), offres: OFFERS, depots: dep, retraits: ret },
+  };
+}
+

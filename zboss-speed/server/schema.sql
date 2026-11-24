@@ -80,7 +80,8 @@ CREATE TABLE IF NOT EXISTS metiers (id TEXT PRIMARY KEY, nom TEXT NOT NULL, dipl
 CREATE TABLE IF NOT EXISTS emplois (id TEXT PRIMARY KEY, personnage_id TEXT NOT NULL, metier_id TEXT NOT NULL, entreprise_id TEXT, poste TEXT, salaire INTEGER NOT NULL, depuis INTEGER NOT NULL, fin INTEGER);
 
 CREATE TABLE IF NOT EXISTS objets (id TEXT PRIMARY KEY, nom TEXT NOT NULL, type TEXT NOT NULL, prix INTEGER NOT NULL);
-CREATE TABLE IF NOT EXISTS possessions (id TEXT PRIMARY KEY, proprietaire_id TEXT NOT NULL, objet_id TEXT NOT NULL, etat REAL NOT NULL DEFAULT 100, acquis_le INTEGER NOT NULL);
+-- objet_id = identifiant du catalogue SHOP (server/src/life.js) ; porte = vêtement actuellement porté
+CREATE TABLE IF NOT EXISTS possessions (id TEXT PRIMARY KEY, proprietaire_id TEXT NOT NULL, objet_id TEXT NOT NULL, etat REAL NOT NULL DEFAULT 100, acquis_le INTEGER NOT NULL, porte INTEGER NOT NULL DEFAULT 0);
 
 CREATE TABLE IF NOT EXISTS entreprises (id TEXT PRIMARY KEY, nom TEXT NOT NULL, type TEXT NOT NULL, proprietaire_id TEXT NOT NULL, ville_id TEXT NOT NULL, local TEXT, capital INTEGER NOT NULL DEFAULT 0, cree_le INTEGER NOT NULL);
 
@@ -102,3 +103,23 @@ CREATE TABLE IF NOT EXISTS successions (id TEXT PRIMARY KEY, defunt_id TEXT NOT 
 
 -- journal des activités (indices de talents)
 CREATE TABLE IF NOT EXISTS activites (id TEXT PRIMARY KEY, personnage_id TEXT NOT NULL, activite TEXT NOT NULL, score INTEGER, resultat TEXT, le INTEGER NOT NULL);
+
+-- argent réel : entrées payantes et investissements. simule = 1 tant que l'argent réel n'est pas autorisé.
+CREATE TABLE IF NOT EXISTS depots (
+  id TEXT PRIMARY KEY,
+  compte_id TEXT NOT NULL REFERENCES comptes(id),
+  offre TEXT NOT NULL,                       -- bebe, parent, petit, grand
+  usd REAL NOT NULL,
+  makuta INTEGER NOT NULL DEFAULT 0,         -- e-makuta crédités (0 pour un simple droit d'entrée)
+  simule INTEGER NOT NULL DEFAULT 1,
+  le INTEGER NOT NULL
+);
+CREATE TABLE IF NOT EXISTS retraits (
+  id TEXT PRIMARY KEY,
+  compte_id TEXT NOT NULL REFERENCES comptes(id),
+  makuta INTEGER NOT NULL,
+  usd REAL NOT NULL,
+  statut TEXT NOT NULL DEFAULT 'demande',    -- demande, paye, refuse
+  simule INTEGER NOT NULL DEFAULT 1,
+  le INTEGER NOT NULL
+);
