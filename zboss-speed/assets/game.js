@@ -163,9 +163,10 @@
   // Noms inventés ; les espaces partenaires restent sans logo tant qu'aucun accord écrit n'est signé.
   const PLACE_SPECS = [
     { id: "zboss", type: "bureau", nom: "Zboss Sarlu", icone: "🏢", w: 300, d: 220, h: 150, bureau: true, statut: "Bureau d'aide : entre pour régler un problème ou poser une question." },
-    { id: "foot", type: "foot", nom: "Terrain de football de la Gombe", icone: "⚽", w: 520, d: 340, open: true, statut: "Matchs entre joueurs après le lancement." },
+    { id: "maison", type: "maison", nom: "Ta maison", icone: "🏠", w: 200, d: 170, h: 55, statut: "Ici ton personnage rentre se reposer quand il est fatigué." },
+    { id: "foot", type: "foot", nom: "Stade de la Gombe", icone: "⚽", w: 620, d: 420, open: true, statut: "Un match est en cours : assieds-toi sur un banc pour le regarder." },
     { id: "jeux", type: "jeux", nom: "Aire de jeux des enfants", icone: "🛝", w: 240, d: 200, open: true, statut: "Les bébés et enfants joueurs y gagneront de la joie." },
-    { id: "basket", type: "basket", nom: "Terrain de basket", icone: "🏀", w: 300, d: 190, open: true, statut: "Ouvert à tous les joueurs." },
+    { id: "basket", type: "basket", nom: "Terrain de basket", icone: "🏀", w: 320, d: 210, open: true, statut: "Un match de basket est en cours." },
     { id: "club1", type: "club", nom: "Mokili Club", icone: "🪩", w: 240, d: 190, h: 70, statut: "Boîte de nuit : réservée aux joueurs de 18 ans et plus, ouvre après le lancement." },
     { id: "club2", type: "club", nom: "Kin Lumière Lounge", icone: "🪩", w: 220, d: 180, h: 60, statut: "Boîte de nuit : réservée aux joueurs de 18 ans et plus, ouvre après le lancement." },
     { id: "alim1", type: "alim", nom: "Alimentation Mama Kitoko", icone: "🛒", w: 220, d: 170, h: 80, statut: "Alimentation : nourriture et boissons pour ton personnage." },
@@ -184,7 +185,7 @@
     { id: "bcc", type: "etat", nom: "Banque centrale", icone: "🏦", w: 320, d: 230, h: 110, statut: "Émet l'e-makuta et surveille les banques : ouvre après le lancement." },
     { id: "hopital", type: "etat", nom: "Hôpital général", icone: "🏥", w: 360, d: 250, h: 100, statut: "Soins des personnages malades : ouvre après le lancement." },
   ];
-  const PLACES = [], BILLBOARDS = [];
+  const PLACES = [], BILLBOARDS = [], BENCHES = [];
   (function () {
     const M = (x, y) => (x < 0 || y < 0 || x >= W || y >= H) ? 3 : mask[(y / C | 0) * MW + (x / C | 0)];
     const segs = [];
@@ -244,6 +245,25 @@
       if (M(x, y) !== 0) continue;
       if (BILLBOARDS.some(b => Math.hypot(b.x - x, b.y - y) < 650) || PLACES.some(o => inPlace(o, x, y, 40)) || Math.hypot(x - st.x, y - st.y) < 200) continue;
       BILLBOARDS.push({ x, y, a: Math.atan2(uy, ux), i: BILLBOARDS.length });
+    }
+    // bancs publics : devant les lieux ouverts et le long des trottoirs autour du départ
+    const okBench = (x, y) => M(x, y) === 0 && !BENCHES.some(b => Math.hypot(b.x - x, b.y - y) < 60) && !PLACES.some(o => inPlace(o, x, y, 4));
+    PLACES.forEach(o => {
+      const n = o.type === "foot" ? 4 : o.open ? 2 : o.type === "etat" || o.type === "bureau" ? 2 : 0;
+      for (let k = 0; k < n; k++) {
+        const u = (k - (n - 1) / 2) * Math.min(90, o.w / n), v = -o.d / 2 - 20;
+        const x = o.x + o.ux * u + o.nx * v, y = o.y + o.uy * u + o.ny * v;
+        // on s'assoit dos à la rue, face au lieu (le terrain, l'entrée)
+        if (okBench(x, y)) BENCHES.push({ x, y, a: Math.atan2(o.ny, o.nx), place: o.id });
+      }
+    });
+    for (const { g } of segs.map(g => ({ g, d: Math.hypot((g.ax + g.bx) / 2 - st.x, (g.ay + g.by) / 2 - st.y) })).filter(o => o.d < 3000).sort((a, b) => a.d - b.d)) {
+      if (BENCHES.length >= 40) break;
+      const L = Math.hypot(g.bx - g.ax, g.by - g.ay); if (L < 120) continue;
+      const ux = (g.bx - g.ax) / L, uy = (g.by - g.ay) / L, sd = BENCHES.length % 2 ? 1 : -1, nx = -uy * sd, ny = ux * sd;
+      const x = (g.ax + g.bx) / 2 + ux * 30 + nx * (g.r.w / 2 + 30), y = (g.ay + g.by) / 2 + uy * 30 + ny * (g.r.w / 2 + 30);
+      if (!okBench(x, y) || BENCHES.some(b => Math.hypot(b.x - x, b.y - y) < 420)) continue;
+      BENCHES.push({ x, y, a: Math.atan2(-ny, -nx) });   // face à la rue : on regarde passer les gens
     }
   })();
   // déplacement à pied : murs du showroom (porte côté rue), bâtiments et eau
@@ -412,12 +432,13 @@
       bounty: 0, banked: 0, dist: 0, nitro: 60, takedowns: 0, escapes: 0, nearCd: new Map(),
       cam: { x: player.x, y: player.y, z: 1, a: player.a }, over: false, paused: false, lastBlockT: 0, calmT: 0, shake: 0,
       best: +(lsGet("zboss_best") || 0),
-      peds: [], foot: null, prompt: "", act: null,
+      peds: [], foot: null, prompt: "", act: null, energy: 100, auto: null, games: [],
     };
     for (let k = 0; k < 44; k++) spawnTraffic(true);
     if (!WALK) for (let k = 0; k < 2; k++) spawnCop(false);
     for (let k = 0; k < PED_N; k++) spawnPed(true);
     SHOPS.forEach(o => [-1, 1].forEach(k => G.peds.push({ x: o.x + o.ux * k * 150 + o.nx * 95, y: o.y + o.uy * k * 150 + o.ny * 95, a: o.a + Math.PI / 2, v: 0, t: rand() * 9, state: "idle", staff: true, look: 7 + k })));
+    if (WALK) setupGames();
     if (WALK) { // visite de la ville : on commence à pied, à côté d'un taxi jaune
       const rx = Math.sin(player.a), ry = -Math.cos(player.a);
       let x = player.x + rx * 30, y = player.y + ry * 30; if (walkBlocked(x, y)) { x = player.x - rx * 30; y = player.y - ry * 30; }
@@ -634,7 +655,18 @@
     return { x: B.x - dy / L * q.off * q.side, y: B.y + dx / L * q.off * q.side };
   }
   function pedStep(q, dt, cars) {
+    if (q.play) return;
     q.t += dt;
+    if (q.greet) { // un passant vient saluer le personnage assis
+      const g = q.greet, f = G.foot;
+      if (!f || !f.sit) { q.greet = null; q.state = "walk"; }
+      else {
+        const d = Math.hypot(g.x - q.x, g.y - q.y);
+        if (d > 8 && !g.here) { q.state = "walk"; const da = angDiff(q.a, Math.atan2(g.y - q.y, g.x - q.x)); q.a += Math.max(-5 * dt, Math.min(5 * dt, da)); const nx = q.x + Math.cos(q.a) * 16 * dt, ny = q.y + Math.sin(q.a) * 16 * dt; if (!walkBlocked(nx, ny)) { q.x = nx; q.y = ny; } else q.a += 1; g.t += dt; if (g.t > 25) { q.greet = null; } }
+        else { g.here = true; q.state = "idle"; q.a = Math.atan2(f.y - q.y, f.x - q.x); g.w = (g.w || 0) + dt; if (!g.met && g.w > .6) { g.met = true; meet(q); } if (g.w > 6) { q.greet = null; q.state = "walk"; } }
+        return;
+      }
+    }
     if (q.state === "idle") { q.st = 0; return; }
     // danger : une voiture fonce vers le piéton
     if (q.state === "walk" || q.state === "cower") {
@@ -690,12 +722,17 @@
     let txt = "", act = null, np = null;
     if (!G.foot) {
       const shop = SHOPS.find(o => Math.hypot(o.x - p.x, o.y - p.y) < 520);
-      if (WALK) { if (sp < 60) { txt = "Descendre du taxi"; act = "exit"; } else if ((np = nearPlace(p.x, p.y))) txt = np.icone + " " + np.nom; }
+      if (WALK && G.auto) { txt = "🚕 " + (G.auto.doing || "En taxi"); act = "autostop"; }
+      else if (WALK) { if (sp < 60) { txt = "Descendre du taxi"; act = "exit"; } else if ((np = nearPlace(p.x, p.y))) txt = np.icone + " " + np.nom; }
       else if (sp < 60 && !G.chase) { txt = shop ? "Descendre et entrer dans la concession" : "Descendre de la voiture"; act = "exit"; }
       else if (shop && !G.chase) txt = "Concession 2 Life Motors : arrête-toi pour entrer";
     } else {
       const ns = WALK ? null : nearSlot(G.foot.x, G.foot.y);
-      if (WALK && Math.hypot(G.foot.x - p.x, G.foot.y - p.y) < 50) { txt = "Prendre le taxi"; act = "enter"; }
+      const bench = WALK && !G.foot.sit && BENCHES.find(b => !b.taken && Math.hypot(b.x - G.foot.x, b.y - G.foot.y) < 30);
+      if (WALK && G.auto) { txt = "🚶 " + (G.auto.doing || "Promenade automatique"); act = "autostop"; }
+      else if (WALK && G.foot.sit) { txt = "🪑 Assis : il observe et rencontre des gens"; act = "stand"; }
+      else if (WALK && Math.hypot(G.foot.x - p.x, G.foot.y - p.y) < 50) { txt = "Prendre le taxi"; act = "enter"; }
+      else if (bench) { txt = "🪑 S'asseoir sur le banc"; act = "sit"; }
       else if (WALK && (np = nearPlace(G.foot.x, G.foot.y)) && np.bureau) { txt = np.icone + " " + np.nom + " · entrer au guichet d'aide"; act = "bureau"; }
       else if (WALK && np) txt = np.icone + " " + np.nom + " · " + np.statut;
       else if (WALK) txt = "Promenade à pied dans la Gombe. Le taxi jaune est sur la carte.";
@@ -766,6 +803,12 @@
       let x = p.x + rx * 26, y = p.y + ry * 26; if (walkBlocked(x, y)) { x = p.x - rx * 26; y = p.y - ry * 26; }
       G.foot = { x, y, a: p.a, v: 0, t: 0 }; p.vx = p.vy = 0;
       msg("À pied : flèches pour marcher, Maj pour courir, E pour monter", 3);
+    } else if (G.act === "sit") {
+      const b = BENCHES.filter(b => !b.taken).sort((b1, b2) => Math.hypot(b1.x - G.foot.x, b1.y - G.foot.y) - Math.hypot(b2.x - G.foot.x, b2.y - G.foot.y))[0]; if (b) sitDown(b);
+    } else if (G.act === "stand") {
+      standUp();
+    } else if (G.act === "autostop") {
+      autoToggle(false);
     } else if (G.act === "bureau") {
       openBureau();
     } else if (G.act === "enter") {
@@ -779,12 +822,304 @@
       G.foot = null; msg(car.name + " : elle est à toi. Bonne route !", 3, "ok");
     }
   }
+  // ---------------------------------------------------------------- Vie autonome du personnage (visite à pied)
+  // Le personnage peut se promener seul : il suit les trottoirs jusqu'à un lieu, s'assoit sur les bancs,
+  // fait des rencontres, et quand il est fatigué il appelle un taxi pour aller ailleurs ou rentrer à la maison.
+  function findPath(a, b) {
+    if (a === b) return [a];
+    const B = nodes[b], gS = new Map([[a, 0]]), came = new Map(), heap = [[0, a]], done = new Set();
+    const push = (f, n) => { heap.push([f, n]); let i = heap.length - 1; while (i) { const p = (i - 1) >> 1; if (heap[p][0] <= heap[i][0]) break; [heap[p], heap[i]] = [heap[i], heap[p]]; i = p; } };
+    const pop = () => { const top = heap[0], last = heap.pop(); if (heap.length) { heap[0] = last; let i = 0; for (;;) { const l = i * 2 + 1, r = l + 1; let m = i; if (l < heap.length && heap[l][0] < heap[m][0]) m = l; if (r < heap.length && heap[r][0] < heap[m][0]) m = r; if (m === i) break; [heap[m], heap[i]] = [heap[i], heap[m]]; i = m; } } return top; };
+    let it = 0;
+    while (heap.length && it++ < 40000) {
+      const [, n] = pop(); if (done.has(n)) continue; done.add(n);
+      if (n === b) { const out = [b]; let c = b; while (came.has(c)) { c = came.get(c); out.push(c); } return out.reverse(); }
+      const N = nodes[n];
+      for (const m of N.nb) {
+        const M = nodes[m], g = gS.get(n) + Math.hypot(M.x - N.x, M.y - N.y);
+        if (g < (gS.has(m) ? gS.get(m) : Infinity)) { gS.set(m, g); came.set(m, n); push(g + Math.hypot(B.x - M.x, B.y - M.y), m); }
+      }
+    }
+    return null;
+  }
+  const edgePoint = (from, to, off) => { const A = nodes[from], Bn = nodes[to], dx = Bn.x - A.x, dy = Bn.y - A.y, L = Math.hypot(dx, dy) || 1; return { x: Bn.x - dy / L * off, y: Bn.y + dx / L * off }; };
+  const HOME = () => PLACES.find(o => o.id === "maison");
+  const NOMS_H = ["Patou", "Junior", "Fiston", "Héritier", "Christian", "Papy", "Glody", "Trésor", "Jonathan", "Dieumerci", "Cédric", "Blaise"];
+  const NOMS_F = ["Mireille", "Dorcas", "Grâce", "Merveille", "Rachel", "Exaucée", "Nathalie", "Bijou", "Christelle", "Sarah", "Ornella", "Divine"];
+  const REL_KEY = "twolife_relations";
+  const relations = { get() { try { return JSON.parse(lsGet(REL_KEY) || "[]"); } catch (e) { return []; } }, set(v) { lsSet(REL_KEY, JSON.stringify(v.slice(0, 200))); } };
+  const relLevel = n => n >= 4 ? "Ami proche" : n >= 2 ? "Ami" : "Connaissance";
+
+  function autoToggle(on) {
+    if (!G || !WALK) return;
+    if (on === undefined) on = !G.auto;
+    if (on) {
+      if (!G.foot) { msg("Descends d'abord du taxi pour te promener seul.", 2.5); return; }
+      if (G.foot.sit) standUp(true);
+      G.auto = { phase: "walk", path: null };
+      msg("Promenade automatique : ton personnage se débrouille seul. Touche une flèche pour reprendre la main.", 4, "ok");
+    } else if (G.auto) {
+      const ride = G.auto.phase === "ride";
+      G.auto = null; if (ride) { G.player.inp.gas = 0; G.player.inp.brake = 1; }
+      msg("Tu reprends la main.", 2);
+    }
+    const b = $("autobtn"); if (b) b.setAttribute("aria-pressed", G.auto ? "true" : "false");
+  }
+  function pickDestination() {
+    const f = G.foot, here = nearPlace(f.x, f.y);
+    const benches = BENCHES.filter(b => !b.taken && Math.hypot(b.x - f.x, b.y - f.y) > 200 && Math.hypot(b.x - f.x, b.y - f.y) < 2600);
+    const places = PLACES.filter(o => o !== here && o.id !== "maison" && Math.hypot(o.x - f.x, o.y - f.y) < 3000);
+    if (benches.length && (rand() < .5 || !places.length)) { const b = benches[(rand() * benches.length) | 0]; return { x: b.x, y: b.y, nom: "un banc", bench: b }; }
+    if (places.length) { const o = places[(rand() * places.length) | 0]; return { x: o.door.x, y: o.door.y, nom: o.nom, icone: o.icone, place: o }; }
+    return null;
+  }
+  function planWalk(dest) {
+    const f = G.foot, a = nearestNode(f.x, f.y), b = nearestNode(dest.x, dest.y), path = findPath(a, b);
+    G.auto.dest = dest; G.auto.path = path || [a]; G.auto.i = 0; G.auto.stuck = 0; G.auto.last = { x: f.x, y: f.y };
+    G.auto.doing = "Marche vers " + (dest.icone ? dest.icone + " " : "") + dest.nom;
+  }
+  // marche automatique : de nœud en nœud sur le trottoir, puis droit vers le lieu
+  function autoWalk(dt) {
+    const A = G.auto, f = G.foot, P = A.path;
+    let t;
+    if (A.i < P.length - 1) {
+      const from = P[A.i], to = P[A.i + 1], off = Math.max(nodes[from].w, nodes[to].w) / 2 + 18;
+      t = edgePoint(from, to, off);
+      if (Math.hypot(t.x - f.x, t.y - f.y) < 16) { A.i++; return; }
+    } else {
+      t = A.dest;
+      if (Math.hypot(t.x - f.x, t.y - f.y) < 14) { arrive(); return; }
+    }
+    const da = angDiff(f.a, Math.atan2(t.y - f.y, t.x - f.x)); f.a += Math.max(-3.5 * dt, Math.min(3.5 * dt, da));
+    const want = Math.abs(da) > 1.2 ? 12 : 36; f.v += (want - f.v) * Math.min(1, dt * 6);
+    const nx = f.x + Math.cos(f.a) * f.v * dt, ny = f.y + Math.sin(f.a) * f.v * dt;
+    if (!walkBlocked(nx, f.y)) f.x = nx; if (!walkBlocked(f.x, ny)) f.y = ny;
+    f.t += dt * Math.abs(f.v) / 30;
+    A.stuck += dt;
+    if (A.stuck > 3) { // coincé contre un mur : on saute au point suivant s'il est libre
+      if (Math.hypot(f.x - A.last.x, f.y - A.last.y) < 20 && !walkBlocked(t.x, t.y)) { f.x = t.x; f.y = t.y; }
+      A.stuck = 0; A.last = { x: f.x, y: f.y };
+    }
+  }
+  function arrive() {
+    const A = G.auto, d = A.dest; G.foot.v = 0;
+    if (d.bench) { sitDown(d.bench, true); A.phase = "sit"; A.sitT = 18 + rand() * 20; A.doing = "Assis sur un banc : il observe et fait des rencontres"; return; }
+    if (d.home) { A.phase = "home"; A.doing = "À la maison : il se repose"; msg("🏠 Ton personnage est rentré à la maison. Il se repose.", 3.5, "ok"); return; }
+    msg((d.icone || "📍") + " Ton personnage visite : " + d.nom, 3);
+    A.phase = "visit"; A.wait = 4 + rand() * 4; A.doing = "Visite " + d.nom;
+  }
+  function callTaxi() {
+    const A = G.auto, f = G.foot, p = G.player;
+    const goHome = rand() < .5 || !PLACES.length, far = PLACES.filter(o => o.id !== "maison" && Math.hypot(o.x - f.x, o.y - f.y) > 900);
+    const o = goHome ? HOME() : far[(rand() * far.length) | 0] || HOME();
+    if (!o) { A.phase = "walk"; A.path = null; return; }
+    // le taxi jaune s'arrête au bord de la route la plus proche
+    const n = nearestNode(f.x, f.y), N = nodes[n], m = N.nb.length ? N.nb[0] : n, pt = edgePoint(m, n, Math.min(30, N.w * .22));
+    p.x = pt.x; p.y = pt.y; p.a = Math.atan2(N.y - nodes[m].y, N.x - nodes[m].x) || 0; p.vx = p.vy = 0;
+    A.phase = "board"; A.wait = 1.6; A.taxiTo = o; A.home = o.id === "maison";
+    A.doing = "Fatigué : il prend un taxi vers " + (A.home ? "la maison" : o.nom);
+    msg("😮‍💨 Ton personnage est fatigué : il appelle un taxi " + (A.home ? "pour rentrer à la maison." : "pour aller à " + o.nom + "."), 4);
+  }
+  function autoRide(dt) {
+    const A = G.auto, p = G.player, P = A.path;
+    let t;
+    if (A.i < P.length - 1) { t = edgePoint(P[A.i], P[A.i + 1], Math.min(30, nodes[P[A.i + 1]].w * .22)); if (Math.hypot(t.x - p.x, t.y - p.y) < 70) { A.i++; return; } }
+    else { t = A.dropAt; }
+    const sp = Math.hypot(p.vx, p.vy), dist = Math.hypot(t.x - p.x, t.y - p.y), ang = Math.abs(angDiff(p.a, Math.atan2(t.y - p.y, t.x - p.x)));
+    steerTo(p, t.x, t.y);
+    const lastLeg = A.i >= P.length - 1;
+    p.inp.gas = sp < (lastLeg ? Math.min(220, dist * 1.2) : 330) * (ang > .5 ? .5 : 1) ? 1 : 0;
+    p.inp.brake = (ang > .8 && sp > 180) || (lastLeg && dist < 90 && sp > 60) ? 1 : 0; p.inp.hand = 0; p.inp.nitro = 0;
+    if (lastLeg && dist < 70 && sp < 70) { // arrivée : on descend devant le lieu
+      p.inp.gas = 0; p.inp.brake = 1; p.vx = p.vy = 0;
+      const rx = Math.sin(p.a), ry = -Math.cos(p.a); let x = p.x + rx * 26, y = p.y + ry * 26; if (walkBlocked(x, y)) { x = p.x - rx * 26; y = p.y - ry * 26; }
+      G.foot = { x, y, a: p.a, v: 0, t: 0 };
+      const o = A.taxiTo; msg("🚕 Arrivé" + (A.home ? " à la maison." : " : " + o.nom + "."), 2.5, "ok");
+      A.phase = "walk"; planWalk({ x: o.door.x, y: o.door.y, nom: A.home ? "la maison" : o.nom, icone: o.icone, home: A.home, place: o });
+      return;
+    }
+    A.stuck = sp < 15 ? A.stuck + dt : 0;
+    if (A.stuck > 3 && A.i < P.length - 1) { const nn = nodes[P[A.i + 1]]; p.x = nn.x; p.y = nn.y; p.vx = p.vy = 0; A.i++; A.stuck = 0; }
+  }
+  function autoUpdate(dt) {
+    const A = G.auto;
+    if (A.phase === "walk") {
+      if (!G.foot) { G.auto = null; return; }
+      if (G.energy < 22) { callTaxi(); return; }
+      if (!A.path) { const d = pickDestination(); if (!d) return; planWalk(d); }
+      autoWalk(dt);
+    } else if (A.phase === "visit") { A.wait -= dt; if (A.wait <= 0) { A.phase = "walk"; A.path = null; } }
+    else if (A.phase === "sit") { A.sitT -= dt; if (A.sitT <= 0 || (G.energy > 98 && A.sitT < 8)) { standUp(true); A.phase = "walk"; A.path = null; } }
+    else if (A.phase === "home") { if (G.energy >= 100) { msg("Ton personnage est reposé et repart se promener.", 3, "ok"); A.phase = "walk"; A.path = null; } }
+    else if (A.phase === "board") {
+      A.wait -= dt;
+      if (A.wait <= 0) {
+        const p = G.player, o = A.taxiTo, a = nearestNode(p.x, p.y), b = nearestNode(o.door.x, o.door.y);
+        const nb = nodes[b], drop = { x: nb.x + (o.door.x - nb.x) * .5, y: nb.y + (o.door.y - nb.y) * .5 };
+        A.path = findPath(a, b) || [a, b]; A.i = 0; A.stuck = 0; A.dropAt = drop; G.foot = null; A.phase = "ride";
+      }
+    } else if (A.phase === "ride") autoRide(dt);
+  }
+
+  // ---- bancs publics : s'asseoir, observer, rencontrer des gens
+  function sitDown(b, auto) {
+    const f = G.foot; if (!f) return;
+    f.x = b.x; f.y = b.y; f.a = b.a; f.v = 0; f.sit = b; b.taken = true; G.sitT = 0; G.meetT = 5 + rand() * 4; G.obsT = 3;
+    if (!auto) msg("🪑 Tu t'assois. Observe la ville : des gens vont venir te parler.", 3.5, "ok");
+  }
+  function standUp(auto) {
+    const f = G.foot; if (!f || !f.sit) return;
+    const b = f.sit; b.taken = false; f.sit = null;
+    f.x = b.x + Math.cos(b.a) * 14; f.y = b.y + Math.sin(b.a) * 14;
+    G.peds.forEach(q => { if (q.greet) { q.greet = null; q.state = "walk"; } });
+    if (!auto) msg("Tu te lèves.", 1.5);
+  }
+  function sitUpdate(dt) {
+    const f = G.foot, b = f.sit;
+    G.obsT -= dt;
+    if (G.obsT <= 0) { // ce que le personnage observe autour de lui
+      G.obsT = 9 + rand() * 6;
+      const peds = G.peds.filter(q => !q.play && Math.hypot(q.x - f.x, q.y - f.y) < 400).length;
+      const cars = G.traffic.filter(c => Math.hypot(c.x - f.x, c.y - f.y) < 500).length;
+      const pl = PLACES.filter(o => Math.hypot(o.x - f.x, o.y - f.y) < 700).sort((p1, p2) => Math.hypot(p1.x - f.x, p1.y - f.y) - Math.hypot(p2.x - f.x, p2.y - f.y))[0];
+      const lines = [`👀 Il observe : ${peds} passants et ${cars} voitures autour de lui.`, pl ? `👀 Juste à côté : ${pl.icone} ${pl.nom}.` : "👀 Le quartier est calme.", "👀 Un taxi jaune klaxonne au carrefour.", "👀 Des vendeurs passent avec leurs marchandises."];
+      const g = G.games.find(g => Math.hypot(g.o.x - f.x, g.o.y - f.y) < 900);
+      if (g) lines.push(`👀 Il regarde le match au ${g.o.nom} : ${g.score[0]} à ${g.score[1]}.`);
+      msg(lines[(rand() * lines.length) | 0], 3.5);
+    }
+    G.meetT -= dt;
+    if (G.meetT <= 0) { // un passant s'approche et se présente
+      G.meetT = 10 + rand() * 8;
+      const q = G.peds.filter(q => !q.play && !q.staff && !q.greet && q.state === "walk" && Math.hypot(q.x - f.x, q.y - f.y) < 900).sort((q1, q2) => Math.hypot(q1.x - f.x, q1.y - f.y) - Math.hypot(q2.x - f.x, q2.y - f.y))[0];
+      if (q) {
+        const gx = b.x + Math.cos(b.a) * 22, gy = b.y + Math.sin(b.a) * 22;
+        // le passant arrive par le trottoir, sur le côté du banc (chemin dégagé)
+        for (const da of [Math.PI / 2, -Math.PI / 2, Math.PI * .3, -Math.PI * .3]) {
+          const sx = gx + Math.cos(b.a + da) * 150, sy = gy + Math.sin(b.a + da) * 150;
+          let clear = true; for (let k = 0; k <= 15 && clear; k++) if (walkBlocked(sx + (gx - sx) * k / 15, sy + (gy - sy) * k / 15)) clear = false;
+          if (clear) { if (Math.hypot(q.x - gx, q.y - gy) > 160) { q.x = sx; q.y = sy; } q.a = Math.atan2(gy - q.y, gx - q.x); q.greet = { x: gx, y: gy, t: 0 }; break; }
+        }
+      }
+    }
+  }
+  function meet(q) {
+    const R = relations.get(), place = nearPlace(G.foot.x, G.foot.y), lieu = place ? place.nom : "un banc de la Gombe";
+    const wq = window.__pedLook ? !!window.__pedLook(q).woman : null;
+    const same = R.filter(x => wq === null || x.f === undefined || x.f === wq);
+    let r = same.length && rand() < .3 ? same[(rand() * same.length) | 0] : null;
+    if (r) { r.fois++; r.le = Date.now(); r.lieu = lieu; msg(`🤝 Tu revois ${r.nom}. Vous êtes maintenant : ${relLevel(r.fois)}.`, 4, "ok"); }
+    else {
+      const woman = window.__pedLook ? !!window.__pedLook(q).woman : rand() < .5, L = woman ? NOMS_F : NOMS_H;
+      const nom = L[(rand() * L.length) | 0] + " " + ["M.", "K.", "L.", "B.", "N.", "T."][(rand() * 6) | 0];
+      r = { id: Date.now().toString(36) + ((rand() * 1e4) | 0), nom, f: woman, fois: 1, lieu, le: Date.now() }; R.unshift(r);
+      msg(`👋 « Mbote ! Je m'appelle ${nom.split(" ")[0]}. » Nouvelle relation : ${nom}.`, 4.5, "ok");
+    }
+    relations.set(R); q.relName = r.nom;
+  }
+  function showRelations() {
+    if (!G || $("relpanel")) return;
+    const wasPaused = G.paused; G.paused = true;
+    const R = relations.get(), esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+    const d = document.createElement("div"); d.id = "relpanel"; d.className = "bureau";
+    d.innerHTML = `<div class="bureau-box" role="dialog" aria-modal="true" aria-labelledby="rel-t"><button type="button" class="bureau-x" aria-label="Fermer">✕</button>
+      <p class="bureau-k">👥 Mes relations</p><h2 id="rel-t">${R.length} personne${R.length > 1 ? "s" : ""} rencontrée${R.length > 1 ? "s" : ""}</h2>
+      <p>Assieds-toi sur un banc public : les passants viennent se présenter. Plus tu revois quelqu'un, plus votre lien grandit.</p>
+      ${R.length ? R.map(r => `<details><summary>${esc(r.nom)} · ${relLevel(r.fois)}</summary><p>Rencontré${r.fois > 1 ? " " + r.fois + " fois" : ""}, dernière fois à ${esc(r.lieu)}, le ${new Date(r.le).toLocaleDateString("fr-FR")}.</p></details>`).join("") : "<p><b>Personne pour l'instant.</b></p>"}
+      <p style="font-size:12px;opacity:.7">Aperçu : ces relations sont gardées dans ce navigateur. Elles seront liées à ton compte dans la version en ligne.</p></div>`;
+    d.querySelector(".bureau-box").classList.add("bureau-faq");
+    document.body.appendChild(d);
+    const close = () => { d.remove(); if (G) G.paused = wasPaused; };
+    d.querySelector(".bureau-x").onclick = close; d.addEventListener("click", e => { if (e.target === d) close(); });
+    d.addEventListener("keydown", e => { e.stopPropagation(); if (e.key === "Escape") close(); });
+  }
+
+  // ---- matchs : des joueurs jouent au foot et au basket sur les terrains
+  const TEAM = { foot: [["#d32f2f", "#f4f4f2"], ["#1565c0", "#111318"]], basket: [["#f9a825", "#111318"], ["#2e7d32", "#f4f4f2"]] };
+  function setupGames() {
+    G.games = [];
+    PLACES.filter(o => o.type === "foot" || o.type === "basket").forEach(o => {
+      const foot = o.type === "foot", g = { o, foot, ball: { u: 0, v: 0, z: 0, vu: 0, vv: 0, vz: 0 }, score: [0, 0], cool: 1, players: [], holder: null, shot: null };
+      G.games.push(g); g.goalU = foot ? o.w / 2 - 14 : o.w / 2 - 21; g.lenU = o.w / 2 - 12; g.lenV = o.d / 2 - 14;
+      const per = foot ? 5 : 3;
+      for (let team = 0; team < 2; team++) for (let k = 0; k < per; k++) {
+        const s = team ? 1 : -1, keeper = foot && k === 0;
+        const hu = keeper ? s * (g.goalU - 18) : s * (g.goalU * (foot ? [0, .62, .62, .25, .25][k] : [.55, .3, .3][k])), hv = keeper ? 0 : (foot ? [0, -.45, .45, -.25, .25][k] : [0, -.4, .4][k]) * g.lenV * 2;
+        const q = { pu: hu, pv: hv, hu, hv, team, keeper, play: g, x: 0, y: 0, a: 0, v0: 0, t: rand() * 9, state: "idle", staff: true, look: 20 + team * 7 + k, kit: TEAM[o.type][team], speed: 0 };
+        placePlayer(q); g.players.push(q); G.peds.push(q);
+      }
+    });
+  }
+  function placePlayer(q) { const o = q.play.o; q.x = o.x + o.ux * q.pu + o.nx * q.pv; q.y = o.y + o.uy * q.pu + o.ny * q.pv; }
+  function gameStep(g, dt) {
+    const B = g.ball, o = g.o, near = G.foot ? Math.hypot(o.x - G.foot.x, o.y - G.foot.y) < 900 : false;
+    g.cool -= dt;
+    // ballon
+    if (g.shot) {
+      const s = g.shot; s.t += dt / s.dur; const k = Math.min(1, s.t);
+      B.u = s.u0 + (s.u1 - s.u0) * k; B.v = s.v0 + (s.v1 - s.v0) * k; B.z = s.z0 + (s.z1 - s.z0) * k + Math.sin(k * Math.PI) * 26;
+      if (k >= 1) { g.shot = null; const ok = rand() < .55; if (ok) { g.score[s.team]++; if (near) msg(`🏀 Panier ! ${o.nom} : ${g.score[0]} à ${g.score[1]}`, 2.5, "ok"); } B.u = s.u1 - Math.sign(s.u1) * 12; B.v = 0; B.vu = B.vv = B.vz = 0; B.z = 0; g.cool = .5;
+        // remise en jeu : le ballon passe à l'autre équipe
+        const other = g.players.filter(m => m.team !== s.team && !m.keeper).sort((m1, m2) => Math.hypot(m1.pu - B.u, m1.pv - B.v) - Math.hypot(m2.pu - B.u, m2.pv - B.v))[0];
+        if (other) { other.pu = B.u - Math.sign(s.u1) * 6; other.pv = B.v; g.holder = other; } }
+    } else if (g.holder) {
+      const h = g.holder; B.u = h.pu + Math.cos(h.la) * 5; B.v = h.pv + Math.sin(h.la) * 5; B.z = Math.abs(Math.sin(g.t8 = (g.t8 || 0) + dt * 9)) * 9;
+    } else {
+      B.u += B.vu * dt; B.v += B.vv * dt; B.vz -= 320 * dt; B.z += B.vz * dt;
+      if (B.z < 0) { B.z = 0; B.vz = Math.abs(B.vz) > 30 ? -B.vz * .45 : 0; }
+      const fr = Math.exp(-(B.z > 0 ? .2 : 1.1) * dt); B.vu *= fr; B.vv *= fr;
+      if (Math.abs(B.v) > g.lenV) { B.v = Math.sign(B.v) * g.lenV; B.vv = -B.vv * .6; }
+      if (Math.abs(B.u) > g.lenU) {
+        if (g.foot && Math.abs(B.v) < 34 && B.z < 24) { const t = B.u > 0 ? 0 : 1; g.score[t]++; if (near) msg(`⚽ But ! ${o.nom} : ${g.score[0]} à ${g.score[1]}`, 2.5, "ok"); B.u = B.v = B.vu = B.vv = B.z = B.vz = 0; g.cool = 1.5; }
+        else { B.u = Math.sign(B.u) * g.lenU; B.vu = -B.vu * .6; }
+      }
+    }
+    // joueurs : le plus proche de chaque équipe va au ballon, les autres tiennent leur poste
+    const chaser = [0, 1].map(t => g.players.filter(q => q.team === t && !q.keeper).reduce((b, q) => { const d = Math.hypot(q.pu - B.u, q.pv - B.v); return d < b.d ? { q, d } : b; }, { d: 1e9 }).q);
+    g.players.forEach(q => {
+      const dir = q.team ? -1 : 1;
+      let tu, tv, run;
+      if (g.holder === q) { tu = dir * g.goalU; tv = q.pv * .6; run = 34; }
+      else if (q === chaser[q.team]) { tu = B.u; tv = B.v; run = 46; }
+      else if (q.keeper) { tu = q.hu; tv = Math.max(-30, Math.min(30, B.v * .5)); run = 30; }
+      else { tu = q.hu + (B.u - q.hu) * .35; tv = q.hv + (B.v - q.hv) * .25; run = 26; }
+      const du = tu - q.pu, dv = tv - q.pv, d = Math.hypot(du, dv);
+      const sp = d > 6 ? run : 0; q.speed += (sp - q.speed) * Math.min(1, dt * 4);
+      if (d > 1) q.la = Math.atan2(dv, du);
+      else q.la = Math.atan2(B.v - q.pv, B.u - q.pu);
+      if (d > .5) { q.pu += du / d * Math.min(d, q.speed * dt); q.pv += dv / d * Math.min(d, q.speed * dt); }
+      q.pu = Math.max(-g.lenU - 6, Math.min(g.lenU + 6, q.pu)); q.pv = Math.max(-g.lenV - 6, Math.min(g.lenV + 6, q.pv));
+      q.a = Math.atan2(o.uy * Math.cos(q.la) + o.ny * Math.sin(q.la), o.ux * Math.cos(q.la) + o.nx * Math.sin(q.la));
+      q.state = q.speed > 3 ? "walk" : "idle"; q.v = q.speed; q.t += dt; placePlayer(q);
+      // frappe, passe, tir
+      const bd = Math.hypot(q.pu - B.u, q.pv - B.v);
+      if (g.cool <= 0 && !g.shot && bd < 9 && B.z < 12) {
+        if (g.foot) {
+          const toGoal = Math.abs(dir * g.goalU - B.u);
+          let tu2, tv2;
+          if (toGoal < 220) { tu2 = dir * (g.lenU + 20); tv2 = (rand() - .5) * 60; }
+          else { const mates = g.players.filter(m => m.team === q.team && m !== q && (m.pu - q.pu) * dir > -20); const m = mates[(rand() * mates.length) | 0]; tu2 = m ? m.pu + dir * 30 : q.pu + dir * 150; tv2 = m ? m.pv : (rand() - .5) * g.lenV; }
+          const L = Math.hypot(tu2 - B.u, tv2 - B.v) || 1, spd = Math.max(110, Math.min(320, L * 1.5));
+          B.vu = (tu2 - B.u) / L * spd; B.vv = (tv2 - B.v) / L * spd; B.vz = rand() < .2 ? 120 : 0; g.cool = .45;
+        } else if (g.holder === q) {
+          if (Math.abs(dir * g.goalU - q.pu) < 90) { g.holder = null; g.shot = { u0: B.u, v0: B.v, z0: 14, u1: dir * g.goalU, v1: 0, z1: 30, t: 0, dur: .9, team: q.team }; }
+          else if (rand() < dt * .8) { const mates = g.players.filter(m => m.team === q.team && m !== q); const m = mates[(rand() * mates.length) | 0]; g.holder = null; const L = Math.hypot(m.pu - B.u, m.pv - B.v) || 1; B.vu = (m.pu - B.u) / L * 200; B.vv = (m.pv - B.v) / L * 200; B.vz = 60; B.z = 10; g.cool = .35; }
+        } else if (!g.holder || g.holder.team === q.team || rand() < dt * 1.2) { g.holder = q; g.cool = .6; }
+      }
+    });
+    // position du ballon dans le monde (pour l'affichage 3D)
+    B.x = o.x + o.ux * B.u + o.nx * B.v; B.y = o.y + o.uy * B.u + o.ny * B.v;
+  }
+
   function update(dt) {
     const p = G.player; G.t += dt;
     // entrées joueur
     const kUp = keys.ArrowUp || keys.KeyW || touch.gas, kDown = keys.ArrowDown || keys.KeyS || touch.brake;
     const kSteer = ((keys.ArrowRight || keys.KeyD || touch.right) ? 1 : 0) - ((keys.ArrowLeft || keys.KeyA || touch.left) ? 1 : 0);
-    if (G.foot) { p.inp.gas = 0; p.inp.brake = 1; p.inp.steer = 0; p.inp.hand = 1; p.inp.nitro = 0; footStep(dt, kUp, kDown, kSteer, keys.ShiftLeft || keys.ShiftRight || touch.nitro); }
+    if (G.auto && (kUp || kDown || kSteer)) autoToggle(false);
+    if (G.foot && G.foot.sit && (kUp || kDown || kSteer) && !G.auto) standUp();
+    if (G.auto) { autoUpdate(dt); if (!G.foot && G.auto && G.auto.phase === "ride") { /* le taxi roule tout seul */ } else if (G.foot) { p.inp.gas = 0; p.inp.brake = 1; p.inp.steer = 0; p.inp.hand = 1; p.inp.nitro = 0; } }
+    else if (G.foot && G.foot.sit) { p.inp.gas = 0; p.inp.brake = 1; p.inp.steer = 0; p.inp.hand = 1; G.foot.v = 0; }
+    else if (G.foot) { p.inp.gas = 0; p.inp.brake = 1; p.inp.steer = 0; p.inp.hand = 1; p.inp.nitro = 0; footStep(dt, kUp, kDown, kSteer, (keys.ShiftLeft || keys.ShiftRight || touch.nitro) && G.energy > 8); }
     else {
       p.inp.gas = kUp ? 1 : 0;
       p.inp.brake = kDown ? 1 : 0;
@@ -794,6 +1129,16 @@
       if (wantN && G.nitro > 0 && p.inp.gas) { if (!p.inp.nitro) Audio.boost(); p.inp.nitro = 1; G.nitro = Math.max(0, G.nitro - 28 * dt); } else p.inp.nitro = 0;
     }
     if (actPressed) { actPressed = false; doAction(); }
+    if (WALK) {
+      // énergie : la marche fatigue, s'asseoir, le taxi et la maison reposent
+      const fv = G.foot ? Math.abs(G.foot.v) : 0, home = G.auto && G.auto.phase === "home";
+      G.energy += (home ? 14 : G.foot && G.foot.sit ? 3.5 : !G.foot ? 1.2 : fv > 50 ? -1.4 : fv > 5 ? -.55 : .4) * dt;
+      G.energy = Math.max(0, Math.min(100, G.energy));
+      if (G.energy < 8 && !G.auto && G.foot && !G.foot.sit && !G.tiredMsg) { G.tiredMsg = true; msg("😮‍💨 Ton personnage est épuisé : assieds-toi sur un banc, prends le taxi ou lance la promenade auto.", 4.5, "alert"); }
+      if (G.energy > 30) G.tiredMsg = false;
+      if (G.foot && G.foot.sit) sitUpdate(dt);
+      G.games.forEach(g => gameStep(g, dt));
+    }
 
     G.seen = false;
     G.cops.forEach(c => copAI(c, dt));
@@ -1044,7 +1389,8 @@
         else { ev.className = "evade hiding"; ev.querySelector("span").textContent = "Hors de vue : évasion en cours"; ev.querySelector("i").style.width = Math.min(100, G.evade / G.evadeNeed * 100) + "%"; }
       } else ev.hidden = true;
       $("h-msgs").innerHTML = G.msgs.map(m => `<div class="m ${m.kind}">${m.text}</div>`).join("");
-      const pr = $("h-prompt"); pr.hidden = !G.prompt; if (G.prompt) { pr.querySelector("span").textContent = G.prompt; $("actbtn").hidden = !G.act; $("actbtn").innerHTML = "<kbd>E</kbd>" + ({ exit: "Descendre", enter: "Monter", pick: "Prendre" }[G.act] || "OK"); }
+      const pr = $("h-prompt"); pr.hidden = !G.prompt; if (G.prompt) { pr.querySelector("span").textContent = G.prompt; $("actbtn").hidden = !G.act; $("actbtn").innerHTML = "<kbd>E</kbd>" + ({ exit: "Descendre", enter: "Monter", pick: "Prendre", sit: "S'asseoir", stand: "Se lever", autostop: "Reprendre la main", bureau: "Entrer" }[G.act] || "OK"); }
+      if (WALK && $("h-energy")) { const e = Math.round(G.energy); $("h-energy").style.width = e + "%"; $("h-energy").className = e < 25 ? "low" : ""; $("h-energy-n").textContent = e + " %"; }
       if (G.foot) $("h-speed").textContent = Math.round(Math.abs(G.foot.v) * .36);
       renderMinimap();
     },
@@ -1087,6 +1433,7 @@
     if ((e.code === "KeyP" || e.code === "Escape") && G && !G.over) setPause(!G.paused);
     if (e.code === "KeyM") $("mute").click();
     if (e.code === "KeyC") $("cambtn").click();
+    if (e.code === "KeyR" && G && WALK && !G.over && !G.paused) autoToggle();
     if ((e.code === "KeyE" || e.code === "KeyF") && G && !G.over && !G.paused) actPressed = true;
     if (e.code === "Enter" && !$("over").hidden) $("again").click();
   });
@@ -1122,6 +1469,8 @@
   $("again").addEventListener("click", () => start(chosen));
   $("garage").addEventListener("click", () => show("menu"));
   $("pausebtn").addEventListener("click", () => setPause(true));
+  if ($("autobtn")) $("autobtn").addEventListener("click", () => autoToggle());
+  if ($("relbtn")) $("relbtn").addEventListener("click", () => showRelations());
   $("actbtn").addEventListener("click", () => { if (G && !G.over) actPressed = true; });
   const camLabel = () => { $("cambtn").textContent = "Caméra : " + (window.ZBOSS_3D && window.ZBOSS_3D.ok ? window.ZBOSS_3D.camLabel() : (camMode === "chase" ? "poursuite" : "dessus")); };
   $("cambtn").addEventListener("click", () => {
@@ -1136,6 +1485,6 @@
   resize(); show("menu");
 
   // Accès pour les tests automatisés
-  window.ZBOSS_WORLD = { W, H, C, MW, MH, mask, MAP, ROADS, FILL, walkBlocked, SHOPS, PLACES, BILLBOARDS, SHOP_W, SHOP_D, SHOP_DOOR, nodes, nodesNear, nearestNode, solidAt, groundAt, angDiff, rand };
-  window.__zboss = { get state() { return G; }, start: () => start(chosen), spawnCop, keys, touch, act: () => { actPressed = true; } };
+  window.ZBOSS_WORLD = { W, H, C, MW, MH, mask, MAP, ROADS, FILL, walkBlocked, SHOPS, PLACES, BILLBOARDS, BENCHES, SHOP_W, SHOP_D, SHOP_DOOR, nodes, nodesNear, nearestNode, solidAt, groundAt, angDiff, rand };
+  window.__zboss = { get state() { return G; }, start: () => start(chosen), spawnCop, keys, touch, act: () => { actPressed = true; }, step: (n, dt) => { for (let i = 0; i < n && G && !G.paused; i++) update(dt || 1 / 30); } };
 })();

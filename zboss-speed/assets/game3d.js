@@ -469,8 +469,13 @@
         }
       });
       fence(g, W2, D2, 6);
-      // gradins côté intérieur
-      for (let i = 0; i < 3; i++) pbox(g, W2 * .5, .4, .8, 0, .2 + i * .4, D2 / 2 - 1.2 - i * .8 + 1.6, PL.M(["#c0392b", "#f2c230", "#2b6cb0"][i]), true);
+      // gradins : tribune au fond (stade), petite tribune pour le basket ; projecteurs aux coins du stade
+      const tiers = foot ? 6 : 3, tw = foot ? W2 * .8 : W2 * .5;
+      for (let i = 0; i < tiers; i++) pbox(g, tw, .45, .9, 0, .22 + i * .45, D2 / 2 + .4 + i * .9, PL.M(["#c0392b", "#f2c230", "#2b6cb0"][i % 3]), true);
+      if (foot) {
+        pbox(g, tw, .2, tiers * .9 + .6, 0, tiers * .45 + 2.6, D2 / 2 + .2 + tiers * .45, PL.dark, true);
+        [[-1, -1], [1, -1], [-1, 1], [1, 1]].forEach(([a, b]) => { const x = a * (W2 / 2 + .8), z = b * (D2 / 2 + (b > 0 ? tiers * .9 + 1.2 : .8)); pbox(g, .35, 14, .35, x, 7, z, PL.metal, true); pbox(g, 2.4, 1.2, .3, x, 14, z, PL.glow("#fffbe8")); });
+      }
       signBoard(g, foot ? "STADE DE QUARTIER" : "BASKET 2 LIFE", o.nom, 8, 3.4, front - .3, "#0d1a12", foot ? "#7dff8a" : "#ffb347");
       [-1, 1].forEach(k => pbox(g, .2, 3, .2, k * 3.6, 1.5, front - .3, PL.dark));
     } else if (o.type === "jeux") {
@@ -494,11 +499,23 @@
     } else {
       // bâtiments : corps, toit, façade côté rue (z = -D2/2)
       const T = o.type;
-      const body = T === "bureau" ? PL.M("#1d2a3a", { roughness: .2, metalness: .6 }) : T === "club" ? PL.black : T === "alim" ? PL.M(o.id === "alim1" ? "#f4b63f" : "#3aa77a") : T === "etat" ? PL.cream : T === "partenaire" ? PL.white : PL.M("#e9e6e0");
+      const body = T === "maison" ? PL.M("#e8d8bd") : T === "bureau" ? PL.M("#1d2a3a", { roughness: .2, metalness: .6 }) : T === "club" ? PL.black : T === "alim" ? PL.M(o.id === "alim1" ? "#f4b63f" : "#3aa77a") : T === "etat" ? PL.cream : T === "partenaire" ? PL.white : PL.M("#e9e6e0");
       pbox(g, W2, H2, D2, 0, H2 / 2, 0, body, true);
       pbox(g, W2 + .6, .5, D2 + .6, 0, H2 + .25, 0, T === "etat" ? PL.M("#b5a37c") : PL.dark, true);
       const fz = front - .05;
-      if (T === "bureau") {
+      if (T === "maison") {
+        // ta maison : toit en tôle rouge, porte, fenêtres, clôture et portail
+        g.children[g.children.length - 1].visible = false;   // pas de toit plat
+        const rr = (D2 + 1.2) / 1.732, roof = new THREE.Mesh(new THREE.CylinderGeometry(rr, rr, W2 + .8, 3, 1, false, Math.PI / 2), PL.M("#9b2d20", { roughness: .5, metalness: .3 }));
+        roof.rotation.set(0, 0, Math.PI / 2); roof.scale.set(.45, 1, 1); roof.position.set(0, H2 + rr * .45 * .5, 0); if (!MOBILE) roof.castShadow = true; g.add(roof);
+        pbox(g, 1.4, 2.4, .15, 0, 1.2, fz - .02, PL.wood);
+        [-1, 1].forEach(k => { pbox(g, 1.6, 1.2, .12, k * W2 * .28, 2, fz - .02, PL.glass); pbox(g, 1.8, .12, .2, k * W2 * .28, 1.35, fz - .06, PL.white); });
+        const fm = PL.M("#d9cbb0"); const yd = 3.2;
+        pbox(g, W2 + 2, 1.4, .2, 0, .7, D2 / 2 + 1, fm); [-1, 1].forEach(k => pbox(g, .2, 1.4, D2 + yd + 1, k * (W2 / 2 + 1), .7, -yd / 2 + .5, fm));
+        [-1, 1].forEach(k => pbox(g, W2 / 2 - 1.2, 1.4, .2, k * (W2 / 4 + .6), .7, fz - yd, fm)); pbox(g, 2.2, 1.6, .08, 0, .8, fz - yd, PL.M("#2f6b3a", { metalness: .5 }));
+        pplane(g, 3.6, .9, new THREE.MeshBasicMaterial({ map: PL.txt(512, 128, "#2a1a10", [{ t: "🏠 TA MAISON", f: "800 60px Inter, Arial, sans-serif", c: "#ffe6b0", y: .52 }]) }), 0, 2.9, fz - .06, Math.PI);
+        o.light = "#ffe2b0";
+      } else if (T === "bureau") {
         // Zboss Sarlu : immeuble de bureaux vitré, enseigne lumineuse, auvent d'entrée
         const gl = new THREE.MeshStandardMaterial({ map: canvasTex(128, 256, (c, w, h) => { c.fillStyle = "#24435e"; c.fillRect(0, 0, w, h); for (let y = 0; y < h; y += 16) { c.fillStyle = "#0f1c29"; c.fillRect(0, y, w, 3); for (let x = 0; x < w; x += 32) { c.fillStyle = Math.random() < .35 ? "#ffe2a8" : "#3e6a8f"; c.fillRect(x + 3, y + 5, 26, 9); } } c.fillStyle = "#0f1c29"; for (let x = 0; x < w; x += 32) c.fillRect(x, 0, 3, h); }, true), roughness: .15, metalness: .5 });
         gl.map.repeat.set(W2 / 6, H2 / 4);
@@ -585,6 +602,22 @@
     const fA = pplane(g, 8, 4, ADS[b.i % ADS.length], 0, 7.6, -.26, Math.PI), fB = pplane(g, 8, 4, ADS[(b.i + 3) % ADS.length], 0, 7.6, .26, 0);
     scene.add(g); return { b, g, fA, fB };
   });
+  // bancs publics (instanciés) : assise en bois, dossier, pieds en métal ; le dossier est derrière la personne assise
+  const BENCH3 = WORLD.BENCHES || [];
+  if (BENCH3.length) {
+    const seat = new THREE.InstancedMesh(new THREE.BoxGeometry(1.8, .08, .46), PL.wood, BENCH3.length), back = new THREE.InstancedMesh(new THREE.BoxGeometry(1.8, .42, .06), PL.wood, BENCH3.length);
+    const legL = new THREE.InstancedMesh(new THREE.BoxGeometry(.08, .44, .42), PL.M("#30343b", { metalness: .6, roughness: .4 }), BENCH3.length * 2);
+    const m4 = new THREE.Matrix4(), m5 = new THREE.Matrix4();
+    BENCH3.forEach((b, i) => {
+      // repère du banc : x = longueur, z = vers l'avant (là où regarde la personne assise)
+      const base = new THREE.Matrix4().makeRotationY(Math.PI / 2 - b.a).setPosition(b.x * S, 0, b.y * S);
+      seat.setMatrixAt(i, m4.copy(base).multiply(m5.makeTranslation(0, .44, -.05)));
+      back.setMatrixAt(i, m4.copy(base).multiply(m5.makeTranslation(0, .72, -.27)).multiply(m5.makeRotationX(-.12)));
+      [-1, 1].forEach((k, j) => legL.setMatrixAt(i * 2 + j, m4.copy(base).multiply(m5.makeTranslation(k * .8, .22, -.05))));
+    });
+    [seat, back, legL].forEach(im => { im.castShadow = !MOBILE; im.receiveShadow = true; scene.add(im); });
+  }
+  const balls = new Map();
   const placeLight = new THREE.PointLight("#fff1dc", 0, 60, 1.6); scene.add(placeLight);
   function updatePlaces(G) {
     const focus = G.foot || G.player, t = performance.now() / 1000;
@@ -592,6 +625,12 @@
     placeGroups.forEach(o => { const d = Math.hypot(o.x - focus.x, o.y - focus.y); o.g3.visible = d < 4200; if (d < nd) { nd = d; near = o; } if (o.flag && o.g3.visible) o.flag.rotation.y = Math.PI + Math.sin(t * 2 + o.x) * .15; });
     const k = Math.floor(t / 7);
     ledBoards.forEach(q => { const d = Math.hypot(q.b.x - focus.x, q.b.y - focus.y); q.g.visible = d < 4200; if (!q.g.visible) return; q.fA.material = ADS[(q.b.i + k) % ADS.length]; q.fB.material = ADS[(q.b.i + k + 3) % ADS.length]; });
+    (G.games || []).forEach(g => {
+      let m = balls.get(g);
+      if (!m) { m = new THREE.Mesh(new THREE.SphereGeometry(g.foot ? .11 : .12, 16, 12), new THREE.MeshStandardMaterial({ color: g.foot ? "#f4f4f2" : "#d9661f", roughness: .45 })); m.castShadow = !MOBILE; scene.add(m); balls.set(g, m); }
+      const B = g.ball; m.visible = B.x !== undefined && Math.hypot(g.o.x - focus.x, g.o.y - focus.y) < 2500;
+      if (m.visible) { m.position.set(B.x * S, B.z * S + (g.foot ? .11 : .12), B.y * S); m.rotation.x += (Math.abs(B.vu) + Math.abs(B.vv)) * S * .05; }
+    });
     if (near && near.light && nd < 800) { placeLight.color.set(near.light); placeLight.position.set((near.x - near.nx * (near.d / 2 + 40)) * S, 5, (near.y - near.ny * (near.d / 2 + 40)) * S); placeLight.intensity = 1.4; } else placeLight.intensity = 0;
   }
 
@@ -640,6 +679,12 @@
   const pedLook = q => {
     if (q.lookC) return q.lookC;
     let h = (q.look * 2654435761 + (q.staff ? 99 : 0) + Math.floor((q.x0 || q.x) * 7)) >>> 0; const r = () => ((h = (h * 1103515245 + 12345) >>> 0) / 4294967296);
+    if (q.kit) { // joueurs de foot / basket : maillot de l'équipe, short
+      q.lookC = { woman: false, skin: new THREE.Color(SKIN[(r() * SKIN.length) | 0]), top: new THREE.Color(q.kit[0]), low: new THREE.Color(q.kit[1]), wrap: null, sleeve: false, h: .96 + r() * .1, shoe: new THREE.Color(["#111", "#f5f5f5", "#e11d48"][(r() * 3) | 0]) };
+      const L = q.lookC, lin = c => c && c.clone().convertSRGBToLinear();
+      L.fb = { skin: lin(L.skin), top: lin(L.top), low: lin(L.low), wrap: null, shoe: lin(L.shoe) };
+      return L;
+    }
     const woman = q.player ? false : r() < .48;
     const biz = !q.player && !q.staff && ((((q.look || 0) * 7919 + Math.floor((q.x0 || q.x) * 3)) >>> 0) % 100) < (window.TWOLIFE_WALK ? 40 : 18);
     if (biz) {
@@ -721,6 +766,28 @@
     if (h.cur) a.crossFadeFrom(h.cur, .25, false);
     h.cur = a;
   }
+  // pose assise : on oriente les os (cuisses à l'horizontale, mollets vers le bas, mains sur les genoux)
+  const sv1 = new THREE.Vector3(), sv2 = new THREE.Vector3(), sq1 = new THREE.Quaternion(), sq2 = new THREE.Quaternion(), sq3 = new THREE.Quaternion(), sDir = new THREE.Vector3();
+  function boneMap(h) { if (!h.bones) { h.bones = {}; h.obj.traverse(b => { if (b.isBone) h.bones[realName(b.name)] = b; }); } return h.bones; }
+  function aimBone(bone, child, dir) {
+    if (!bone || !child || !bone.parent) return;
+    bone.updateMatrixWorld(true);
+    const a = bone.getWorldPosition(sv1), b = child.getWorldPosition(sv2).sub(a).normalize();
+    sq1.setFromUnitVectors(b, dir);
+    bone.getWorldQuaternion(sq2); bone.parent.getWorldQuaternion(sq3);
+    bone.quaternion.copy(sq3.invert().multiply(sq1.multiply(sq2)));
+    bone.updateMatrixWorld(true);
+  }
+  function sitPose(h) {
+    const B = boneMap(h), ry = h.obj.rotation.y, fx = Math.sin(ry), fz = Math.cos(ry);
+    h.obj.position.y -= .44; h.obj.updateMatrixWorld(true);
+    ["l", "r"].forEach(s => {
+      aimBone(B["thigh_" + s], B["calf_" + s], sDir.set(fx, -.08, fz).normalize());
+      aimBone(B["calf_" + s], B["foot_" + s], sDir.set(fx * .12, -1, fz * .12).normalize());
+      aimBone(B["upperarm_" + s], B["lowerarm_" + s], sDir.set(fx * .35, -1, fz * .35).normalize());
+      aimBone(B["lowerarm_" + s], B["hand_" + s], sDir.set(fx, -.35, fz).normalize());
+    });
+  }
   const humTmp = new THREE.Color(), WHITE = new THREE.Color("#ffffff"), humV1 = new THREE.Vector3(), humV2 = new THREE.Vector3();
   let TIE_Z = .1; window.__setTieZ = v => { TIE_Z = v; }; window.__pedLook = q => pedLook(q);   // avancée de la cravate devant la colonne (réglée sur le modèle)
   // place les personnages animés ; renvoie l'ensemble des piétons pris en charge
@@ -736,7 +803,7 @@
       const L = pedLook(q);
       if (!h) {
         const hash = ((q.look || 0) * 2654435761 + Math.floor((q.x0 || q.x) * 7)) >>> 0;
-        const v = q.player ? "m1" : L.biz ? (L.woman ? "f2" : (hash % 3 ? "m4" : "m2")) : L.woman ? WOMEN[hash % WOMEN.length] : MEN[hash % MEN.length];
+        const v = q.player ? "m1" : q.kit ? (hash % 2 ? "m3" : "m1") : L.biz ? (L.woman ? "f2" : (hash % 3 ? "m4" : "m2")) : L.woman ? WOMEN[hash % WOMEN.length] : MEN[hash % MEN.length];
         if (!HUM.tpl[v]) return;
         h = humInstance(v); h.ped = q; h.cur = null; h.mixer.stopAllAction(); HUM.byPed.set(q, h); scene.add(h.obj);
         const m = h.mats;
@@ -779,6 +846,7 @@
       h.obj.position.set(q.x * S, .02 + (q.state === "dodge" ? Math.sin((.55 - (q.st || 0)) / .55 * Math.PI) * .25 : 0), q.y * S);
       h.obj.rotation.y = Math.PI / 2 - q.a;
       h.obj.scale.setScalar(q.player ? 1 : .96 + (L.h - .94) * .6);
+      if (q.state === "sit") sitPose(h);
       done.add(q);
     });
     return done;
@@ -787,7 +855,7 @@
   const mP = new THREE.Matrix4(), mA = new THREE.Matrix4(), mB = new THREE.Matrix4(), HIDE = new THREE.Matrix4().makeScale(0, 0, 0);
   function updatePeds(G, camX, camZ, dt) {
     let list = G.peds.filter(q => Math.abs(q.x * S - camX) < 140 && Math.abs(q.y * S - camZ) < 140).slice(0, PEDMAX - 1);
-    if (G.foot) list.push(Object.assign(G.foot, { player: true, state: Math.abs(G.foot.v) > 4 ? "walk" : "idle", look: 0, v: G.foot.v }));
+    if (G.foot) list.push(Object.assign(G.foot, { player: true, state: G.foot.sit ? "sit" : Math.abs(G.foot.v) > 4 ? "walk" : "idle", look: 0, v: G.foot.v }));
     else for (const [q, h] of HUM.byPed) if (q.player) { h.ped = null; scene.remove(h.obj); HUM.byPed.delete(q); }
     const real = updateHumans(list, camX, camZ, dt || 1 / 60);
     if (real.size) list = list.filter(q => !real.has(q));
@@ -800,13 +868,14 @@
       if (q.state === "dodge") { sw = .9; arms = 1.2; lean = .35; }
       if (q.state === "cower") { crouch = .78; arms = 2.4; }
       if (q.state === "idle" && q.staff) arms = Math.sin(q.t * .8) * .1;
-      mP.makeRotationY(-q.a).setPosition(q.x * S, .02 + (q.state === "dodge" ? Math.sin((.55 - q.st) / .55 * Math.PI) * .35 : 0), q.y * S);
+      const sit = q.state === "sit"; if (sit) { sw = 0; arms = .55; }
+      mP.makeRotationY(-q.a).setPosition(q.x * S, .02 - (sit ? .44 : 0) + (q.state === "dodge" ? Math.sin((.55 - q.st) / .55 * Math.PI) * .35 : 0), q.y * S);
       mA.makeScale(sc, sc * crouch, sc); mP.multiply(mA);
       if (lean) { mA.makeRotationZ(-lean); mP.multiply(mA); }
       // jambes : cuisse + mollet (genou qui plie à la marche) + chaussure qui reste à plat
       [-1, 1].forEach((k, j) => {
-        const th = sw * k * .7, fw = Math.max(0, Math.cos(ph + (k > 0 ? 0 : Math.PI)));
-        const knee = q.state === "cower" ? -1.1 : walking ? -(.12 + .75 * fw * Math.min(1, Math.abs(sw) * 2 + .3)) : q.state === "dodge" ? -.6 : -.04;
+        const th = sit ? 1.5 : sw * k * .7, fw = Math.max(0, Math.cos(ph + (k > 0 ? 0 : Math.PI)));
+        const knee = sit ? -1.45 : q.state === "cower" ? -1.1 : walking ? -(.12 + .75 * fw * Math.min(1, Math.abs(sw) * 2 + .3)) : q.state === "dodge" ? -.6 : -.04;
         const legC = L.woman && !q.player ? L.fb.skin : L.fb.low;
         mA.makeTranslation(0, .9, k * .1); mA.multiply(mB.makeRotationZ(th)); const hip = mA.clone();
         mA.multiply(mB.makeTranslation(0, -.23, 0)); put(PART.thigh, n * 2 + j, mA.clone(), legC);
@@ -971,9 +1040,21 @@
     for (let t = .1; t <= 1.001; t += .1) if (wb((x0 + (x1 - x0) * t) / S, (z0 + (z1 - z0) * t) / S)) return Math.max(0, t - .1);
     return 1;
   }
+  let sitOrbit = 0;
   function updateCamera(G, dt) {
     if (G.foot) {
       const f = G.foot, fx_ = f.x * S, fz_ = f.y * S;
+      if (f.sit) { // assis : la caméra tourne lentement autour, comme un regard sur le quartier
+        sitOrbit += dt * .12;
+        const a = f.a + Math.PI * .8 + Math.sin(sitOrbit) * 1.1, dist = 4.6;
+        const t = footClear(fx_, fz_, fx_ + Math.cos(a) * dist, fz_ + Math.sin(a) * dist), dd = Math.max(.8, dist * t);
+        tmp.set(fx_ + Math.cos(a) * dd, 1.9, fz_ + Math.sin(a) * dd); camPos.lerp(tmp, Math.min(1, dt * 2));
+        tmp2.set(fx_ + Math.cos(f.a) * 6, 1.1, fz_ + Math.sin(f.a) * 6); camLook.lerp(tmp2, Math.min(1, dt * 3));
+        camera.fov += (62 - camera.fov) * Math.min(1, dt * 3); camera.updateProjectionMatrix();
+        camera.position.copy(camPos); camera.lookAt(camLook); camYaw = f.a;
+        return;
+      }
+      sitOrbit = 0;
       camYaw += angDiff(camYaw, f.a) * Math.min(1, dt * 4);
       const cx = Math.cos(camYaw), cz = Math.sin(camYaw), dist = 3.4;
       const t = footClear(fx_, fz_, fx_ - cx * dist, fz_ - cz * dist), dd = Math.max(.6, dist * t);

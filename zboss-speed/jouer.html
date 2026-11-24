@@ -104,6 +104,13 @@
     }
     /* visite de la ville : pas de course, pas de police */
     body.walk .p-heat, body.walk .p-score, body.walk .evade, body.walk .p-car, body.walk .p-speed { display: none !important; }
+    .walk-only { display: none; } body.walk .walk-only { display: block; } body.walk .top-btns .walk-only { display: inline-block; }
+    .top-btns { flex-wrap: wrap; max-width: calc(100vw - 190px); }
+    #autobtn[aria-pressed="true"] { background: #ff5a1f; border-color: #ff5a1f; }
+    .p-life { top: calc(max(14px, env(safe-area-inset-top)) + 146px); left: 14px; width: 190px; padding: 8px 12px; }
+    .p-life .bar { margin: 4px 0 0; } .p-life .bar i.low { background: linear-gradient(90deg, #ff2d4a, #ff8a4c); }
+    .p-life #h-energy-n { float: right; color: #fff; letter-spacing: 0; }
+    @media (max-height: 520px) { .p-life { top: 124px; width: 150px; } }
     .pick-city { min-height: 64px; } .pick-city[disabled] { opacity: .45; cursor: not-allowed; }
   </style>
 </head>
@@ -112,7 +119,8 @@
 
   <div class="hud" aria-hidden="true">
     <div class="panel p-heat"><div class="lbl">Recherché</div><div class="chev" id="h-heat"></div><span id="h-status">Calme</span></div>
-    <div class="top-btns"><button type="button" onclick="history.length > 1 ? history.back() : location.href = 'index.html'" aria-label="Retour à la page précédente">← Retour</button><button type="button" id="pausebtn">Pause</button><button type="button" id="mute" aria-pressed="false">Son</button><button type="button" id="cambtn">Caméra</button></div>
+    <div class="top-btns"><button type="button" onclick="history.length > 1 ? history.back() : location.href = 'index.html'" aria-label="Retour à la page précédente">← Retour</button><button type="button" id="pausebtn">Pause</button><button type="button" id="mute" aria-pressed="false">Son</button><button type="button" id="cambtn">Caméra</button><button type="button" id="autobtn" class="walk-only" aria-pressed="false" title="Touche R">🚶 Promenade auto</button><button type="button" id="relbtn" class="walk-only">👥 Relations</button></div>
+    <div class="panel p-life walk-only"><div class="lbl">Énergie <span id="h-energy-n">100 %</span></div><div class="bar"><i id="h-energy"></i></div></div>
     <div class="panel evade" id="h-evade" hidden><span></span><div class="bar"><i></i></div></div>
     <div class="panel p-score"><div class="lbl">Score</div><b id="h-score">0</b><div class="lbl">Prime en jeu</div><b class="bounty" id="h-bounty">0</b></div>
     <canvas id="minimap" width="180" height="180"></canvas>
