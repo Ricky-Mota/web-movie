@@ -108,9 +108,11 @@ export function needsAt(c, now = Date.now()) {
 }
 
 // ---------------------------------------------------------------- identité
+export const FIRST_NAMES = {};
 const FIRST_M = ["Junior", "Patient", "Glody", "Merveil", "Exaucé", "Christian", "Dieumerci", "Bienvenu", "Héritier", "Josué", "Fiston", "Trésor"];
 const FIRST_F = ["Grâce", "Merveille", "Divine", "Plamedie", "Exaucée", "Gloria", "Ornella", "Bénédicte", "Naomie", "Rachel", "Dorcas", "Prisca"];
 const LAST = ["Mbuyi", "Kabeya", "Ilunga", "Lukusa", "Mukendi", "Tshibangu", "Kasongo", "Nzuzi", "Makiese", "Lutumba", "Mbala", "Kalala", "Mputu", "Kanku"];
+FIRST_NAMES.M = FIRST_M; FIRST_NAMES.F = FIRST_F;
 const QUARTIERS = ["Gombe", "Lingwala", "Kinshasa", "Barumbu", "Kalamu", "Limete", "Kasa-Vubu", "Bandalungwa"];
 
 export function newIdentity(r, sex) {
@@ -335,3 +337,19 @@ export function schoolView(enr, diplomas, now = Date.now()) {
     fatigueCours: STUDY_ENERGY, moyenneRequise: PASS_MARK,
   };
 }
+
+// ---------------------------------------------------------------- familles de joueurs
+// Un bébé naît chez un parent joueur qui accepte d'accueillir des enfants (sinon dans une famille du jeu).
+// Jusqu'à 18 ans, le parent verse chaque jour l'entretien de l'enfant ; s'il ne peut pas payer, l'enfant en souffre.
+// Devenu adulte, l'enfant reverse FAMILY_SHARE de chaque salaire à ses parents.
+export const SUPPORT_PER_DAY = 60;      // makuta par jour réel (3 e-makuta)
+export const FAMILY_SHARE = 0.10;
+export const HOST_MIN_AGE = 20;
+export const MAX_CHILDREN = 4;
+export function supportDue(lastPaid, bornAt, now = Date.now()) {
+  const from = lastPaid || bornAt, days = Math.floor((now - from) / DAY);
+  return { days, due: days * SUPPORT_PER_DAY, next: from + (days + 1) * DAY };
+}
+// effet d'un entretien impayé : bonheur et santé baissent
+export function unpaidEffect(days) { return { bonheur: 12 * days, sante: 4 * days }; }
+export function familyShare(amount) { return Math.round(amount * FAMILY_SHARE); }

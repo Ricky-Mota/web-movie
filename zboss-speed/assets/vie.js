@@ -2,7 +2,7 @@
 // simule la même vie dans le navigateur (mode démo).
 import {
   ageYears, stageOf, STAGES, realMsUntil, TALENTS, ACTIVITIES, rng, drawTalents, doActivity, needsAt, newIdentity, BIRTH_GIFT,
-  SHOP, cannotBuy, OFFERS, USD_TO_MAKUTA, USD_UNITS, fmtMakuta, WITHDRAW_FEE, walletInfo, birthShiftMs, shopView, familyOf, JOBS, payFor, cannotWork, workView, SHIFT_ENERGY, cannotApply, FORMATIONS, cannotEnroll, attendCourse, schoolView, STUDY_ENERGY,
+  SHOP, cannotBuy, OFFERS, USD_TO_MAKUTA, USD_UNITS, fmtMakuta, WITHDRAW_FEE, walletInfo, birthShiftMs, shopView, familyOf, JOBS, payFor, cannotWork, workView, SHIFT_ENERGY, cannotApply, FORMATIONS, cannotEnroll, attendCourse, schoolView, STUDY_ENERGY, SUPPORT_PER_DAY, HOST_MIN_AGE, supportDue, unpaidEffect, familyShare, FIRST_NAMES,
 } from "../server/src/life.js";
 
 const API = (window.TWO_LIFE_API || "").replace(/\/$/, "");
@@ -26,7 +26,7 @@ const demo = {
       perso: {
         prenom: c.firstName, nom: c.lastName, sexe: c.sex, quartier: c.quartier, ville: "Kinshasa", apparence: c.look, neLe: c.neLe,
         age, etape: st.id, etapeLabel: st.label, prochaineEtape: next ? { label: next.label, dansMs: realMsUntil(c.neLe, next.from, now) } : null,
-        besoins: Object.fromEntries(Object.entries(n).map(([k, v]) => [k, Math.round(v)])), makuta: c.makuta, pere: c.father, mere: c.mother, vivant: true, famille: familyOf(c, age),
+        besoins: Object.fromEntries(Object.entries(n).map(([k, v]) => [k, Math.round(v)])), makuta: c.makuta, pere: c.father, mere: c.mother, vivant: true, famille: familyOf(c, age), accueil: !!d.accueil,
         talents: c.talents.filter(t => t.discovered).map(t => ({ id: t.talent, label: TALENTS.find(x => x.id === t.talent).label, niveau: t.level })),
         talentsCaches: c.talents.filter(t => !t.discovered).length,
         indices: c.talents.filter(t => !t.discovered && t.hints > 0).map(t => TALENTS.find(x => x.id === t.talent).hint),
@@ -36,16 +36,33 @@ const demo = {
       ...shopView(d.inv || [], d.dep || [], d.ret || [], c.makuta, now),
       travail: workView(d.job, d.lastShift, now),
       ecole: schoolView(d.enr || null, d.dip || [], now),
+      enfants: (d.enfants || []).map(k => { const a = ageYears(k.neLe, now), kn = needsAt(k, now);
+        return { id: k.id, prenom: k.prenom, nom: k.nom, sexe: k.sex, age: Math.round(a * 100) / 100, etapeLabel: stageOf(a).label, joueur: true, simule: true,
+          besoins: Object.fromEntries(Object.entries(kn).map(([x, y]) => [x, Math.round(y)])), makuta: k.makuta, prochainEntretien: a < 18 ? supportDue(k.entretienLe, k.neLe, now).next : null }; }),
+      entretienParJour: SUPPORT_PER_DAY, demo: true,
     };
   },
   settle(c) { const n = needsAt(c); Object.assign(c, n, { updatedAt: Date.now() }); },
+  // entretien quotidien des enfants simulés (même règle que le serveur)
+  support(d) {
+    const c = d.perso, now = Date.now();
+    for (const k of d.enfants || []) {
+      if (ageYears(k.neLe, now) >= 18) continue;
+      const { days, due } = supportDue(k.entretienLe, k.neLe, now);
+      if (days < 1) continue;
+      const pay = Math.min(due, c.makuta), fx = unpaidEffect(Math.floor((due - pay) / SUPPORT_PER_DAY));
+      c.makuta -= pay; k.makuta += pay; k.entretienLe = (k.entretienLe || k.neLe) + days * 864e5;
+      Object.assign(k, needsAt(k, now), { updatedAt: now }); k.happiness = Math.max(0, k.happiness - fx.bonheur); k.health = Math.max(0, k.health - fx.sante);
+    }
+  },
   async call(path, body) {
     let d = store.get(LS_DEMO);
+    if (d && d.perso) { this.support(d); store.set(LS_DEMO, d); }
     if (path === "/api/inscription") {
       const r = rng(this.seed()), who = newIdentity(r), now = Date.now();
       const offer = OFFERS.find(o => o.id === body.formule && o.type === "entree") || OFFERS[0], parent = offer.id === "parent";
       d = {
-        pseudo: body.pseudo, email: String(body.email || "").trim().toLowerCase(), inv: [], ret: [],
+        pseudo: body.pseudo, email: String(body.email || "").trim().toLowerCase(), inv: [], ret: [], accueil: parent, enfants: [],
         dep: [{ offre: offer.id, usd: offer.usd, makuta: 0, le: now }],
         perso: { ...who, neLe: parent ? now - birthShiftMs(offer.age + .01) : now, updatedAt: now, hunger: 100, energy: 100, happiness: 80, health: 100,
           makuta: parent ? offer.epargne : BIRTH_GIFT, talents: drawTalents(r).map(t => ({ ...t, discovered: parent, hints: 0 })) },
@@ -111,7 +128,8 @@ const demo = {
       const job = JOBS.find(j => j.id === d.job), no = cannotWork(job, ageYears(c.neLe), c.energy, d.lastShift);
       if (no) throw new Error(no);
       const pay = payFor(job, c.talents);
-      c.makuta += pay.montant; c.energy = Math.max(0, c.energy - SHIFT_ENERGY); c.hunger = Math.max(0, c.hunger - 10); d.lastShift = Date.now();
+      pay.famille = familyShare(pay.montant);   // 10 % pour les parents
+      c.makuta += pay.montant - pay.famille; c.energy = Math.max(0, c.energy - SHIFT_ENERGY); c.hunger = Math.max(0, c.hunger - 10); d.lastShift = Date.now();
       store.set(LS_DEMO, d); return { paie: pay, ...this.view(d) };
     }
     if (path === "/api/ecole/inscription") {
@@ -129,6 +147,26 @@ const demo = {
       c.energy = Math.max(0, c.energy - STUDY_ENERGY); c.makuta -= res.fee;
       if (res.fin) { (d.dip = d.dip || []).push(f.id); d.enr = null; } else d.enr = res.enr;
       store.set(LS_DEMO, d); return { cours: { note: res.note, message: res.message, diplome: !!res.fin }, ...this.view(d) };
+    }
+    if (path === "/api/accueil") {
+      if (ageYears(c.neLe) < HOST_MIN_AGE) throw new Error(`Il faut avoir ${HOST_MIN_AGE} ans pour accueillir un enfant.`);
+      d.accueil = !!body.actif; store.set(LS_DEMO, d); return this.view(d);
+    }
+    if (path === "/api/demo/bebe") {
+      // démo seulement : simule l'inscription d'un nouveau joueur qui naît chez toi
+      if (!d.accueil) throw new Error("Active d'abord l'accueil des enfants.");
+      const r = rng(this.seed()), sex = r() < .5 ? "F" : "M", now = Date.now();
+      (d.enfants = d.enfants || []).push({ id: "k" + this.seed(), prenom: FIRST_NAMES[sex][Math.floor(r() * FIRST_NAMES[sex].length)], nom: c.lastName, sex, neLe: now, entretienLe: now,
+        updatedAt: now, hunger: 100, energy: 100, happiness: 80, health: 100, makuta: BIRTH_GIFT });
+      store.set(LS_DEMO, d); return this.view(d);
+    }
+    if (path === "/api/enfant/nourrir") {
+      const k = (d.enfants || []).find(x => x.id === body.enfant), item = SHOP.find(x => x.id === body.objet && x.type === "nourriture");
+      if (!k || !item) throw new Error("Enfant ou repas introuvable.");
+      if (c.makuta < item.prix) throw new Error("Pas assez d'e-makuta.");
+      Object.assign(k, needsAt(k), { updatedAt: Date.now() });
+      c.makuta -= item.prix; k.hunger = Math.min(100, k.hunger + (item.effet.faim || 0)); k.happiness = Math.min(100, k.happiness + (item.effet.bonheur || 0) + 3);
+      store.set(LS_DEMO, d); return this.view(d);
     }
     if (path === "/api/investir") {
       const o = OFFERS.find(x => x.id === body.offre && x.type === "investissement");
@@ -198,13 +236,13 @@ function render(v) {
   }).join("");
   const f = p.famille, ag = n => `${n} an${n > 1 ? "s" : ""}`;
   $("ident").innerHTML = (f ? [
-    ["Père", `${f.pere.nom}, ${ag(f.pere.age)} · ${f.pere.metier}`],
-    ["Mère", `${f.mere.nom}, ${ag(f.mere.age)} · ${f.mere.metier}`],
+    ["Père", `${f.pere.nom}, ${ag(f.pere.age)} · ${f.pere.metier}${f.pere.joueur ? ` · joueur (${f.pere.joueur})` : ""}`],
+    ["Mère", `${f.mere.nom}, ${ag(f.mere.age)} · ${f.mere.metier}${f.mere.joueur ? ` · joueur (${f.mere.joueur})` : ""}`],
     ["Frères et sœurs", f.fratrie.length ? f.fratrie.map(x => `${x.prenom} (${x.age < 1 ? "bébé" : ag(x.age)})`).join(", ") : "Enfant unique"],
     ["Maison", `${f.maison.type}, ${f.maison.pieces} pièces à ${f.maison.quartier} : ${f.maison.desc}`],
   ] : []).concat([["Joueur", v.compte.pseudo], ["Né le", new Date(p.neLe).toLocaleDateString("fr-FR")]])
     .map(([a, b]) => `<div class="row"><span>${a}</span><span style="text-align:right">${b}</span></div>`).join("");
-  renderShop(v); renderWallet(v); renderWork(v); renderSchool(v);
+  renderShop(v); renderWallet(v); renderWork(v); renderSchool(v); renderKids(v);
   portrait(p);
   dress(v);
 }
@@ -285,6 +323,29 @@ function renderSchool(v) {
   $("school").innerHTML = head + (dip.length ? `<h2 style="font-size:16px;margin:16px 0 4px">Mes diplômes</h2>` + dip.map(x => `<div class="row"><span>🎓</span><span>${x.diplome}</span></div>`).join("") : "") +
     `<h2 style="font-size:16px;margin:16px 0 4px">Écoles et universités</h2>` + list;
 }
+function renderKids(v) {
+  const p = v.perso, kids = v.enfants || [];
+  const card = $("kids-card"); card.hidden = p.age < 18 && !kids.length;
+  if (card.hidden) return;
+  const head = `<p style="font-size:14px;margin:0 0 10px">Quand un nouveau joueur s'inscrit, il peut naître chez toi. Tu paies alors son entretien (${mk(v.entretienParJour)} par jour, prélevés automatiquement) jusqu'à ses 18 ans. Devenu adulte, il te reverse 10 % de son salaire.</p>
+    <button class="btn" id="b-host" type="button" style="margin-top:0" ${p.age < 20 ? "disabled" : ""}>${p.accueil ? "Ne plus accueillir d'enfant" : "Accueillir un enfant"}</button>
+    ${p.age < 20 ? `<p style="font-size:13px;margin:8px 0 0">Possible à partir de 20 ans.</p>` : ""}
+    ${v.demo && p.accueil ? `<button class="mini" id="b-demo-baby" type="button" style="margin-top:10px">Simuler l'inscription d'un bébé (démo)</button>` : ""}`;
+  const list = kids.map(k => {
+    const food = k.age < 4 ? "lait" : "fufu", it = v.boutique.find(x => x.id === food);
+    const low = k.besoins.hunger < 40 || k.besoins.health < 60;
+    return `<div class="item"><span class="sw">${k.age < 3 ? "👶" : k.sexe === "F" ? "👧" : "👦"}</span><div class="t">${k.prenom} ${k.nom} · ${fmtAge(k.age)} (${k.etapeLabel})
+      <small>Faim ${k.besoins.hunger} · Santé ${k.besoins.health} · Bonheur ${k.besoins.happiness} · ${mk(k.makuta)}${k.prochainEntretien ? ` · prochain entretien dans ${fmtWait(k.prochainEntretien - Date.now())}` : " · adulte"}${low ? " · <b style='color:var(--warn)'>a besoin de toi</b>" : ""}</small></div>
+      <button class="mini fill" data-feed="${k.id}" data-food="${food}" type="button" ${p.makuta < it.prix ? "disabled" : ""}>Nourrir (${mk(it.prix)})</button></div>`;
+  }).join("");
+  $("kids").innerHTML = head + (kids.length ? `<h2 style="font-size:16px;margin:16px 0 4px">Mes enfants</h2>${list}` : "");
+}
+$("kids").onclick = e => {
+  if (e.target.id === "b-host") return act("/api/accueil", { actif: !state.perso.accueil }, v => v.perso.accueil ? "Ta famille est prête à accueillir un nouveau joueur." : "Tu n'accueilles plus de nouvel enfant.");
+  if (e.target.id === "b-demo-baby") return act("/api/demo/bebe", {}, v => `${v.enfants.at(-1).prenom} vient de naître chez toi !`);
+  const b = e.target.closest("[data-feed]");
+  if (b) act("/api/enfant/nourrir", { enfant: b.dataset.feed, objet: b.dataset.food }, () => "Ton enfant a mangé.");
+};
 $("school").onclick = e => {
   const b = e.target.closest("[data-enroll]");
   if (b) return act("/api/ecole/inscription", { formation: b.dataset.enroll }, v => `Inscrit : ${v.ecole.formations.find(x => x.id === v.ecole.enCours.formation).nom}.`);
@@ -293,7 +354,7 @@ $("school").onclick = e => {
 $("work").onclick = e => {
   const b = e.target.closest("[data-job]");
   if (b) return act("/api/postuler", { metier: b.dataset.job }, v => `Embauché : ${v.travail.metiers.find(j => j.id === v.travail.metier).nom}.`);
-  if (e.target.id === "b-work") act("/api/travailler", {}, v => `Journée terminée : +${mk(v.paie.montant)}${v.paie.bonus ? " (bonus talent)" : ""}.`);
+  if (e.target.id === "b-work") act("/api/travailler", {}, v => `Journée terminée : +${mk(v.paie.montant - v.paie.famille)}${v.paie.bonus ? " (bonus talent)" : ""}, et ${mk(v.paie.famille)} pour tes parents.`);
 };
 $("shop-tabs").onclick = e => { const b = e.target.closest(".tab"); if (!b) return; shopTab = b.dataset.t; renderShop(state); };
 async function act(path, body, ok) { try { const v = await call(path, body); render(v); if (ok) toast(ok(v)); } catch (err) { toast(err.message); } }

@@ -2,7 +2,7 @@
 // Le serveur est l'arbitre : il décide de l'âge, des talents et de l'argent ; le téléphone ne fait qu'afficher.
 import {
   ageYears, stageOf, STAGES, realMsUntil, TALENTS, ACTIVITIES, rng, drawTalents, doActivity,
-  needsAt, newIdentity, BIRTH_GIFT, SHOP, cannotBuy, OFFERS, USD_TO_MAKUTA, USD_UNITS, fmtMakuta, WITHDRAW_FEE, walletInfo, birthShiftMs, REAL_MONEY, shopView, familyOf, JOBS, payFor, cannotWork, workView, cannotApply, FORMATIONS, cannotEnroll, attendCourse, schoolView,
+  needsAt, newIdentity, BIRTH_GIFT, SHOP, cannotBuy, OFFERS, USD_TO_MAKUTA, USD_UNITS, fmtMakuta, WITHDRAW_FEE, walletInfo, birthShiftMs, REAL_MONEY, shopView, familyOf, JOBS, payFor, cannotWork, workView, cannotApply, FORMATIONS, cannotEnroll, attendCourse, schoolView, SUPPORT_PER_DAY, HOST_MIN_AGE, MAX_CHILDREN, supportDue, unpaidEffect, familyShare, DAY,
 } from "./life.js";
 
 const SESSION_DAYS = 30;
@@ -51,10 +51,23 @@ async function birth(db, compteId, now, offer) {
   const parent = offer && offer.id === "parent";
   const born = parent ? now - birthShiftMs(offer.age + .01) : now;     // « naître parent » : on arrive adulte
   const gift = parent ? offer.epargne : BIRTH_GIFT;
+  // le bébé naît chez un parent joueur qui accueille des enfants (sinon dans une famille gérée par le jeu)
+  let host = null;
+  if (!parent) host = await db.prepare(`SELECT p.id, p.sexe, p.prenom, p.nom, p.quartier FROM personnages p
+      WHERE p.compte_id IS NOT NULL AND p.mort_le IS NULL AND p.accueille_enfants = 1 AND p.ne_le <= ?
+        AND (SELECT COUNT(*) FROM personnages k WHERE (k.pere_id = p.id OR k.mere_id = p.id) AND k.mort_le IS NULL) < ?
+      ORDER BY RANDOM() LIMIT 1`).bind(now - birthShiftMs(HOST_MIN_AGE), MAX_CHILDREN).first();
+  if (host) {
+    const other = host.sexe === "M" ? who.mother.split(" ")[0] : who.father.split(" ")[0];
+    who.lastName = host.nom; who.quartier = host.quartier;
+    who.father = host.sexe === "M" ? host.prenom + " " + host.nom : other + " " + host.nom;
+    who.mother = host.sexe === "F" ? host.prenom + " " + host.nom : other + " " + host.nom;
+  }
   const stmts = [
-    db.prepare(`INSERT INTO personnages (id, compte_id, ville_id, prenom, nom, sexe, quartier, apparence, ne_le, maj_le, makuta, pere_nom, mere_nom)
-                VALUES (?, ?, 'kinshasa', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
-      .bind(id, compteId, who.firstName, who.lastName, who.sex, who.quartier, who.look, born, now, gift, who.father, who.mother),
+    db.prepare(`INSERT INTO personnages (id, compte_id, ville_id, prenom, nom, sexe, quartier, apparence, ne_le, maj_le, makuta, pere_nom, mere_nom, pere_id, mere_id, accueille_enfants, entretien_le)
+                VALUES (?, ?, 'kinshasa', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+      .bind(id, compteId, who.firstName, who.lastName, who.sex, who.quartier, who.look, born, now, gift, who.father, who.mother,
+        host && host.sexe === "M" ? host.id : null, host && host.sexe === "F" ? host.id : null, parent ? 1 : 0, now),
     db.prepare(`INSERT INTO transactions (id, de_id, vers_id, montant, motif, le) VALUES (?, NULL, ?, ?, ?, ?)`)
       .bind(uid(), id, gift, parent ? "épargne de départ (naître parent)" : "naissance : épargne des parents", now),
     db.prepare(`INSERT INTO depots (id, compte_id, offre, usd, makuta, simule, le) VALUES (?, ?, ?, ?, 0, ?, ?)`)
@@ -66,6 +79,24 @@ async function birth(db, compteId, now, offer) {
   ];
   await db.batch(stmts);
   return id;
+}
+
+// famille : les parents joueurs remplacent les parents du jeu ; la maison est celle du parent joueur
+function playerFamily(f, par, sibs, now) {
+  for (const x of par) {
+    const who = { nom: `${x.prenom} ${x.nom}`, age: Math.floor(ageYears(x.ne_le, now)), metier: (JOBS.find(j => j.id === x.metier) || { nom: "Sans emploi" }).nom, joueur: x.pseudo };
+    if (x.sexe === "M") f.pere = who; else f.mere = who;
+    f.maison = { ...familyOf({ look: x.apparence }, 0).maison, quartier: f.maison.quartier };
+  }
+  if (par.length) f.fratrie = sibs.map(k => ({ prenom: k.prenom, sexe: k.sexe, age: Math.floor(ageYears(k.ne_le, now)), joueur: true }));
+  f.parentJoueur = par.length > 0;
+  return f;
+}
+function childView(k, now) {
+  const age = ageYears(k.ne_le, now), n = needsAt({ hunger: k.faim, energy: k.energie, happiness: k.bonheur, health: k.sante, updatedAt: k.maj_le }, now);
+  return { id: k.id, prenom: k.prenom, nom: k.nom, sexe: k.sexe, age: Math.round(age * 100) / 100, etapeLabel: stageOf(age).label, joueur: !!k.compte_id,
+    besoins: Object.fromEntries(Object.entries(n).map(([a, b]) => [a, Math.round(b)])), makuta: k.makuta,
+    prochainEntretien: age < 18 ? supportDue(k.entretien_le, k.ne_le, now).next : null };
 }
 
 // ---------------------------------------------------------------- profil
@@ -80,10 +111,17 @@ async function loadCharacter(db, id) {
   const last = await db.prepare(`SELECT MAX(le) AS le FROM activites WHERE personnage_id = ? AND activite LIKE 'travail:%'`).bind(id).first();
   const enr = await db.prepare(`SELECT formation_id AS formation, annee, cours, points, dernier FROM inscriptions WHERE personnage_id = ?`).bind(id).first();
   const { results: dip } = await db.prepare(`SELECT formation_id FROM diplomes_obtenus WHERE personnage_id = ? ORDER BY obtenu_le`).bind(id).all();
-  return { p, tal, inv, dep, ret, job, lastShift: last && last.le, enr, dip: dip.map(d => d.formation_id) };
+  const { results: kids } = await db.prepare(`SELECT id, prenom, nom, sexe, ne_le, faim, energie, bonheur, sante, maj_le, makuta, entretien_le, compte_id FROM personnages
+      WHERE (pere_id = ? OR mere_id = ?) AND mort_le IS NULL ORDER BY ne_le`).bind(id, id).all();
+  const { results: par } = await db.prepare(`SELECT p.id, p.prenom, p.nom, p.sexe, p.ne_le, p.apparence, c.pseudo,
+      (SELECT metier_id FROM emplois e WHERE e.personnage_id = p.id AND e.fin IS NULL LIMIT 1) AS metier
+      FROM personnages p JOIN comptes c ON c.id = p.compte_id WHERE p.id IN (?, ?)`).bind(p.pere_id || "", p.mere_id || "").all();
+  const { results: sibs } = par.length ? await db.prepare(`SELECT prenom, sexe, ne_le FROM personnages WHERE id != ? AND mort_le IS NULL AND (pere_id IN (?, ?) OR mere_id IN (?, ?))`)
+    .bind(id, p.pere_id || "", p.mere_id || "", p.pere_id || "", p.mere_id || "").all() : { results: [] };
+  return { p, tal, inv, dep, ret, job, lastShift: last && last.le, enr, dip: dip.map(d => d.formation_id), kids, par, sibs };
 }
 
-function view(compte, { p, tal, inv = [], dep = [], ret = [], job = null, lastShift = null, enr = null, dip = [] }, now) {
+function view(compte, { p, tal, inv = [], dep = [], ret = [], job = null, lastShift = null, enr = null, dip = [], kids = [], par = [], sibs = [] }, now) {
   const age = ageYears(p.ne_le, now);
   const st = stageOf(age);
   const next = STAGES[STAGES.indexOf(st) + 1];
@@ -96,7 +134,8 @@ function view(compte, { p, tal, inv = [], dep = [], ret = [], job = null, lastSh
       prochaineEtape: next ? { label: next.label, dansMs: realMsUntil(p.ne_le, next.from, now) } : null,
       besoins: Object.fromEntries(Object.entries(needs).map(([k, v]) => [k, Math.round(v)])),
       makuta: p.makuta, pere: p.pere_nom, mere: p.mere_nom, vivant: !p.mort_le,
-      famille: familyOf({ look: p.apparence, father: p.pere_nom, mother: p.mere_nom, quartier: p.quartier }, age),
+      famille: playerFamily(familyOf({ look: p.apparence, father: p.pere_nom, mother: p.mere_nom, quartier: p.quartier }, age), par, sibs, now),
+      accueil: !!p.accueille_enfants,
       // les talents non découverts restent secrets : seul leur nombre et les indices sont envoyés
       talents: tal.filter(t => t.decouvert).map(t => ({ id: t.talent_id, label: TALENTS.find(x => x.id === t.talent_id).label, niveau: t.niveau })),
       talentsCaches: tal.filter(t => !t.decouvert).length,
@@ -107,6 +146,8 @@ function view(compte, { p, tal, inv = [], dep = [], ret = [], job = null, lastSh
     ...shopView(inv, dep, ret, p.makuta, now),
     travail: workView(job && job.metier_id, lastShift, now),
     ecole: schoolView(enr, dip, now),
+    enfants: kids.map(k => childView(k, now)),
+    entretienParJour: SUPPORT_PER_DAY,
   };
 }
 
@@ -127,6 +168,27 @@ async function settle(db, p, now) {
   const n = needsAt({ hunger: p.faim, energy: p.energie, happiness: p.bonheur, health: p.sante, updatedAt: p.maj_le }, now);
   Object.assign(p, { faim: n.hunger, energie: n.energy, bonheur: n.happiness, sante: n.health, maj_le: now });
   await db.prepare(`UPDATE personnages SET faim = ?, energie = ?, bonheur = ?, sante = ?, maj_le = ? WHERE id = ?`).bind(p.faim, p.energie, p.bonheur, p.sante, now, p.id).run();
+}
+
+// entretien des enfants : calculé à la demande, pour le personnage et ses enfants mineurs
+async function supportFamily(db, pid, now) {
+  const { results: kids } = await db.prepare(`SELECT id, ne_le, entretien_le, pere_id, mere_id FROM personnages
+      WHERE mort_le IS NULL AND (id = ? OR pere_id = ? OR mere_id = ?)`).bind(pid, pid, pid).all();
+  for (const k of kids) {
+    const par = k.pere_id || k.mere_id;
+    if (!par || ageYears(k.ne_le, now) >= 18) continue;
+    const { days, due } = supportDue(k.entretien_le, k.ne_le, now);
+    if (days < 1) continue;
+    const pr = await db.prepare(`SELECT makuta FROM personnages WHERE id = ? AND mort_le IS NULL`).bind(par).first();
+    const pay = Math.min(due, pr ? pr.makuta : 0), unpaid = Math.floor((due - pay) / SUPPORT_PER_DAY), fx = unpaidEffect(unpaid);
+    const st = [db.prepare(`UPDATE personnages SET entretien_le = ?, bonheur = MAX(0, bonheur - ?), sante = MAX(0, sante - ?) WHERE id = ?`)
+      .bind((k.entretien_le || k.ne_le) + days * DAY, fx.bonheur, fx.sante, k.id)];
+    if (pay > 0) st.push(
+      db.prepare(`UPDATE personnages SET makuta = makuta - ? WHERE id = ? AND makuta >= ?`).bind(pay, par, pay),
+      db.prepare(`UPDATE personnages SET makuta = makuta + ? WHERE id = ?`).bind(pay, k.id),
+      db.prepare(`INSERT INTO transactions (id, de_id, vers_id, montant, motif, le) VALUES (?, ?, ?, ?, ?, ?)`).bind(uid(), par, k.id, pay, `entretien de l'enfant (${days} j)`, now));
+    await db.batch(st);
+  }
 }
 
 // ---------------------------------------------------------------- routes
@@ -175,6 +237,7 @@ export default {
       // ---- routes réservées aux joueurs connectés
       const compte = await auth(db, req, now);
       if (!compte) return fail(h, 401, "Connecte-toi pour continuer.");
+      await supportFamily(db, compte.vie_id, now);
       const ch = await loadCharacter(db, compte.vie_id);
       if (!ch) return fail(h, 404, "Personnage introuvable.");
       const { p, tal } = ch;
@@ -260,11 +323,19 @@ export default {
         const no = cannotWork(job, ageYears(p.ne_le, now), p.energie, ch.lastShift, now);
         if (no) return fail(h, 409, no);
         const pay = payFor(job, tal.map(t => ({ talent: t.talent_id, discovered: !!t.decouvert })));
-        await db.batch([
-          db.prepare(`UPDATE personnages SET makuta = makuta + ?, energie = MAX(0, energie - ?), faim = MAX(0, faim - 10) WHERE id = ?`).bind(pay.montant, 35, p.id),
+        // 10 % du salaire pour les parents : aux parents joueurs s'il y en a, sinon à la famille du jeu
+        pay.famille = familyShare(pay.montant);
+        const parents = ch.par.map(x => x.id), each = parents.length ? Math.floor(pay.famille / parents.length) : 0;
+        const st = [
+          db.prepare(`UPDATE personnages SET makuta = makuta + ?, energie = MAX(0, energie - ?), faim = MAX(0, faim - 10) WHERE id = ?`).bind(pay.montant - pay.famille, 35, p.id),
           db.prepare(`INSERT INTO transactions (id, de_id, vers_id, montant, motif, le) VALUES (?, NULL, ?, ?, ?, ?)`).bind(uid(), p.id, pay.montant, "salaire : " + job.nom, now),
+          ...(pay.famille - each * parents.length > 0 ? [db.prepare(`INSERT INTO transactions (id, de_id, vers_id, montant, motif, le) VALUES (?, ?, NULL, ?, ?, ?)`).bind(uid(), p.id, pay.famille - each * parents.length, "aide à la famille (10 %)", now)] : []),
+          ...parents.flatMap(pid => each ? [
+            db.prepare(`UPDATE personnages SET makuta = makuta + ? WHERE id = ?`).bind(each, pid),
+            db.prepare(`INSERT INTO transactions (id, de_id, vers_id, montant, motif, le) VALUES (?, ?, ?, ?, ?, ?)`).bind(uid(), p.id, pid, each, "aide aux parents (10 % du salaire)", now)] : []),
           db.prepare(`INSERT INTO activites (id, personnage_id, activite, score, resultat, le) VALUES (?, ?, ?, ?, ?, ?)`).bind(uid(), p.id, "travail:" + job.id, pay.montant, pay.bonus ? "bonus talent" : "", now),
-        ]);
+        ];
+        await db.batch(st.filter(x => x));
         return json(h, 200, { paie: pay, ...view(compte, await loadCharacter(db, p.id), now) });
       }
 
@@ -290,6 +361,26 @@ export default {
         else st.push(db.prepare(`UPDATE inscriptions SET annee = ?, cours = ?, points = ?, dernier = ? WHERE personnage_id = ?`).bind(res.enr.annee, res.enr.cours, res.enr.points, now, p.id));
         await db.batch(st);
         return json(h, 200, { cours: { note: res.note, message: res.message, diplome: !!res.fin }, ...view(compte, await loadCharacter(db, p.id), now) });
+      }
+
+      if (url.pathname === "/api/accueil" && req.method === "POST") {
+        if (ageYears(p.ne_le, now) < HOST_MIN_AGE) return fail(h, 409, `Il faut avoir ${HOST_MIN_AGE} ans pour accueillir un enfant.`);
+        await db.prepare(`UPDATE personnages SET accueille_enfants = ? WHERE id = ?`).bind(body.actif ? 1 : 0, p.id).run();
+        return json(h, 200, view(compte, await loadCharacter(db, p.id), now));
+      }
+
+      if (url.pathname === "/api/enfant/nourrir" && req.method === "POST") {
+        const k = ch.kids.find(x => x.id === body.enfant), item = SHOP.find(x => x.id === body.objet && x.type === "nourriture");
+        if (!k || !item) return fail(h, 400, "Enfant ou repas introuvable.");
+        if (p.makuta < item.prix) return fail(h, 409, "Pas assez d'e-makuta.");
+        const n = needsAt({ hunger: k.faim, energy: k.energie, happiness: k.bonheur, health: k.sante, updatedAt: k.maj_le }, now), e = item.effet || {};
+        await db.batch([
+          db.prepare(`UPDATE personnages SET makuta = makuta - ? WHERE id = ? AND makuta >= ?`).bind(item.prix, p.id, item.prix),
+          db.prepare(`UPDATE personnages SET faim = ?, energie = ?, bonheur = ?, sante = ?, maj_le = ? WHERE id = ?`)
+            .bind(Math.min(100, n.hunger + (e.faim || 0)), n.energy, Math.min(100, n.happiness + (e.bonheur || 0) + 3), n.health, now, k.id),
+          db.prepare(`INSERT INTO transactions (id, de_id, vers_id, montant, motif, le) VALUES (?, ?, NULL, ?, ?, ?)`).bind(uid(), p.id, item.prix, `repas pour ${k.prenom} : ${item.nom}`, now),
+        ]);
+        return json(h, 200, view(compte, await loadCharacter(db, p.id), now));
       }
 
       // investissement : SIMULATION tant que REAL_MONEY est faux (aucun paiement encaissé)
