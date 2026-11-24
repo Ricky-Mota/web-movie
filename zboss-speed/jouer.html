@@ -109,7 +109,7 @@
 
   <div class="hud" aria-hidden="true">
     <div class="panel p-heat"><div class="lbl">Recherché</div><div class="chev" id="h-heat"></div><span id="h-status">Calme</span></div>
-    <div class="top-btns"><button type="button" id="pausebtn">Pause</button><button type="button" id="mute" aria-pressed="false">Son</button><button type="button" id="cambtn">Caméra</button></div>
+    <div class="top-btns"><button type="button" onclick="history.length > 1 ? history.back() : location.href = 'index.html'" aria-label="Retour à la page précédente">← Retour</button><button type="button" id="pausebtn">Pause</button><button type="button" id="mute" aria-pressed="false">Son</button><button type="button" id="cambtn">Caméra</button></div>
     <div class="panel evade" id="h-evade" hidden><span></span><div class="bar"><i></i></div></div>
     <div class="panel p-score"><div class="lbl">Score</div><b id="h-score">0</b><div class="lbl">Prime en jeu</div><b class="bounty" id="h-bounty">0</b></div>
     <canvas id="minimap" width="180" height="180"></canvas>
@@ -126,7 +126,7 @@
   </div>
 
   <section class="screen-ov" id="menu" hidden>
-    <a class="back" href="index.html">← Retour au site</a>
+    <a class="back" href="index.html" onclick="if (history.length > 1) { history.back(); return false; }">← Retour</a>
     <div class="card">
       <span class="tag"><span class="dot"></span> Démo jouable · navigateur</span>
       <h1>2<b> LIFE</b></h1>

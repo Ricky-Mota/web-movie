@@ -86,7 +86,10 @@ CREATE TABLE IF NOT EXISTS objets (id TEXT PRIMARY KEY, nom TEXT NOT NULL, type 
 -- objet_id = identifiant du catalogue SHOP (server/src/life.js) ; porte = vêtement actuellement porté
 CREATE TABLE IF NOT EXISTS possessions (id TEXT PRIMARY KEY, proprietaire_id TEXT NOT NULL, objet_id TEXT NOT NULL, etat REAL NOT NULL DEFAULT 100, acquis_le INTEGER NOT NULL, porte INTEGER NOT NULL DEFAULT 0);
 
-CREATE TABLE IF NOT EXISTS entreprises (id TEXT PRIMARY KEY, nom TEXT NOT NULL, type TEXT NOT NULL, proprietaire_id TEXT NOT NULL, ville_id TEXT NOT NULL, local TEXT, capital INTEGER NOT NULL DEFAULT 0, cree_le INTEGER NOT NULL);
+CREATE TABLE IF NOT EXISTS entreprises (id TEXT PRIMARY KEY, nom TEXT NOT NULL, type TEXT NOT NULL, proprietaire_id TEXT NOT NULL, ville_id TEXT NOT NULL, local TEXT, capital INTEGER NOT NULL DEFAULT 0, cree_le INTEGER NOT NULL,
+  caisse INTEGER NOT NULL DEFAULT 0,   -- recettes pas encore encaissées par le patron
+  maj_le INTEGER,                      -- dernier calcul de la caisse
+  en_vente INTEGER);                   -- prix demandé (makuta) si le patron vend, sinon NULL
 
 CREATE TABLE IF NOT EXISTS annonces (id TEXT PRIMARY KEY, vendeur_id TEXT NOT NULL, possession_id TEXT NOT NULL, prix INTEGER NOT NULL, statut TEXT NOT NULL DEFAULT 'ouverte', cree_le INTEGER NOT NULL);
 

@@ -94,13 +94,14 @@
     .two { display: grid; grid-template-columns: 1fr 1fr; gap: 0 12px; }
     @media (max-width: 480px) { .two { grid-template-columns: 1fr; } }
     .btn.ghost { background: none; border: 1px solid var(--line); color: var(--muted); }
+    .back { width: 36px; height: 36px; border-radius: 12px; border: 1px solid var(--line); background: var(--panel); color: var(--text); font-size: 18px; line-height: 1; margin-right: 2px; }
     .started { color: var(--ok); font-family: var(--font-d); font-size: 22px; }
   </style>
 </head>
 <body>
   <div class="wrap">
     <header class="top">
-      <div class="brand"><img src="assets/icons/2life.svg" alt=""> 2 Life</div>
+      <div class="brand"><button class="back" type="button" onclick="history.length > 1 ? history.back() : location.href = 'index.html'" aria-label="Retour à la page précédente">←</button><img src="assets/icons/2life.svg" alt=""> 2 Life</div>
       <span class="pill" id="mode">Administration</span>
     </header>
 

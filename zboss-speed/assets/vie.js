@@ -2,7 +2,7 @@
 // simule la même vie dans le navigateur (mode démo).
 import {
   ageYears, stageOf, STAGES, realMsUntil, TALENTS, ACTIVITIES, rng, drawTalents, doActivity, needsAt, newIdentity, BIRTH_GIFT,
-  SHOP, cannotBuy, OFFERS, USD_TO_MAKUTA, USD_UNITS, fmtMakuta, WITHDRAW_FEE, walletInfo, birthShiftMs, shopView, familyOf, JOBS, payFor, cannotWork, workView, SHIFT_ENERGY, cannotApply, FORMATIONS, cannotEnroll, attendCourse, schoolView, STUDY_ENERGY, SUPPORT_PER_DAY, HOST_MIN_AGE, canSignupBeforeLaunch, COMPANY_TYPES, cannotOpenCompany, companyName, companyView, supportDue, unpaidEffect, familyShare, FIRST_NAMES,
+  SHOP, cannotBuy, OFFERS, USD_TO_MAKUTA, USD_UNITS, fmtMakuta, WITHDRAW_FEE, walletInfo, birthShiftMs, shopView, familyOf, JOBS, payFor, cannotWork, workView, SHIFT_ENERGY, cannotApply, FORMATIONS, cannotEnroll, attendCourse, schoolView, STUDY_ENERGY, SUPPORT_PER_DAY, HOST_MIN_AGE, canSignupBeforeLaunch, COMPANY_TYPES, cannotOpenCompany, companyName, companyView, companyAccrue, companyJob, EMPLOYEE_YIELD, RESELL_RATE, TAXI_FARE, TAXI_ENERGY, KINSHASA_QUARTIERS, OTHER_CITIES, supportDue, unpaidEffect, familyShare, FIRST_NAMES,
 } from "../server/src/life.js";
 import { launchDemo } from "./lancement-demo.js";
 
@@ -18,6 +18,13 @@ const store = {
 
 // ---------------------------------------------------------------- mode démo (même règles, dans le navigateur)
 const FOOD = { prix: 25, faim: 45 };
+// démo : les entreprises des autres joueurs viennent de la liste de lancement (ou d'exemples)
+function demoOthers() {
+  const L = launchDemo.get().entreprises.filter(e => !e.moi);
+  const base = L.length ? L : [["maquis", "Maquis Ya Mado", "Kalamu", "Mado Kabeya"], ["taxi", "Taxi Express", "Limete", "Patrick Ilunga"], ["boutique", "Boutique Mama Nzazi", "Matonge", "Nzazi Mbuyi"], ["salon", "Salon Élégance", "Gombe", "Grâce Tshibola"], ["pharmacie", "Pharmacie du Rond-Point", "Lemba", "Jean Mukendi"]]
+    .map(([type, nom, quartier, proprietaire]) => ({ type, nom, quartier, proprietaire }));
+  return base.map((e, i) => ({ ...e, id: "autre-" + i, en_vente: i % 3 === 0 ? Math.round((COMPANY_TYPES.find(t => t.id === e.type) || { prix: 20000 }).prix * 1.2) : null }));
+}
 const demo = {
   seed() { return crypto.getRandomValues(new Uint32Array(1))[0]; },
   view(d) {
@@ -36,12 +43,14 @@ const demo = {
       activites: ACTIVITIES.map(a => ({ id: a.id, label: a.label, minAge: a.minAge, energie: a.energy })),
       repas: FOOD,
       ...shopView(d.inv || [], d.dep || [], d.ret || [], c.makuta, now),
-      travail: workView(d.job, d.lastShift, now),
+      travail: { ...workView(d.job, d.lastShift, now), emploiEntreprise: d.boss ? companyJob(d.boss) : null },
       ecole: schoolView(d.enr || null, d.dip || [], now),
       enfants: (d.enfants || []).map(k => { const a = ageYears(k.neLe, now), kn = needsAt(k, now);
         return { id: k.id, prenom: k.prenom, nom: k.nom, sexe: k.sex, age: Math.round(a * 100) / 100, etapeLabel: stageOf(a).label, joueur: true, simule: true,
           besoins: Object.fromEntries(Object.entries(kn).map(([x, y]) => [x, Math.round(y)])), makuta: k.makuta, prochainEntretien: a < 18 ? supportDue(k.entretienLe, k.neLe, now).next : null }; }),
-      entretienParJour: SUPPORT_PER_DAY, entreprises: companyView(d.ent || []), demo: true,
+      entretienParJour: SUPPORT_PER_DAY, demo: true,
+      entreprises: companyView((d.ent || []).map(e => ({ ...e, employes: 0 })), { aVendre: demoOthers().filter(e => e.en_vente && !(d.achetees || []).includes(e.id)), offres: demoOthers().filter(e => !(d.achetees || []).includes(e.id)).slice(0, 6) }, now),
+      voyage: { quartiers: KINSHASA_QUARTIERS, prix: TAXI_FARE, fatigue: TAXI_ENERGY, villes: OTHER_CITIES },
     };
   },
   settle(c) { const n = needsAt(c); Object.assign(c, n, { updatedAt: Date.now() }); },
@@ -125,14 +134,59 @@ const demo = {
       own.porte = was ? 0 : 1;
       store.set(LS_DEMO, d); return this.view(d);
     }
+    if (path === "/api/postuler" && body.entreprise) {
+      const e = demoOthers().find(x => x.id === body.entreprise);
+      if (!e) throw new Error("Entreprise introuvable.");
+      if (ageYears(c.neLe) < 18) throw new Error("Il faut avoir 18 ans pour travailler dans une entreprise.");
+      d.boss = { id: e.id, nom: e.nom, type: e.type }; d.job = companyJob(d.boss).id;
+      store.set(LS_DEMO, d); return { embauche: e.nom, ...this.view(d) };
+    }
+    if (path === "/api/entreprise/encaisser") {
+      const e = (d.ent || []).find(x => x.id === body.entreprise); if (!e) throw new Error("Entreprise introuvable.");
+      const a = companyAccrue(e); if (a.caisse < 1) throw new Error("La caisse est vide pour l'instant. Reviens plus tard.");
+      c.makuta += a.caisse; e.caisse = 0; e.maj_le = a.maj_le;
+      store.set(LS_DEMO, d); return { encaisse: a.caisse, ...this.view(d) };
+    }
+    if (path === "/api/entreprise/vendre") {
+      const e = (d.ent || []).find(x => x.id === body.entreprise); if (!e) throw new Error("Entreprise introuvable.");
+      e.en_vente = body.prix == null ? null : Math.floor(Number(body.prix));
+      store.set(LS_DEMO, d); return this.view(d);
+    }
+    if (path === "/api/entreprise/acheter") {
+      const e = demoOthers().find(x => x.id === body.entreprise && x.en_vente);
+      if (!e || (d.achetees || []).includes(e.id)) throw new Error("Cette entreprise n'est plus en vente.");
+      if (ageYears(c.neLe) < 18) throw new Error("Il faut avoir 18 ans pour acheter une entreprise.");
+      if (c.makuta < e.en_vente) throw new Error(`Il te faut ${fmtMakuta(e.en_vente)}.`);
+      c.makuta -= e.en_vente; (d.achetees = d.achetees || []).push(e.id);
+      (d.ent = d.ent || []).push({ id: "e" + Date.now(), nom: e.nom, type: e.type, quartier: e.quartier, capital: e.en_vente, cree_le: Date.now(), caisse: 0, maj_le: Date.now() });
+      store.set(LS_DEMO, d); return { achetee: e.nom, ...this.view(d) };
+    }
+    if (path === "/api/revendre") {
+      const own = (d.inv || []).find(x => x.id === body.possession), item = own && SHOP.find(x => x.id === own.objet_id);
+      if (!item) throw new Error("Objet introuvable.");
+      const gain = Math.floor(item.prix * RESELL_RATE);
+      d.inv = d.inv.filter(x => x !== own); c.makuta += gain;
+      store.set(LS_DEMO, d); return { vendu: item.nom, gain, ...this.view(d) };
+    }
+    if (path === "/api/voyager") {
+      const q = KINSHASA_QUARTIERS.find(x => x === body.quartier);
+      if (!q) throw new Error(OTHER_CITIES.includes(body.quartier) ? `${body.quartier} n'est pas encore ouverte.` : "Destination inconnue.");
+      if (q === c.quartier) throw new Error(`Tu es déjà à ${q}.`);
+      this.settle(c);
+      if (ageYears(c.neLe) < 12) throw new Error("Trop jeune pour prendre le taxi seul.");
+      if (c.makuta < TAXI_FARE) throw new Error(`La course coûte ${fmtMakuta(TAXI_FARE)}.`);
+      if (c.energy < TAXI_ENERGY) throw new Error("Trop fatigué pour sortir : repose-toi ou mange.");
+      c.makuta -= TAXI_FARE; c.energy -= TAXI_ENERGY; c.quartier = q;
+      store.set(LS_DEMO, d); return { arrive: q, ...this.view(d) };
+    }
     if (path === "/api/postuler") {
       const job = JOBS.find(j => j.id === body.metier), no = cannotApply(job, ageYears(c.neLe), d.dip || []);
       if (no) throw new Error(no);
-      d.job = job.id; store.set(LS_DEMO, d); return this.view(d);
+      d.job = job.id; d.boss = null; store.set(LS_DEMO, d); return this.view(d);
     }
     if (path === "/api/travailler") {
       this.settle(c);
-      const job = JOBS.find(j => j.id === d.job), no = cannotWork(job, ageYears(c.neLe), c.energy, d.lastShift);
+      const job = d.boss ? companyJob(d.boss) : JOBS.find(j => j.id === d.job), no = cannotWork(job, ageYears(c.neLe), c.energy, d.lastShift);
       if (no) throw new Error(no);
       const pay = payFor(job, c.talents);
       pay.famille = familyShare(pay.montant);   // 10 % pour les parents
@@ -178,9 +232,9 @@ const demo = {
     if (path === "/api/entreprise/ouvrir") {
       const t = COMPANY_TYPES.find(x => x.id === body.type), no = cannotOpenCompany(t, ageYears(c.neLe), c.makuta);
       if (no) throw new Error(no);
-      const e = { id: "e" + Date.now(), nom: companyName(t, c.lastName, body.nom), type: t.id, quartier: c.quartier, capital: t.prix, cree_le: Date.now() };
+      const e = { id: "e" + Date.now(), nom: companyName(t, c.lastName, body.nom), type: t.id, quartier: c.quartier, capital: t.prix, cree_le: Date.now(), caisse: 0, maj_le: Date.now() };
       c.makuta -= t.prix; (d.ent = d.ent || []).push(e);
-      launchDemo.addCompany({ nom: e.nom, type: e.type, quartier: e.quartier, proprietaire: `${c.firstName} ${c.lastName}`, cree_le: e.cree_le });
+      launchDemo.addCompany({ nom: e.nom, type: e.type, quartier: e.quartier, proprietaire: `${c.firstName} ${c.lastName}`, cree_le: e.cree_le, moi: true });
       store.set(LS_DEMO, d); return { ouverte: e.nom, ...this.view(d) };
     }
     if (path === "/api/investir") {
@@ -257,7 +311,7 @@ function render(v) {
     ["Maison", `${f.maison.type}, ${f.maison.pieces} pièces à ${f.maison.quartier} : ${f.maison.desc}`],
   ] : []).concat([["Joueur", v.compte.pseudo], ["Né le", new Date(p.neLe).toLocaleDateString("fr-FR")]])
     .map(([a, b]) => `<div class="row"><span>${a}</span><span style="text-align:right">${b}</span></div>`).join("");
-  renderShop(v); renderWallet(v); renderWork(v); renderSchool(v); renderKids(v); renderCompanies(v);
+  renderShop(v); renderWallet(v); renderWork(v); renderSchool(v); renderKids(v); renderCompanies(v); renderTravel(v); renderTips(v);
   portrait(p);
   dress(v);
 }
@@ -282,7 +336,8 @@ function renderShop(v) {
   }).join("");
   const inv = v.inventaire.map(x => ({ ...x, it: v.boutique.find(b => b.id === x.objet) })).filter(x => x.it);
   $("inv").innerHTML = inv.length ? inv.map(x => `<div class="item">${swatch(x.it)}<div class="t">${x.it.nom}<small>${x.it.slot ? (x.porte ? "Porté · " : "") + SLOT[x.it.slot] : "Téléphone : tu peux appeler ta famille"}</small></div>
-      ${x.it.slot ? `<button class="mini ${x.porte ? "" : "fill"}" data-wear="${x.id}" type="button">${x.porte ? "Retirer" : "Porter"}</button>` : ""}</div>`).join("")
+      ${x.it.slot ? `<button class="mini ${x.porte ? "" : "fill"}" data-wear="${x.id}" type="button">${x.porte ? "Retirer" : "Porter"}</button>` : ""}
+      <button class="mini" data-sell="${x.id}" type="button">Vendre ${mk(x.it.prix * RESELL_RATE)}</button></div>`).join("")
     : `<p style="font-size:14px;margin:0">Rien pour l'instant. Les vêtements achetés apparaissent ici et sur ton personnage.</p>`;
 }
 function renderWallet(v) {
@@ -301,7 +356,7 @@ function renderWallet(v) {
     (hist ? `<h2 style="font-size:16px;margin:16px 0 4px">Historique</h2>${hist}` : "");
 }
 function renderWork(v) {
-  const p = v.perso, w = v.travail, cur = w.metiers.find(j => j.id === w.metier);
+  const p = v.perso, w = v.travail, cur = w.emploiEntreprise || w.metiers.find(j => j.id === w.metier);
   if (p.age < 16) { $("work").innerHTML = `<p style="font-size:14px;margin:0">${p.prenom} pourra travailler à partir de 16 ans. En attendant, ce sont ses parents qui paient la nourriture et les habits.</p>`; return; }
   const disc = new Set(p.talents.map(t => t.id)), wait = w.prochainTravail && w.prochainTravail > Date.now();
   const head = cur ? `<div class="row"><span>Métier</span><span style="text-align:right">${cur.nom}</span></div>
@@ -311,24 +366,80 @@ function renderWork(v) {
   const list = w.metiers.map(j => {
     const lock = j.formation && !v.ecole.diplomes.includes(j.formation) ? `diplôme : ${j.diplome}` : p.age < j.minAge ? `dès ${j.minAge} ans` : "";
     return `<div class="item"><span class="sw">${j.formation ? "🎓" : "🧰"}</span><div class="t">${j.nom}<small>${mk(j.salaire)} par journée${disc.has(j.talent) ? " · +30 % (ton talent)" : ""}${lock ? " · " + lock : ""}</small></div>
-      ${j.id === w.metier ? `<span class="mini" style="border-color:var(--ok);color:var(--ok)">Ton métier</span>` : `<button class="mini fill" data-job="${j.id}" type="button" ${lock ? "disabled" : ""}>Postuler</button>`}</div>`;
+      ${j.id === w.metier && !w.emploiEntreprise ? `<span class="mini" style="border-color:var(--ok);color:var(--ok)">Ton métier</span>` : `<button class="mini fill" data-job="${j.id}" type="button" ${lock ? "disabled" : ""}>Postuler</button>`}</div>`;
   }).join("");
-  $("work").innerHTML = head + `<h2 style="font-size:16px;margin:16px 0 4px">Offres d'emploi</h2>` + list;
+  const co = p.age >= 18 && v.entreprises.offres.length ? `<h2 style="font-size:16px;margin:16px 0 4px">Les entreprises des joueurs embauchent</h2>` + v.entreprises.offres.map(e => `<div class="item"><span class="sw">${e.icone || "🏢"}</span><div class="t">${esc(e.emploi.nom)}<small>${mk(e.emploi.salaire)} par journée · ${esc(e.quartier || "")}${disc.has(e.emploi.talent) ? " · +30 % (ton talent)" : ""}</small></div>
+    ${w.emploiEntreprise && w.emploiEntreprise.entreprise === e.id ? `<span class="mini" style="border-color:var(--ok);color:var(--ok)">Ton emploi</span>` : `<button class="mini fill" data-cjob="${e.id}" type="button">Postuler</button>`}</div>`).join("") : "";
+  $("work").innerHTML = head + co + `<h2 style="font-size:16px;margin:16px 0 4px">Offres d'emploi en ville</h2>` + list;
 }
 function renderCompanies(v) {
   const p = v.perso, E = v.entreprises;
-  if (p.age < 18) { $("companies").innerHTML = `<p style="font-size:14px;margin:0">${p.prenom} pourra ouvrir une entreprise à 18 ans.</p>`; return; }
-  const mine = E.miennes.length ? E.miennes.map(e => `<div class="item"><span class="sw">${e.icone || "🏢"}</span><div class="t">${esc(e.nom)}<small>${e.typeNom} · ${esc(e.quartier || "")} · capital ${mk(e.capital)}</small></div></div>`).join("")
-    : `<p style="font-size:14px;margin:0 0 6px">Tu n'as pas encore d'entreprise. Choisis un commerce et ouvre-le avec tes e-makuta.</p>`;
-  const list = E.types.map(t => `<div class="item"><span class="sw">${t.icone}</span><div class="t">${t.nom} · ${mk(t.prix)}<small>${t.desc}</small></div>
+  if (p.age < 18) { $("companies").innerHTML = `<p style="font-size:14px;margin:0">${p.prenom} pourra ouvrir ou racheter une entreprise à 18 ans.</p>`; return; }
+  const mine = E.miennes.length ? E.miennes.map(e => {
+    const t = E.types.find(x => x.id === e.type) || {};
+    return `<div class="co">
+      <div class="item" style="border:0"><span class="sw">${e.icone || "🏢"}</span><div class="t">${esc(e.nom)}<small>${e.typeNom} · ${esc(e.quartier || "")} · ${e.employes || 0}/${t.places} employé(s) · gagne ${mk(t.recette)} par jour</small></div></div>
+      <div class="row"><span>Caisse</span><span style="text-align:right"><b>${mk(e.caisse)}</b>${e.plein ? ` <small style="color:var(--warn)">pleine : encaisse vite</small>` : ""}</span></div>
+      <div class="two-btn"><button class="mini fill" data-cash="${e.id}" type="button" ${e.caisse < 1 ? "disabled" : ""}>Encaisser</button>
+      ${e.en_vente ? `<button class="mini" data-unsell="${e.id}" type="button">Retirer de la vente (${mk(e.en_vente)})</button>` : `<button class="mini" data-sellco="${e.id}" data-price="${Math.round(t.prix * 1.2)}" type="button">Mettre en vente (${mk(Math.round(t.prix * 1.2))})</button>`}</div>
+    </div>`; }).join("") + `<p style="font-size:13px;margin:8px 0 0">La caisse se remplit seule pendant ${E.plafondJours} jours, puis elle s'arrête : passe encaisser régulièrement. Chaque journée d'un employé rapporte son salaire plus 60 %.</p>`
+    : `<p style="font-size:14px;margin:0 0 6px">Tu n'as pas encore d'entreprise. Ouvre un commerce ou rachète celui d'un autre joueur.</p>`;
+  const market = E.aVendre.length ? E.aVendre.map(e => `<div class="item"><span class="sw">${e.icone || "🏢"}</span><div class="t">${esc(e.nom)} · ${mk(e.en_vente)}<small>${e.typeNom} · ${esc(e.quartier || "")} · vendu par ${esc(e.proprietaire || "un joueur")}</small></div>
+    <button class="mini fill" data-buyco="${e.id}" type="button" ${p.makuta < e.en_vente ? "disabled" : ""}>Acheter</button></div>`).join("") : `<p style="font-size:14px;margin:0">Aucune entreprise à vendre pour l'instant.</p>`;
+  const list = E.types.map(t => `<div class="item"><span class="sw">${t.icone}</span><div class="t">${t.nom} · ${mk(t.prix)}<small>${t.desc} Gagne ${mk(t.recette)} par jour.</small></div>
     <button class="mini fill" data-open="${t.id}" type="button" ${p.makuta < t.prix ? "disabled" : ""}>Ouvrir</button></div>`).join("");
-  $("companies").innerHTML = mine + `<label for="co-name">Nom de ta prochaine entreprise (facultatif)</label><input id="co-name" maxlength="40" placeholder="ex. Chez ${esc(p.prenom)}">` +
-    `<h2 style="font-size:16px;margin:16px 0 4px">Ouvrir un commerce</h2>${list}<p style="font-size:13px;margin:8px 0 0">Les recettes, les embauches et le rachat entre joueurs arrivent à l'étape suivante.</p>`;
+  $("companies").innerHTML = mine +
+    `<h2 style="font-size:16px;margin:16px 0 4px">À vendre par d'autres joueurs</h2>${market}` +
+    `<h2 style="font-size:16px;margin:16px 0 4px">Ouvrir un commerce</h2><label for="co-name" style="margin-top:4px">Nom (facultatif)</label><input id="co-name" maxlength="40" placeholder="ex. Chez ${esc(p.prenom)}">${list}`;
 }
 $("companies").onclick = e => {
-  const b = e.target.closest("[data-open]"); if (!b) return;
-  b.disabled = true; act("/api/entreprise/ouvrir", { type: b.dataset.open, nom: ($("co-name") || {}).value }, v => `Ton entreprise « ${v.ouverte} » est ouverte !`);
+  const b = e.target.closest("button"); if (!b || b.disabled) return;
+  if (b.dataset.open) { b.disabled = true; return act("/api/entreprise/ouvrir", { type: b.dataset.open, nom: ($("co-name") || {}).value }, v => `Ton entreprise « ${v.ouverte} » est ouverte !`); }
+  if (b.dataset.cash) return act("/api/entreprise/encaisser", { entreprise: b.dataset.cash }, v => `Tu as encaissé ${mk(v.encaisse)}.`);
+  if (b.dataset.sellco) return act("/api/entreprise/vendre", { entreprise: b.dataset.sellco, prix: Number(b.dataset.price) }, () => "Ton entreprise est en vente. Les autres joueurs la voient au marché.");
+  if (b.dataset.unsell) return act("/api/entreprise/vendre", { entreprise: b.dataset.unsell, prix: null }, () => "Ton entreprise n'est plus en vente.");
+  if (b.dataset.buyco) { b.disabled = true; return act("/api/entreprise/acheter", { entreprise: b.dataset.buyco }, v => `Bravo, « ${v.achetee} » est à toi !`); }
 };
+function renderTravel(v) {
+  const p = v.perso, V = v.voyage;
+  if (p.age < 12) { $("travel").innerHTML = `<p style="font-size:14px;margin:0">${p.prenom} se déplace avec ses parents. Il pourra prendre le taxi seul à 12 ans.</p>`; return; }
+  $("travel").innerHTML = `<p style="font-size:14px;margin:0 0 8px">Tu es à <b>${esc(p.quartier)}</b>. Une course en taxi coûte ${mk(V.prix)} et un peu d'énergie. L'argent va au taxi d'un joueur.</p>
+    <div class="chips">${V.quartiers.filter(q => q !== p.quartier).map(q => `<button class="chip" data-go="${q}" type="button">${q}</button>`).join("")}</div>
+    <h2 style="font-size:16px;margin:14px 0 6px">Autres villes</h2><div class="chips">${V.villes.map(c => `<button class="chip" type="button" disabled>${c} · bientôt</button>`).join("")}</div>`;
+}
+$("travel").onclick = e => { const b = e.target.closest("[data-go]"); if (b) act("/api/voyager", { quartier: b.dataset.go }, v => `Bienvenue à ${v.arrive} !`); };
+
+// ---------------------------------------------------------------- que faire maintenant ?
+function tips(v) {
+  const p = v.perso, n = p.besoins, out = [], adult = p.age >= 18, w = v.travail;
+  const hasJob = !!(w.emploiEntreprise || w.metier), E = v.entreprises;
+  if (n.hunger < 40) out.push(["🍲", "Tu as faim : va manger au maquis pour reprendre des forces.", "Manger au maquis", "eat"]);
+  if (n.energy < 30) out.push(["😴", "Tu es fatigué : mange ou repose-toi avant de travailler.", "Voir mes besoins", "needs"]);
+  const full = (E.miennes || []).filter(e => e.caisse > 0).sort((a, b) => b.caisse - a.caisse)[0];
+  if (full) out.push(["💰", `La caisse de ${full.nom} contient ${mk(full.caisse)}. Va encaisser tes recettes.`, "Encaisser", "cash:" + full.id]);
+  if (p.age >= 16 && !hasJob) out.push(["💼", "Tu n'as pas de travail : postule à un métier ou dans l'entreprise d'un joueur.", "Chercher du travail", "work"]);
+  if (hasJob && (!w.prochainTravail || w.prochainTravail <= Date.now()) && n.energy >= w.fatigueTravail) out.push(["🛠️", "Ta journée de travail t'attend : va gagner ton salaire.", "Aller travailler", "dowork"]);
+  if (p.age >= 6 && !v.ecole.enCours && p.age < 30) out.push(["🎓", "Étudie pour obtenir un diplôme et un meilleur métier.", "Aller à l'école", "school"]);
+  if (adult && !(E.miennes || []).length && p.makuta >= 16000) out.push(["🏪", "Tu as de quoi ouvrir un commerce : il gagnera de l'argent chaque jour.", "Ouvrir une entreprise", "companies"]);
+  if (adult && (E.aVendre || []).some(e => e.en_vente <= p.makuta)) out.push(["🤝", "Des joueurs vendent leur entreprise : tu peux en racheter une.", "Voir le marché", "companies"]);
+  if ((v.inventaire || []).length > 3) out.push(["🏷️", "Tu as beaucoup d'affaires : revends ce qui ne te sert plus.", "Vendre mes affaires", "inv"]);
+  if (p.age >= 12) out.push(["🚕", "Découvre un autre quartier de Kinshasa en taxi.", "Voyager", "travel"]);
+  out.push(["🛍️", "Habille-toi et équipe-toi au magasin.", "Aller au magasin", "shop"]);
+  return out.slice(0, 3);
+}
+const SECTIONS = { needs: "needs", work: "work", school: "school", companies: "companies", inv: "inv", travel: "travel", shop: "shop-tabs", wallet: "wallet", kids: "kids-card" };
+function goTo(id) { const el = $(id); if (el) (el.closest(".card") || el).scrollIntoView({ behavior: "smooth", block: "start" }); }
+function renderTips(v) {
+  $("tips").innerHTML = tips(v).map(([ic, txt, label, to]) => `<div class="item"><span class="sw">${ic}</span><div class="t" style="font-size:14px">${txt}</div><button class="mini fill" data-tip="${to}" type="button">${label}</button></div>`).join("");
+}
+$("tips").onclick = e => {
+  const b = e.target.closest("[data-tip]"); if (!b) return; const to = b.dataset.tip;
+  if (to === "eat") return $("b-eat").click();
+  if (to === "dowork") return ($("b-work") || {}).click ? $("b-work").click() : goTo("work");
+  if (to.startsWith("cash:")) return act("/api/entreprise/encaisser", { entreprise: to.slice(5) }, v => `Tu as encaissé ${mk(v.encaisse)}.`);
+  goTo(SECTIONS[to]);
+};
+document.querySelector(".quick").onclick = e => { const b = e.target.closest("[data-to]"); if (b) goTo(SECTIONS[b.dataset.to] || b.dataset.to); };
 function renderSchool(v) {
   const p = v.perso, sc = v.ecole, enr = sc.enCours, f = enr && sc.formations.find(x => x.id === enr.formation);
   const dip = sc.diplomes.map(id => sc.formations.find(x => x.id === id)).filter(Boolean);
@@ -383,6 +494,8 @@ $("school").onclick = e => {
 $("work").onclick = e => {
   const b = e.target.closest("[data-job]");
   if (b) return act("/api/postuler", { metier: b.dataset.job }, v => `Embauché : ${v.travail.metiers.find(j => j.id === v.travail.metier).nom}.`);
+  const c = e.target.closest("[data-cjob]");
+  if (c) return act("/api/postuler", { entreprise: c.dataset.cjob }, v => `Embauché chez ${v.embauche} !`);
   if (e.target.id === "b-work") act("/api/travailler", {}, v => `Journée terminée : +${mk(v.paie.montant - v.paie.famille)}${v.paie.bonus ? " (bonus talent)" : ""}, et ${mk(v.paie.famille)} pour tes parents.`);
 };
 $("shop-tabs").onclick = e => { const b = e.target.closest(".tab"); if (!b) return; shopTab = b.dataset.t; renderShop(state); };
@@ -392,7 +505,10 @@ $("shop").onclick = e => {
   const it = state.boutique.find(x => x.id === b.dataset.buy); b.disabled = true;
   act("/api/acheter", { objet: it.id }, () => it.type === "nourriture" ? `Bon appétit : ${it.nom}.` : it.slot ? `${it.nom} acheté et porté.` : `${it.nom} acheté. Il est dans tes affaires.`);
 };
-$("inv").onclick = e => { const b = e.target.closest("[data-wear]"); if (b) act("/api/porter", { possession: b.dataset.wear }); };
+$("inv").onclick = e => {
+  const b = e.target.closest("[data-wear]"); if (b) return act("/api/porter", { possession: b.dataset.wear });
+  const s = e.target.closest("[data-sell]"); if (s) { s.disabled = true; act("/api/revendre", { possession: s.dataset.sell }, v => `${v.vendu} vendu : +${mk(v.gain)}.`); }
+};
 $("wallet").onclick = e => {
   const b = e.target.closest("[data-inv]");
   if (b) { const o = state.portefeuille.offres.find(x => x.id === b.dataset.inv); return act("/api/investir", { offre: o.id }, v => `Investissement simulé : ${mk(o.usd * USD_UNITS)} ajoutés. Retrait possible après 3 mois.`); }

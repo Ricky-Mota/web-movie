@@ -374,16 +374,37 @@ export function canSignupBeforeLaunch(formule) { return OFFERS.some(o => o.id ==
 
 // ---------------------------------------------------------------- entreprises
 // prix en makuta (20 makuta = 1 e-makuta). Les recettes et les embauches viendront à l'étape suivante.
+// recette : ce que la caisse gagne seule par jour réel ; job/salaire : le poste proposé aux autres joueurs ; places : employés maximum
 export const COMPANY_TYPES = [
-  { id: "salon", nom: "Salon de coiffure", icone: "💇🏾", prix: 16000, desc: "Coiffure et tresses dans ton quartier." },
-  { id: "boutique", nom: "Boutique", icone: "🏪", prix: 20000, desc: "Vente de produits de tous les jours." },
-  { id: "maquis", nom: "Maquis", icone: "🍲", prix: 30000, desc: "Restaurant populaire : fufu, poulet, beignets." },
-  { id: "taxi", nom: "Taxi", icone: "🚕", prix: 50000, desc: "Une voiture et un chauffeur pour transporter les joueurs." },
-  { id: "pharmacie", nom: "Pharmacie", icone: "💊", prix: 100000, desc: "Médicaments pour soigner les joueurs malades." },
-  { id: "ecole", nom: "École privée", icone: "🏫", prix: 400000, desc: "Accueille des élèves et emploie des enseignants." },
-  { id: "supermarche", nom: "Supermarché", icone: "🛒", prix: 800000, desc: "Grand magasin qui approvisionne la ville." },
-  { id: "hotel", nom: "Hôtel", icone: "🏨", prix: 1600000, desc: "Chambres, restaurant et salles de fête." },
+  { id: "salon", nom: "Salon de coiffure", icone: "💇🏾", prix: 16000, recette: 480, job: "coiffeur", poste: "Coiffeur", talent: "art", salaire: 160, places: 2, desc: "Coiffure et tresses dans ton quartier." },
+  { id: "boutique", nom: "Boutique", icone: "🏪", prix: 20000, recette: 600, job: "vendeur", poste: "Vendeur en boutique", talent: "commerce", salaire: 150, places: 2, desc: "Vente de produits de tous les jours." },
+  { id: "maquis", nom: "Maquis", icone: "🍲", prix: 30000, recette: 900, job: "cuisinier", poste: "Cuisinier", talent: "cuisine", salaire: 170, places: 3, desc: "Restaurant populaire : les joueurs viennent y manger." },
+  { id: "taxi", nom: "Taxi", icone: "🚕", prix: 50000, recette: 1500, job: "chauffeur", poste: "Chauffeur de taxi", talent: "sport", salaire: 190, places: 2, desc: "Les joueurs paient leurs courses en ville à ton taxi." },
+  { id: "pharmacie", nom: "Pharmacie", icone: "💊", prix: 100000, recette: 3000, job: "pharmacien", poste: "Vendeur en pharmacie", talent: "soin", salaire: 220, places: 3, desc: "Médicaments pour soigner les joueurs malades." },
+  { id: "ecole", nom: "École privée", icone: "🏫", prix: 400000, recette: 12000, job: "professeur", poste: "Professeur", talent: "etudes", salaire: 300, places: 6, desc: "Accueille des élèves et emploie des enseignants." },
+  { id: "supermarche", nom: "Supermarché", icone: "🛒", prix: 800000, recette: 24000, job: "caissier", poste: "Caissier", talent: "commerce", salaire: 240, places: 8, desc: "Grand magasin qui approvisionne la ville." },
+  { id: "hotel", nom: "Hôtel", icone: "🏨", prix: 1600000, recette: 48000, job: "receptionniste", poste: "Réceptionniste", talent: "parole", salaire: 260, places: 10, desc: "Chambres, restaurant et salles de fête." },
 ];
+// la caisse se remplit seule pendant 7 jours au plus : au-delà, le patron doit passer encaisser
+export const COMPANY_CAP_DAYS = 7;
+// chaque journée d'un employé rapporte à la caisse son salaire + 60 % (le salaire est payé par la caisse)
+export const EMPLOYEE_YIELD = 1.6;
+export const RESELL_RATE = 0.5;      // revendre un objet : la moitié de son prix
+export const TAXI_FARE = 200;        // course en taxi dans Kinshasa (10 e-makuta)
+export const TAXI_ENERGY = 5;
+export const KINSHASA_QUARTIERS = ["Gombe", "Lingwala", "Kinshasa", "Barumbu", "Kalamu", "Limete", "Kasa-Vubu", "Bandalungwa", "Matonge", "Ngaliema", "Masina", "Lemba"];
+export const OTHER_CITIES = ["Lubumbashi", "Goma", "Kisangani", "Matadi"];
+export function companyAccrue(e, now = Date.now()) {
+  const t = COMPANY_TYPES.find(x => x.id === e.type), since = e.maj_le || e.cree_le;
+  const days = Math.max(0, now - since) / 864e5, capped = Math.min(days, COMPANY_CAP_DAYS);
+  const gain = Math.floor((t ? t.recette : 0) * capped);
+  return { caisse: (e.caisse || 0) + gain, maj_le: now, plein: days >= COMPANY_CAP_DAYS };
+}
+// un emploi dans l'entreprise d'un joueur, au format des métiers
+export function companyJob(e) {
+  const t = COMPANY_TYPES.find(x => x.id === e.type);
+  return t && { id: t.job, nom: `${t.poste} · ${e.nom}`, talent: t.talent, salaire: t.salaire, minAge: 18, entreprise: e.id };
+}
 export const COMPANY_MIN_AGE = 18;
 export function cannotOpenCompany(type, age, makuta) {
   if (!type) return "Type d'entreprise inconnu.";
@@ -395,6 +416,12 @@ export function companyName(type, ownerLastName, name) {
   const n = String(name || "").trim().slice(0, 40);
   return n.length >= 2 ? n : `${type.nom} ${ownerLastName}`;
 }
-export function companyView(list) {
-  return { types: COMPANY_TYPES, miennes: list.map(e => ({ ...e, typeNom: (COMPANY_TYPES.find(t => t.id === e.type) || {}).nom, icone: (COMPANY_TYPES.find(t => t.id === e.type) || {}).icone })) };
+export function companyView(list, extra = {}, now = Date.now()) {
+  const deco = e => { const t = COMPANY_TYPES.find(x => x.id === e.type) || {}; return { ...e, typeNom: t.nom, icone: t.icone }; };
+  return {
+    types: COMPANY_TYPES, plafondJours: COMPANY_CAP_DAYS,
+    miennes: list.map(e => { const a = companyAccrue(e, now); return { ...deco(e), caisse: a.caisse, plein: a.plein }; }),
+    aVendre: (extra.aVendre || []).map(deco),
+    offres: (extra.offres || []).map(e => ({ ...deco(e), emploi: companyJob(e) })),
+  };
 }

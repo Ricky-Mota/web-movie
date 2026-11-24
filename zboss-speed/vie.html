@@ -87,13 +87,22 @@
     .launch .need { margin-top: 10px; }
     .offer.closed { opacity: .5; cursor: not-allowed; }
     .offer.closed small::after { content: " Ouvre au démarrage du jeu."; color: var(--warn); }
+    .back { width: 36px; height: 36px; border-radius: 12px; border: 1px solid var(--line); background: var(--panel); color: var(--text); font-size: 18px; line-height: 1; margin-right: 2px; }
+    .quick { display: flex; gap: 8px; overflow-x: auto; margin: 0 0 14px; padding-bottom: 4px; scrollbar-width: none; }
+    .quick::-webkit-scrollbar { display: none; }
+    .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+    .chip { flex: none; border: 1px solid var(--line); background: var(--panel-2); color: var(--text); border-radius: 99px; padding: 8px 13px; font-size: 13px; }
+    .chip:disabled { color: var(--muted); opacity: .6; }
+    .tips-card { border-color: var(--accent); background: linear-gradient(180deg, #2a1d12, var(--panel)); }
+    .co { border: 1px solid var(--line); border-radius: 12px; padding: 6px 12px 12px; margin-bottom: 10px; }
+    .two-btn { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
     @media (max-width: 380px) { .acts { grid-template-columns: 1fr; } .hero { height: 280px; } }
   </style>
 </head>
 <body>
   <div class="wrap">
     <header class="top">
-      <div class="brand"><img src="assets/icons/2life.svg" alt=""> 2 Life</div>
+      <div class="brand"><button class="back" type="button" onclick="history.length > 1 ? history.back() : location.href = 'index.html'" aria-label="Retour à la page précédente">←</button><img src="assets/icons/2life.svg" alt=""> 2 Life</div>
       <span class="pill" id="mode">Mode démo</span>
     </header>
 
@@ -131,6 +140,15 @@
         <span class="stage" id="h-stage">Bébé</span>
         <span class="money" id="h-money">0 e-makuta</span>
         <div class="who"><b id="h-name"></b><span id="h-age"></span></div>
+      </div>
+
+      <nav class="quick" aria-label="Aller à">
+        <button class="chip" data-to="needs" type="button">🍲 Manger</button><button class="chip" data-to="work" type="button">💼 Travail</button><button class="chip" data-to="school" type="button">🎓 École</button><button class="chip" data-to="companies" type="button">🏪 Entreprises</button><button class="chip" data-to="shop" type="button">🛍️ Magasin</button><button class="chip" data-to="inv" type="button">🏷️ Vendre</button><button class="chip" data-to="travel" type="button">🚕 Voyager</button><button class="chip" data-to="wallet" type="button">💰 Argent</button>
+      </nav>
+
+      <div class="card tips-card">
+        <h2>Que faire maintenant ?</h2>
+        <div id="tips"></div>
       </div>
 
       <div class="card">
@@ -186,6 +204,11 @@
         <h2>Portefeuille</h2>
         <div id="wallet"></div>
         <p class="sim">Simulation : ces montants servent à présenter le modèle. Aucun dollar n'est encaissé ni versé tant que les autorisations (Banque Centrale, vérification d'identité, partenaire de paiement agréé) ne sont pas obtenues.</p>
+      </div>
+
+      <div class="card">
+        <h2>Voyager</h2>
+        <div id="travel"></div>
       </div>
 
       <div class="card">

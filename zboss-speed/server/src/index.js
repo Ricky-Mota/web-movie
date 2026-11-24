@@ -2,7 +2,7 @@
 // Le serveur est l'arbitre : il décide de l'âge, des talents et de l'argent ; le téléphone ne fait qu'afficher.
 import {
   ageYears, stageOf, STAGES, realMsUntil, TALENTS, ACTIVITIES, rng, drawTalents, doActivity,
-  needsAt, newIdentity, BIRTH_GIFT, SHOP, cannotBuy, OFFERS, USD_TO_MAKUTA, USD_UNITS, fmtMakuta, WITHDRAW_FEE, walletInfo, birthShiftMs, REAL_MONEY, shopView, familyOf, JOBS, payFor, cannotWork, workView, cannotApply, FORMATIONS, cannotEnroll, attendCourse, schoolView, SUPPORT_PER_DAY, HOST_MIN_AGE, MAX_CHILDREN, supportDue, unpaidEffect, familyShare, DAY, LAUNCH_RULES, launchStatus, canSignupBeforeLaunch, COMPANY_TYPES, cannotOpenCompany, companyName, companyView,
+  needsAt, newIdentity, BIRTH_GIFT, SHOP, cannotBuy, OFFERS, USD_TO_MAKUTA, USD_UNITS, fmtMakuta, WITHDRAW_FEE, walletInfo, birthShiftMs, REAL_MONEY, shopView, familyOf, JOBS, payFor, cannotWork, workView, cannotApply, FORMATIONS, cannotEnroll, attendCourse, schoolView, SUPPORT_PER_DAY, HOST_MIN_AGE, MAX_CHILDREN, supportDue, unpaidEffect, familyShare, DAY, LAUNCH_RULES, launchStatus, canSignupBeforeLaunch, COMPANY_TYPES, cannotOpenCompany, companyName, companyView, companyAccrue, companyJob, EMPLOYEE_YIELD, RESELL_RATE, TAXI_FARE, TAXI_ENERGY, KINSHASA_QUARTIERS, OTHER_CITIES,
 } from "./life.js";
 
 const SESSION_DAYS = 30;
@@ -99,6 +99,22 @@ function childView(k, now) {
     prochainEntretien: age < 18 ? supportDue(k.entretien_le, k.ne_le, now).next : null };
 }
 
+// ---------------------------------------------------------------- entreprises des joueurs
+// un client paie : l'argent va dans la caisse d'une entreprise de joueur de ce type (au hasard), sinon à la ville
+async function payToCompany(db, type, payerId, amount, motif, now) {
+  const e = await db.prepare(`SELECT id FROM entreprises WHERE type = ? AND proprietaire_id != ? ORDER BY RANDOM() LIMIT 1`).bind(type, payerId).first();
+  return [
+    ...(e ? [db.prepare(`UPDATE entreprises SET caisse = caisse + ? WHERE id = ?`).bind(amount, e.id)] : []),
+    db.prepare(`INSERT INTO transactions (id, de_id, vers_id, montant, motif, le) VALUES (?, ?, ?, ?, ?, ?)`).bind(uid(), payerId, e ? e.id : null, amount, motif, now),
+  ];
+}
+// met à jour la caisse d'une entreprise (recette quotidienne, plafonnée)
+async function accrue(db, e, now) {
+  const a = companyAccrue(e, now);
+  await db.prepare(`UPDATE entreprises SET caisse = ?, maj_le = ? WHERE id = ?`).bind(a.caisse, now, e.id).run();
+  return a.caisse;
+}
+
 // ---------------------------------------------------------------- profil
 async function loadCharacter(db, id) {
   const p = await db.prepare(`SELECT * FROM personnages WHERE id = ?`).bind(id).first();
@@ -107,7 +123,7 @@ async function loadCharacter(db, id) {
   const { results: inv } = await db.prepare(`SELECT id, objet_id, porte, acquis_le FROM possessions WHERE proprietaire_id = ? ORDER BY acquis_le`).bind(id).all();
   const { results: dep } = await db.prepare(`SELECT offre, usd, makuta, le FROM depots WHERE compte_id = ? ORDER BY le`).bind(p.compte_id).all();
   const { results: ret } = await db.prepare(`SELECT makuta, usd, statut, le FROM retraits WHERE compte_id = ? ORDER BY le`).bind(p.compte_id).all();
-  const job = await db.prepare(`SELECT id, metier_id FROM emplois WHERE personnage_id = ? AND fin IS NULL ORDER BY depuis DESC LIMIT 1`).bind(id).first();
+  const job = await db.prepare(`SELECT id, metier_id, entreprise_id FROM emplois WHERE personnage_id = ? AND fin IS NULL ORDER BY depuis DESC LIMIT 1`).bind(id).first();
   const last = await db.prepare(`SELECT MAX(le) AS le FROM activites WHERE personnage_id = ? AND activite LIKE 'travail:%'`).bind(id).first();
   const enr = await db.prepare(`SELECT formation_id AS formation, annee, cours, points, dernier FROM inscriptions WHERE personnage_id = ?`).bind(id).first();
   const { results: dip } = await db.prepare(`SELECT formation_id FROM diplomes_obtenus WHERE personnage_id = ? ORDER BY obtenu_le`).bind(id).all();
@@ -118,11 +134,18 @@ async function loadCharacter(db, id) {
       FROM personnages p JOIN comptes c ON c.id = p.compte_id WHERE p.id IN (?, ?)`).bind(p.pere_id || "", p.mere_id || "").all();
   const { results: sibs } = par.length ? await db.prepare(`SELECT prenom, sexe, ne_le FROM personnages WHERE id != ? AND mort_le IS NULL AND (pere_id IN (?, ?) OR mere_id IN (?, ?))`)
     .bind(id, p.pere_id || "", p.mere_id || "", p.pere_id || "", p.mere_id || "").all() : { results: [] };
-  const { results: ent } = await db.prepare(`SELECT id, nom, type, local AS quartier, capital, cree_le FROM entreprises WHERE proprietaire_id = ? ORDER BY cree_le`).bind(id).all();
-  return { p, tal, inv, dep, ret, job, lastShift: last && last.le, enr, dip: dip.map(d => d.formation_id), kids, par, sibs, ent };
+  const { results: ent } = await db.prepare(`SELECT e.id, e.nom, e.type, e.local AS quartier, e.capital, e.cree_le, e.caisse, e.maj_le, e.en_vente,
+      (SELECT COUNT(*) FROM emplois m WHERE m.entreprise_id = e.id AND m.fin IS NULL) AS employes FROM entreprises e WHERE e.proprietaire_id = ? ORDER BY e.cree_le`).bind(id).all();
+  const { results: aVendre } = await db.prepare(`SELECT e.id, e.nom, e.type, e.local AS quartier, e.en_vente, p.prenom || ' ' || p.nom AS proprietaire FROM entreprises e JOIN personnages p ON p.id = e.proprietaire_id
+      WHERE e.en_vente IS NOT NULL AND e.proprietaire_id != ? ORDER BY e.en_vente LIMIT 30`).bind(id).all();
+  const places = `CASE e.type ${COMPANY_TYPES.map(t => `WHEN '${t.id}' THEN ${t.places}`).join(" ")} ELSE 0 END`;
+  const { results: offres } = await db.prepare(`SELECT e.id, e.nom, e.type, e.local AS quartier, p.prenom || ' ' || p.nom AS proprietaire FROM entreprises e JOIN personnages p ON p.id = e.proprietaire_id
+      WHERE e.proprietaire_id != ? AND (SELECT COUNT(*) FROM emplois m WHERE m.entreprise_id = e.id AND m.fin IS NULL) < ${places} ORDER BY RANDOM() LIMIT 12`).bind(id).all();
+  const boss = job && job.entreprise_id ? await db.prepare(`SELECT id, nom, type, caisse, maj_le, cree_le, proprietaire_id FROM entreprises WHERE id = ?`).bind(job.entreprise_id).first() : null;
+  return { p, tal, inv, dep, ret, job, lastShift: last && last.le, enr, dip: dip.map(d => d.formation_id), kids, par, sibs, ent, aVendre, offres, boss };
 }
 
-function view(compte, { p, tal, inv = [], dep = [], ret = [], job = null, lastShift = null, enr = null, dip = [], kids = [], par = [], sibs = [], ent = [] }, now) {
+function view(compte, { p, tal, inv = [], dep = [], ret = [], job = null, lastShift = null, enr = null, dip = [], kids = [], par = [], sibs = [], ent = [], aVendre = [], offres = [], boss = null }, now) {
   const age = ageYears(p.ne_le, now);
   const st = stageOf(age);
   const next = STAGES[STAGES.indexOf(st) + 1];
@@ -145,11 +168,12 @@ function view(compte, { p, tal, inv = [], dep = [], ret = [], job = null, lastSh
     activites: ACTIVITIES.map(a => ({ id: a.id, label: a.label, minAge: a.minAge, energie: a.energy })),
     repas: FOOD,
     ...shopView(inv, dep, ret, p.makuta, now),
-    travail: workView(job && job.metier_id, lastShift, now),
+    travail: { ...workView(job && job.metier_id, lastShift, now), emploiEntreprise: boss ? companyJob(boss) : null },
     ecole: schoolView(enr, dip, now),
     enfants: kids.map(k => childView(k, now)),
     entretienParJour: SUPPORT_PER_DAY,
-    entreprises: companyView(ent),
+    entreprises: companyView(ent, { aVendre, offres }, now),
+    voyage: { quartiers: KINSHASA_QUARTIERS, prix: TAXI_FARE, fatigue: TAXI_ENERGY, villes: OTHER_CITIES },
   };
 }
 
@@ -335,7 +359,7 @@ export default {
         if (p.makuta < FOOD.prix) return fail(h, 409, "Pas assez d'e-makuta pour un repas.");
         await db.batch([
           db.prepare(`UPDATE personnages SET makuta = makuta - ?, faim = MIN(100, faim + ?) WHERE id = ? AND makuta >= ?`).bind(FOOD.prix, FOOD.faim, p.id, FOOD.prix),
-          db.prepare(`INSERT INTO transactions (id, de_id, vers_id, montant, motif, le) VALUES (?, ?, NULL, ?, 'repas au maquis', ?)`).bind(uid(), p.id, FOOD.prix, now),
+          ...await payToCompany(db, "maquis", p.id, FOOD.prix, "repas au maquis", now),
         ]);
         const again = await loadCharacter(db, p.id);
         return json(h, 200, view(compte, again, now));
@@ -373,6 +397,21 @@ export default {
         return json(h, 200, view(compte, await loadCharacter(db, p.id), now));
       }
 
+      if (url.pathname === "/api/postuler" && req.method === "POST" && body.entreprise) {
+        const e = await db.prepare(`SELECT * FROM entreprises WHERE id = ?`).bind(body.entreprise).first();
+        const t = e && COMPANY_TYPES.find(x => x.id === e.type);
+        if (!t) return fail(h, 404, "Entreprise introuvable.");
+        if (e.proprietaire_id === p.id) return fail(h, 409, "Tu es le patron de cette entreprise.");
+        if (ageYears(p.ne_le, now) < 18) return fail(h, 409, "Il faut avoir 18 ans pour travailler dans une entreprise.");
+        const n = await db.prepare(`SELECT COUNT(*) AS n FROM emplois WHERE entreprise_id = ? AND fin IS NULL`).bind(e.id).first();
+        if (n.n >= t.places) return fail(h, 409, "Plus de place dans cette entreprise.");
+        await db.batch([
+          db.prepare(`UPDATE emplois SET fin = ? WHERE personnage_id = ? AND fin IS NULL`).bind(now, p.id),
+          db.prepare(`INSERT INTO emplois (id, personnage_id, metier_id, entreprise_id, poste, salaire, depuis) VALUES (?, ?, ?, ?, ?, ?, ?)`).bind(uid(), p.id, t.job, e.id, t.poste, t.salaire, now),
+        ]);
+        return json(h, 200, { embauche: e.nom, ...view(compte, await loadCharacter(db, p.id), now) });
+      }
+
       if (url.pathname === "/api/postuler" && req.method === "POST") {
         const job = JOBS.find(j => j.id === body.metier);
         const no = cannotApply(job, ageYears(p.ne_le, now), ch.dip);
@@ -386,7 +425,7 @@ export default {
 
       if (url.pathname === "/api/travailler" && req.method === "POST") {
         await settle(db, p, now);
-        const job = ch.job && JOBS.find(j => j.id === ch.job.metier_id);
+        const job = ch.boss ? companyJob(ch.boss) : ch.job && JOBS.find(j => j.id === ch.job.metier_id);
         const no = cannotWork(job, ageYears(p.ne_le, now), p.energie, ch.lastShift, now);
         if (no) return fail(h, 409, no);
         const pay = payFor(job, tal.map(t => ({ talent: t.talent_id, discovered: !!t.decouvert })));
@@ -395,7 +434,9 @@ export default {
         const parents = ch.par.map(x => x.id), each = parents.length ? Math.floor(pay.famille / parents.length) : 0;
         const st = [
           db.prepare(`UPDATE personnages SET makuta = makuta + ?, energie = MAX(0, energie - ?), faim = MAX(0, faim - 10) WHERE id = ?`).bind(pay.montant - pay.famille, 35, p.id),
-          db.prepare(`INSERT INTO transactions (id, de_id, vers_id, montant, motif, le) VALUES (?, NULL, ?, ?, ?, ?)`).bind(uid(), p.id, pay.montant, "salaire : " + job.nom, now),
+          db.prepare(`INSERT INTO transactions (id, de_id, vers_id, montant, motif, le) VALUES (?, ?, ?, ?, ?, ?)`).bind(uid(), ch.boss ? ch.boss.id : null, p.id, pay.montant, "salaire : " + job.nom, now),
+          // dans l'entreprise d'un joueur : la journée rapporte salaire + 60 % à la caisse, qui paie le salaire
+          ...(ch.boss ? [db.prepare(`UPDATE entreprises SET caisse = caisse + ? WHERE id = ?`).bind(Math.round(pay.montant * EMPLOYEE_YIELD) - pay.montant, ch.boss.id)] : []),
           ...(pay.famille - each * parents.length > 0 ? [db.prepare(`INSERT INTO transactions (id, de_id, vers_id, montant, motif, le) VALUES (?, ?, NULL, ?, ?, ?)`).bind(uid(), p.id, pay.famille - each * parents.length, "aide à la famille (10 %)", now)] : []),
           ...parents.flatMap(pid => each ? [
             db.prepare(`UPDATE personnages SET makuta = makuta + ? WHERE id = ?`).bind(each, pid),
@@ -418,6 +459,72 @@ export default {
         ]);
         if (!upd.meta.changes) return fail(h, 409, "Pas assez d'e-makuta.");
         return json(h, 200, { ouverte: nom, ...view(compte, await loadCharacter(db, p.id), now) });
+      }
+
+      if (url.pathname === "/api/entreprise/encaisser" && req.method === "POST") {
+        const e = await db.prepare(`SELECT * FROM entreprises WHERE id = ? AND proprietaire_id = ?`).bind(body.entreprise, p.id).first();
+        if (!e) return fail(h, 404, "Entreprise introuvable.");
+        const c = await accrue(db, e, now);
+        if (c < 1) return fail(h, 409, "La caisse est vide pour l'instant. Reviens plus tard.");
+        await db.batch([
+          db.prepare(`UPDATE entreprises SET caisse = caisse - ? WHERE id = ?`).bind(c, e.id),
+          db.prepare(`UPDATE personnages SET makuta = makuta + ? WHERE id = ?`).bind(c, p.id),
+          db.prepare(`INSERT INTO transactions (id, de_id, vers_id, montant, motif, le) VALUES (?, ?, ?, ?, ?, ?)`).bind(uid(), e.id, p.id, c, "recettes : " + e.nom, now),
+        ]);
+        return json(h, 200, { encaisse: c, ...view(compte, await loadCharacter(db, p.id), now) });
+      }
+
+      if (url.pathname === "/api/entreprise/vendre" && req.method === "POST") {
+        const prix = body.prix == null ? null : Math.floor(Number(body.prix));
+        if (prix != null && !(prix >= 20)) return fail(h, 400, "Prix invalide.");
+        const r = await db.prepare(`UPDATE entreprises SET en_vente = ? WHERE id = ? AND proprietaire_id = ?`).bind(prix, body.entreprise, p.id).run();
+        if (!r.meta.changes) return fail(h, 404, "Entreprise introuvable.");
+        return json(h, 200, view(compte, await loadCharacter(db, p.id), now));
+      }
+
+      if (url.pathname === "/api/entreprise/acheter" && req.method === "POST") {
+        const e = await db.prepare(`SELECT * FROM entreprises WHERE id = ? AND en_vente IS NOT NULL`).bind(body.entreprise).first();
+        if (!e) return fail(h, 404, "Cette entreprise n'est plus en vente.");
+        if (e.proprietaire_id === p.id) return fail(h, 409, "C'est déjà ton entreprise.");
+        if (ageYears(p.ne_le, now) < 18) return fail(h, 409, "Il faut avoir 18 ans pour acheter une entreprise.");
+        if (p.makuta < e.en_vente) return fail(h, 409, `Il te faut ${fmtMakuta(e.en_vente)}.`);
+        const c = companyAccrue(e, now).caisse; // l'ancien patron garde les recettes déjà gagnées
+        const [pay] = await db.batch([
+          db.prepare(`UPDATE personnages SET makuta = makuta - ? WHERE id = ? AND makuta >= ?`).bind(e.en_vente, p.id, e.en_vente),
+          db.prepare(`UPDATE personnages SET makuta = makuta + ? WHERE id = ? AND changes() = 1`).bind(e.en_vente + c, e.proprietaire_id),
+          db.prepare(`UPDATE entreprises SET proprietaire_id = ?, en_vente = NULL, caisse = 0, maj_le = ?, capital = ? WHERE id = ? AND en_vente = ? AND changes() = 1`).bind(p.id, now, e.en_vente, e.id, e.en_vente),
+          db.prepare(`INSERT INTO transactions (id, de_id, vers_id, montant, motif, le) SELECT ?, ?, ?, ?, ?, ? WHERE changes() = 1`).bind(uid(), p.id, e.proprietaire_id, e.en_vente, "rachat : " + e.nom, now),
+          ...(c > 0 ? [db.prepare(`INSERT INTO transactions (id, de_id, vers_id, montant, motif, le) SELECT ?, ?, ?, ?, ?, ? WHERE (SELECT proprietaire_id FROM entreprises WHERE id = ?) = ?`).bind(uid(), e.id, e.proprietaire_id, c, "recettes : " + e.nom, now, e.id, p.id)] : []),
+        ]);
+        if (!pay.meta.changes) return fail(h, 409, "Pas assez d'e-makuta.");
+        return json(h, 200, { achetee: e.nom, ...view(compte, await loadCharacter(db, p.id), now) });
+      }
+
+      if (url.pathname === "/api/revendre" && req.method === "POST") {
+        const own = ch.inv.find(x => x.id === body.possession), item = own && SHOP.find(x => x.id === own.objet_id);
+        if (!item) return fail(h, 404, "Objet introuvable.");
+        const gain = Math.floor(item.prix * RESELL_RATE);
+        await db.batch([
+          db.prepare(`DELETE FROM possessions WHERE id = ? AND proprietaire_id = ?`).bind(own.id, p.id),
+          db.prepare(`UPDATE personnages SET makuta = makuta + ? WHERE id = ?`).bind(gain, p.id),
+          db.prepare(`INSERT INTO transactions (id, de_id, vers_id, montant, motif, le) VALUES (?, NULL, ?, ?, ?, ?)`).bind(uid(), p.id, gain, "revente : " + item.nom, now),
+        ]);
+        return json(h, 200, { vendu: item.nom, gain, ...view(compte, await loadCharacter(db, p.id), now) });
+      }
+
+      if (url.pathname === "/api/voyager" && req.method === "POST") {
+        const q = KINSHASA_QUARTIERS.find(x => x === body.quartier);
+        if (!q) return fail(h, 400, OTHER_CITIES.includes(body.quartier) ? `${body.quartier} n'est pas encore ouverte.` : "Destination inconnue.");
+        if (q === p.quartier) return fail(h, 409, `Tu es déjà à ${q}.`);
+        await settle(db, p, now);
+        if (ageYears(p.ne_le, now) < 12) return fail(h, 409, "Trop jeune pour prendre le taxi seul.");
+        if (p.makuta < TAXI_FARE) return fail(h, 409, `La course coûte ${fmtMakuta(TAXI_FARE)}.`);
+        if (p.energie < TAXI_ENERGY) return fail(h, 409, "Trop fatigué pour sortir : repose-toi ou mange.");
+        const [r] = await db.batch([
+          db.prepare(`UPDATE personnages SET makuta = makuta - ?, energie = MAX(0, energie - ?), quartier = ? WHERE id = ? AND makuta >= ?`).bind(TAXI_FARE, TAXI_ENERGY, q, p.id, TAXI_FARE),
+          ...await payToCompany(db, "taxi", p.id, TAXI_FARE, "course en taxi vers " + q, now),
+        ]);
+        return json(h, 200, { arrive: q, ...view(compte, await loadCharacter(db, p.id), now) });
       }
 
       if (url.pathname === "/api/ecole/inscription" && req.method === "POST") {
