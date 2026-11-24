@@ -502,7 +502,7 @@
       const rx = Math.sin(player.a), ry = -Math.cos(player.a);
       let x = player.x + rx * 30, y = player.y + ry * 30; if (walkBlocked(x, y)) { x = player.x - rx * 30; y = player.y - ry * 30; }
       G.foot = { x, y, a: player.a, v: 0, t: 0 };
-      msg("Bienvenue à la Gombe, Kinshasa ! Marche avec les flèches, Maj pour courir. Le taxi jaune t'attend.", 5);
+      const hm = HOME(); if (hm) { const n = nearestNode(hm.door.x, hm.door.y), N = nodes[n], m = N.nb[0] ?? n, pt = edgePoint(m, n, Math.min(30, N.w * .22)); player.x = pt.x; player.y = pt.y; player.a = Math.atan2(N.y - nodes[m].y, N.x - nodes[m].x) || 0; }
     } else msg("Roule. Les patrouilles te repèrent si tu dépasses 170 km/h devant elles.", 4.5);
   }
   function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
@@ -948,7 +948,7 @@
       else if (Math.hypot(G.foot.x - p.x, G.foot.y - p.y) < 50) { txt = "Monter dans la voiture"; act = "enter"; }
       else txt = "À pied. Reviens à ta voiture pour repartir.";
     }
-    if (WALK && G.phase && G.phase !== "matin") { txt = (G.phase === "nuit" ? (G.auto && G.auto.doing) || G.lifeMsg : G.lifeMsg || txt) + " · 👀 tu observes"; act = null; }
+    if (WALK && G.phase) { txt = (G.phase === "nuit" ? (G.auto && G.auto.doing) || G.lifeMsg : G.lifeMsg || (G.auto && G.auto.doing) || txt) + (G.phase === "matin" ? " · 📋 consignes possibles" : " · 👀 tu observes"); act = null; }
     G.prompt = txt; G.act = act;
   }
   // ---- bureau Zboss Sarlu : guichet d'aide (questions fréquentes + signaler un problème)
@@ -1075,8 +1075,7 @@
   let lastSortie = "promenade";
   function openSorties() {
     if (!G || !WALK || $("sortpanel")) return;
-    if (G.phase && G.phase !== "matin") { msg("👀 Ton personnage décide seul jusqu'à demain matin : tu observes.", 3); return; }
-    if (G.auto) { autoToggle(false); return; }
+    openPlan(); return;
     const wasPaused = G.paused; G.paused = true;
     const d = document.createElement("div"); d.id = "sortpanel"; d.className = "bureau";
     d.innerHTML = `<div class="bureau-box" role="dialog" aria-modal="true" aria-labelledby="sort-t"><button type="button" class="bureau-x" aria-label="Fermer">✕</button>
@@ -1092,7 +1091,7 @@
   }
   function autoToggle(on, mode, silent) {
     if (!G || !WALK) return;
-    if (!silent && G.phase && G.phase !== "matin") { msg("👀 Ton personnage décide seul jusqu'à demain matin : tu observes.", 3); return; }
+    if (!silent) { openPlan(); return; }
     if (on === undefined) on = !G.auto;
     if (on) {
       if (!G.foot) { msg("Descends d'abord du taxi pour te promener seul.", 2.5); return; }
@@ -1437,25 +1436,32 @@
   }
   function loadPlan() { try { const P = JSON.parse(lsGet("twolife_plan_ville") || "null"); if (P && P.day === G.day) return P.items; } catch (e) { } return []; }
   function savePlan(items) { lsSet("twolife_plan_ville", JSON.stringify({ day: G.day, items })); G.plan = items; }
+  // le personnage est chez lui : devant sa porte, en mode « maison »
+  function atHome(doing) {
+    const h = HOME(); if (!h) return;
+    if (G.foot && G.foot.sit) standUp(true);
+    const k = h.d / 2 + 14;   // dans la cour, entre la maison et le portail
+    G.foot = { x: h.x - h.nx * k, y: h.y - h.ny * k, a: Math.atan2(h.ny, h.nx), v: 0, t: 0 };   // tourné vers sa maison
+    G.auto = { phase: "home", path: null, mode: "maison", seen: [], doing, dest: { home: true } };
+    const b = $("autobtn"); if (b) b.setAttribute("aria-pressed", "true");
+  }
   function clockStep(dt) {
     if (LIVE_CLOCK) { const k = kinNow(); G.hour = k.h; G.day = k.day; }
     else { G.hour += dt * G.speed / 60; if (G.hour >= 24) { G.hour -= 24; G.day++; } }
     const h = G.hour, ph = h >= 22 || h < 5 ? "nuit" : h < 10 ? "matin" : "jour";
     if (ph !== G.phase) { const old = G.phase; G.phase = ph; phaseChange(old, ph); }
   }
+  function newLife() { G.plan = loadPlan(); return { orders: [], refused: [], done: [], later: null, cur: null, until: 0, wake: 5 + 1 + rand() * 1.5 }; }
   function phaseChange(old, ph) {
-    if (ph === "matin") {
-      if (G.auto) { G.auto = null; } if (G.foot && G.foot.sit) standUp(true);
-      G.plan = loadPlan(); G.life = null; G.lifeMsg = "";
-      msg("☀️ " + hh(G.hour) + " : c'est le matin. Jusqu'à 10 h, tu peux diriger ton personnage et préparer son programme (📋 Programme).", 6, "ok");
+    if (!old) { // ouverture du jeu : le personnage est chez lui
+      if (ph === "nuit") { atHome("😴 Il dort à la maison"); G.lifeMsg = "😴 Il dort à la maison"; msg("🌙 " + hh(G.hour) + " : ton personnage dort chez lui. Il se réveillera vers 5 h.", 5); }
+      else { atHome("🏠 À la maison"); G.life = newLife(); G.life.wake = Math.min(G.life.wake, G.hour + .3);
+        msg("🏠 " + hh(G.hour) + " : ton personnage est chez lui. Il vit sa vie seul, selon son caractère" + (ph === "matin" ? ". Jusqu'à 10 h, tu peux lui donner des consignes (📋)." : ". Les consignes se donnent le matin, de 5 h à 10 h."), 6, "ok"); }
+    } else if (ph === "matin") {
+      atHome("☕ Il se réveille et se prépare"); G.life = newLife(); G.lifeMsg = "☕ Il se réveille et se prépare";
+      msg("☀️ " + hh(G.hour) + " : ton personnage se réveille. Jusqu'à 10 h, tu peux lui donner des consignes (📋). Il les suivra… ou pas.", 6, "ok");
     } else if (ph === "jour") {
-      if (G.foot && G.foot.sit) standUp(true);
-      if (!G.foot) { const p = G.player; G.foot = { x: p.x + Math.sin(p.a) * 26, y: p.y - Math.cos(p.a) * 26, a: p.a, v: 0, t: 0 }; p.vx = p.vy = 0; }
-      G.plan = G.plan || loadPlan();
-      G.life = { plan: G.plan.slice(), done: [], later: null, cur: null, until: 0 };
-      msg("🧠 " + hh(G.hour) + " : ton personnage agit seul maintenant. Tu peux seulement l'observer jusqu'à demain matin.", 6, "ok");
-      if (old) G.auto = null;
-      nextActivity();
+      msg("🔒 10 h : fin des consignes pour aujourd'hui. Ton personnage continue sa journée seul.", 4.5);
     } else if (ph === "nuit") {
       G.life = null; if (G.foot && G.foot.sit) standUp(true);
       if (!G.foot) { const p = G.player; G.foot = { x: p.x + Math.sin(p.a) * 26, y: p.y - Math.cos(p.a) * 26, a: p.a, v: 0, t: 0 }; }
@@ -1464,14 +1470,32 @@
     }
     const b = $("planbtn"); if (b) b.disabled = ph !== "matin";
   }
+  // obéit-il à une consigne ? selon son caractère, ses goûts et sa fatigue
+  const DOCILE = { calme: .7, "généreux": .75, timide: .8, curieux: .65, bavard: .6, "drôle": .6, ambitieux: .55, fier: .4, "méfiant": .45, "colérique": .35 };
+  const LIKES = { match: ["football", "basket"], courses: ["mode", "cuisine"], soiree: ["rumba", "danse"], tourisme: ["politique", "lecture", "cinéma"], rencontres: [], footing: [], travail: ["affaires"] };
+  function obey(id) {
+    const me = G.me, likes = (LIKES[id] || []).find(g => me.gouts.some(x => x.includes(g)));
+    let p = DOCILE[me.car] ?? .6, why;
+    if (likes) p += .3;
+    if (id === "rencontres" && ["bavard", "curieux", "généreux", "drôle"].includes(me.car)) p += .3;
+    if (id === "travail" && me.car === "ambitieux") p += .35;
+    if (id === "footing" && me.force >= 7) p += .25;
+    if (["footing", "match", "tourisme"].includes(id) && G.energy < 35) p -= .4;
+    if (id === "repos" && G.energy < 50) p += .4;
+    const ok = rand() < Math.max(.08, Math.min(.95, p));
+    if (ok) why = likes ? "il aime " + likes.replace("mode", "la mode").replace("cuisine", "cuisiner").replace("football", "le football").replace("basket", "le basket").replace("rumba", "la rumba").replace("danse", "danser").replace("politique", "la politique").replace("lecture", "apprendre").replace("cinéma", "les découvertes").replace("affaires", "les affaires") : ["calme", "généreux", "timide"].includes(me.car) ? "il est " + me.car + " et t'écoute" : "il veut bien, pour cette fois";
+    else why = G.energy < 35 && ["footing", "match", "tourisme"].includes(id) ? "il est trop fatigué" : ["fier", "méfiant", "colérique"].includes(me.car) ? "il est " + me.car + " : il préfère décider seul" : "il n'en a pas envie aujourd'hui";
+    return { ok, why };
+  }
   // ce que le personnage décide tout seul, selon son caractère, ses goûts, son énergie et l'heure
   function conscience() {
     const me = G.me, h = G.hour, L = G.life, recent = L ? L.done.slice(-2) : [];
     const c = [];
-    const add = (id, w, why) => { if (!recent.includes(id)) c.push({ a: ACT(id), w, why }); };
+    const add = (id, w, why) => { if (!recent.includes(id)) c.push({ a: ACT(id), w: w / (1 + (L ? L.done.filter(x => x === id).length : 0)), why }); };
     if (G.energy < 30) return { a: ACT("repos"), why: "il est fatigué" };
     const likes = g => me.gouts.some(x => x.includes(g));
     if (h >= 20) { add("soiree", likes("rumba") || likes("danse") || ["drôle", "bavard", "fier"].includes(me.car) ? 6 : 1.5, likes("rumba") ? "il aime la rumba" : "c'est le soir, il a envie de sortir"); add("repos", 2, "la journée a été longue"); }
+    if (h >= 7 && h < 12 && me.car === "ambitieux") add("travail", 5, "il est ambitieux : il va travailler");
     if (likes("football") || likes("basket")) add("match", 5, "il aime " + (likes("football") ? "le football" : "le basket"));
     if (["bavard", "curieux", "généreux", "drôle"].includes(me.car)) add("rencontres", 4, "il est " + me.car + " : il a envie de parler aux gens");
     if (me.car === "curieux" || likes("politique") || likes("lecture")) add("tourisme", 3, me.car === "curieux" ? "il est curieux de découvrir la ville" : "il aime " + (likes("politique") ? "la politique : il veut voir les institutions" : "apprendre des choses"));
@@ -1486,8 +1510,15 @@
   function nextActivity() {
     const L = G.life, h = G.hour; if (!L) return;
     let a = null, why = "";
-    while (!a && L.plan.length) { const A = ACT(L.plan.shift()); if (A.soir && h < 20) { L.later = A.id; continue; } a = A; why = "prévu dans ton programme du matin"; }
-    if (!a && L.later && h >= 20) { a = ACT(L.later); L.later = null; why = "prévu dans ton programme du matin"; }
+    while (!a && L.orders.length) {
+      const A = ACT(L.orders.shift());
+      if (A.soir && h < 20) { L.later = A.id; continue; }
+      const r = obey(A.id);
+      if (r.ok) { a = A; why = "ta consigne, il la suit : " + r.why; msg("✅ Consigne « " + A.nom.replace(" (après 20 h)", "") + " » : il accepte (" + r.why + ").", 5, "ok"); }
+      else { L.refused.push(A.id); msg("❌ Consigne « " + A.nom.replace(" (après 20 h)", "") + " » : il refuse, " + r.why + ".", 5, "alert"); }
+    }
+    if (!a && L.later && h >= 20) { const A = ACT(L.later); L.later = null; const r = obey(A.id); if (r.ok) { a = A; why = "ta consigne du matin : " + r.why; } else msg("❌ Ta consigne « Sortir le soir » : il refuse, " + r.why + ".", 5, "alert"); }
+    if (!a && L.refused.length && rand() < .3) { const A = ACT(L.refused.shift()); if (!A.soir || h >= 20) { a = A; why = "finalement, il repense à ta consigne et la suit"; } }
     if (!a) { const c = conscience(); a = c.a; why = "sa décision : " + c.why; }
     L.cur = a; L.until = Math.min(22, h + a.dur); L.done.push(a.id);
     if (G.foot && G.foot.sit) standUp(true);
@@ -1496,29 +1527,42 @@
     msg("🧠 " + G.lifeMsg, 5, "ok");
   }
   function lifeUpdate() {
-    if (G.phase !== "jour" || !G.life) return;
+    if (G.phase === "nuit" || !G.life) return;
     const L = G.life;
+    if (G.hour < L.wake && !L.orders.length) { // réveil : il prend son temps à la maison
+      if (!G.auto || G.auto.mode !== "maison") atHome("☕ Il se prépare à la maison");
+      G.lifeMsg = "☕ Il se réveille, se lave et prend son petit-déjeuner"; if (G.auto) G.auto.doing = G.lifeMsg; return;
+    }
     if (G.auto && G.auto.phase === "ride") return;
-    if (!L.cur || G.hour >= L.until || !G.auto) nextActivity();
+    if (L.orders.length || !L.cur || G.hour >= L.until || !G.auto || (L.later && G.hour >= 20)) nextActivity();
   }
-  // programme du jour : 3 activités au plus, choisies le matin
+  // consignes : 3 par jour au plus, à donner le matin ; il les suit… ou pas
   function openPlan() {
     if (!G || !WALK || $("planpanel")) return;
-    if (G.phase !== "matin") { msg("📋 Le programme se prépare le matin, entre 5 h et 10 h. Pour l'instant, tu observes.", 3.5); return; }
+    if (G.phase !== "matin") { msg("📋 Les consignes se donnent le matin, entre 5 h et 10 h. Pour l'instant, tu observes.", 3.5); return; }
     const wasPaused = G.paused; G.paused = true;
-    let sel = (G.plan || []).slice();
+    const given = (G.plan || []).slice(); let sel = [];
     const me = G.me, esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+    const left = () => 3 - given.length - sel.length;
     const d = document.createElement("div"); d.id = "planpanel"; d.className = "bureau";
     const draw = () => {
       d.innerHTML = `<div class="bureau-box" role="dialog" aria-modal="true" aria-labelledby="plan-t"><button type="button" class="bureau-x" aria-label="Fermer">✕</button>
-        <p class="bureau-k">📋 Programme du jour · il est ${hh(G.hour)}</p><h2 id="plan-t">Que fera ton personnage aujourd'hui ?</h2>
-        <p>Choisis jusqu'à 3 activités, dans l'ordre. À 10 h, il part seul. Une fois le programme fini, il décide lui-même selon son caractère : <b>${esc(me.car)}</b>, il aime <b>${esc(me.gouts.join(" et "))}</b>.</p>
+        <p class="bureau-k">📋 Consignes du jour · il est ${hh(G.hour)}</p><h2 id="plan-t">Que lui demandes-tu aujourd'hui ?</h2>
+        <p>Ton personnage est autonome : il suivra tes consignes… ou pas, selon ses convictions. Il est <b>${esc(me.car)}</b> et il aime <b>${esc(me.gouts.join(" et "))}</b>. Parfois, il change d'avis plus tard.</p>
+        ${given.length ? `<p><b>Déjà demandé aujourd'hui :</b> ${given.map(id => ACT(id).ic + " " + esc(ACT(id).nom)).join(", ")}</p>` : ""}
         <div class="sorties">${ACTS.map(a => { const k = sel.indexOf(a.id); return `<button type="button" data-a="${a.id}" aria-pressed="${k >= 0}"><b>${k >= 0 ? (k + 1) + ". " : ""}${a.ic} ${a.nom}</b><span>Environ ${String(a.dur).replace(".", ",")} h</span></button>`; }).join("")}</div>
-        <p class="bureau-msg" id="plan-msg">${sel.length}/3 choisie${sel.length > 1 ? "s" : ""}. Tu peux changer d'avis jusqu'à 10 h.</p>
-        <button type="button" class="plan-ok">Valider le programme</button></div>`;
+        <p class="bureau-msg">${left() > 0 ? `Encore ${left()} consigne${left() > 1 ? "s" : ""} possible${left() > 1 ? "s" : ""} aujourd'hui.` : "Tu as donné tes 3 consignes du jour."}</p>
+        <button type="button" class="plan-ok" ${sel.length ? "" : "disabled"}>Donner ${sel.length > 1 ? "ces consignes" : "cette consigne"}</button></div>`;
       d.querySelector(".bureau-x").onclick = close;
-      d.querySelectorAll("[data-a]").forEach(b => b.onclick = () => { const id = b.dataset.a, k = sel.indexOf(id); if (k >= 0) sel.splice(k, 1); else if (sel.length < 3) sel.push(id); draw(); const f = d.querySelector(`[data-a="${id}"]`); if (f) f.focus(); });
-      d.querySelector(".plan-ok").onclick = () => { savePlan(sel); close(); msg("📋 Programme enregistré : " + (sel.length ? sel.map(id => ACT(id).ic + " " + ACT(id).nom.replace(" (après 20 h)", "")).join(", ") : "rien, il décidera seul") + ". Départ à 10 h.", 5, "ok"); };
+      d.querySelectorAll("[data-a]").forEach(b => b.onclick = () => { const id = b.dataset.a, k = sel.indexOf(id); if (k >= 0) sel.splice(k, 1); else if (left() > 0) sel.push(id); draw(); const f = d.querySelector(`[data-a="${id}"]`); if (f) f.focus(); });
+      d.querySelector(".plan-ok").onclick = () => {
+        if (!sel.length) return;
+        savePlan(given.concat(sel)); close();
+        if (!G.life) G.life = newLife();
+        G.life.orders.push(...sel); G.life.wake = Math.min(G.life.wake, G.hour);
+        msg("📋 Consigne" + (sel.length > 1 ? "s données" : " donnée") + " : " + sel.map(id => ACT(id).ic + " " + ACT(id).nom.replace(" (après 20 h)", "")).join(", ") + ". Voyons s'il t'écoute…", 4, "ok");
+        G.life.cur = null;
+      };
     };
     const close = () => { d.remove(); if (G) G.paused = wasPaused; };
     d.addEventListener("click", e => { if (e.target === d) close(); });
@@ -1531,13 +1575,13 @@
   function update(dt) {
     const p = G.player; G.t += dt;
     if (WALK) clockStep(dt);
-    const locked = WALK && G.phase !== "matin";
+    const locked = WALK;   // 2 Life : le personnage est autonome, le joueur ne le pilote pas
     // entrées joueur
     let kUp = keys.ArrowUp || keys.KeyW || touch.gas, kDown = keys.ArrowDown || keys.KeyS || touch.brake;
     let kSteer = ((keys.ArrowRight || keys.KeyD || touch.right) ? 1 : 0) - ((keys.ArrowLeft || keys.KeyA || touch.left) ? 1 : 0);
     if (locked && (kUp || kDown || kSteer || actPressed)) {
       kUp = kDown = false; kSteer = 0; actPressed = false;
-      if (!(G.lockMsgT > G.t)) { G.lockMsgT = G.t + 6; msg("👀 Ton personnage agit seul. Tu pourras de nouveau le diriger demain matin, de 5 h à 10 h.", 4); }
+      if (!(G.lockMsgT > G.t)) { G.lockMsgT = G.t + 6; msg("👀 Ton personnage est autonome : il marche et décide seul. Le matin (5 h - 10 h), donne-lui des consignes avec 📋.", 4); }
     }
     if (G.auto && (kUp || kDown || kSteer)) autoToggle(false);
     if (G.foot && G.foot.sit && (kUp || kDown || kSteer) && !G.auto) standUp();
@@ -1825,7 +1869,7 @@
       } else ev.hidden = true;
       $("h-msgs").innerHTML = G.msgs.map(m => `<div class="m ${m.kind}">${m.text}</div>`).join("");
       const pr = $("h-prompt"); pr.hidden = !G.prompt; if (G.prompt) { pr.querySelector("span").textContent = G.prompt; $("actbtn").hidden = !G.act; $("actbtn").innerHTML = "<kbd>E</kbd>" + ({ exit: "Descendre", enter: "Monter", pick: "Prendre", sit: "S'asseoir", stand: "Se lever", autostop: "Reprendre la main", bureau: "Entrer" }[G.act] || "OK"); }
-      if (WALK && $("h-clock")) { const ph = G.phase === "matin" ? "☀️ tu peux agir" : G.phase === "nuit" ? "🌙 il dort" : "🧠 il agit seul"; $("h-clock").textContent = hh(G.hour) + " · " + ph; }
+      if (WALK && $("h-clock")) { const ph = G.phase === "matin" ? "☀️ consignes possibles" : G.phase === "nuit" ? "🌙 il dort" : "🧠 il agit seul"; $("h-clock").textContent = hh(G.hour) + " · " + ph; }
       if (WALK && $("h-energy")) { const e = Math.round(G.energy); $("h-energy").style.width = e + "%"; $("h-energy").className = e < 25 ? "low" : ""; $("h-energy-n").textContent = e + " %"; }
       if (G.foot) $("h-speed").textContent = Math.round(Math.abs(G.foot.v) * .36);
       renderMinimap();
