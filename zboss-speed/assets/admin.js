@@ -46,7 +46,29 @@ function render(e) {
   $("parents").innerHTML = e.parents.length ? e.parents.map(p => `<div class="item"><span class="sw">${p.sexe === "F" ? "👩🏾" : "👨🏾"}</span><div class="t">${esc(p.prenom)} ${esc(p.nom)} · ${esc(p.quartier)}<small>${esc(p.pseudo)} · ${esc(p.email)} · ajouté le ${day(p.cree_le)}</small></div></div>`).join("") : `<p>Aucun parent fondateur pour l'instant.</p>`;
   $("investors").innerHTML = e.investisseurs.length ? e.investisseurs.map(i => `<div class="item"><span class="sw">💼</span><div class="t">${esc(i.pseudo)} · ${(OFFERS.find(o => o.id === i.offre) || {}).nom || esc(i.offre)}<small>${Number(i.usd).toLocaleString("fr-FR")} $ (simulé) · ${esc(i.email)} · ${day(i.le)}</small></div></div>`).join("") : `<p>Aucun investisseur pour l'instant. Ils s'inscrivent eux-mêmes depuis la page Ma vie.</p>`;
 }
-const load = async () => { try { render(await call("/api/admin/etat")); show(true); } catch (err) { show(false); } };
+// liste d'attente bêta (en mode démo : celle gardée dans ce navigateur par l'accueil)
+let betaRows = [];
+function renderBeta(rows) {
+  betaRows = rows || [];
+  $("n-beta").textContent = betaRows.length;
+  $("b-beta-csv").hidden = !betaRows.length;
+  const shown = betaRows.slice(0, 200);
+  $("beta").innerHTML = shown.length ? shown.map(b => `<div class="item"><span class="sw">📝</span><div class="t">${esc(b.pseudo)} · ${esc(b.email)}<small>${[b.pays, b.plateforme, b.source, b.newsletter ? "nouvelles : oui" : "", day(b.cree_le)].filter(Boolean).map(esc).join(" · ")}</small></div></div>`).join("")
+    + (betaRows.length > shown.length ? `<p style="font-size:13px">… et ${betaRows.length - shown.length} autres dans le fichier CSV.</p>` : "")
+    : `<p>Personne pour l'instant. Partage l'adresse du site pour remplir la liste.</p>`;
+}
+$("b-beta-csv").onclick = () => {
+  const q = v => `"${String(v ?? "").replace(/"/g, '""')}"`;
+  const lines = [["pseudo", "email", "pays", "plateforme", "nouvelles", "source", "inscrit le"].join(";"),
+    ...betaRows.map(b => [b.pseudo, b.email, b.pays, b.plateforme, b.newsletter ? "oui" : "non", b.source, new Date(b.cree_le).toLocaleString("fr-FR")].map(q).join(";"))];
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob(["\ufeff" + lines.join("\r\n")], { type: "text/csv;charset=utf-8" }));
+  a.download = "2life-liste-beta.csv"; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+};
+function demoBeta() {
+  try { return (JSON.parse(localStorage.getItem("zboss_demo_signups") || "[]")).map(r => ({ pseudo: r.pseudo, email: r.email, pays: r.country, plateforme: r.platform, newsletter: r.newsletter, source: r.source, cree_le: Date.parse(r.created_at) || Date.now() })); } catch (e) { return []; }
+}
+const load = async () => { try { const e = await call("/api/admin/etat"); render(e); renderBeta(API ? e.beta : demoBeta()); show(true); } catch (err) { show(false); } };
 
 $("f-login").onsubmit = async ev => {
   ev.preventDefault(); $("login-err").textContent = "";

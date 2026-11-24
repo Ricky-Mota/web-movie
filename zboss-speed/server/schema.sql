@@ -204,3 +204,15 @@ CREATE TABLE IF NOT EXISTS alertes (
   jour TEXT NOT NULL,
   PRIMARY KEY (personnage_id, compte_id, type, jour)
 );
+
+-- liste d'attente bêta (formulaire « Réserver ma place » de l'accueil)
+CREATE TABLE IF NOT EXISTS beta_inscrits (
+  id TEXT PRIMARY KEY,
+  pseudo TEXT NOT NULL,
+  email TEXT NOT NULL UNIQUE,
+  pays TEXT,
+  plateforme TEXT,
+  newsletter INTEGER NOT NULL DEFAULT 0,
+  source TEXT,
+  cree_le INTEGER NOT NULL
+);
