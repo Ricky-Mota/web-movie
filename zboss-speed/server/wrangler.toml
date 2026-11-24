@@ -9,6 +9,8 @@ compatibility_date = "2025-06-01"
 [vars]
 # adresses autorisées à appeler l'API, séparées par des virgules ("*" = toutes)
 ALLOWED_ORIGINS = "*"
+# e-mails des administrateurs (séparés par des virgules) : ils accèdent à admin.html
+ADMIN_EMAILS = ""
 
 [[d1_databases]]
 binding = "DB"

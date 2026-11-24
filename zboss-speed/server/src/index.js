@@ -2,7 +2,7 @@
 // Le serveur est l'arbitre : il décide de l'âge, des talents et de l'argent ; le téléphone ne fait qu'afficher.
 import {
   ageYears, stageOf, STAGES, realMsUntil, TALENTS, ACTIVITIES, rng, drawTalents, doActivity,
-  needsAt, newIdentity, BIRTH_GIFT, SHOP, cannotBuy, OFFERS, USD_TO_MAKUTA, USD_UNITS, fmtMakuta, WITHDRAW_FEE, walletInfo, birthShiftMs, REAL_MONEY, shopView, familyOf, JOBS, payFor, cannotWork, workView, cannotApply, FORMATIONS, cannotEnroll, attendCourse, schoolView, SUPPORT_PER_DAY, HOST_MIN_AGE, MAX_CHILDREN, supportDue, unpaidEffect, familyShare, DAY,
+  needsAt, newIdentity, BIRTH_GIFT, SHOP, cannotBuy, OFFERS, USD_TO_MAKUTA, USD_UNITS, fmtMakuta, WITHDRAW_FEE, walletInfo, birthShiftMs, REAL_MONEY, shopView, familyOf, JOBS, payFor, cannotWork, workView, cannotApply, FORMATIONS, cannotEnroll, attendCourse, schoolView, SUPPORT_PER_DAY, HOST_MIN_AGE, MAX_CHILDREN, supportDue, unpaidEffect, familyShare, DAY, LAUNCH_RULES, launchStatus, canSignupBeforeLaunch,
 } from "./life.js";
 
 const SESSION_DAYS = 30;
@@ -43,17 +43,17 @@ const json = (h, status, body) => new Response(JSON.stringify(body), { status, h
 const fail = (h, status, message) => json(h, status, { erreur: message });
 
 // ---------------------------------------------------------------- naissance
-async function birth(db, compteId, now, offer) {
+async function birth(db, compteId, now, offer, fondateur = false) {
   const r = rng(seedOf());
   const id = uid();
   const who = newIdentity(r);
   const talents = drawTalents(r);
-  const parent = offer && offer.id === "parent";
-  const born = parent ? now - birthShiftMs(offer.age + .01) : now;     // « naître parent » : on arrive adulte
-  const gift = parent ? offer.epargne : BIRTH_GIFT;
+  const parent = offer && offer.id === "parent", invest = offer && offer.type === "investissement";
+  const born = offer && offer.age ? now - birthShiftMs(offer.age + .01) : now;     // « naître parent » ou investisseur : on arrive adulte
+  const gift = parent ? offer.epargne : invest ? offer.usd * USD_UNITS : BIRTH_GIFT;
   // le bébé naît chez un parent joueur qui accueille des enfants (sinon dans une famille gérée par le jeu)
   let host = null;
-  if (!parent) host = await db.prepare(`SELECT p.id, p.sexe, p.prenom, p.nom, p.quartier FROM personnages p
+  if (!offer || !offer.age) host = await db.prepare(`SELECT p.id, p.sexe, p.prenom, p.nom, p.quartier FROM personnages p
       WHERE p.compte_id IS NOT NULL AND p.mort_le IS NULL AND p.accueille_enfants = 1 AND p.ne_le <= ?
         AND (SELECT COUNT(*) FROM personnages k WHERE (k.pere_id = p.id OR k.mere_id = p.id) AND k.mort_le IS NULL) < ?
       ORDER BY RANDOM() LIMIT 1`).bind(now - birthShiftMs(HOST_MIN_AGE), MAX_CHILDREN).first();
@@ -64,14 +64,14 @@ async function birth(db, compteId, now, offer) {
     who.mother = host.sexe === "F" ? host.prenom + " " + host.nom : other + " " + host.nom;
   }
   const stmts = [
-    db.prepare(`INSERT INTO personnages (id, compte_id, ville_id, prenom, nom, sexe, quartier, apparence, ne_le, maj_le, makuta, pere_nom, mere_nom, pere_id, mere_id, accueille_enfants, entretien_le)
-                VALUES (?, ?, 'kinshasa', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+    db.prepare(`INSERT INTO personnages (id, compte_id, ville_id, prenom, nom, sexe, quartier, apparence, ne_le, maj_le, makuta, pere_nom, mere_nom, pere_id, mere_id, accueille_enfants, entretien_le, fondateur)
+                VALUES (?, ?, 'kinshasa', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
       .bind(id, compteId, who.firstName, who.lastName, who.sex, who.quartier, who.look, born, now, gift, who.father, who.mother,
-        host && host.sexe === "M" ? host.id : null, host && host.sexe === "F" ? host.id : null, parent ? 1 : 0, now),
+        host && host.sexe === "M" ? host.id : null, host && host.sexe === "F" ? host.id : null, parent ? 1 : 0, now, fondateur ? 1 : 0),
     db.prepare(`INSERT INTO transactions (id, de_id, vers_id, montant, motif, le) VALUES (?, NULL, ?, ?, ?, ?)`)
-      .bind(uid(), id, gift, parent ? "épargne de départ (naître parent)" : "naissance : épargne des parents", now),
-    db.prepare(`INSERT INTO depots (id, compte_id, offre, usd, makuta, simule, le) VALUES (?, ?, ?, ?, 0, ?, ?)`)
-      .bind(uid(), compteId, offer ? offer.id : "bebe", offer ? offer.usd : 0, REAL_MONEY ? 0 : 1, now),
+      .bind(uid(), id, gift, parent ? "épargne de départ (naître parent)" : invest ? "investissement simulé : " + offer.nom : "naissance : épargne des parents", now),
+    db.prepare(`INSERT INTO depots (id, compte_id, offre, usd, makuta, simule, le) VALUES (?, ?, ?, ?, ?, ?, ?)`)
+      .bind(uid(), compteId, fondateur ? "fondateur" : offer ? offer.id : "bebe", fondateur ? 0 : offer ? offer.usd : 0, invest ? gift : 0, REAL_MONEY ? 0 : 1, now),
     db.prepare(`UPDATE comptes SET vie_id = ? WHERE id = ?`).bind(id, compteId),
     // « naître parent » : talents déjà connus (apprentissage accéléré)
     ...talents.map(t => db.prepare(`INSERT INTO talents_personnage (personnage_id, talent_id, niveau, decouvert, decouvert_par, decouvert_le) VALUES (?, ?, ?, ?, ?, ?)`)
@@ -191,6 +191,34 @@ async function supportFamily(db, pid, now) {
   }
 }
 
+// ---------------------------------------------------------------- lancement
+async function launchCounts(db) {
+  const a = await db.prepare(`SELECT COUNT(*) AS n FROM personnages WHERE fondateur = 1 AND mort_le IS NULL`).first();
+  const b = await db.prepare(`SELECT COUNT(DISTINCT compte_id) AS n FROM depots WHERE offre IN (${OFFERS.filter(o => o.type === "investissement").map(o => `'${o.id}'`).join(",")})`).first();
+  return { parents: a.n, investisseurs: b.n };
+}
+async function launch(db) {
+  const st = await db.prepare(`SELECT valeur FROM jeu WHERE cle = 'demarre_le'`).first();
+  return launchStatus(await launchCounts(db), st ? Number(st.valeur) : null);
+}
+const isAdmin = (env, compte) => !!compte && (env.ADMIN_EMAILS || "").split(",").map(x => x.trim().toLowerCase()).filter(Boolean).includes(compte.email);
+
+// crée un compte joueur (inscription ou parent fondateur ajouté par l'administrateur)
+async function createAccount(db, body, now, offer, fondateur) {
+  const email = String(body.email || "").trim().toLowerCase();
+  const pseudo = String(body.pseudo || "").trim().slice(0, 40);
+  const pass = String(body.motdepasse || "");
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return { error: [400, "Adresse e-mail invalide."] };
+  if (pseudo.length < 2) return { error: [400, "Choisis un pseudo d'au moins 2 caractères."] };
+  if (pass.length < 8) return { error: [400, "Le mot de passe doit faire au moins 8 caractères."] };
+  if (await db.prepare(`SELECT 1 FROM comptes WHERE email = ?`).bind(email).first()) return { error: [409, "Un compte existe déjà avec cette adresse."] };
+  const { hash, salt } = await hashPassword(pass);
+  const id = uid();
+  await db.prepare(`INSERT INTO comptes (id, email, pseudo, pass_hash, pass_salt, cree_le) VALUES (?, ?, ?, ?, ?, ?)`).bind(id, email, pseudo, hash, salt, now).run();
+  const pid = await birth(db, id, now, offer, fondateur);
+  return { id, pid };
+}
+
 // ---------------------------------------------------------------- routes
 export default {
   async fetch(req, env) {
@@ -205,23 +233,20 @@ export default {
     try {
       if (url.pathname === "/api/sante") return json(h, 200, { ok: true, jeu: "2 Life" });
 
+      if (url.pathname === "/api/lancement" && req.method === "GET") return json(h, 200, await launch(db));
+
       if (url.pathname === "/api/inscription" && req.method === "POST") {
-        const email = String(body.email || "").trim().toLowerCase();
-        const pseudo = String(body.pseudo || "").trim().slice(0, 40);
-        const pass = String(body.motdepasse || "");
-        if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return fail(h, 400, "Adresse e-mail invalide.");
-        if (pseudo.length < 2) return fail(h, 400, "Choisis un pseudo d'au moins 2 caractères.");
-        if (pass.length < 8) return fail(h, 400, "Le mot de passe doit faire au moins 8 caractères.");
-        const exists = await db.prepare(`SELECT 1 FROM comptes WHERE email = ?`).bind(email).first();
-        if (exists) return fail(h, 409, "Un compte existe déjà avec cette adresse.");
-        const { hash, salt } = await hashPassword(pass);
-        const id = uid();
-        await db.prepare(`INSERT INTO comptes (id, email, pseudo, pass_hash, pass_salt, cree_le) VALUES (?, ?, ?, ?, ?, ?)`).bind(id, email, pseudo, hash, salt, now).run();
-        const offer = OFFERS.find(o => o.id === body.formule && o.type === "entree") || OFFERS[0];
-        const pid = await birth(db, id, now, offer);
-        const token = await newSession(db, id, now);
-        const compte = await db.prepare(`SELECT * FROM comptes WHERE id = ?`).bind(id).first();
-        return json(h, 201, { token, ...view(compte, await loadCharacter(db, pid), now), naissance: true });
+        const L = await launch(db);
+        if (!L.demarre && !canSignupBeforeLaunch(body.formule) && !isAdmin(env, { email: String(body.email || "").trim().toLowerCase() })) {
+          const miss = L.conditions.filter(c => !c.ok).map(c => `${c.label.toLowerCase()} : ${c.actuel}/${c.min}`).join(", ");
+          return fail(h, 403, `Le jeu n'a pas encore démarré (${miss || "en attente du lancement"}). Les investisseurs peuvent déjà s'inscrire.`);
+        }
+        const offer = OFFERS.find(o => o.id === body.formule) || OFFERS[0];
+        const r = await createAccount(db, body, now, offer, false);
+        if (r.error) return fail(h, ...r.error);
+        const token = await newSession(db, r.id, now);
+        const compte = await db.prepare(`SELECT * FROM comptes WHERE id = ?`).bind(r.id).first();
+        return json(h, 201, { token, ...view(compte, await loadCharacter(db, r.pid), now), naissance: true, admin: isAdmin(env, compte) });
       }
 
       if (url.pathname === "/api/connexion" && req.method === "POST") {
@@ -231,12 +256,36 @@ export default {
         const { hash } = await hashPassword(String(body.motdepasse || ""), c.pass_salt);
         if (!sameText(hash, c.pass_hash)) return fail(h, 401, "E-mail ou mot de passe incorrect.");
         const token = await newSession(db, c.id, now);
-        return json(h, 200, { token, ...view(c, await loadCharacter(db, c.vie_id), now) });
+        return json(h, 200, { token, ...view(c, await loadCharacter(db, c.vie_id), now), admin: isAdmin(env, c) });
       }
 
       // ---- routes réservées aux joueurs connectés
       const compte = await auth(db, req, now);
       if (!compte) return fail(h, 401, "Connecte-toi pour continuer.");
+
+      // ---- administration (e-mails listés dans ADMIN_EMAILS)
+      if (url.pathname.startsWith("/api/admin/")) {
+        if (!isAdmin(env, compte)) return fail(h, 403, "Réservé à l'administrateur.");
+        if (url.pathname === "/api/admin/etat" && req.method === "GET") {
+          const { results: parents } = await db.prepare(`SELECT p.prenom, p.nom, p.sexe, p.quartier, c.pseudo, c.email, c.cree_le FROM personnages p JOIN comptes c ON c.id = p.compte_id WHERE p.fondateur = 1 ORDER BY c.cree_le`).all();
+          const { results: inv } = await db.prepare(`SELECT c.pseudo, c.email, d.offre, d.usd, d.le FROM depots d JOIN comptes c ON c.id = d.compte_id WHERE d.offre IN ('petit','grand') ORDER BY d.le`).all();
+          return json(h, 200, { lancement: await launch(db), parents, investisseurs: inv });
+        }
+        if (url.pathname === "/api/admin/parent" && req.method === "POST") {
+          const r = await createAccount(db, body, now, OFFERS.find(o => o.id === "parent"), true);
+          if (r.error) return fail(h, ...r.error);
+          return json(h, 201, { ok: true, lancement: await launch(db) });
+        }
+        if (url.pathname === "/api/admin/demarrer" && req.method === "POST") {
+          const L = await launch(db);
+          if (L.demarre) return fail(h, 409, "Le jeu a déjà démarré.");
+          if (!L.pret) return fail(h, 409, "Toutes les conditions ne sont pas encore réunies.");
+          await db.prepare(`INSERT INTO jeu (cle, valeur) VALUES ('demarre_le', ?)`).bind(String(now)).run();
+          return json(h, 200, { ok: true, lancement: await launch(db) });
+        }
+        return fail(h, 404, "Route inconnue.");
+      }
+
       await supportFamily(db, compte.vie_id, now);
       const ch = await loadCharacter(db, compte.vie_id);
       if (!ch) return fail(h, 404, "Personnage introuvable.");

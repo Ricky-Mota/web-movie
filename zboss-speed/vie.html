@@ -82,6 +82,11 @@
     .mini { flex: none; border: 1px solid var(--accent); background: none; color: var(--accent); border-radius: 10px; padding: 8px 12px; font-size: 13px; font-weight: 600; }
     .mini.fill { background: var(--accent); color: #1b120b; }
     .mini:disabled { opacity: .4; border-color: var(--line); color: var(--muted); background: none; }
+    .launch { border: 1px solid var(--accent); border-radius: 12px; padding: 12px 14px; margin: 6px 0 4px; background: #2a1d12; }
+    .launch > b { font-family: var(--font-d); font-size: 17px; display: block; margin-bottom: 4px; }
+    .launch .need { margin-top: 10px; }
+    .offer.closed { opacity: .5; cursor: not-allowed; }
+    .offer.closed small::after { content: " Ouvre au démarrage du jeu."; color: var(--warn); }
     @media (max-width: 380px) { .acts { grid-template-columns: 1fr; } .hero { height: 280px; } }
   </style>
 </head>
@@ -97,6 +102,7 @@
       <div class="card">
         <h1>Nais à Kinshasa.<br>Construis ta vie.</h1>
         <p>Tu commences bébé, dans une famille. Tes parents découvrent tes talents, tu grandis, tu étudies, tu travailles, tu crées ton entreprise. Ta monnaie : l'e-makuta.</p>
+        <div class="launch" id="launch" hidden></div>
         <form id="f-auth" novalidate>
           <div id="f-pseudo"><label for="pseudo">Pseudo</label><input id="pseudo" autocomplete="nickname" maxlength="40"></div>
           <label for="email">E-mail</label><input id="email" type="email" autocomplete="email" inputmode="email">
@@ -106,6 +112,8 @@
             <div class="offers">
               <label class="offer"><input type="radio" name="formule" value="bebe" checked><span><b>Naître bébé · <em>100 $</em></b><small>Le parcours normal : tu grandis dans une famille qui découvre tes talents.</small></span></label>
               <label class="offer"><input type="radio" name="formule" value="parent"><span><b>Naître parent · <em>5 000 $</em></b><small>Tu arrives adulte (25 ans), tes talents sont connus et tu reçois 250 e-makuta d'épargne.</small></span></label>
+              <label class="offer"><input type="radio" name="formule" value="petit"><span><b>Petit investisseur · <em>1 500 $</em></b><small>Tu arrives adulte (30 ans) avec 7 500 e-makuta pour créer ou racheter des entreprises. Retrait possible après 3 mois.</small></span></label>
+              <label class="offer"><input type="radio" name="formule" value="grand"><span><b>Grand investisseur · <em>30 000 $</em></b><small>Tu arrives adulte (35 ans) avec 150 000 e-makuta pour racheter de grandes entreprises. Retrait possible après 3 mois.</small></span></label>
             </div>
             <p class="sim">Simulation : aucun paiement n'est encaissé. L'argent réel (M-Pesa, carte) sera activé après les autorisations légales.</p>
           </div>

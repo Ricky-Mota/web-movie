@@ -47,7 +47,8 @@ CREATE TABLE IF NOT EXISTS personnages (
   pere_id TEXT, mere_id TEXT, conjoint_id TEXT,
   pere_nom TEXT, mere_nom TEXT,              -- noms des parents (joueurs ou gérés par le jeu)
   accueille_enfants INTEGER NOT NULL DEFAULT 0,  -- accepte qu'un nouveau joueur naisse chez lui
-  entretien_le INTEGER                       -- dernier entretien versé par le parent joueur
+  entretien_le INTEGER,                      -- dernier entretien versé par le parent joueur
+  fondateur INTEGER NOT NULL DEFAULT 0       -- parent fondateur ajouté par l'administrateur
 );
 
 CREATE TABLE IF NOT EXISTS talents (
@@ -136,3 +137,6 @@ CREATE TABLE IF NOT EXISTS inscriptions (
   dernier INTEGER,
   depuis INTEGER NOT NULL
 );
+
+-- état du jeu (clé / valeur) : demarre_le = date du lancement
+CREATE TABLE IF NOT EXISTS jeu (cle TEXT PRIMARY KEY, valeur TEXT);

@@ -181,8 +181,8 @@ export const LOCK_DAYS = 90;               // argent bloqué 3 mois réels avant
 export const OFFERS = [
   { id: "bebe", nom: "Naissance (parcours normal)", type: "entree", usd: 100, desc: "Tu nais bébé dans une famille et tu grandis normalement." },
   { id: "parent", nom: "Naître parent", type: "entree", usd: 5000, desc: "Tu nais adulte (25 ans), tes talents sont déjà connus et tu reçois 250 e-makuta d'épargne.", age: 25, epargne: 5000 },
-  { id: "petit", nom: "Petit investisseur", type: "investissement", usd: 1500, desc: "1 500 $ convertis en e-makuta pour acheter et créer des entreprises." },
-  { id: "grand", nom: "Grand investisseur", type: "investissement", usd: 30000, desc: "30 000 $ convertis en e-makuta pour racheter de grandes entreprises." },
+  { id: "petit", nom: "Petit investisseur", type: "investissement", usd: 1500, age: 30, desc: "1 500 $ convertis en e-makuta pour acheter et créer des entreprises." },
+  { id: "grand", nom: "Grand investisseur", type: "investissement", usd: 30000, age: 35, desc: "30 000 $ convertis en e-makuta pour racheter de grandes entreprises." },
 ];
 
 // âge réel (ms) à soustraire à la date de naissance pour naître à un âge donné
@@ -353,3 +353,17 @@ export function supportDue(lastPaid, bornAt, now = Date.now()) {
 // effet d'un entretien impayé : bonheur et santé baissent
 export function unpaidEffect(days) { return { bonheur: 12 * days, sante: 4 * days }; }
 export function familyShare(amount) { return Math.round(amount * FAMILY_SHARE); }
+
+// ---------------------------------------------------------------- lancement du jeu
+// Le jeu ne s'ouvre aux naissances qu'une fois toutes les conditions réunies ; l'administrateur appuie alors sur « Démarrer ».
+// Pour ajouter une condition plus tard : une ligne ici, et son compteur côté serveur (launchCounts).
+export const LAUNCH_RULES = [
+  { id: "parents", label: "Parents fondateurs ajoutés par l'administrateur", min: 20 },
+  { id: "investisseurs", label: "Investisseurs inscrits", min: 10 },
+];
+export function launchStatus(counts, startedAt) {
+  const conditions = LAUNCH_RULES.map(r => ({ ...r, actuel: counts[r.id] || 0, ok: (counts[r.id] || 0) >= r.min }));
+  return { demarre: !!startedAt, demarreLe: startedAt || null, pret: conditions.every(c => c.ok), conditions };
+}
+// avant le lancement, seuls les investisseurs peuvent s'inscrire (les parents fondateurs sont créés par l'administrateur)
+export function canSignupBeforeLaunch(formule) { return OFFERS.some(o => o.id === formule && o.type === "investissement"); }

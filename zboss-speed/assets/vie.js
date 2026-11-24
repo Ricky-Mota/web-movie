@@ -2,8 +2,9 @@
 // simule la même vie dans le navigateur (mode démo).
 import {
   ageYears, stageOf, STAGES, realMsUntil, TALENTS, ACTIVITIES, rng, drawTalents, doActivity, needsAt, newIdentity, BIRTH_GIFT,
-  SHOP, cannotBuy, OFFERS, USD_TO_MAKUTA, USD_UNITS, fmtMakuta, WITHDRAW_FEE, walletInfo, birthShiftMs, shopView, familyOf, JOBS, payFor, cannotWork, workView, SHIFT_ENERGY, cannotApply, FORMATIONS, cannotEnroll, attendCourse, schoolView, STUDY_ENERGY, SUPPORT_PER_DAY, HOST_MIN_AGE, supportDue, unpaidEffect, familyShare, FIRST_NAMES,
+  SHOP, cannotBuy, OFFERS, USD_TO_MAKUTA, USD_UNITS, fmtMakuta, WITHDRAW_FEE, walletInfo, birthShiftMs, shopView, familyOf, JOBS, payFor, cannotWork, workView, SHIFT_ENERGY, cannotApply, FORMATIONS, cannotEnroll, attendCourse, schoolView, STUDY_ENERGY, SUPPORT_PER_DAY, HOST_MIN_AGE, canSignupBeforeLaunch, supportDue, unpaidEffect, familyShare, FIRST_NAMES,
 } from "../server/src/life.js";
+import { launchDemo } from "./lancement-demo.js";
 
 const API = (window.TWO_LIFE_API || "").replace(/\/$/, "");
 const $ = id => document.getElementById(id);
@@ -58,15 +59,20 @@ const demo = {
   async call(path, body) {
     let d = store.get(LS_DEMO);
     if (d && d.perso) { this.support(d); store.set(LS_DEMO, d); }
+    if (path === "/api/lancement") return launchDemo.status();
+    if (path.startsWith("/api/admin/")) return launchDemo.admin(path, body || {});
     if (path === "/api/inscription") {
+      const no = launchDemo.refusal(body.formule); if (no) throw new Error(no);
       const r = rng(this.seed()), who = newIdentity(r), now = Date.now();
-      const offer = OFFERS.find(o => o.id === body.formule && o.type === "entree") || OFFERS[0], parent = offer.id === "parent";
+      const offer = OFFERS.find(o => o.id === body.formule) || OFFERS[0], adult = !!offer.age, inv = offer.type === "investissement";
+      const gift = inv ? offer.usd * USD_UNITS : adult ? offer.epargne : BIRTH_GIFT;
       d = {
-        pseudo: body.pseudo, email: String(body.email || "").trim().toLowerCase(), inv: [], ret: [], accueil: parent, enfants: [],
-        dep: [{ offre: offer.id, usd: offer.usd, makuta: 0, le: now }],
-        perso: { ...who, neLe: parent ? now - birthShiftMs(offer.age + .01) : now, updatedAt: now, hunger: 100, energy: 100, happiness: 80, health: 100,
-          makuta: parent ? offer.epargne : BIRTH_GIFT, talents: drawTalents(r).map(t => ({ ...t, discovered: parent, hints: 0 })) },
+        pseudo: body.pseudo, email: String(body.email || "").trim().toLowerCase(), inv: [], ret: [], accueil: adult, enfants: [],
+        dep: [{ offre: offer.id, usd: offer.usd, makuta: inv ? gift : 0, le: now }],
+        perso: { ...who, neLe: adult ? now - birthShiftMs(offer.age + .01) : now, updatedAt: now, hunger: 100, energy: 100, happiness: 80, health: 100,
+          makuta: gift, talents: drawTalents(r).map(t => ({ ...t, discovered: adult, hints: 0 })) },
       };
+      if (inv) launchDemo.addInvestor(d.pseudo, d.email, offer.id);
       store.set(LS_DEMO, d); store.set(LS_TOKEN, "demo");
       return { token: "demo", ...this.view(d), naissance: true };
     }
@@ -370,10 +376,31 @@ $("wallet").onclick = e => {
   if (e.target.id === "b-withdraw") act("/api/retirer", { makuta: state.perso.makuta }, v => `Demande de retrait simulée : ${usd(v.portefeuille.retraits.at(-1).usd)}.`);
 };
 
+let launch = null;
+async function showLaunch() {
+  try { launch = await call("/api/lancement"); } catch (e) { launch = null; }
+  const box = $("launch"); box.hidden = !signup || !launch || launch.demarre;
+  document.querySelectorAll("input[name=formule]").forEach(i => {
+    const closed = launch && !launch.demarre && !canSignupBeforeLaunch(i.value);
+    i.disabled = closed; i.closest(".offer").classList.toggle("closed", closed);
+    if (closed && i.checked) { i.checked = false; document.querySelector("input[name=formule][value=petit]").checked = true; }
+  });
+  if (!launch || launch.demarre) return;
+  box.innerHTML = `<b>Le jeu n'a pas encore démarré</b><p>La ville ouvre quand toutes les conditions sont réunies. En attendant, seuls les investisseurs peuvent s'inscrire.</p>` +
+    launch.conditions.map(c => `<div class="need">${c.label} <b style="float:right">${c.actuel} / ${c.min}</b><div class="bar"><i class="${c.ok ? "" : "mid"}" style="width:${Math.min(100, c.actuel / c.min * 100)}%"></i></div></div>`).join("") +
+    (API ? "" : `<p class="sim" style="margin-top:12px">Démo : ouvre <a href="admin.html" style="color:inherit">l'espace administrateur</a> pour ajouter les parents fondateurs et démarrer le jeu.</p>`);
+  authLabel();
+}
+function authLabel() {
+  const f = (document.querySelector("input[name=formule]:checked") || {}).value;
+  $("b-auth").textContent = !signup ? "Se connecter" : f === "petit" || f === "grand" ? "Entrer comme investisseur" : "Naître à Kinshasa";
+}
+document.querySelectorAll("input[name=formule]").forEach(i => i.onchange = authLabel);
 function showAuth() {
   $("v-life").hidden = true; $("v-auth").hidden = false;
+  if (!launch) showLaunch();
   $("f-pseudo").hidden = !signup; $("f-formule").hidden = !signup;
-  $("b-auth").textContent = signup ? "Naître à Kinshasa" : "Se connecter";
+  authLabel(); $("launch").hidden = !signup || !launch || launch.demarre;
   $("sw-text").textContent = signup ? "Déjà un compte ?" : "Pas encore de vie ?";
   $("sw").textContent = signup ? "Se connecter" : "Créer un compte";
   $("pass").autocomplete = signup ? "new-password" : "current-password";

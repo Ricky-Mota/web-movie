@@ -1,54 +1,6 @@
-// Garage, écran de jeu animé et bande-annonce.
+// Bande-annonce animée de la page d'accueil.
 (function () {
-  const C = window.ZBOSS_CARS;
-  const byId = id => C.list.find(c => c.id === id);
   const reduce = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
-
-  // ---------- Garage ----------
-  const grid = document.getElementById("garage-grid");
-  if (grid) {
-    const label = { vitesse: "Vitesse", accel: "Accélération", maniab: "Maniabilité", solide: "Solidité" };
-    grid.innerHTML = C.list.map(c => `
-      <article class="car-card reveal in" style="--glow:${c.color}40">
-        <div class="pic">${C.svg(c, { view: "34" })}</div>
-        <div class="info">
-          <div class="cls">${c.cls}</div>
-          <h3>${c.name}</h3>
-          <p>${c.tagline}</p>
-          <div class="stats">${Object.keys(label).map(k => `
-            <div class="stat"><span>${label[k]}</span><span class="bar"><i style="width:${c.stats[k]}%"></i></span><b>${c.stats[k]}</b></div>`).join("")}
-          </div>
-        </div>
-      </article>`).join("");
-  }
-
-  // ---------- Voitures de la bande-annonce ----------
-  const police = {
-    id: "police", name: "Voiture de police", color: "#eef1f6", dark: "#1a1d26",
-    body: "M18 102 Q22 86 56 82 L130 76 Q170 52 230 50 Q282 52 318 74 L392 84 Q406 92 402 108 L20 110 Z",
-    glass: "M158 76 Q186 58 230 57 Q270 58 296 76 Z",
-    extra: '<path d="M20 92 L404 92 L403 106 L20 108 Z" fill="#1a1d26"/><rect x="200" y="42" width="22" height="9" rx="2" fill="#ff2d4a" class="flash-r"/><rect x="224" y="42" width="22" height="9" rx="2" fill="#2d7bff" class="flash-b"/>',
-    head: "M370 86 L398 88 L396 92 L366 91 Z", tail: "M20 86 L42 84 L42 89 L20 90 Z",
-  };
-  document.querySelectorAll("[data-car]").forEach(el => { el.innerHTML = C.svg(byId(el.dataset.car), { suffix: "-t" }); });
-  document.querySelectorAll("[data-police]").forEach(el => { el.innerHTML = C.svg(police, { suffix: "-p" }); });
-  document.querySelectorAll("[data-parade]").forEach(el => { el.innerHTML = C.list.map(c => C.svg(c, { suffix: "-pa" })).join(""); });
-
-  // ---------- Écran de jeu : vitesse et chrono ----------
-  const sp = document.getElementById("hud-speed"), arc = document.getElementById("hud-arc"), tm = document.getElementById("hud-time");
-  if (sp && !reduce) {
-    let t0 = performance.now(), base = 102.37;
-    const tick = now => {
-      const t = (now - t0) / 1000;
-      const v = Math.round(286 + Math.sin(t * 0.9) * 22 + Math.sin(t * 3.1) * 4);
-      sp.textContent = v;
-      arc.setAttribute("stroke-dasharray", Math.min(100, v / 3.6) + " 100");
-      const s = base + t, m = Math.floor(s / 60);
-      tm.textContent = String(m).padStart(2, "0") + ":" + (s % 60).toFixed(2).padStart(5, "0");
-      requestAnimationFrame(tick);
-    };
-    requestAnimationFrame(tick);
-  }
 
   // ---------- Bande-annonce ----------
   const stage = document.getElementById("stage");
@@ -114,7 +66,7 @@
       const sl = ctx.createOscillator(); sl.frequency.value = 1.6; const sg = ctx.createGain(); sg.gain.value = 260; sl.connect(sg); sg.connect(siren.frequency); sl.start();
       return true;
     }
-    const levels = [ [0.02, 0, 45], [0.09, 0, 85], [0.08, 0.05, 95], [0.05, 0.08, 70], [0.07, 0, 65], [0.1, 0.04, 110], [0.02, 0, 50] ];
+    const levels = [ [0.02, 0, 45], [0.03, 0, 55], [0.03, 0, 60], [0.04, 0, 65], [0.05, 0, 70], [0.06, 0, 80], [0.02, 0, 50] ];
     return {
       toggle() {
         on = !on;
