@@ -185,6 +185,7 @@
     { id: "dgi", type: "etat", nom: "DGI · Direction générale des impôts", icone: "🧾", w: 300, d: 220, h: 100, statut: "Impôts sur les salaires et les entreprises : ouvre après le lancement." },
     { id: "bcc", type: "etat", nom: "Banque centrale", icone: "🏦", w: 320, d: 230, h: 110, statut: "Émet l'e-makuta et surveille les banques : ouvre après le lancement." },
     { id: "hopital", type: "etat", nom: "Hôpital général", icone: "🏥", w: 360, d: 250, h: 100, statut: "Soins des personnages malades : ouvre après le lancement." },
+    { id: "maquis", type: "alim", resto: true, nom: "Maquis Mama Kapinga", icone: "🍲", w: 220, d: 170, h: 60, near: "marche", statut: "Maquis : poulet mayo, pondu, chikwangue et poisson braisé. Ouvert de 7 h à 21 h." },
     { id: "marche", type: "marche", nom: "Marché de la Gombe", icone: "🧺", w: 360, d: 240, open: true, near: "alim1", statut: "Marché : légumes, poisson, pagnes, téléphones. Ouvert de 6 h à 18 h." },
     { id: "park1", type: "parking", nom: "Parking du centre-ville", icone: "🅿️", w: 310, d: 180, open: true, near: "zboss", statut: "Parking public : les voitures des habitants y sont garées." },
     { id: "park2", type: "parking", nom: "Parking du stade", icone: "🅿️", w: 310, d: 180, open: true, near: "foot", statut: "Parking public : les supporters s'y garent les jours de match." },
@@ -1119,6 +1120,15 @@
     const A = G.auto, f = G.foot, mode = A.mode || "promenade";
     if (mode === "maison") { const h = HOME(); return h ? { x: h.door.x, y: h.door.y, nom: "la maison", icone: "🏠", home: true, place: h } : null; }
     if (mode === "travail") { const w = PLACES.find(o => o.id === (G.me && G.me.lieu) ) || PLACES.find(o => o.id === "zboss"); if (w) return Object.assign(toPlace(w), { work: true }); }
+    const nearestOpen = types => PLACES.filter(o => types.includes(o.type) && isOpen(o, G.hour)).sort((a, b) => Math.hypot(a.x - f.x, a.y - f.y) - Math.hypot(b.x - f.x, b.y - f.y))[0];
+    if (mode === "manger") { const o = PLACES.find(o => o.id === "maquis" && isOpen(o, G.hour)) || nearestOpen(["alim", "marche"]); if (o) return Object.assign(toPlace(o), { eat: true }); const h = HOME(); return { x: h.door.x, y: h.door.y, nom: "la maison", icone: "🏠", home: true, eat: true, place: h }; }
+    if (mode === "business") { const o = nearestOpen(["marche"]) || nearestOpen(["alim", "magasin"]); if (o) return Object.assign(toPlace(o), { biz: true }); }
+    if (mode === "vol") { const o = nearestOpen(["marche", "alim", "magasin"]); if (o) return Object.assign(toPlace(o), { steal: true }); }
+    if (mode === "draguer") {
+      if (G.hour >= 20) { const o = nearestOpen(["club"]); if (o) return Object.assign(toPlace(o), { flirt: true }); }
+      const bs = BENCHES.filter(b => !b.taken).sort((a, b) => Math.hypot(a.x - f.x, a.y - f.y) - Math.hypot(b.x - f.x, b.y - f.y)); const b = bs[(rand() * Math.min(4, bs.length)) | 0];
+      if (b) return { x: b.x, y: b.y, nom: "un banc pour draguer", icone: "💘", bench: b, flirt: true };
+    }
     if (mode === "rencontres") {
       const bs = BENCHES.filter(b => !b.taken).sort((a, b) => Math.hypot(a.x - f.x, a.y - f.y) - Math.hypot(b.x - f.x, b.y - f.y));
       const b = bs[(rand() * Math.min(4, bs.length)) | 0]; if (b) return { x: b.x, y: b.y, nom: "un banc pour rencontrer des gens", icone: "🪑", bench: b, meet: true };
@@ -1155,13 +1165,15 @@
   }
   function planWalk(dest) {
     const f = G.foot, a = nearestNode(f.x, f.y), b = nearestNode(dest.x, dest.y), path = findPath(a, b);
-    G.auto.dest = dest; G.auto.path = path || [a]; G.auto.i = 0; G.auto.stuck = 0; G.auto.last = { x: f.x, y: f.y };
+    G.auto.dest = dest; G.auto.path = path || [a]; G.auto.i = 0; G.auto.stuck = 0; G.auto.last = { x: f.x, y: f.y }; G.auto.walkH = G.hour;
     G.auto.doing = "Marche vers " + (dest.icone ? dest.icone + " " : "") + dest.nom;
   }
   // marche automatique : de nœud en nœud sur le trottoir, puis droit vers le lieu
   function autoWalk(dt) {
     const A = G.auto, f = G.foot, P = A.path;
     let t;
+    // trajet trop long pour l'horloge du jeu : on passe la fin du trajet (« il arrive »)
+    if (WALK && A.walkH !== undefined && ((G.hour - A.walkH + 24) % 24) > .5) { const d = A.dest; if (!walkBlocked(d.x, d.y)) { f.x = d.x; f.y = d.y; } A.walkH = undefined; arrive(); return; }
     if (A.i < P.length - 1) {
       const from = P[A.i], to = P[A.i + 1], off = Math.max(nodes[from].w, nodes[to].w) / 2 + 18;
       t = edgePoint(from, to, off);
@@ -1188,12 +1200,51 @@
       if (d.match) { A.sitT = 40 + rand() * 25; A.doing = "Regarde le match " + d.icone; msg(d.icone + " Ton personnage s'installe pour regarder le match.", 3, "ok"); }
       else if (A.mode === "footing") { A.sitT = 6 + rand() * 5; A.doing = "Pause footing : il reprend son souffle"; }
       else if (d.meet) { A.sitT = 1e9; A.doing = "Assis sur un banc : il rencontre des gens"; }
+      else if (d.flirt) { A.sitT = 1e9; A.doing = "💘 Il guette quelqu'un à séduire"; flirt(); }
       else { A.sitT = 18 + rand() * 20; A.doing = "Assis sur un banc : il observe et fait des rencontres"; }
       return;
     }
+    if (d.bench && d.flirt) { /* traité plus haut */ }
+    if (d.home && d.eat) { G.me.faim = 15; note("🍲 Il mange à la maison avec la famille (gratuit)."); }
     if (d.home) { A.phase = "home"; A.doing = "À la maison : il se repose"; msg("🏠 Ton personnage est rentré à la maison. Il se repose.", 3.5, "ok"); return; }
     const o = d.place, t = o && o.type;
-    if (d.work) { msg("💼 Ton personnage est arrivé au travail : " + d.nom + ".", 3.5, "ok"); A.phase = "visit"; A.wait = 1e9; A.doing = "💼 Au travail à " + d.nom; return; }
+    if (d.work) { note("💼 Il arrive au travail : " + d.nom + "."); earn(25, "salaire de la journée à " + d.nom); A.phase = "visit"; A.wait = 1e9; A.doing = "💼 Au travail à " + d.nom; return; }
+    if (d.eat) {
+      const cost = o && o.resto ? 6 + ((rand() * 5) | 0) : 4;
+      if (pay(cost, o && o.resto ? "repas au " + d.nom : "à manger à " + d.nom)) { G.me.faim = 5; G.energy = Math.min(100, G.energy + 12); note("🍲 Il mange " + ["du poulet mayo", "du pondu avec de la chikwangue", "du poisson braisé", "des beignets et du thé"][(rand() * 4) | 0] + " à " + d.nom + "."); }
+      else note("😞 Il n'a pas assez d'argent pour manger à " + d.nom + ".", "alert");
+      A.phase = "visit"; A.wait = 8; A.doing = "🍲 Il mange à " + d.nom; return;
+    }
+    if (d.biz) {
+      const me = G.me, stake = Math.min(me.argent, 10 + ((rand() * 15) | 0)), luck = (me.intel / 10) * .5 + rand() * .7 + (me.car === "ambitieux" ? .1 : 0);
+      if (stake < 5) { note("💹 Il voulait faire du business, mais il n'a pas de quoi acheter de la marchandise."); A.phase = "visit"; A.wait = 4; return; }
+      me.argent -= stake; const back = Math.round(stake * (luck > .75 ? 1.8 : luck > .5 ? 1.3 : luck > .35 ? .9 : .4));
+      me.argent += back; const gain = back - stake;
+      note(gain >= 0 ? "💹 Business au " + d.nom + " : il achète et revend " + ["des téléphones d'occasion", "des pagnes wax", "des sacs de riz", "des cartes de recharge"][(rand() * 4) | 0] + ", +" + gain + " e-makuta de bénéfice." : "💹 Mauvaise affaire au " + d.nom + " : il perd " + (-gain) + " e-makuta.", gain >= 0 ? "ok" : "alert");
+      me.bizWins = (me.bizWins || 0) + (gain > 5 ? 1 : 0); if (me.bizWins >= 3 && me.car !== "ambitieux") { changeChar("ambitieux", "ses affaires marchent bien"); me.bizWins = 0; }
+      A.phase = "visit"; A.wait = 1e9; A.doing = "💹 Il fait du business au " + d.nom; return;
+    }
+    if (d.steal) {
+      const me = G.me, cops = G.peds.filter(q => q.cop && Math.hypot(q.x - G.foot.x, q.y - G.foot.y) < 700).length + G.cops.filter(c => Math.hypot(c.x - G.foot.x, c.y - G.foot.y) < 900).length;
+      const caught = rand() < .25 + cops * .15;
+      if (caught) {
+        me.arrest++; const fine = Math.min(me.argent, 20); me.argent -= fine;
+        note("🚓 Il essaie de voler à " + d.nom + "… et se fait attraper par la police ! Amende : " + fine + " e-makuta.", "alert");
+        shiftMind(15, "après cette arrestation");
+        if (me.arrest >= 2 && me.car !== "méfiant") changeChar("méfiant", "il a été arrêté plusieurs fois");
+        A.phase = "visit"; A.wait = 10; A.doing = "🚓 Arrêté par la police"; return;
+      }
+      const gain = 8 + ((rand() * 20) | 0); me.argent += gain;
+      note("🕵️ Il vole discrètement " + gain + " e-makuta à " + d.nom + ". Personne ne l'a vu… cette fois.", "alert");
+      shiftMind(-6, "ce vol facile");
+      A.phase = "visit"; A.wait = 4; A.doing = "🕵️ Il s'éloigne discrètement"; return;
+    }
+    if (t === "club" && isOpen(o, G.hour) && A.mode !== "vol") {
+      const spend = 10 + ((rand() * 25) | 0);
+      if (!pay(Math.min(spend, G.me.argent), "soirée au " + d.nom + " (entrée et boissons)") || G.me.argent < 0) { note("🪩 Refoulé à l'entrée du " + d.nom + " : pas assez d'argent.", "alert"); A.phase = "visit"; A.wait = 3; return; }
+      if (d.flirt || rand() < .5) flirt();
+      A.phase = "visit"; A.wait = 1e9; A.doing = "🪩 Il danse au " + d.nom; return;
+    }
     if (t === "marche") { msg("🧺 Au marché : il compare les prix des légumes et du poisson, puis discute avec les commerçantes.", 4.5); A.phase = "visit"; A.wait = 10 + rand() * 6; A.doing = "Courses au marché"; return; }
     if (d.guide) { msg("📸 " + d.icone + " " + d.nom + " : " + d.guide, 6, "ok"); A.phase = "visit"; A.wait = 6 + rand() * 3; A.doing = "Tourisme : " + d.nom; return; }
     if (A.mode === "courses" && t) { const what = t === "alim" ? ["du pain et du lait", "du riz et du poisson salé", "des fruits et de l'eau"] : o.id === "phones" ? ["un nouvel étui de téléphone", "un chargeur"] : ["une chemise en wax", "une paire de baskets"]; msg(d.icone + " Courses à " + d.nom + " : il regarde " + what[(rand() * what.length) | 0] + ". (Achats réels dans la Boutique de Ma vie.)", 4.5); A.phase = "visit"; A.wait = 6 + rand() * 4; A.doing = "Courses : " + d.nom; return; }
@@ -1201,9 +1252,10 @@
     msg((d.icone || "📍") + " Ton personnage visite : " + d.nom, 3);
     A.phase = "visit"; A.wait = 4 + rand() * 4; A.doing = "Visite " + d.nom;
   }
-  function callTaxi() {
+  function callTaxi(forceHome, bus) {
     const A = G.auto, f = G.foot, p = G.player;
-    const goHome = A.mode === "maison" || A.mode === "footing" || rand() < .5 || !PLACES.length, far = PLACES.filter(o => o.id !== "maison" && Math.hypot(o.x - f.x, o.y - f.y) > 900);
+    if (!forceHome && G.me && !pay(5, "taxi")) { A.phase = "walk"; A.path = null; A.tired = true; return; }
+    const goHome = forceHome || A.mode === "maison" || A.mode === "footing" || rand() < .5 || !PLACES.length, far = PLACES.filter(o => o.id !== "maison" && Math.hypot(o.x - f.x, o.y - f.y) > 900);
     const next = A.mode === "tourisme" && A.tour && A.tour[0];
     const o = next || (goHome ? HOME() : far[(rand() * far.length) | 0] || HOME());
     if (next) A.tour.shift();
@@ -1212,8 +1264,8 @@
     const n = nearestNode(f.x, f.y), N = nodes[n], m = N.nb.length ? N.nb[0] : n, pt = edgePoint(m, n, Math.min(30, N.w * .22));
     p.x = pt.x; p.y = pt.y; p.a = Math.atan2(N.y - nodes[m].y, N.x - nodes[m].x) || 0; p.vx = p.vy = 0;
     A.phase = "board"; A.wait = 1.6; A.taxiTo = o; A.home = o.id === "maison";
-    A.doing = "Fatigué : il prend un taxi vers " + (A.home ? "la maison" : o.nom);
-    msg("😮‍💨 Ton personnage est fatigué : il appelle un taxi " + (A.home ? "pour rentrer à la maison." : "pour aller à " + o.nom + "."), 4);
+    A.doing = (forceHome ? (bus ? "🚌 En bus" : "🚕 En taxi") + " vers la maison" : "Fatigué : il prend un taxi vers " + (A.home ? "la maison" : o.nom));
+    if (!forceHome) msg("😮‍💨 Ton personnage est fatigué : il appelle un taxi " + (A.home ? "pour rentrer à la maison." : "pour aller à " + o.nom + "."), 4);
   }
   function autoRide(dt) {
     const A = G.auto, p = G.player, P = A.path;
@@ -1241,7 +1293,7 @@
     const A = G.auto;
     if (A.phase === "walk") {
       if (!G.foot) { G.auto = null; return; }
-      if (G.energy < 22) { callTaxi(); return; }
+      if (G.energy < 22 && !A.tired && G.phase !== "nuit" && A.dest && Math.hypot(A.dest.x - G.foot.x, A.dest.y - G.foot.y) > 900) { callTaxi(); return; }
       if (!A.path) { const d = pickDestination(); if (!d) return; planWalk(d); }
       autoWalk(dt);
     } else if (A.phase === "visit") { A.wait -= dt; if (A.wait <= 0) { A.phase = "walk"; A.path = null; } }
@@ -1298,6 +1350,21 @@
       }
     }
   }
+  // draguer : il tente sa chance avec une personne proche ; le résultat dépend de son charisme
+  function flirt() {
+    const me = G.me, f = G.foot;
+    const cand = G.peds.filter(q => !q.play && !q.cop && !q.staff && Math.hypot(q.x - f.x, q.y - f.y) < 500 && ident(q).woman && ident(q).age >= 18 && ident(q).age < 50);
+    const q = cand[(rand() * cand.length) | 0];
+    const nom = q ? ident(q).nom : NOMS_F[(rand() * NOMS_F.length) | 0] + " " + ["M.", "K.", "B."][(rand() * 3) | 0];
+    const ok = rand() < .15 + me.charisme * .06 + (me.car === "drôle" ? .1 : 0) - .2 * relations.get().filter(r => r.amour).length;
+    if (ok) {
+      const R = relations.get(); let r = q && R.find(x => x.pid === q.id);
+      if (!r) { r = { id: Date.now().toString(36), pid: q ? q.id : 0, nom, f: true, fois: 1, lieu: "rencontre galante", le: Date.now() }; R.unshift(r); }
+      r.amour = true; r.fois++; relations.set(R);
+      note("💘 Il drague " + nom.split(" ")[0] + "… elle sourit et accepte de le revoir ! (relation amoureuse)", "ok");
+      if (me.car === "timide") changeChar("bavard", "ce succès lui donne confiance");
+    } else note("💔 Il tente sa chance avec " + nom.split(" ")[0] + "… elle le repousse poliment.");
+  }
   function meet(q) {
     const R = relations.get(), place = nearPlace(G.foot.x, G.foot.y), lieu = place ? place.nom : G.foot.sit ? "un banc de la Gombe" : "une rue de la Gombe";
     const wq = window.__pedLook ? !!window.__pedLook(q).woman : null;
@@ -1319,7 +1386,7 @@
     d.innerHTML = `<div class="bureau-box" role="dialog" aria-modal="true" aria-labelledby="rel-t"><button type="button" class="bureau-x" aria-label="Fermer">✕</button>
       <p class="bureau-k">👥 Mes relations</p><h2 id="rel-t">${R.length} personne${R.length > 1 ? "s" : ""} rencontrée${R.length > 1 ? "s" : ""}</h2>
       <p>Assieds-toi sur un banc public : les passants viennent se présenter. Plus tu revois quelqu'un, plus votre lien grandit.</p>
-      ${R.length ? R.map(r => `<details><summary>${esc(r.nom)} · ${relLevel(r.fois)}</summary><p>${r.metier ? esc(r.metier) + ", " + esc(r.car || "") + ". " : ""}Rencontré${r.fois > 1 ? " " + r.fois + " fois" : ""}, dernière fois à ${esc(r.lieu)}, le ${new Date(r.le).toLocaleDateString("fr-FR")}.</p></details>`).join("") : "<p><b>Personne pour l'instant.</b></p>"}
+      ${R.length ? R.map(r => `<details><summary>${r.amour ? "💘 " : ""}${esc(r.nom)} · ${r.amour ? "Relation amoureuse" : relLevel(r.fois)}</summary><p>${r.metier ? esc(r.metier) + ", " + esc(r.car || "") + ". " : ""}Rencontré${r.fois > 1 ? " " + r.fois + " fois" : ""}, dernière fois à ${esc(r.lieu)}, le ${new Date(r.le).toLocaleDateString("fr-FR")}.</p></details>`).join("") : "<p><b>Personne pour l'instant.</b></p>"}
       <p style="font-size:12px;opacity:.7">Aperçu : ces relations sont gardées dans ce navigateur. Elles seront liées à ton compte dans la version en ligne.</p></div>`;
     d.querySelector(".bureau-box").classList.add("bureau-faq");
     document.body.appendChild(d);
@@ -1421,8 +1488,33 @@
     { id: "promenade", ic: "🚶", nom: "Se promener", dur: 1.5, mode: "promenade" },
     { id: "repos", ic: "🏠", nom: "Se reposer à la maison", dur: 2, mode: "maison" },
     { id: "soiree", ic: "🪩", nom: "Sortir le soir (après 20 h)", dur: 2, mode: "soiree", soir: true },
+    { id: "manger", ic: "🍲", nom: "Aller manger", dur: .8, mode: "manger" },
+    { id: "business", ic: "💹", nom: "Faire du business", dur: 2.5, mode: "business" },
+    { id: "draguer", ic: "💘", nom: "Draguer", dur: 1.5, mode: "draguer", hidden: true },
+    { id: "vol", ic: "🕵️", nom: "Voler", dur: .7, mode: "vol", hidden: true },
+    { id: "rentrer", ic: "🏠", nom: "Rentrer chez lui", dur: 1, mode: "maison", hidden: true },
   ];
+  // journal du jour : tout ce que fait le personnage, à relire
+  function note(t, kind) { const me = G.me; me.journal.unshift({ h: hh(G.hour), d: G.day, t }); me.journal = me.journal.slice(0, 60); msg(t, 5, kind || ""); saveMe(); }
+  function saveMe() { lsSet("twolife_moi_ville", JSON.stringify(G.me)); }
+  function pay(n, what) { const me = G.me; if (me.argent < n) return false; me.argent -= n; if (what) note("💸 −" + n + " e-makuta : " + what); return true; }
+  function earn(n, what) { G.me.argent += n; note("💰 +" + n + " e-makuta : " + what, "ok"); }
+  // la mentalité bouge avec la vie : honnêteté, caractère
+  function shiftMind(d, why) {
+    const me = G.me, before = me.honnete; me.honnete = Math.max(0, Math.min(100, me.honnete + d));
+    if (before < 50 && me.honnete >= 50) note("🧠 Sa mentalité change : " + why + ", il décide de devenir honnête.", "ok");
+    else if (before >= 35 && me.honnete < 35) note("🧠 Sa mentalité change : " + why + ", il prend goût à l'argent facile.", "alert");
+  }
+  function changeChar(t, why) { const me = G.me; if (me.car === t) return; const old = me.car; me.car = t; note("🧠 Son caractère évolue : de " + old + ", il devient " + t + " (" + why + ").", "ok"); }
   const ACT = id => ACTS.find(a => a.id === id) || ACTS[6];
+  // besoins : la faim monte avec les heures, la fatigue avec la marche
+  function needsStep(dh) {
+    const me = G.me; if (!me) return;
+    me.faim = Math.min(100, me.faim + dh * (G.phase === "nuit" ? 1.5 : 5.5));
+    if (me.faim >= 100) G.energy = Math.max(0, G.energy - dh * 8);
+    if (me.faim >= 70 && !(G.hungryMsgT > G.t)) { G.hungryMsgT = G.t + 40; msg("🍽️ Ton personnage a faim (" + Math.round(me.faim) + " %).", 3); }
+    G.saveT = (G.saveT || 0) + dh; if (G.saveT > .5) { G.saveT = 0; saveMe(); }
+  }
   // la personnalité du personnage du joueur (gardée dans le navigateur en démo)
   function myself() {
     let me = null; try { me = JSON.parse(lsGet("twolife_moi_ville") || "null"); } catch (e) { }
@@ -1430,8 +1522,17 @@
       const r = rng((Date.now() & 0xffff) + 7), pick = L => L[(r() * L.length) | 0];
       const g1 = pick(GOUTS); let g2 = pick(GOUTS); if (g2 === g1) g2 = GOUTS[(GOUTS.indexOf(g1) + 4) % GOUTS.length];
       me = { car: pick(CARACTERES).t, gouts: [g1, g2], force: 3 + ((r() * 7) | 0), lieu: "zboss", metier: "employé au bureau Zboss Sarlu" };
-      lsSet("twolife_moi_ville", JSON.stringify(me));
     }
+    // destin : tiré par le jeu à la naissance, puis il évolue selon ce qui lui arrive
+    const r2 = rng((Date.now() & 0xfffff) + 99);
+    if (me.argent === undefined) me.argent = 40 + ((r2() * 40) | 0);
+    if (me.faim === undefined) me.faim = 20;
+    if (me.honnete === undefined) me.honnete = 15 + ((r2() * 80) | 0);
+    if (me.charisme === undefined) me.charisme = 2 + ((r2() * 9) | 0);
+    if (me.intel === undefined) me.intel = 2 + ((r2() * 9) | 0);
+    if (!me.journal) me.journal = [];
+    if (!me.arrest) me.arrest = 0;
+    lsSet("twolife_moi_ville", JSON.stringify(me));
     return me;
   }
   function loadPlan() { try { const P = JSON.parse(lsGet("twolife_plan_ville") || "null"); if (P && P.day === G.day) return P.items; } catch (e) { } return []; }
@@ -1446,8 +1547,10 @@
     const b = $("autobtn"); if (b) b.setAttribute("aria-pressed", "true");
   }
   function clockStep(dt) {
+    const h0 = G.hour;
     if (LIVE_CLOCK) { const k = kinNow(); G.hour = k.h; G.day = k.day; }
-    else { G.hour += dt * G.speed / 60; if (G.hour >= 24) { G.hour -= 24; G.day++; } }
+    if (!LIVE_CLOCK) { G.hour += dt * G.speed / 60; if (G.hour >= 24) { G.hour -= 24; G.day++; } }
+    needsStep(((G.hour - h0) + 24) % 24 > 12 ? 0 : ((G.hour - h0) + 24) % 24);
     const h = G.hour, ph = h >= 22 || h < 5 ? "nuit" : h < 10 ? "matin" : "jour";
     if (ph !== G.phase) { const old = G.phase; G.phase = ph; phaseChange(old, ph); }
   }
@@ -1459,6 +1562,8 @@
         msg("🏠 " + hh(G.hour) + " : ton personnage est chez lui. Il vit sa vie seul, selon son caractère" + (ph === "matin" ? ". Jusqu'à 10 h, tu peux lui donner des consignes (📋)." : ". Les consignes se donnent le matin, de 5 h à 10 h."), 6, "ok"); }
     } else if (ph === "matin") {
       atHome("☕ Il se réveille et se prépare"); G.life = newLife(); G.lifeMsg = "☕ Il se réveille et se prépare";
+      { const me = G.me; me.faim = Math.min(me.faim, 25); me.journal = me.journal.filter(j => j.d >= G.day - 1); shiftMind(rand() * 6 - 3, "la nuit porte conseil");
+        if (rand() < .06) { const t = CARACTERES[(rand() * CARACTERES.length) | 0].t; changeChar(t, "le destin en a décidé ainsi"); } }
       msg("☀️ " + hh(G.hour) + " : ton personnage se réveille. Jusqu'à 10 h, tu peux lui donner des consignes (📋). Il les suivra… ou pas.", 6, "ok");
     } else if (ph === "jour") {
       msg("🔒 10 h : fin des consignes pour aujourd'hui. Ton personnage continue sa journée seul.", 4.5);
@@ -1494,7 +1599,16 @@
     const add = (id, w, why) => { if (!recent.includes(id)) c.push({ a: ACT(id), w: w / (1 + (L ? L.done.filter(x => x === id).length : 0)), why }); };
     if (G.energy < 30) return { a: ACT("repos"), why: "il est fatigué" };
     const likes = g => me.gouts.some(x => x.includes(g));
-    if (h >= 20) { add("soiree", likes("rumba") || likes("danse") || ["drôle", "bavard", "fier"].includes(me.car) ? 6 : 1.5, likes("rumba") ? "il aime la rumba" : "c'est le soir, il a envie de sortir"); add("repos", 2, "la journée a été longue"); }
+    if (me.faim >= 60) {
+      if (me.argent >= 4) return { a: ACT("manger"), why: "il a faim" };
+      if (me.honnete < 35 && rand() < .6) return { a: ACT("vol"), why: "il a faim et plus un franc en poche" };
+      return { a: ACT("repos"), why: "il a faim mais pas d'argent : il rentre manger chez lui" };
+    }
+    if (me.argent < 12 && me.honnete < 30) add("vol", 3, "il manque d'argent et n'a pas beaucoup de scrupules");
+    if (me.argent < 25 && h < 17) add("business", 3, "il veut gagner un peu d'argent");
+    if (me.car === "ambitieux" || likes("affaires")) add("business", 4, "il a le sens des affaires");
+    if (h >= 11 && (me.charisme >= 6 || ["drôle", "fier", "bavard"].includes(me.car))) add("draguer", 2.5 / (1 + 2 * relations.get().filter(r => r.amour).length), relations.get().some(r => r.amour) ? "il a déjà quelqu'un, mais il aime plaire" : "il veut séduire quelqu'un");
+    if (h >= 20 && me.argent >= 10) { add("soiree", likes("rumba") || likes("danse") || ["drôle", "bavard", "fier"].includes(me.car) ? 6 : 1.5, likes("rumba") ? "il aime la rumba" : "c'est le soir, il a envie de sortir"); add("repos", 2, "la journée a été longue"); }
     if (h >= 7 && h < 12 && me.car === "ambitieux") add("travail", 5, "il est ambitieux : il va travailler");
     if (likes("football") || likes("basket")) add("match", 5, "il aime " + (likes("football") ? "le football" : "le basket"));
     if (["bavard", "curieux", "généreux", "drôle"].includes(me.car)) add("rencontres", 4, "il est " + me.car + " : il a envie de parler aux gens");
@@ -1526,6 +1640,18 @@
     G.lifeMsg = a.ic + " " + a.nom.replace(" (après 20 h)", "") + " · " + why;
     msg("🧠 " + G.lifeMsg, 5, "ok");
   }
+  // fin de journée : il rentre obligatoirement chez lui, en taxi ou en bus s'il est loin
+  function goHomeTonight() {
+    const L = G.life, h = HOME(); if (!L || !h) return;
+    L.cur = ACT("rentrer"); L.until = 24;
+    if (G.foot && G.foot.sit) standUp(true);
+    if (!G.foot) { const p = G.player; G.foot = { x: p.x + Math.sin(p.a) * 26, y: p.y - Math.cos(p.a) * 26, a: p.a, v: 0, t: 0 }; }
+    G.auto = null; autoToggle(true, "maison", true);
+    const far = Math.hypot(h.x - G.foot.x, h.y - G.foot.y) > 1200;
+    if (far && G.me.argent >= 3) { const bus = G.me.argent < 8 || rand() < .4; pay(bus ? 2 : 5, bus ? "bus pour rentrer" : "taxi pour rentrer"); callTaxi(true, bus); G.lifeMsg = (bus ? "🚌 Il prend le bus" : "🚕 Il prend un taxi") + " pour rentrer chez lui"; }
+    else G.lifeMsg = "🏠 Fin de journée : il rentre chez lui à pied";
+    note(G.lifeMsg + ".");
+  }
   function lifeUpdate() {
     if (G.phase === "nuit" || !G.life) return;
     const L = G.life;
@@ -1534,7 +1660,29 @@
       G.lifeMsg = "☕ Il se réveille, se lave et prend son petit-déjeuner"; if (G.auto) G.auto.doing = G.lifeMsg; return;
     }
     if (G.auto && G.auto.phase === "ride") return;
+    if (G.hour >= 21.5 && (!L.cur || L.cur.id !== "rentrer")) { goHomeTonight(); return; }
+    if (L.cur && L.cur.id === "rentrer") return;
     if (L.orders.length || !L.cur || G.hour >= L.until || !G.auto || (L.later && G.hour >= 20)) nextActivity();
+  }
+  // fiche du personnage : son destin, ses besoins, son journal
+  function showMe() {
+    if (!G || !G.me || $("mepanel")) return;
+    const me = G.me, wasPaused = G.paused; G.paused = true;
+    const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+    const bar = (n, lab) => `<div class="pp-bar"><span>${lab}</span><i><b style="width:${n}%"></b></i><em>${Math.round(n)}</em></div>`;
+    const R = relations.get(), love = R.filter(r => r.amour).length;
+    const d = document.createElement("div"); d.id = "mepanel"; d.className = "bureau";
+    d.innerHTML = `<div class="bureau-box bureau-faq" role="dialog" aria-modal="true" aria-labelledby="me-t"><button type="button" class="bureau-x" aria-label="Fermer">✕</button>
+      <p class="bureau-k">🧍 Mon personnage · décidé par le jeu</p><h2 id="me-t">Il est ${esc(me.car)}</h2>
+      <div class="pp-grid"><p><b>Aime</b><br>${esc(me.gouts.join(" et "))}</p><p><b>Travail</b><br>${esc(me.metier)}</p><p><b>Argent</b><br>${me.argent} e-makuta</p><p><b>Relations</b><br>${R.length} personne${R.length > 1 ? "s" : ""}${love ? ", dont " + love + " amoureuse" + (love > 1 ? "s" : "") : ""}</p></div>
+      ${bar(me.honnete, "Honnêteté")}${bar(me.charisme * 10, "Charisme")}${bar(me.intel * 10, "Intelligence")}${bar(me.force * 10, "Force")}${bar(G.energy, "Énergie")}${bar(100 - me.faim, "Rassasié")}
+      <h3>Journal</h3>${me.journal.length ? me.journal.slice(0, 25).map(j => `<p><b>${j.h}</b> · ${esc(j.t)}</p>`).join("") : "<p>Rien encore aujourd'hui.</p>"}
+      <p style="font-size:12px;opacity:.7;margin-top:12px">Son caractère et son honnêteté changent selon ce qu'il vit. Aperçu : ces données sont gardées dans ce navigateur, elles seront liées à ton compte et à ton porte-monnaie e-makuta dans la version en ligne.</p></div>`;
+    document.body.appendChild(d);
+    const close = () => { d.remove(); if (G) G.paused = wasPaused; };
+    d.querySelector(".bureau-x").onclick = close; d.addEventListener("click", e => { if (e.target === d) close(); });
+    d.addEventListener("keydown", e => { e.stopPropagation(); if (e.key === "Escape") close(); });
+    d.querySelector(".bureau-x").focus();
   }
   // consignes : 3 par jour au plus, à donner le matin ; il les suit… ou pas
   function openPlan() {
@@ -1550,7 +1698,7 @@
         <p class="bureau-k">📋 Consignes du jour · il est ${hh(G.hour)}</p><h2 id="plan-t">Que lui demandes-tu aujourd'hui ?</h2>
         <p>Ton personnage est autonome : il suivra tes consignes… ou pas, selon ses convictions. Il est <b>${esc(me.car)}</b> et il aime <b>${esc(me.gouts.join(" et "))}</b>. Parfois, il change d'avis plus tard.</p>
         ${given.length ? `<p><b>Déjà demandé aujourd'hui :</b> ${given.map(id => ACT(id).ic + " " + esc(ACT(id).nom)).join(", ")}</p>` : ""}
-        <div class="sorties">${ACTS.map(a => { const k = sel.indexOf(a.id); return `<button type="button" data-a="${a.id}" aria-pressed="${k >= 0}"><b>${k >= 0 ? (k + 1) + ". " : ""}${a.ic} ${a.nom}</b><span>Environ ${String(a.dur).replace(".", ",")} h</span></button>`; }).join("")}</div>
+        <div class="sorties">${ACTS.filter(a => !a.hidden).map(a => { const k = sel.indexOf(a.id); return `<button type="button" data-a="${a.id}" aria-pressed="${k >= 0}"><b>${k >= 0 ? (k + 1) + ". " : ""}${a.ic} ${a.nom}</b><span>Environ ${String(a.dur).replace(".", ",")} h</span></button>`; }).join("")}</div>
         <p class="bureau-msg">${left() > 0 ? `Encore ${left()} consigne${left() > 1 ? "s" : ""} possible${left() > 1 ? "s" : ""} aujourd'hui.` : "Tu as donné tes 3 consignes du jour."}</p>
         <button type="button" class="plan-ok" ${sel.length ? "" : "disabled"}>Donner ${sel.length > 1 ? "ces consignes" : "cette consigne"}</button></div>`;
       d.querySelector(".bureau-x").onclick = close;
@@ -1870,6 +2018,7 @@
       $("h-msgs").innerHTML = G.msgs.map(m => `<div class="m ${m.kind}">${m.text}</div>`).join("");
       const pr = $("h-prompt"); pr.hidden = !G.prompt; if (G.prompt) { pr.querySelector("span").textContent = G.prompt; $("actbtn").hidden = !G.act; $("actbtn").innerHTML = "<kbd>E</kbd>" + ({ exit: "Descendre", enter: "Monter", pick: "Prendre", sit: "S'asseoir", stand: "Se lever", autostop: "Reprendre la main", bureau: "Entrer" }[G.act] || "OK"); }
       if (WALK && $("h-clock")) { const ph = G.phase === "matin" ? "☀️ consignes possibles" : G.phase === "nuit" ? "🌙 il dort" : "🧠 il agit seul"; $("h-clock").textContent = hh(G.hour) + " · " + ph; }
+      if (WALK && G.me && $("h-faim")) { const fa = Math.round(G.me.faim); $("h-faim").style.width = fa + "%"; $("h-faim").className = fa > 70 ? "low" : ""; $("h-faim-n").textContent = fa + " %"; $("h-money").textContent = "💰 " + G.me.argent + " e-makuta"; }
       if (WALK && $("h-energy")) { const e = Math.round(G.energy); $("h-energy").style.width = e + "%"; $("h-energy").className = e < 25 ? "low" : ""; $("h-energy-n").textContent = e + " %"; }
       if (G.foot) $("h-speed").textContent = Math.round(Math.abs(G.foot.v) * .36);
       renderMinimap();
@@ -1952,6 +2101,7 @@
   if ($("autobtn")) $("autobtn").addEventListener("click", () => openSorties());
   if ($("relbtn")) $("relbtn").addEventListener("click", () => showRelations());
   if ($("planbtn")) $("planbtn").addEventListener("click", () => openPlan());
+  if ($("mebtn")) $("mebtn").addEventListener("click", () => showMe());
   if ($("speedbtn")) { if (WALK && window.TWO_LIFE_API) $("speedbtn").hidden = true; $("speedbtn").addEventListener("click", () => { if (!G) return; G.speed = G.speed === 1 ? 10 : G.speed === 10 ? 60 : 1; $("speedbtn").textContent = "⏩ ×" + G.speed; }); }
   $("actbtn").addEventListener("click", () => { if (G && !G.over) actPressed = true; });
   const camLabel = () => { $("cambtn").textContent = "Caméra : " + (window.ZBOSS_3D && window.ZBOSS_3D.ok ? window.ZBOSS_3D.camLabel() : (camMode === "chase" ? "poursuite" : "dessus")); };
@@ -1968,5 +2118,5 @@
 
   // Accès pour les tests automatisés
   window.ZBOSS_WORLD = { W, H, C, MW, MH, mask, MAP, ROADS, FILL, walkBlocked, SHOPS, PLACES, BILLBOARDS, BENCHES, LIGHTS, lightState, isOpen, SHOP_W, SHOP_D, SHOP_DOOR, nodes, nodesNear, nearestNode, solidAt, groundAt, angDiff, rand };
-  window.__zboss = { get state() { return G; }, start: () => start(chosen), spawnCop, keys, touch, act: () => { actPressed = true; }, sortie: m => autoToggle(true, m), sorties: openSorties, plan: openPlan, setHour: h => { G.hour = h; }, step: (n, dt) => { for (let i = 0; i < n && G && !G.paused; i++) update(dt || 1 / 30); } };
+  window.__zboss = { get state() { return G; }, start: () => start(chosen), spawnCop, keys, touch, act: () => { actPressed = true; }, sortie: m => autoToggle(true, m), sorties: openSorties, plan: openPlan, me: showMe, setHour: h => { G.hour = h; }, step: (n, dt) => { for (let i = 0; i < n && G && !G.paused; i++) update(dt || 1 / 30); } };
 })();
