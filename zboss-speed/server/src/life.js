@@ -1030,3 +1030,60 @@ export function morningText(prenom, R, S, fem = false) {
 export function reminderText(prenom, S) {
   return `⏳ Plus qu'une heure pour donner ses consignes à ${prenom} et garder ta série de ${S.serie} jour${S.serie > 1 ? "s" : ""} 🔥.`;
 }
+
+// ---------------------------------------------------------------- vie sociale : journal de Kinshasa, voisins, petits mots
+const hashStr = s => { let h = 2166136261; for (const c of String(s)) h = Math.imul(h ^ c.charCodeAt(0), 16777619); return h >>> 0; };
+export const JOURNAL_START = "2026-11-24";
+// faits réels (requêtes du serveur ou de la démo) + la vie de la ville, la même pour tous ce jour-là
+export function newspaper(facts = {}, now = Date.now(), quartier = null) {
+  const jour = dayKey(now), r = rng(hashStr("journal" + jour)), pick = a => a[Math.floor(r() * a.length)];
+  const items = [], add = (icone, poids, titre, texte, commune, le, reel = true) => items.push({ icone, poids, titre, texte, commune: commune || null, le: le || now, reel });
+  for (const d of facts.deces || []) add("🕯️", 90, `Deuil à ${d.quartier || "Kinshasa"}`, `${d.prenom} ${d.nom} nous a quittés à ${d.age} ans${d.cause ? " (" + d.cause + ")" : ""}. Ses héritiers se partagent ses biens.`, d.quartier, d.le);
+  for (const m of facts.mariages || []) add("💍", 80, "Mariage", `${m.a} et ${m.b} se sont dit oui. La dot a été versée, les deux familles sont en fête.`, m.quartier, m.le);
+  for (const e of facts.entreprises || []) add((COMPANY_TYPES.find(t => t.id === e.type) || {}).icone || "🏪", 70, `Nouveau à ${e.quartier || "Kinshasa"} : ${e.nom}`, `${e.proprio} ouvre un${e.type === "boutique" ? "e" : ""} ${((COMPANY_TYPES.find(t => t.id === e.type) || {}).nom || "commerce").toLowerCase()}. Allez y faire un tour !`, e.quartier, e.le);
+  for (const n of facts.naissances || []) add("👶", 60, `Bienvenue à ${n.prenom}`, `${n.prenom} ${n.nom} est arrivé${n.sexe === "F" ? "e" : ""} à ${n.quartier || "Kinshasa"}. Nouvelle vie, nouveau destin.`, n.quartier, n.le);
+  for (const m of facts.elus || []) add("🗳️", 85, "Résultat des élections", `${m.nom} est élu${m.sexe === "F" ? "e" : ""} ${m.poste} avec ${m.voix} voix.`, null, m.le);
+  for (const a of facts.arrestations || []) if (a.n) add("🚔", 40, `Police : ${a.n} arrestation${a.n > 1 ? "s" : ""} à ${a.quartier}`, `Les patrouilles ont été actives à ${a.quartier} ces dernières 24 heures. Restez prudents.`, a.quartier);
+  // la vie de la ville
+  const C = pick(COMMUNES), C2 = pick(COMMUNES);
+  const meteo = pick([["☀️", "Grand soleil sur Kin", "Journée chaude : pensez à boire de l'eau et à manger au maquis."], ["🌧️", "Grosse pluie attendue", `Risque d'inondation à ${C.nom} : les taxis augmentent leurs prix.`], ["⛅", "Temps doux", "Une belle journée pour se promener au bord du fleuve."], ["🌩️", "Orage ce soir", "Rentrez tôt : coupures de courant possibles dans plusieurs communes."]]);
+  const vie = [
+    { icone: meteo[0], titre: meteo[1], texte: meteo[2] },
+    pick([{ icone: "⚽", titre: "Football : derby à Kin", texte: `AS ${C.nom} ${Math.floor(r() * 4)} – ${Math.floor(r() * 4)} FC ${C2.nom === C.nom ? "Lingwala" : C2.nom}. Ambiance de fête dans les deux communes.` },
+      { icone: "🎶", titre: "Rumba ce soir", texte: `Concert au maquis de ${C.nom} à partir de 20 h. Entrée libre, sapeurs bienvenus.` },
+      { icone: "🧺", titre: "Marché de la Gombe", texte: `Le prix du manioc ${r() < .5 ? "baisse" : "monte"} cette semaine. Les vendeuses parlent d'un ${pick(["bon", "mauvais", "drôle de"])} arrivage.` }]),
+    pick([{ icone: "🚌", titre: "Transport", texte: "La ligne 1 du bus circule toute la journée : 2 e-makuta le ticket, et le guide raconte la ville." },
+      { icone: "🚧", titre: "Embouteillages", texte: `Gros bouchons vers ${C2.nom} en fin de journée. Prévoyez le bus ou la marche.` },
+      { icone: "🏛️", titre: "Hôtel de ville", texte: "La mairie rappelle que les impôts financent les écoles et les hôpitaux de la ville." }]),
+  ];
+  items.sort((a, b) => b.poids - a.poids || b.le - a.le);
+  const reel = items.filter(x => x.reel);
+  const une = reel[0] || { ...vie[0], reel: false };
+  const ma = quartier ? reel.filter(x => x.commune === quartier) : [];
+  const numero = Math.max(1, Math.round((Date.parse(jour) - Date.parse(JOURNAL_START)) / 864e5) + 1);
+  return { titre: "Le Journal de Kinshasa", date: jour, numero, une,
+    rubriques: [
+      { id: "commune", titre: quartier ? `Dans ta commune · ${quartier}` : "Dans ta commune", items: ma.slice(0, 12), vide: "Rien de neuf dans ta commune aujourd'hui. Et si ton personnage faisait parler de lui ?" },
+      { id: "ville", titre: "Kinshasa", items: reel.slice(0, 20), vide: "La ville se réveille : les premières nouvelles arrivent avec les premiers joueurs." },
+      { id: "vie", titre: "La vie à Kin", items: vie, vide: "" },
+    ],
+    chiffres: facts.chiffres || null };
+}
+// petits mots entre joueurs : courts, sans lien ni numéro (contre les arnaques), 10 par jour
+export const WORD_MAX = 200, WORDS_PER_DAY = 10;
+export const GREETINGS = ["👋 Mbote ! On est voisins.", "🍲 On se retrouve au maquis ?", "💼 Tu cherches du travail ? Mon entreprise embauche.", "🙏 Merci pour ton aide !", "⚽ Match ce soir au terrain, tu viens ?"];
+export function cannotSendWord(texte, sentToday, toSelf) {
+  const t = String(texte || "").trim();
+  if (toSelf) return "Tu ne peux pas t'écrire à toi-même.";
+  if (!t) return "Écris quelques mots.";
+  if (t.length > WORD_MAX) return `${WORD_MAX} caractères au plus.`;
+  if (/https?:\/\/|www\.|\.(com|net|org|cd|io)\b/i.test(t)) return "Les liens ne sont pas autorisés dans les mots.";
+  if (/(\+?\d[\s.-]?){8,}/.test(t)) return "Pas de numéro de téléphone : pour ta sécurité, garde tes échanges dans le jeu.";
+  if (sentToday >= WORDS_PER_DAY) return `Tu as déjà envoyé ${WORDS_PER_DAY} mots aujourd'hui. Reviens demain.`;
+  return null;
+}
+export function neighborView(n, now = Date.now()) {
+  const age = ageYears(n.ne_le, now);
+  return { id: n.id, prenom: n.prenom, nom: n.nom, sexe: n.sexe, pseudo: n.pseudo || null, quartier: n.quartier, age: Math.floor(age), etape: stageOf(age).label,
+    metier: n.metier ? (JOBS.find(j => j.id === n.metier) || {}).nom || n.metier : null, reputation: repLabel(n.reputation || 0), memeCommune: !!n.memeCommune };
+}

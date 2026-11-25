@@ -111,6 +111,17 @@
     .streak { border: 1px solid var(--line); border-radius: 14px; padding: 10px 12px; margin: 0 0 12px; background: rgba(255, 150, 40, .08); }
     .streak.danger { border-color: #e8902a; background: rgba(232, 144, 42, .16); }
     .card.nuit { border-color: #e8b02a; }
+    .paper-head { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 4px; border-bottom: 2px solid var(--line); padding-bottom: 6px; margin-bottom: 8px; font-size: 13px; }
+    .paper-head b { font-family: Georgia, serif; font-size: 18px; }
+    .une, .news { display: flex; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--line); }
+    .une { background: rgba(232, 176, 42, .1); border-radius: 12px; padding: 10px; border: 0; }
+    .une small { display: block; text-transform: uppercase; letter-spacing: .06em; font-size: 11px; opacity: .8; }
+    .une b { font-size: 16px; } .une p, .news p { margin: 2px 0 0; font-size: 13px; }
+    .une .ic, .news .ic { font-size: 24px; line-height: 1; }
+    .word { display: flex; justify-content: space-between; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--line); font-size: 14px; }
+    .word.new { border-left: 3px solid #e8b02a; padding-left: 8px; }
+    .word p { margin: 2px 0 0; } .w-act { display: flex; flex-direction: column; gap: 4px; align-items: flex-end; }
+    .badge { display: inline-block; font-size: 11px; padding: 1px 7px; border-radius: 99px; background: #e8b02a; color: #1a1208; vertical-align: middle; }
     .chip { flex: none; border: 1px solid var(--line); background: var(--panel-2); color: var(--text); border-radius: 99px; padding: 8px 13px; font-size: 13px; }
     .chip:disabled { color: var(--muted); opacity: .6; }
     .tips-card { border-color: var(--accent); background: linear-gradient(180deg, #2a1d12, var(--panel)); }
@@ -167,7 +178,7 @@
       </div>
 
       <nav class="quick" aria-label="Aller à">
-        <button class="chip" data-to="dash" type="button">📊 Tableau de bord</button><button class="chip" data-to="nuit" type="button">☀️ Ma nuit</button><button class="chip" data-to="orders" type="button">📋 Consignes</button><button class="chip" data-to="moves" type="button">👣 Mouvements</button><button class="chip" data-to="needs" type="button">🍲 Manger</button><button class="chip" data-to="work" type="button">💼 Travail</button><button class="chip" data-to="school" type="button">🎓 École</button><button class="chip" data-to="companies" type="button">🏪 Entreprises</button><button class="chip" data-to="shop" type="button">🛍️ Magasin</button><button class="chip" data-to="inv" type="button">🏷️ Vendre</button><button class="chip" data-to="travel" type="button">🚕 Voyager</button><button class="chip" data-to="couple" type="button">💍 Couple</button><button class="chip" data-to="street" type="button">🧹 Petits boulots</button><button class="chip" data-to="home" type="button">🏠 Logement</button><button class="chip" data-to="market" type="button">🤝 Annonces</button><button class="chip" data-to="wallet" type="button">💰 Argent</button><button class="chip" data-to="state" type="button">🏛️ État et banques</button>
+        <button class="chip" data-to="dash" type="button">📊 Tableau de bord</button><button class="chip" data-to="nuit" type="button">☀️ Ma nuit</button><button class="chip" data-to="journal" type="button">📰 Journal</button><button class="chip" data-to="voisins" type="button">🏘️ Voisins</button><button class="chip" data-to="orders" type="button">📋 Consignes</button><button class="chip" data-to="moves" type="button">👣 Mouvements</button><button class="chip" data-to="needs" type="button">🍲 Manger</button><button class="chip" data-to="work" type="button">💼 Travail</button><button class="chip" data-to="school" type="button">🎓 École</button><button class="chip" data-to="companies" type="button">🏪 Entreprises</button><button class="chip" data-to="shop" type="button">🛍️ Magasin</button><button class="chip" data-to="inv" type="button">🏷️ Vendre</button><button class="chip" data-to="travel" type="button">🚕 Voyager</button><button class="chip" data-to="couple" type="button">💍 Couple</button><button class="chip" data-to="street" type="button">🧹 Petits boulots</button><button class="chip" data-to="home" type="button">🏠 Logement</button><button class="chip" data-to="market" type="button">🤝 Annonces</button><button class="chip" data-to="wallet" type="button">💰 Argent</button><button class="chip" data-to="state" type="button">🏛️ État et banques</button>
       </nav>
 
       <div class="card nuit" id="nuit-card" hidden>
@@ -183,6 +194,16 @@
       <div class="card tips-card">
         <h2>Que faire maintenant ?</h2>
         <div id="tips"></div>
+      </div>
+
+      <div class="card">
+        <h2>📰 Journal de Kinshasa</h2>
+        <div id="journal"></div>
+      </div>
+
+      <div class="card">
+        <h2>🏘️ Mes voisins et mes mots</h2>
+        <div id="voisins"></div>
       </div>
 
       <div class="card">

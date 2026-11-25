@@ -265,3 +265,16 @@ CREATE TABLE IF NOT EXISTS fidelite (
   resume_vu_le INTEGER,
   makuta_vu INTEGER
 );
+
+-- petits mots entre joueurs (courts, sans lien ni numéro) ; signale = 1 si le destinataire le signale à l'administration
+CREATE TABLE IF NOT EXISTS mots (
+  id TEXT PRIMARY KEY,
+  de_id TEXT NOT NULL,
+  vers_id TEXT NOT NULL,
+  texte TEXT NOT NULL,
+  le INTEGER NOT NULL,
+  lu INTEGER NOT NULL DEFAULT 0,
+  signale INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_mots_vers ON mots (vers_id, le);
+CREATE INDEX IF NOT EXISTS idx_mots_de ON mots (de_id, le);

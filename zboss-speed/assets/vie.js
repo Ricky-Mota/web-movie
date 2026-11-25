@@ -7,6 +7,7 @@ import {
   VOTER_MIN_AGE, NEGLECT_DANGER_DAYS, NEGLECT_DANGER_HEALTH, splitEstate, deathCause, familyShareRate, REP, REP_BAD, REP_GOOD, repLabel, repDiscount, DOT_MAKUTA, MARRY_MIN_AGE, STREET_JOBS, cannotStreetJob, RENT, rentOf, houseOf, rentDue, HOUSING_MIN_AGE, SALE_TAX, LIFE_EVENTS, EVENT_EVERY_H, drawEvent, eventMoney, lifeAlbum, CRIMES, catchChance, sentence, inPrison, PRISON_BLOCKED, BAIL, PRISON_HOURS, RECIDIVE, policeView, applySettings, food, drawEntry, classOfWealth, classLabel, MATURITY_GAIN, BIG_DECISIONS, cannotDecide, dashboard,
   PAY_METHODS, cannotDeposit, cannotWithdraw, maskPhone, withdrawUsd, COMMUNES, communeView, ROLES, drawRole, roleOf,
   streakStep, streakView, nightSummary, prevDayKey,
+  newspaper, cannotSendWord, neighborView, GREETINGS, WORD_MAX,
 } from "../server/src/life.js";
 import { launchDemo } from "./lancement-demo.js";
 
@@ -32,6 +33,17 @@ function demoOthers() {
   return base.map((e, i) => ({ ...e, id: "autre-" + i, en_vente: i % 3 === 0 ? Math.round((COMPANY_TYPES.find(t => t.id === e.type) || { prix: 20000 }).prix * 1.2) : null }));
 }
 const DEMO_ORDERS_MS = 2 * 60e3;
+// démo : des joueurs simulés vivent dans la ville (en ligne, ce seront les vrais inscrits)
+function demoNeighbors(c) {
+  const r = rng((c.look || 7) ^ 0x5eed), out = [];
+  for (let i = 0; i < 9; i++) {
+    const id = newIdentity(r), same = i < 4;
+    out.push({ id: "voisin-" + i, prenom: id.firstName, nom: id.lastName, sexe: id.sex, quartier: same ? c.quartier : id.quartier, pseudo: (id.firstName.toLowerCase().normalize("NFD").replace(/[^a-z]/g, "")) + (10 + i * 7),
+      ne_le: Date.now() - (200 + Math.floor(r() * 700)) * 864e5, metier: JOBS[Math.floor(r() * JOBS.length)].id, reputation: Math.floor(r() * 60) - 10, memeCommune: same || id.quartier === c.quartier });
+  }
+  return out;
+}
+const DEMO_REPLIES = ["Mbote ! Content de te connaître 😄", "Avec plaisir, on se voit au maquis ce soir.", "Merci ! Passe me voir à ma boutique.", "Ha ha, d'accord. Bonne journée à toi !", "Je suis au travail, je te réponds plus tard 🙏"];
 const demo = {
   seed() { return crypto.getRandomValues(new Uint32Array(1))[0]; },
   view(d) {
@@ -69,6 +81,7 @@ const demo = {
       mouvements: d.mouvements || [],
       notifications: { actives: !!d.notif },
       fidelite: streakView(d.fid, now),
+      mots: { recus: (d.mots || {}).recus || [], nonLus: ((d.mots || {}).recus || []).filter(m => !m.lu).length, envoyes: (d.mots || {}).envoyes || [], modeles: GREETINGS, max: WORD_MAX },
       resume: nightSummary({ prenom: c.firstName, fem: c.sex === "F", mouvements: d.mouvements || [], vuLe: d.fid && d.fid.resume_vu_le, makutaVu: d.fid && d.fid.makuta_vu, makuta: c.makuta, besoins: n, now }),
       consignes: { ...this.orders(d), max: ORDERS_PER_DAY, catalogue: ORDERS, verifieToutesLesMinutes: DEMO_ORDERS_MS / 60e3 },
       police: policeView({ policiers: 0, prisonJusqu: d.prison, casier: d.casier || [] }, now),
@@ -253,6 +266,30 @@ const demo = {
       store.set(LS_DEMO, d);
       await this.applyOrders(d, true); return { ...this.view(store.get(LS_DEMO)), serieBonus };
     }
+    if (path === "/api/journal") {
+      const V = demoNeighbors(c), day = dayKey(), rr = rng(Number(day.replace(/-/g, "")) ^ (c.look || 1)), t0 = Date.now() - 20 * 36e5, at = k => t0 + k * 2.5 * 36e5;
+      const facts = {
+        naissances: [{ prenom: c.firstName, nom: c.lastName, sexe: c.sex, quartier: c.quartier, le: (d.origine && d.origine.arrive_le) || c.neLe }, ...V.slice(0, 2).map((v, k) => ({ ...v, le: at(k) }))].filter(x => x.le > Date.now() - 864e5),
+        entreprises: [...(d.ent || []).filter(e => e.cree_le > Date.now() - 864e5).map(e => ({ ...e, le: e.cree_le, proprio: c.firstName + " " + c.lastName })),
+          ...(rr() < .8 ? [{ nom: "Chez " + V[2].prenom, type: ["maquis", "boutique", "salon"][Math.floor(rr() * 3)], quartier: V[2].quartier, proprio: V[2].prenom + " " + V[2].nom, le: at(3) }] : [])],
+        mariages: [...(d.conjoint ? [{ a: c.firstName + " " + c.lastName, b: d.conjoint.prenom, quartier: c.quartier, le: Date.now() - 36e5 }] : []), ...(rr() < .6 ? [{ a: V[3].prenom + " " + V[3].nom, b: V[5].prenom + " " + V[5].nom, quartier: V[3].quartier, le: at(4) }] : [])],
+        deces: rr() < .35 ? [{ prenom: V[8].prenom, nom: V[8].nom, quartier: V[8].quartier, age: 71, cause: "vieillesse", le: at(5) }] : [],
+        arrestations: [{ quartier: V[6].quartier, n: 1 + Math.floor(rr() * 3) }],
+        chiffres: { joueurs: V.length },
+      };
+      return newspaper(facts, Date.now(), c.quartier);
+    }
+    if (path === "/api/voisins") { const V = demoNeighbors(c).slice(0, 8); return { quartier: c.quartier, joueurs: V.length + 1, demo: true, voisins: V.map(v => neighborView(v)).sort((a, b) => b.memeCommune - a.memeCommune) }; }
+    if (path === "/api/mot") {
+      const v = demoNeighbors(c).find(x => x.id === body.vers); if (!v) throw new Error("Ce joueur n'est plus dans la ville.");
+      const M = d.mots = d.mots || { recus: [], envoyes: [] }, texte = String(body.texte || "").trim();
+      const no = cannotSendWord(texte, M.envoyes.filter(m => m.le > Date.now() - 864e5).length, false); if (no) throw new Error(no);
+      M.envoyes.unshift({ vers: v.id, nom: v.prenom + " " + v.nom, texte, le: Date.now() });
+      M.recus.unshift({ id: "m" + Date.now(), de: v.id, nom: v.prenom + " " + v.nom, pseudo: v.pseudo, texte: DEMO_REPLIES[Math.floor(Math.random() * DEMO_REPLIES.length)], le: Date.now() + 1000, lu: false });
+      M.envoyes = M.envoyes.slice(0, 15); M.recus = M.recus.slice(0, 30); store.set(LS_DEMO, d); return { ...this.view(d), envoyeA: v.prenom };
+    }
+    if (path === "/api/mots/lus") { ((d.mots || {}).recus || []).forEach(m => m.lu = true); store.set(LS_DEMO, d); return this.view(d); }
+    if (path === "/api/mot/signaler") { const m = ((d.mots || {}).recus || []).find(x => x.id === body.mot); if (m) { m.lu = true; m.signale = true; d.mots.recus = d.mots.recus.filter(x => x !== m); } store.set(LS_DEMO, d); return this.view(d); }
     if (path === "/api/resume/vu") { d.fid = { ...(d.fid || {}), resume_vu_le: Date.now(), makuta_vu: c.makuta }; store.set(LS_DEMO, d); return this.view(d); }
     if (path === "/api/demo/lendemain") {   // démo seulement : on fait comme si la journée était passée
       const C = this.orders(d), y = prevDayKey(C.jour);
@@ -656,9 +693,9 @@ function render(v) {
   ] : []).concat([["Joueur", v.compte.pseudo], ["Né le", new Date(p.neLe).toLocaleDateString("fr-FR")]])
     .map(([a, b]) => `<div class="row"><span>${a}</span><span style="text-align:right">${b}</span></div>`).join("")
     + (v.demo ? `<button class="mini" id="b-demo-die" type="button" style="margin-top:12px">💀 Simuler la mort (démo)</button>` : "");
-  renderNight(v); renderDash(v); renderCouple(v); renderCity(v);
+  renderNight(v); renderNeighbors(v); renderJournal(); renderDash(v); renderCouple(v); renderCity(v);
   renderShop(v); renderWallet(v); renderWork(v); renderSchool(v); renderKids(v); renderCompanies(v); renderTravel(v); renderState(v); renderTips(v); renderOrders(v); renderMoves(v);
-  if (!render.hashDone && ["#moves", "#nuit", "#orders"].includes(location.hash)) { render.hashDone = true; setTimeout(() => goTo(location.hash.slice(1)), 300); }
+  if (!render.hashDone && ["#moves", "#nuit", "#orders", "#voisins", "#journal"].includes(location.hash)) { render.hashDone = true; setTimeout(() => goTo(location.hash.slice(1)), 300); }
   portrait(p);
   dress(v);
 }
@@ -1019,6 +1056,49 @@ function renderNight(v) {
 $("nuit-card").addEventListener("click", e => {
   if (e.target.id === "b-nuit-vu") { e.target.disabled = true; act("/api/resume/vu", {}, () => "À demain matin ☀️"); }
   const t = e.target.closest("[data-to]"); if (t) goTo(t.dataset.to);
+});
+// ---- vie sociale : le journal de Kinshasa
+let journalTab = "commune", journalData = null;
+function renderJournal() {
+  const J = journalData, box = $("journal");
+  if (!J) { box.innerHTML = `<p style="font-size:14px;margin:0 0 10px">Chaque matin, le journal raconte ce qui s'est passé dans la ville : naissances, mariages, nouvelles entreprises, décès, élections… et la vie de ta commune.</p><button class="mini fill" id="b-journal" type="button">📰 Lire le journal du jour</button>`; return; }
+  const R = J.rubriques.find(x => x.id === journalTab) || J.rubriques[0];
+  const it = x => `<div class="news"><span class="ic">${x.icone}</span><div><b>${esc(x.titre)}</b><p>${esc(x.texte)}</p></div></div>`;
+  box.innerHTML = `<div class="paper-head"><b>${esc(J.titre)}</b><span>N° ${J.numero} · ${new Date(J.date + "T12:00:00Z").toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" })}${J.chiffres && J.chiffres.joueurs ? ` · ${J.chiffres.joueurs} habitants joueurs` : ""}</span></div>
+    <div class="une"><span class="ic">${J.une.icone}</span><div><small>À la une</small><b>${esc(J.une.titre)}</b><p>${esc(J.une.texte)}</p></div></div>
+    <div class="tabs" style="margin:10px 0 6px">${J.rubriques.map(x => `<button class="tab ${x.id === R.id ? "on" : ""}" data-jtab="${x.id}" type="button">${esc(x.titre)}</button>`).join("")}</div>
+    ${R.items.length ? R.items.map(it).join("") : `<p style="font-size:13px">${esc(R.vide)}</p>`}`;
+}
+$("journal").addEventListener("click", async e => {
+  if (e.target.id === "b-journal") { e.target.disabled = true; try { journalData = await call("/api/journal", {}); renderJournal(); } catch (err) { toast(err.message); e.target.disabled = false; } }
+  const t = e.target.closest("[data-jtab]"); if (t) { journalTab = t.dataset.jtab; renderJournal(); }
+});
+// ---- vie sociale : les voisins (vrais joueurs) et les petits mots
+let neighbors = null, wordTo = null;
+function renderNeighbors(v) {
+  const M = v.mots || { recus: [], envoyes: [], modeles: [], nonLus: 0, max: 200 }, box = $("voisins");
+  const inbox = M.recus.length ? `<h2 style="font-size:16px;margin:4px 0 6px">✉️ Mots reçus${M.nonLus ? ` <span class="badge">${M.nonLus} nouveau${M.nonLus > 1 ? "x" : ""}</span>` : ""}</h2>` +
+    M.recus.slice(0, 8).map(m => `<div class="word ${m.lu ? "" : "new"}"><div><b>${esc(m.nom)}</b>${m.pseudo ? ` <small>@${esc(m.pseudo)}</small>` : ""}<p>${esc(m.texte)}</p></div><div class="w-act"><button class="mini" data-reply="${m.de}" data-nom="${esc(m.nom)}" type="button">Répondre</button><button class="link" data-report="${m.id}" type="button" title="Signaler ce mot à l'administration">Signaler</button></div></div>`).join("") +
+    (M.nonLus ? `<button class="mini" id="b-mots-lus" type="button" style="margin:6px 0 10px">Tout marquer comme lu</button>` : "") : "";
+  const list = !neighbors ? `<button class="mini fill" id="b-voisins" type="button">🏘️ Voir les joueurs de ma commune</button>`
+    : `<p style="font-size:13px;margin:6px 0">${neighbors.joueurs} joueur${neighbors.joueurs > 1 ? "s" : ""} dans la ville${neighbors.demo ? " (démo : joueurs simulés)" : ""}. En premier, ceux de ${esc(neighbors.quartier || "ta commune")}.</p>` +
+      (neighbors.voisins.length ? neighbors.voisins.map(n => `<div class="item"><span class="sw">${n.sexe === "F" ? "👩🏾" : "👨🏾"}</span><div class="t">${esc(n.prenom)} ${esc(n.nom)}${n.memeCommune ? ` <span class="badge">voisin</span>` : ""}<small>${n.age} ans · ${esc(n.quartier || "")}${n.metier ? " · " + esc(n.metier) : ""} · ${esc(n.reputation)}${n.pseudo ? " · @" + esc(n.pseudo) : ""}</small></div><button class="mini" data-write="${n.id}" data-nom="${esc(n.prenom)} ${esc(n.nom)}" type="button">✉️ Écrire</button></div>`).join("")
+        : `<p style="font-size:13px">Tu es le premier joueur de la ville. Invite tes amis à s'inscrire !</p>`);
+  const form = wordTo ? `<div class="g-row" style="margin-top:10px;display:block"><b style="font-size:14px">Mot pour ${esc(wordTo.nom)}</b>
+      <div class="chips" style="margin:6px 0">${M.modeles.map((t, i) => `<button class="chip" data-tpl="${i}" type="button">${esc(t)}</button>`).join("")}</div>
+      <textarea id="w-text" maxlength="${M.max}" rows="2" style="width:100%;box-sizing:border-box" placeholder="Ton mot (${M.max} caractères, sans lien ni numéro)"></textarea>
+      <div class="chips" style="margin-top:6px"><button class="mini fill" id="b-send-word" type="button">Envoyer</button><button class="mini" id="b-cancel-word" type="button">Annuler</button></div></div>` : "";
+  box.innerHTML = inbox + form + list;
+}
+$("voisins").addEventListener("click", async e => {
+  const el = e.target;
+  if (el.id === "b-voisins") { el.disabled = true; try { neighbors = await call("/api/voisins", {}); renderNeighbors(state); } catch (err) { toast(err.message); el.disabled = false; } return; }
+  const w = el.closest("[data-write],[data-reply]"); if (w) { wordTo = { id: w.dataset.write || w.dataset.reply, nom: w.dataset.nom }; renderNeighbors(state); setTimeout(() => $("w-text") && $("w-text").focus(), 50); return; }
+  const tp = el.closest("[data-tpl]"); if (tp) { $("w-text").value = state.mots.modeles[+tp.dataset.tpl]; return; }
+  if (el.id === "b-cancel-word") { wordTo = null; renderNeighbors(state); return; }
+  if (el.id === "b-send-word") { const to = wordTo; el.disabled = true; try { const v = await call("/api/mot", { vers: to.id, texte: $("w-text").value }); wordTo = null; render(v); toast(`Mot envoyé à ${v.envoyeA || to.nom}.`); } catch (err) { toast(err.message); el.disabled = false; } return; }
+  if (el.id === "b-mots-lus") return act("/api/mots/lus", {});
+  const rp = el.closest("[data-report]"); if (rp) return act("/api/mot/signaler", { mot: rp.dataset.report }, () => "Merci. Le mot est signalé à l'équipe 2 Life.");
 });
 // ---- série de jours : une consigne par jour garde la flamme allumée
 function streakHtml(v) {

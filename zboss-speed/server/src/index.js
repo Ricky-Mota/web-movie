@@ -6,6 +6,7 @@ import {
   describeAction, ORDER_DONE, ORDERS, ORDERS_PER_DAY, ORDERS_CHECK_MS, dayKey, ordersToRun, cannotGiveOrder,
   PAY_METHODS, cannotDeposit, cannotWithdraw, maskPhone, withdrawUsd, COMMUNES, communeView, ROLES, drawRole, roleOf,
   streakStep, streakView, nightSummary, morningText, reminderText, kinHour,
+  newspaper, cannotSendWord, neighborView, GREETINGS, WORD_MAX,
 } from "./life.js";
 import { sendPush, newVapidKeys } from "./webpush.js";
 import { payConfigured, startDeposit, startPayout, readNotice } from "./paiement.js";
@@ -230,6 +231,8 @@ async function loadCharacter(db, id) {
   const { results: ord } = await db.prepare(`SELECT ordre FROM consignes WHERE personnage_id = ? AND jour = ? ORDER BY donnee_le`).bind(id, jour).all();
   const { results: journal } = await db.prepare(`SELECT ordre, ok, message, le FROM consignes_journal WHERE personnage_id = ? AND jour = ? ORDER BY le DESC LIMIT 30`).bind(id, jour).all();
   const reputation = await repOf(db, id);
+  const { results: motsRecus } = await db.prepare(`SELECT m.id, m.de_id, m.texte, m.le, m.lu, p.prenom, p.nom, c.pseudo FROM mots m JOIN personnages p ON p.id = m.de_id LEFT JOIN comptes c ON c.id = p.compte_id WHERE m.vers_id = ? ORDER BY m.le DESC LIMIT 30`).bind(id).all();
+  const { results: motsEnvoyes } = await db.prepare(`SELECT m.vers_id, m.texte, m.le, p.prenom, p.nom FROM mots m JOIN personnages p ON p.id = m.vers_id WHERE m.de_id = ? ORDER BY m.le DESC LIMIT 15`).bind(id).all();
   const fid = p.compte_id ? await db.prepare(`SELECT serie, meilleure, dernier_jour, resume_vu_le, makuta_vu FROM fidelite WHERE compte_id = ?`).bind(p.compte_id).first() : null;
   const origine = await db.prepare(`SELECT classe, adulte, maturite, arrive_le, caractere, role, camp FROM origines WHERE personnage_id = ?`).bind(id).first();
   const flux = await db.prepare(`SELECT SUM(CASE WHEN vers_id = ?1 THEN montant ELSE 0 END) AS recu, SUM(CASE WHEN de_id = ?1 THEN montant ELSE 0 END) AS depense,
@@ -245,7 +248,7 @@ async function loadCharacter(db, id) {
   const { results: dmIn } = await db.prepare(`SELECT d.id, d.le, p.prenom, p.nom, p.sexe, c.pseudo FROM demandes_mariage d JOIN personnages p ON p.id = d.de_id LEFT JOIN comptes c ON c.id = p.compte_id WHERE d.vers_id = ? AND d.statut = 'attente' ORDER BY d.le DESC`).bind(id).all();
   const { results: dmOut } = await db.prepare(`SELECT d.id, d.le, p.prenom, p.nom, c.pseudo FROM demandes_mariage d JOIN personnages p ON p.id = d.vers_id LEFT JOIN comptes c ON c.id = p.compte_id WHERE d.de_id = ? AND d.statut = 'attente' ORDER BY d.le DESC`).bind(id).all();
   return { origine, flux, logement, lastStreet: lastStreet && lastStreet.le, annonces, reputation, couple: { conjoint, recues: dmIn, envoyees: dmOut }, p, tal, inv, dep, ret, gui, job, lastShift: last && last.le, enr, dip: dip.map(d => d.formation_id), kids, par, sibs, ent, aVendre, offres, boss, comptes, cand, pub, elec, policiers: pol.n, casier,
-    consignes: { jour, liste: ord.map(o => o.ordre), journal }, mouvements: mv, notifications: notif.n, fid };
+    consignes: { jour, liste: ord.map(o => o.ordre), journal }, mouvements: mv, notifications: notif.n, fid, motsRecus, motsEnvoyes };
 }
 
 // ---------------------------------------------------------------- notifications sur le téléphone
@@ -268,6 +271,23 @@ async function notify(env, db, compteId, message) {
     try { if (await sendPush(keys, sub, message) === "expire") await db.prepare(`DELETE FROM abonnements_push WHERE endpoint = ?`).bind(sub.endpoint).run(); }
     catch (e) { console.error(e); }
   }
+}
+
+// ---- journal : les vrais faits des dernières 24 heures
+async function newsFacts(db, now) {
+  const since = now - 864e5;
+  const q = async (sql, ...b) => (await db.prepare(sql).bind(...b).all()).results;
+  const [naissances, deces, mariages, entreprises, elus, arrestations, vivants] = await Promise.all([
+    q(`SELECT p.prenom, p.nom, p.sexe, p.quartier, o.arrive_le AS le FROM origines o JOIN personnages p ON p.id = o.personnage_id WHERE o.arrive_le > ? AND p.compte_id IS NOT NULL ORDER BY o.arrive_le DESC LIMIT 15`, since),
+    q(`SELECT prenom, nom, quartier, cause_mort AS cause, ne_le, mort_le AS le FROM personnages WHERE mort_le > ? AND compte_id IS NOT NULL ORDER BY mort_le DESC LIMIT 10`, since),
+    q(`SELECT a.prenom || ' ' || a.nom AS a, b.prenom || ' ' || b.nom AS b, a.quartier, d.le FROM demandes_mariage d JOIN personnages a ON a.id = d.de_id JOIN personnages b ON b.id = d.vers_id WHERE d.statut = 'acceptee' AND d.le > ? LIMIT 10`, since),
+    q(`SELECT e.nom, e.type, e.local AS quartier, e.cree_le AS le, p.prenom || ' ' || p.nom AS proprio FROM entreprises e JOIN personnages p ON p.id = e.proprietaire_id WHERE e.cree_le > ? ORDER BY e.cree_le DESC LIMIT 10`, since),
+    q(`SELECT p.prenom || ' ' || p.nom AS nom, p.sexe, m.poste, m.voix, m.debut AS le FROM mandats m JOIN personnages p ON p.id = m.personnage_id WHERE m.debut > ? LIMIT 10`, since),
+    q(`SELECT p.quartier, COUNT(*) AS n FROM infractions i JOIN personnages p ON p.id = i.personnage_id WHERE i.le > ? AND p.quartier IS NOT NULL GROUP BY p.quartier ORDER BY n DESC LIMIT 5`, since),
+    q(`SELECT COUNT(*) AS n FROM personnages p JOIN comptes c ON c.vie_id = p.id WHERE p.mort_le IS NULL`),
+  ]);
+  return { naissances, deces: deces.map(d => ({ ...d, age: Math.floor(ageYears(d.ne_le, d.le)) })), mariages, entreprises, elus, arrestations,
+    chiffres: { joueurs: vivants[0].n, naissances: naissances.length, deces: deces.length, entreprises: entreprises.length } };
 }
 
 // ---- fidélité : la série avance d'un jour à la première consigne du jour ; bonus aux paliers
@@ -361,7 +381,7 @@ async function applyOrders(env, db, compte, ch, now, force) {
   return true;
 }
 
-function view(compte, { origine = null, flux = {}, logement = null, lastStreet = null, annonces = [], reputation = 0, couple = { conjoint: null, recues: [], envoyees: [] }, p, tal, inv = [], dep = [], ret = [], gui = [], job = null, lastShift = null, enr = null, dip = [], kids = [], par = [], sibs = [], ent = [], aVendre = [], offres = [], boss = null, comptes = [], cand = null, pub = {}, elec = null, policiers = 0, casier = [], consignes = { jour: dayKey(now), liste: [], journal: [] }, mouvements = [], notifications = 0, fid = null }, now) {
+function view(compte, { origine = null, flux = {}, logement = null, lastStreet = null, annonces = [], reputation = 0, couple = { conjoint: null, recues: [], envoyees: [] }, p, tal, inv = [], dep = [], ret = [], gui = [], job = null, lastShift = null, enr = null, dip = [], kids = [], par = [], sibs = [], ent = [], aVendre = [], offres = [], boss = null, comptes = [], cand = null, pub = {}, elec = null, policiers = 0, casier = [], consignes = { jour: dayKey(now), liste: [], journal: [] }, mouvements = [], notifications = 0, fid = null, motsRecus = [], motsEnvoyes = [] }, now) {
   const age = ageYears(p.ne_le, now);
   const st = stageOf(age);
   const next = STAGES[STAGES.indexOf(st) + 1];
@@ -403,6 +423,8 @@ function view(compte, { origine = null, flux = {}, logement = null, lastStreet =
     mouvements,
     notifications: { actives: notifications > 0 },
     fidelite: streakView(fid, now),
+    mots: { recus: motsRecus.map(m => ({ id: m.id, de: m.de_id, nom: `${m.prenom} ${m.nom}`, pseudo: m.pseudo, texte: m.texte, le: m.le, lu: !!m.lu })), nonLus: motsRecus.filter(m => !m.lu).length,
+      envoyes: motsEnvoyes.map(m => ({ vers: m.vers_id, nom: `${m.prenom} ${m.nom}`, texte: m.texte, le: m.le })), modeles: GREETINGS, max: WORD_MAX },
     resume: nightSummary({ prenom: p.prenom, fem: p.sexe === "F", mouvements, vuLe: fid && fid.resume_vu_le, makutaVu: fid && fid.makuta_vu, makuta: p.makuta, besoins: needs, now }),
     consignes: { ...consignes, max: ORDERS_PER_DAY, catalogue: ORDERS, verifieToutesLesMinutes: ORDERS_CHECK_MS / 60e3 },
   };
@@ -892,6 +914,39 @@ const worker = {
         const c2 = await loadCharacter(db, p.id);
         await applyOrders(env, db, compte, c2, now, true);   // la consigne s'applique tout de suite si possible
         return json(h, 200, { ...view(compte, await loadCharacter(db, p.id), Date.now()), serieBonus: sk.bonus ? { jours: sk.serie, makuta: sk.bonus } : null });
+      }
+      // ---- vie sociale : journal, voisins, petits mots
+      if (url.pathname === "/api/journal" && req.method === "POST") return json(h, 200, newspaper(await newsFacts(db, now), now, p.quartier));
+      if (url.pathname === "/api/voisins" && req.method === "POST") {
+        const { results } = await db.prepare(`SELECT p.id, p.prenom, p.nom, p.sexe, p.quartier, p.ne_le, c.pseudo,
+            (SELECT metier_id FROM emplois e WHERE e.personnage_id = p.id AND e.fin IS NULL LIMIT 1) AS metier,
+            (SELECT points FROM reputations r WHERE r.personnage_id = p.id) AS reputation
+          FROM personnages p JOIN comptes c ON c.vie_id = p.id WHERE p.mort_le IS NULL AND p.id != ?
+          ORDER BY (p.quartier = ?) DESC, p.ne_le DESC LIMIT 40`).bind(p.id, p.quartier || "").all();
+        const total = await db.prepare(`SELECT COUNT(*) AS n FROM personnages p JOIN comptes c ON c.vie_id = p.id WHERE p.mort_le IS NULL`).first();
+        return json(h, 200, { quartier: p.quartier, joueurs: total.n, voisins: results.map(n => neighborView({ ...n, memeCommune: n.quartier === p.quartier }, now)) });
+      }
+      if (url.pathname === "/api/mot" && req.method === "POST") {
+        const to = await db.prepare(`SELECT p.id, p.prenom, p.compte_id FROM personnages p JOIN comptes c ON c.vie_id = p.id WHERE p.id = ? AND p.mort_le IS NULL`).bind(String(body.vers || "")).first();
+        if (!to) return fail(h, 404, "Ce joueur n'est plus dans la ville.");
+        const sent = await db.prepare(`SELECT COUNT(*) AS n FROM mots WHERE de_id = ? AND le > ?`).bind(p.id, now - 864e5).first();
+        const texte = String(body.texte || "").trim();
+        const no = cannotSendWord(texte, sent.n, to.id === p.id); if (no) return fail(h, 409, no);
+        await db.prepare(`INSERT INTO mots (id, de_id, vers_id, texte, le) VALUES (?, ?, ?, ?, ?)`).bind(uid(), p.id, to.id, texte, now).run();
+        try { await notify(env, db, to.compte_id, { titre: `2 Life · mot de ${p.prenom}`, texte: texte.slice(0, 120), url: "vie.html#voisins" }); } catch (e) { console.error(e); }
+        return json(h, 200, { ...view(compte, await loadCharacter(db, p.id), now), envoyeA: to.prenom });
+      }
+      if (url.pathname === "/api/mots/lus" && req.method === "POST") {
+        await db.prepare(`UPDATE mots SET lu = 1 WHERE vers_id = ? AND lu = 0`).bind(p.id).run();
+        return json(h, 200, view(compte, await loadCharacter(db, p.id), now));
+      }
+      if (url.pathname === "/api/mot/signaler" && req.method === "POST") {
+        const m = await db.prepare(`SELECT m.id, m.texte, m.de_id, p.prenom, p.nom FROM mots m JOIN personnages p ON p.id = m.de_id WHERE m.id = ? AND m.vers_id = ?`).bind(String(body.mot || ""), p.id).first();
+        if (!m) return fail(h, 404, "Mot introuvable.");
+        await db.batch([db.prepare(`UPDATE mots SET signale = 1, lu = 1 WHERE id = ?`).bind(m.id),
+          db.prepare(`INSERT INTO support_demandes (id, compte_id, pseudo, email, categorie, message, page, statut, cree_le) VALUES (?, ?, ?, ?, 'Mot signalé', ?, 'voisins', 'ouvert', ?)`)
+            .bind(uid(), compte.id, compte.pseudo, compte.email, `Mot de ${m.prenom} ${m.nom} (${m.de_id}) : « ${m.texte} »`, now)]);
+        return json(h, 200, view(compte, await loadCharacter(db, p.id), now));
       }
       if (url.pathname === "/api/resume/vu" && req.method === "POST") {
         await db.prepare(`INSERT INTO fidelite (compte_id, resume_vu_le, makuta_vu) VALUES (?, ?, ?) ON CONFLICT(compte_id) DO UPDATE SET resume_vu_le = excluded.resume_vu_le, makuta_vu = excluded.makuta_vu`).bind(compte.id, now, p.makuta).run();
