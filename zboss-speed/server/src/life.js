@@ -335,10 +335,10 @@ export function cannotEnroll(f, age, diplomas, current) {
 }
 
 // un cours : renvoie la nouvelle inscription et, éventuellement, la fin d'année ou le diplôme
-export function attendCourse(f, enr, talents, makuta, energy, now, r) {
+export function attendCourse(f, enr, talents, makuta, energy, now, r, aide = LAWS.budget.ecole) {
   if (enr.dernier && now - enr.dernier < STUDY_HOURS * 36e5) return { error: `Prochain cours dans ${Math.ceil((enr.dernier + STUDY_HOURS * 36e5 - now) / 36e5)} h.` };
   if (energy < STUDY_ENERGY) return { error: "Trop fatigué pour aller en cours : repose-toi ou mange." };
-  const fee = f.parents ? 0 : courseFee(f);
+  const brut = f.parents ? 0 : courseFee(f), etat = stateShare(brut, aide), fee = brut - etat;   // une part payée par l'État si le budget voté le prévoit
   if (makuta < fee) return { error: `Pas assez d'argent pour les frais du cours (${fmtMakuta(fee)}).` };
   const has = id => talents.some(t => t.talent === id && t.discovered);
   const note = Math.min(100, Math.round(42 + r() * 40 + (has("etudes") ? 14 : 0) + (f.talent && has(f.talent) ? 8 : 0)));
@@ -352,7 +352,7 @@ export function attendCourse(f, enr, talents, makuta, energy, now, r) {
     } else message = `Année ${e.annee} ratée (${moy}/100) : il faut redoubler.`;
     e.cours = 0; e.points = 0;
   }
-  return { enr: e, fee, note, message, fin };
+  return { enr: e, fee, etat, note, message, fin };
 }
 
 export function schoolView(enr, diplomas, now = Date.now()) {
@@ -620,9 +620,10 @@ export const CARE = { prix: 2000, sante: 40 };
 export const ACCIDENT = { minKmh: 25, maxKmh: 300, sante: 25, bonheur: 8, santeMin: 5, attenteMin: 10 };
 export const injuredBlocks = blessure => blessure ? "Tu es blessé (accident de la route) : va d'abord te soigner au centre de santé." : null;
 export function accidentText(prenom, kmh, fem) { const e = fem ? "e" : ""; return `Accident : ${prenom} a été renversé${e} par une voiture à ${kmh} km/h. Blessé${e}, ${fem ? "elle" : "il"} doit se soigner au centre de santé avant de reprendre le travail.`; }    // consultation et médicaments au centre de santé
-export function careCost(insuredUntil, insurerId, now = Date.now()) {
+export function careCost(insuredUntil, insurerId, now = Date.now(), aide = LAWS.budget.sante) {
   const ins = insuredUntil && insuredUntil > now && INSURERS.find(x => x.id === insurerId);
-  return { prix: Math.round(CARE.prix * (ins ? 1 - ins.couverture : 1)), assure: !!ins };
+  const brut = Math.round(CARE.prix * (ins ? 1 - ins.couverture : 1)), etat = stateShare(brut, aide);   // part de l'État votée au budget (santé)
+  return { prix: brut - etat, etat, assure: !!ins };
 }
 // réseaux de communication : on achète du crédit chez un opérateur, un appel coûte 1 e-makuta et rend heureux
 export const OPERATORS = [
@@ -640,7 +641,7 @@ export function stateView(me, pub, now = Date.now()) {
     assureurs: INSURERS, assurance: me.assureJusqu && me.assureJusqu > now ? { id: me.assureur, jusqua: me.assureJusqu } : null,
     soins: { ...CARE, ...careCost(me.assureJusqu, me.assureur, now) },
     operateurs: OPERATORS, operateur: me.operateur || null, credit: me.credit || 0, recharges: RECHARGES, appel: CALL,
-    candidature: me.candidature || null, metiersPublics: PUBLIC_JOBS,
+    candidature: me.candidature || null, metiersPublics: PUBLIC_JOBS, tva: LAWS.tva,
   };
 }
 
@@ -713,6 +714,70 @@ export function electionScores(votes, candidates) {
   return out;
 }
 export function resultLine(r, posteNom) { const e = r.sexe === "F" ? "e" : ""; return `${r.nom} ${r.elu ? "élu" + e : "battu" + e} (${posteNom.toLowerCase()}) avec ${r.voix} voix, soit ${String(r.pct).replace(".", ",")} %`; }
+
+// ---------------------------------------------------------------- pouvoirs des élus et Parlement (validé le 25/11)
+// Comme dans la vraie vie : le Président fixe la TVA par décret (dans des limites, au plus une fois par mois) et son
+// gouvernement dépose le budget ; les députés (et les sénateurs) le votent. Un élu doit siéger : chaque journée de travail
+// d'un député ou d'un sénateur est une séance au Parlement. Absent plus d'une séance sur quatre : il perd son mandat.
+export const VAT_LIMITS = { min: 10, max: 20, delaiJours: 30 };
+export function cannotSetVat({ president, taux, actuel, dernier, now = Date.now() } = {}) {
+  if (!president) return "Seul le Président de la République fixe la TVA.";
+  if (!Number.isInteger(taux) || taux < VAT_LIMITS.min || taux > VAT_LIMITS.max) return `La TVA doit rester entre ${VAT_LIMITS.min} et ${VAT_LIMITS.max} %.`;
+  if (taux === actuel) return `La TVA est déjà de ${taux} %.`;
+  if (dernier && now - dernier < VAT_LIMITS.delaiJours * 864e5) return `Un seul décret sur la TVA par mois : prochain possible le ${new Date(dernier + VAT_LIMITS.delaiJours * 864e5).toLocaleDateString("fr-FR")}.`;
+  return null;
+}
+export const BUDGET_LINES = [
+  { id: "sante", nom: "Santé publique", icone: "🏥", desc: "Part du prix des soins payée par l'État", unite: "%", min: 0, max: 50, pas: 10 },
+  { id: "ecole", nom: "Éducation", icone: "📚", desc: "Part des frais de cours payée par l'État", unite: "%", min: 0, max: 50, pas: 10 },
+  { id: "primes", nom: "Fonction publique", icone: "🎖️", desc: "Prime sur le salaire des agents publics (pas des élus)", unite: "%", min: 0, max: 20, pas: 5 },
+  { id: "voirie", nom: "Routes et propreté", icone: "🚧", desc: "Versé chaque jour à l'Office de la voirie", unite: "makuta", min: 0, max: 4000, pas: 500 },
+];
+export const stateShare = (prix, pct) => Math.min(prix, Math.round(prix * Math.max(0, pct || 0) / 100));
+export function cleanBudget(b = {}) {
+  const out = {};
+  for (const l of BUDGET_LINES) {
+    const v = Number(b[l.id] ?? 0);
+    if (!Number.isFinite(v) || v < l.min || v > l.max || v % l.pas) return { erreur: `${l.nom} : entre ${l.min} et ${l.max}${l.unite === "%" ? " %" : ""}, par pas de ${l.pas}.` };
+    out[l.id] = v;
+  }
+  return { budget: out };
+}
+export const budgetLine = (l, v) => l.unite === "%" ? `${v} %` : `${fmtMakuta(v)} par jour`;
+export const budgetText = b => BUDGET_LINES.map(l => `${l.nom.toLowerCase()} ${budgetLine(l, b[l.id] || 0)}`).join(", ");
+export const PARLIAMENT = { voteJours: 2, quorum: 0.5, absenceMax: 0.25, alerte: 0.15, fenetreJours: 28, graceJours: 7, repDechu: 20, repSeance: 1 };
+export const PARLIAMENT_SEATS = ["depute", "senateur"];
+export function cannotProposeBudget({ president, enCours } = {}) {
+  if (!president) return "Seul le gouvernement du Président dépose le projet de budget.";
+  if (enCours) return "Un projet de loi est déjà en cours de vote au Parlement.";
+  return null;
+}
+export function cannotVoteBill({ siege, loi, deja, now = Date.now() } = {}) {
+  if (!PARLIAMENT_SEATS.includes(siege)) return "Seuls les députés et les sénateurs votent les lois.";
+  if (!loi || loi.statut !== "vote" || loi.fin_vote <= now) return "Aucun projet de loi en cours de vote.";
+  if (deja) return "Tu as déjà voté ce projet de loi.";
+  return null;
+}
+// résultat d'un vote : à l'Assemblée, la moitié des députés en fonction doit voter (quorum) et le « oui » doit l'emporter ;
+// au Sénat, si des sénateurs ont voté, le « oui » doit au moins égaler le « non ». Sans aucun député élu, la loi passe par ordonnance.
+export function billOutcome(votes = [], sieges = {}) {
+  const ch = c => ({ oui: votes.filter(v => v.chambre === c && v.choix === "oui").length, non: votes.filter(v => v.chambre === c && v.choix === "non").length });
+  const A = ch("depute"), S = ch("senateur"), quorum = Math.max(1, Math.ceil((sieges.depute || 0) * PARLIAMENT.quorum));
+  if (!sieges.depute) return { adoptee: true, raison: "ordonnance du Président (aucun député en fonction)", assemblee: { ...A, quorum: 0 }, senat: S };
+  if (A.oui + A.non < quorum) return { adoptee: false, raison: `rejetée, quorum non atteint (${A.oui + A.non} votants sur ${quorum} nécessaires)`, assemblee: { ...A, quorum }, senat: S };
+  if (A.oui <= A.non) return { adoptee: false, raison: `rejetée par l'Assemblée (${A.oui} pour, ${A.non} contre)`, assemblee: { ...A, quorum }, senat: S };
+  if (S.oui + S.non > 0 && S.oui < S.non) return { adoptee: false, raison: `rejetée par le Sénat (${S.oui} pour, ${S.non} contre)`, assemblee: { ...A, quorum }, senat: S };
+  return { adoptee: true, raison: `adoptée (Assemblée : ${A.oui} pour, ${A.non} contre${S.oui + S.non ? ` · Sénat : ${S.oui} pour, ${S.non} contre` : ""})`, assemblee: { ...A, quorum }, senat: S };
+}
+// présence au Parlement : séances des jours passés (pas celle d'aujourd'hui) dans une fenêtre de 28 jours
+export function attendance(debut, joursPresents = [], now = Date.now()) {
+  const today = dayKey(now), start = Math.max(debut, now - PARLIAMENT.fenetreJours * 864e5), days = new Set();
+  for (let t = start; dayKey(t) !== today && t < now; t += 864e5) days.add(dayKey(t));
+  const seances = days.size, presences = [...new Set(joursPresents)].filter(j => days.has(j)).length, absences = seances - presences;
+  const taux = seances ? absences / seances : 0, actif = now - debut >= PARLIAMENT.graceJours * 864e5;
+  return { seances, presences, absences, taux: Math.round(taux * 100), alerte: actif && taux > PARLIAMENT.alerte, dechu: actif && taux > PARLIAMENT.absenceMax };
+}
+export const dechuText = (nom, poste, a) => `Le bureau du Parlement constate la déchéance de ${nom} (${poste.toLowerCase()}) : ${a.absences} absences sur ${a.seances} séances, plus d'une sur quatre.`;
 
 // ---------------------------------------------------------------- police, amendes et prison
 export const CRIMES = [
@@ -1207,8 +1272,10 @@ export const PUBLIC_COMPANIES = [
 export const BILLS = { "sp-mwinda": 20, "sp-mai": 10 };    // makuta par jour et par logement
 export const SOE_RESERVE = 100000;                          // 5 000 e-makuta gardés en caisse, le reste va au Trésor
 export const STATE_SEED = 400000;                           // budget de départ de l'État (20 000 e-makuta, une seule fois)
-export const VAT = 0.16;                                    // TVA (DGI), comprise dans les prix des magasins et des maquis
-export const vatOf = prix => Math.round(prix * VAT / (1 + VAT));
+export const VAT = 0.16;                                    // TVA de départ (DGI), comprise dans les prix des magasins et des maquis
+// lois en vigueur (TVA fixée par le Président, budget voté par le Parlement) : chargées par le serveur ou la démo
+export const LAWS = { tva: 16, budget: { sante: 0, ecole: 0, primes: 0, voirie: 0 } };
+export const vatOf = (prix, taux = LAWS.tva) => Math.round(prix * taux / (100 + taux));
 const SOE_JOBS = [
   { id: "electricien", nom: "Électricien (Mwinda)", talent: "technique", salaire: 210, minAge: 18, societe: "sp-mwinda" },
   { id: "agent-eau", nom: "Agent d'eau potable (Mai ya Kin)", talent: "technique", salaire: 190, minAge: 18, societe: "sp-mai" },
@@ -1258,7 +1325,7 @@ export function tickerItems({ pubs = [], tresor = 0, impotsJour = 0, salairesJou
   communiques.forEach(c => out.push({ type: "communique", icone: "📢", texte: `${c.auteur} : ${c.texte}` }));
   out.push({ type: "etat", icone: "🏛️", texte: `Trésor public : ${fmtMakuta(tresor)} · impôts et taxes du jour : ${fmtMakuta(impotsJour)} · salaires publics payés : ${fmtMakuta(salairesJour)}` });
   if (arrieres > 0) out.push({ type: "etat", icone: "⚠️", texte: `${arrieres} agent${arrieres > 1 ? "s" : ""} de l'État attend${arrieres > 1 ? "ent" : ""} leur salaire : le Trésor manque d'impôts.` });
-  out.push({ type: "etat", icone: "🧾", texte: `Décision de l'État : TVA de 16 % comprise dans les prix, 5 % d'IPR sur les salaires, 10 % sur les recettes des entreprises. Ces impôts paient les agents publics.` });
+  out.push({ type: "etat", icone: "🧾", texte: `Décision de l'État : TVA de ${LAWS.tva} % comprise dans les prix, 5 % d'IPR sur les salaires, 10 % sur les recettes des entreprises. Ces impôts paient les agents publics.` });
   if (elec && elec.prochaine) {
     const d = Math.ceil((elec.prochaine - now) / 864e5);
     out.push({ type: "etat", icone: "🗳️", texte: elec.voteOuvert ? "Le vote est ouvert : chaque habitant de 18 ans et plus choisit ses élus." : `Prochaine élection dans ${d} jour${d > 1 ? "s" : ""}. Les candidatures sont ouvertes.` });
@@ -1336,7 +1403,7 @@ export function pickStars(cands = {}, now = Date.now(), seedNames = null) {
 // ---------------------------------------------------------------- train de vie : les dépenses du quotidien (v46)
 // Chaque jour (heure de Kinshasa), un personnage adulte dépense pour vivre, selon ses moyens. Le loyer et les factures
 // d'eau et d'électricité sont prélevés à part (logement, sociétés publiques). L'argent va aux entreprises des joueurs
-// (TVA de 16 % au Trésor) : les entreprises qui font de la publicité attirent plus de clients.
+// (TVA au Trésor) : les entreprises qui font de la publicité attirent plus de clients.
 export const BUDGET_POSTS = [
   { id: "nourriture", icone: "🍚", label: "Nourriture à la maison", vers: ["supermarche", "boutique", "maquis"] },
   { id: "habits", icone: "👕", label: "Habits, coiffure et entretien", vers: ["boutique", "salon"] },

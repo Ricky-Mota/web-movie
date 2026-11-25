@@ -10,6 +10,7 @@ import {
   newspaper, cannotSendWord, neighborView, GREETINGS, WORD_MAX,
   PUBLIC_COMPANIES, STATE_SEED, soeView, promoPrice, cannotPromote, PROMO_PRICE, PROMO_MAX_DAYS, goalsView, newlyReached, cannotChooseGoal, GOAL_REP, pickStars, vatOf, AD_COLORS,
   LIFESTYLES, LIFESTYLE_MIN_AGE, lifestyleCost, lifestyleFor, lifestyleStep, lifeExpectancy, OLD_AGE_HEALTH, tenueBlocks, livingView, BILLS,
+  LAWS, VAT_LIMITS, cannotSetVat, BUDGET_LINES, cleanBudget, budgetText, PARLIAMENT, PARLIAMENT_SEATS, cannotProposeBudget, cannotVoteBill, billOutcome, attendance, dechuText,
   CAMPAIGN_MAX_DAYS, ambassadorFee, cannotHireAmbassador, LEAGUE_NAME, NPC_CLUBS, CLUB_MIN_AGE, CLUB_MAX_AGE, MATCH_GATE, clubStrength, playMatch, pairClubs, standings, scorersText, cannotRecruit, CLUB_CONTRACT_DAYS,
 } from "../server/src/life.js";
 import { launchDemo } from "./lancement-demo.js";
@@ -55,7 +56,9 @@ const demo = {
       public: !!d.job && PUBLIC_JOBS.some(j => j.id === d.job), elu: String(d.job || "").startsWith("elu-"), rep: v.reputation.points };
   },
   view(d) {
+    this.laws(d);
     const v = this.viewBase(d);
+    v.elections.parlement = this.parlementView(d);
     const rows = d.objectifs || [], won = newlyReached(rows, this.goalFacts(d, v));
     if (won.length) { won.forEach(g => { const r = rows.find(x => x.objectif_id === g); r.atteint_le = Date.now(); this.addRep(d, GOAL_REP); this.move(d, "🏆", `Objectif de vie atteint : ${goalsView([r]).mes[0].nom} (+${GOAL_REP} de réputation).`); }); store.set(LS_DEMO, d); return this.view(d); }
     v.objectifs = goalsView(rows, this.goalFacts(d, v));
@@ -134,6 +137,45 @@ const demo = {
   },
   me(d) { const k = d.campagneElec || {}; return { candidature: d.candidature, nom: `${d.perso.firstName} ${d.perso.lastName}`, quartier: d.perso.quartier,
     programme: k.programme, soutien: k.soutien || 0, rep: d.rep || 0, sexe: d.perso.sex, faiteAujourdhui: k.dernierJour === dayKey(Date.now()) }; },
+  // Parlement en démo : mêmes règles que le serveur ; les autres élus sont les parents fondateurs simulés
+  laws(d) {
+    const L = d.lois || (d.lois = { tva: 16, tvaLe: null, budget: Object.fromEntries(BUDGET_LINES.map(l => [l.id, 0])), budgetLe: null, loi: null, lois: [], presences: [] });
+    LAWS.tva = L.tva; LAWS.budget = { ...L.budget }; return L;
+  },
+  poste(d) { return d.job && String(d.job).startsWith("elu-") ? d.job.slice(4) : null; },
+  demoElus(d) { return (launchDemo.elections(this.me(d)).elus || []).filter(x => !x.moi); },
+  demoSeats(d) { const s = {}; this.demoElus(d).forEach(x => s[x.poste] = (s[x.poste] || 0) + 1); const p = this.poste(d); if (p) s[p] = (s[p] || 0) + 1; return s; },
+  newBill(d, contenu, auteur, moi) {   // les élus simulés votent selon le coût du budget pour le Trésor
+    const L = this.laws(d), now = Date.now(), cout = contenu.sante / 50 + contenu.ecole / 50 + contenu.primes / 20 + contenu.voirie / 4000;
+    const votes = this.demoElus(d).filter(x => PARLIAMENT_SEATS.includes(x.poste)).map((x, i) => ({ chambre: x.poste, choix: cout <= 1 + (i % 3) ? "oui" : "non" }));
+    L.loi = { id: "loi-" + now, titre: "La loi de finances", auteur, contenu, depot: now, finVote: now + PARLIAMENT.voteJours * 864e5, votes, monVote: null, moi };
+  },
+  parliament(d) {
+    const L = this.laws(d), now = Date.now(), poste = this.poste(d);
+    if (L.loi && L.loi.finVote <= now) {   // clôture du vote
+      const r = billOutcome(L.loi.votes, this.demoSeats(d)), texte = `${L.loi.titre} : ${r.raison}. ` + (r.adoptee ? `En vigueur : ${budgetText(L.loi.contenu)}.` : "L'ancien budget reste en vigueur.");
+      if (r.adoptee) { L.budget = { ...L.loi.contenu }; L.budgetLe = now; }
+      L.lois.unshift({ titre: L.loi.titre, auteur: L.loi.auteur, statut: r.adoptee ? "adoptee" : "rejetee", depot: L.loi.depot, contenu: L.loi.contenu, raison: r.raison }); L.lois = L.lois.slice(0, 5);
+      if (L.loi.moi || L.loi.monVote) this.move(d, "📜", (L.loi.moi ? "Ton projet : " : "") + texte);
+      L.loi = null; this.laws(d);
+    }
+    if (PARLIAMENT_SEATS.includes(poste) && !L.loi && (!L.depotGouv || now - L.depotGouv > 7 * 864e5)) {   // le gouvernement dépose un budget chaque semaine
+      L.depotGouv = now; this.newBill(d, [{ sante: 20, ecole: 10, primes: 5, voirie: 1000 }, { sante: 30, ecole: 20, primes: 10, voirie: 2000 }, { sante: 10, ecole: 30, primes: 0, voirie: 500 }][L.lois.length % 3], "Le gouvernement", false);
+    }
+    if (PARLIAMENT_SEATS.includes(poste) && d.mandatLe) {   // plus d'une séance manquée sur quatre : déchéance
+      const a = attendance(d.mandatLe, L.presences, now);
+      if (a.dechu) { const nom = POSTS.find(x => x.id === poste).nom; d.job = null; d.mandatLe = null; this.addRep(d, -PARLIAMENT.repDechu);
+        this.move(d, "⚖️", dechuText(`${d.perso.firstName} ${d.perso.lastName}`, nom, a) + ` Mandat perdu, réputation −${PARLIAMENT.repDechu}.`); }
+    }
+  },
+  parlementView(d) {
+    const L = this.laws(d), now = Date.now(), poste = this.poste(d), sieges = this.demoSeats(d), o = L.loi;
+    const n = (c, k) => o ? o.votes.filter(v => v.chambre === c && v.choix === k).length : 0;
+    return { tva: L.tva, tvaLe: L.tvaLe, prochainTva: L.tvaLe ? L.tvaLe + VAT_LIMITS.delaiJours * 864e5 : null, limites: VAT_LIMITS, budget: L.budget, budgetLe: L.budgetLe, lignes: BUDGET_LINES, regles: PARLIAMENT,
+      sieges, quorum: Math.max(1, Math.ceil((sieges.depute || 0) * PARLIAMENT.quorum)), monPoste: poste, siege: PARLIAMENT_SEATS.includes(poste) && d.mandatLe ? attendance(d.mandatLe, L.presences, now) : null,
+      loi: o ? { id: o.id, titre: o.titre, auteur: o.auteur, contenu: o.contenu, depot: o.depot, finVote: o.finVote, monVote: o.monVote, assemblee: { oui: n("depute", "oui"), non: n("depute", "non") }, senat: { oui: n("senateur", "oui"), non: n("senateur", "non") } } : null,
+      lois: L.lois };
+  },
   settle(c) { const n = needsAt(c); Object.assign(c, n, { updatedAt: Date.now() }); },
   // entretien quotidien des enfants simulés (même règle que le serveur)
   support(d) {
@@ -275,8 +317,9 @@ const demo = {
         }
       }
       const el = launchDemo.elections(this.me(d));   // dépouillement : un joueur élu prend son poste
-      if (el.depouille) { d.candidature = null; d.campagneElec = null; if (el.gagne) { d.job = "elu-" + el.gagne; d.boss = null; }
+      if (el.depouille) { d.candidature = null; d.campagneElec = null; if (el.gagne) { d.job = "elu-" + el.gagne; d.boss = null; d.mandatLe = Date.now(); this.laws(d).presences = []; }
         if (el.monResultat) this.move(d, el.monResultat.elu ? "🎖️" : "🗳️", `Résultats de l'élection n° ${el.monResultat.cycle} : ` + resultLine(el.monResultat, POSTS.find(x => x.id === el.monResultat.poste).nom) + (el.monResultat.elu ? ". Félicitations, ton mandat commence !" : ".")); }
+      this.parliament(d);
       store.set(LS_DEMO, d);
     }
     if (path === "/api/lancement") return launchDemo.status();
@@ -547,7 +590,7 @@ const demo = {
     if (path === "/api/soigner") {
       this.settle(c); if (c.health >= 95 && !d.blessure) throw new Error("Tu es en bonne santé, pas besoin de soins.");
       const k = careCost(d.assureJusqu, d.assureur); if (c.makuta < k.prix) throw new Error(`Les soins coûtent ${fmtMakuta(k.prix)}.`);
-      c.makuta -= k.prix; c.health = Math.min(100, c.health + CARE.sante); d.blessure = null;
+      c.makuta -= k.prix; c.health = Math.min(100, c.health + CARE.sante); d.blessure = null; d.tresor = (d.tresor || 0) - (k.etat || 0);   // part de l'État (budget santé)
       store.set(LS_DEMO, d); return { soins: k, ...this.view(d) };
     }
     if (path === "/api/telephone/recharger") {
@@ -560,6 +603,24 @@ const demo = {
       if (!(d.inv || []).some(x => (SHOP.find(y => y.id === x.objet_id) || {}).type === "telephone")) throw new Error("Il te faut d'abord un téléphone (au magasin).");
       if ((d.credit || 0) < CALL.prix) throw new Error("Plus de crédit : recharge ton téléphone.");
       this.settle(c); d.credit -= CALL.prix; c.happiness = Math.min(100, c.happiness + CALL.bonheur);
+      store.set(LS_DEMO, d); return this.view(d);
+    }
+    if (path === "/api/presidence/tva") {
+      const L = this.laws(d), taux = Math.round(Number(body.taux)), no = cannotSetVat({ president: this.poste(d) === "president", taux, actuel: L.tva, dernier: L.tvaLe });
+      if (no) throw new Error(no);
+      this.move(d, "🏛️", `Décret présidentiel : la TVA passe de ${L.tva} % à ${taux} % dès aujourd'hui, comprise dans tous les prix.`); L.tva = taux; L.tvaLe = Date.now();
+      store.set(LS_DEMO, d); return this.view(d);
+    }
+    if (path === "/api/parlement/projet") {
+      const b = cleanBudget(body.budget || {}); if (b.erreur) throw new Error(b.erreur);
+      const no = cannotProposeBudget({ president: this.poste(d) === "president", enCours: !!this.laws(d).loi }); if (no) throw new Error(no);
+      this.newBill(d, b.budget, `${c.firstName} ${c.lastName}`, true); this.move(d, "📜", `Projet de budget déposé au Parlement : ${budgetText(b.budget)}.`);
+      store.set(LS_DEMO, d); return this.view(d);
+    }
+    if (path === "/api/parlement/vote") {
+      const L = this.laws(d), choix = body.choix === "oui" ? "oui" : body.choix === "non" ? "non" : null; if (!choix) throw new Error("Vote invalide : pour ou contre.");
+      const no = cannotVoteBill({ siege: this.poste(d), loi: L.loi && { statut: "vote", fin_vote: L.loi.finVote }, deja: !!(L.loi && L.loi.monVote) }); if (no) throw new Error(no);
+      L.loi.monVote = choix; L.loi.votes.push({ chambre: this.poste(d), choix }); this.move(d, "🗳️", `Vote au Parlement : ${choix === "oui" ? "pour" : "contre"} ${L.loi.titre.toLowerCase()}.`);
       store.set(LS_DEMO, d); return this.view(d);
     }
     if (path === "/api/candidature") {
@@ -694,6 +755,8 @@ const demo = {
       const job = d.boss ? companyJob(d.boss) : JOBS.find(j => j.id === d.job), no = injuredBlocks(d.blessure) || cannotWork(job, ageYears(c.neLe), c.energy, d.lastShift);
       if (no) throw new Error(no);
       const pay = payFor(job, c.talents, d.dip || []);
+      if (PUBLIC_JOBS.some(j => j.id === job.id) && LAWS.budget.primes > 0) { pay.prime = Math.round(pay.montant * LAWS.budget.primes / 100); pay.montant += pay.prime; }   // prime votée au budget
+      if (job.elu) { const P = this.laws(d).presences; if (!P.includes(dayKey())) P.push(dayKey()); while (P.length > 40) P.shift(); }   // séance au Parlement
       pay.famille = familyShare(pay.montant, d.rancune || 0);   // 10 % pour les parents (moins s'il a été négligé enfant)
       pay.impot = Math.round(pay.montant * TAX.salaire); d.tresor = (d.tresor || 0) + pay.impot - (PUBLIC_JOBS.some(j => j.id === job.id) || job.elu ? pay.montant : 0);
       this.addRep(d, REP.travail); this.mature(d, MATURITY_GAIN.travail); this.flow(d, "recu", pay.montant); this.flow(d, "famille", pay.famille); this.flow(d, "impots", pay.impot); this.flow(d, "depense", pay.famille + pay.impot);
@@ -712,7 +775,7 @@ const demo = {
       const f = FORMATIONS.find(x => x.id === d.enr.formation);
       const res = attendCourse(f, d.enr, c.talents, c.makuta, c.energy, Date.now(), rng(this.seed()));
       if (res.error) throw new Error(res.error);
-      c.energy = Math.max(0, c.energy - STUDY_ENERGY); c.makuta -= res.fee; this.mature(d, MATURITY_GAIN.cours); this.flow(d, "depense", res.fee);
+      c.energy = Math.max(0, c.energy - STUDY_ENERGY); c.makuta -= res.fee; d.tresor = (d.tresor || 0) - (res.etat || 0); this.mature(d, MATURITY_GAIN.cours); this.flow(d, "depense", res.fee);
       if (res.fin) { (d.dip = d.dip || []).push(f.id); d.enr = null; } else d.enr = res.enr;
       store.set(LS_DEMO, d); return { cours: { note: res.note, message: res.message, diplome: !!res.fin }, ...this.view(d) };
     }
@@ -1123,7 +1186,7 @@ function renderTrain(v) {
     `<div class="row"><span>💡🚰 Électricité et eau (Mwinda, Mai ya Kin)</span><span>${L ? mk(bills) + " par jour" : "payées par les parents"}</span></div>`;
   const why = T.choix === "auto" ? `En automatique, ${esc(p.prenom)} choisit le meilleur niveau qu'il peut tenir ${T.reserveJours} jours avec son argent.` : T.prevu !== T.choix ? `⚠️ L'argent manque : ${esc(p.prenom)} vivra au niveau « ${cur ? cur.nom : "rien"} » tant que ça ne va pas mieux.` : "";
   const bar = (label, x, extra) => `<div class="need">${label} · ${x}${extra ? " · " + extra : ""}<div class="bar"><i class="${x < 25 ? "low" : x < 55 ? "mid" : ""}" style="width:${x}%"></i></div></div>`;
-  box.innerHTML = `<p style="font-size:14px;margin:0 0 8px">Chaque jour, ${esc(p.prenom)} paie sa vie selon ses moyens. Mieux vivre rend plus beau et en meilleure santé : on vit plus longtemps et on est embauché plus facilement. L'argent dépensé fait vivre les commerces des joueurs (TVA de 16 % pour l'État).</p>
+  box.innerHTML = `<p style="font-size:14px;margin:0 0 8px">Chaque jour, ${esc(p.prenom)} paie sa vie selon ses moyens. Mieux vivre rend plus beau et en meilleure santé : on vit plus longtemps et on est embauché plus facilement. L'argent dépensé fait vivre les commerces des joueurs (TVA pour l'État).</p>
     <div class="talents">${chips}</div>
     ${why ? `<p style="font-size:13px;margin:8px 0 0">${why}</p>` : ""}
     ${cur ? `<h2 style="font-size:16px;margin:14px 0 4px">${cur.icone} Aujourd'hui : ${cur.nom} · ${mk(cur.cout)} par jour</h2><p style="font-size:13px;margin:0 0 6px">${esc(cur.desc)} Faim ${sign(cur.effet.faim)}, santé ${sign(cur.effet.sante)}, bonheur ${sign(cur.effet.bonheur)} chaque jour.</p>${rows}`
@@ -1206,7 +1269,7 @@ $("companies").onclick = async e => {
   if (b.dataset.buyco) { b.disabled = true; return act("/api/entreprise/acheter", { entreprise: b.dataset.buyco }, v => `Bravo, « ${v.achetee} » est à toi !`); }
 };
 let stateTab = "institutions";
-const STATE_TABS = [["institutions", "🏛️ Institutions"], ["banque", "🏦 Banques"], ["assurance", "🩺 Santé"], ["telephone", "📱 Téléphone"], ["elections", "🗳️ Élections"], ["police", "🚓 Police"], ["societes", "🏭 Sociétés publiques"], ["impots", "🧾 Budget et impôts"]];
+const STATE_TABS = [["institutions", "🏛️ Institutions"], ["banque", "🏦 Banques"], ["assurance", "🩺 Santé"], ["telephone", "📱 Téléphone"], ["elections", "🗳️ Élections"], ["parlement", "⚖️ Parlement"], ["police", "🚓 Police"], ["societes", "🏭 Sociétés publiques"], ["impots", "🧾 Budget et impôts"]];
 const dt = t => new Date(t).toLocaleString("fr-FR", { day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" });
 function renderState(v) {
   const p = v.perso, S = v.etat;
@@ -1242,6 +1305,37 @@ function renderState(v) {
         : `<p style="font-size:13px;margin:0">Aucun candidat pour l'instant.</p>`) +
       ((E.historique || []).length ? `<h2 style="font-size:16px;margin:16px 0 4px">Résultats de l'élection n° ${E.historique[0].cycle}</h2>` + E.historique.map(r => `<div class="row"><span>${r.elu ? "🎖️" : "▫️"} ${esc(r.nom)} · ${esc(nomPoste(r.poste))}</span><span>${r.voix} voix (${pct(r.pct)})${r.elu ? " · <b>élu</b>" : ""}</span></div>`).join("") : "") +
       ((E.elus || []).length ? `<h2 style="font-size:16px;margin:16px 0 4px">Élus en fonction</h2>` + E.elus.map(x => `<div class="item"><span class="sw">🎖️</span><div class="t">${esc(x.nom)}<small>${nomPoste(x.poste)} · élu avec ${x.voix} voix · payé par le Trésor</small></div></div>`).join("") : "");
+  } else if (stateTab === "parlement") {
+    const P = (v.elections || {}).parlement || {}, lig = P.lignes || [], val = (l, x) => l.unite === "%" ? `${x} %` : `${mk(x)} / jour`, R = P.regles || {}, o = P.loi;
+    const nomPoste = id => (S.postes.find(x => x.id === id) || {}).nom || id, prez = P.monPoste === "president", mp = ["depute", "senateur"].includes(P.monPoste);
+    const opts = (l, cur) => { const out = []; for (let x = l.min; x <= l.max; x += l.pas) out.push(`<option value="${x}" ${x === cur ? "selected" : ""}>${val(l, x)}</option>`); return out.join(""); };
+    h = `<p style="font-size:13px;margin:0 0 6px">Comme dans la vraie vie : le Président fixe la TVA par décret et son gouvernement dépose le budget ; les députés et les sénateurs le votent. Un élu doit siéger chaque jour au Parlement : absent à plus d'une séance sur quatre, il perd son mandat.</p>
+      <h2 style="font-size:16px;margin:12px 0 4px">📜 Lois en vigueur</h2>
+      <div class="row"><span>🧾 TVA, comprise dans les prix</span><span><b>${P.tva ?? 16} %</b>${P.tvaLe ? ` · décret du ${new Date(P.tvaLe).toLocaleDateString("fr-FR")}` : ""}</span></div>` +
+      lig.map(l => `<div class="row"><span>${l.icone} ${l.nom}<small style="display:block;color:var(--muted)">${l.desc}</small></span><span><b>${val(l, (P.budget || {})[l.id] || 0)}</b></span></div>`).join("") +
+      `<p style="font-size:12px;margin:4px 0 0">${P.budgetLe ? `Budget voté le ${new Date(P.budgetLe).toLocaleDateString("fr-FR")}.` : "Aucun budget voté pour l'instant : l'État ne paie que les salaires publics."} Les aides ne sont versées que si le Trésor a l'argent.</p>` +
+      (P.monPoste ? `<h2 style="font-size:16px;margin:16px 0 4px">🎖️ Mon mandat : ${esc(nomPoste(P.monPoste))}</h2>` : "") +
+      (mp && P.siege ? `<div class="row"><span>Présences (28 derniers jours)</span><span>${P.siege.presences} sur ${P.siege.seances}</span></div>
+        <div class="row"><span>Absences</span><span style="${P.siege.alerte ? "color:var(--bad, #d64545);font-weight:700" : ""}">${P.siege.taux} %${P.siege.alerte ? " ⚠️" : ""}</span></div>
+        <p style="font-size:12px;margin:4px 0 0">Siéger = faire ta journée de travail (bouton « Travailler » ou consigne du matin). Au-delà de ${Math.round((R.absenceMax || .25) * 100)} % d'absences, après ${R.graceJours || 7} jours de mandat, tu perds ton siège et ${R.repDechu || 20} points de réputation.</p>` : "") +
+      (prez ? `<div class="co"><p style="margin:0 0 6px;font-size:14px"><b>Décret sur la TVA</b> (entre ${P.limites.min} et ${P.limites.max} %, une fois par mois)</p>
+          <div class="two-btn"><select id="p-tva">${(() => { const a = []; for (let x = P.limites.min; x <= P.limites.max; x++) a.push(`<option value="${x}" ${x === P.tva ? "selected" : ""}>${x} %</option>`); return a.join(""); })()}</select>
+          <button class="mini fill" id="b-tva" type="button" ${dis(P.prochainTva && P.prochainTva > Date.now(), P.prochainTva ? "Prochain décret possible le " + new Date(P.prochainTva).toLocaleDateString("fr-FR") + "." : "")}>Signer le décret</button></div>
+          <p style="font-size:12px;margin:6px 0 0">Plus de TVA remplit le Trésor (salaires, budget), mais tout coûte plus cher pour les habitants.</p></div>
+        <div class="co"><p style="margin:0 0 6px;font-size:14px"><b>Projet de budget</b> à déposer au Parlement (vote pendant ${R.voteJours || 2} jours)</p>` +
+          lig.map(l => `<label style="font-size:13px;display:block;margin-top:6px">${l.icone} ${l.nom}<select data-bud="${l.id}" style="display:block;width:100%">${opts(l, (P.budget || {})[l.id] || 0)}</select></label>`).join("") +
+          `<button class="btn" id="b-budget" type="button" style="margin-top:8px" ${dis(!!o, "Un projet de loi est déjà en cours de vote.")}>Déposer le projet de budget</button></div>` : "") +
+      `<h2 style="font-size:16px;margin:16px 0 4px">🗳️ Projet en cours de vote</h2>` +
+      (o ? `<div class="co"><p style="margin:0 0 6px;font-size:14px"><b>${esc(o.titre)}</b> · déposée par ${esc(o.auteur || "le gouvernement")} · vote jusqu'au ${dt(o.finVote)}</p>` +
+          lig.map(l => `<div class="row"><span>${l.icone} ${l.nom}</span><span>${val(l, o.contenu[l.id] || 0)}</span></div>`).join("") +
+          `<div class="row"><span>Assemblée nationale</span><span>${o.assemblee.oui} pour · ${o.assemblee.non} contre · quorum ${P.quorum}</span></div>
+          <div class="row"><span>Sénat</span><span>${o.senat.oui} pour · ${o.senat.non} contre</span></div>` +
+          (mp ? (o.monVote ? `<p style="font-size:13px;margin:6px 0 0">Ton vote : <b>${o.monVote === "oui" ? "pour" : "contre"}</b>.</p>`
+            : `<div class="two-btn"><button class="mini fill" data-loi="${o.id}" data-choix="oui" type="button">Voter pour</button><button class="mini" data-loi="${o.id}" data-choix="non" type="button">Voter contre</button></div>`)
+            : `<p style="font-size:12px;margin:6px 0 0">Seuls les députés et les sénateurs votent. Le budget passe si au moins la moitié des députés votent et que le « pour » l'emporte.</p>`) + `</div>`
+        : `<p style="font-size:13px;margin:0">Aucun projet en cours. Le budget est déposé par le gouvernement du Président.</p>`) +
+      ((P.lois || []).length ? `<h2 style="font-size:16px;margin:16px 0 4px">Lois votées</h2>` + P.lois.map(l => `<div class="row"><span>${l.statut === "adoptee" ? "✅" : "❌"} ${esc(l.titre)} · ${new Date(l.depot).toLocaleDateString("fr-FR")}</span><span style="font-size:12px">${esc(l.raison)}</span></div>`).join("") : "") +
+      `<p style="font-size:12px;margin:10px 0 0">Élus en fonction : ${(P.sieges || {}).depute || 0} député(s), ${(P.sieges || {}).senateur || 0} sénateur(s), ${(P.sieges || {}).president ? "1 Président" : "pas encore de Président"}.</p>`;
   } else if (stateTab === "police") {
     const P = v.police;
     h = (P.prisonJusqu ? `<div class="co" style="border-color:var(--bad, #d64545)"><p style="margin:0 0 8px;font-size:14px">🔒 <b>Tu es en prison</b> jusqu'au ${dt(P.prisonJusqu)}. Pas de travail, d'école, de voyage ni d'affaires pendant ce temps.</p>
@@ -1276,7 +1370,7 @@ function renderState(v) {
     const F = S.finances || {};
     h = `<div class="row"><span>Trésor public</span><span>${mk(F.tresor ?? S.tresor)}</span></div>
       ${F.tresor != null ? `<div class="row"><span>Impôts et taxes encaissés (24 h)</span><span>${mk(F.impotsJour)}</span></div><div class="row"><span>Salaires publics payés (24 h)</span><span>${mk(F.salairesJour)}</span></div><div class="row"><span>Agents qui attendent leur salaire</span><span>${F.arrieres}</span></div>` : ""}
-      <div class="row"><span>TVA (DGI), comprise dans les prix</span><span>16 %</span></div>
+      <div class="row"><span>TVA (DGI), comprise dans les prix, fixée par le Président</span><span>${S.tva ?? 16} %</span></div>
       <div class="row"><span>Impôt sur le salaire (DGI)</span><span>${S.impots.salaire * 100} %</span></div>
       <div class="row"><span>Impôt sur les recettes des entreprises (DGI)</span><span>${S.impots.recettes * 100} %</span></div>
       <div class="row"><span>Droits de douane sur les téléphones (DGDA)</span><span>${S.impots.douane * 100} %</span></div>
@@ -1287,6 +1381,9 @@ function renderState(v) {
 $("state-tabs").onclick = e => { const b = e.target.closest("[data-st]"); if (!b) return; stateTab = b.dataset.st; renderState(state); };
 $("state").onclick = e => {
   const b = e.target.closest("button"); if (!b || b.disabled) return; const d = b.dataset;
+  if (b.id === "b-tva") return act("/api/presidence/tva", { taux: Number($("p-tva").value) }, v => `Décret signé : la TVA est maintenant de ${v.elections.parlement.tva} %.`);
+  if (b.id === "b-budget") return act("/api/parlement/projet", { budget: Object.fromEntries([...document.querySelectorAll("[data-bud]")].map(x => [x.dataset.bud, Number(x.value)])) }, () => "Projet de budget déposé : les députés et les sénateurs ont 2 jours pour voter.");
+  if (d.loi) return act("/api/parlement/vote", { loi: d.loi, choix: d.choix }, () => `Vote enregistré : ${d.choix === "oui" ? "pour" : "contre"} la loi de finances.`);
   if (b.id === "b-meeting") return act("/api/election/campagne", {}, v => `Meeting réussi : soutien ${v.elections.maCampagne.soutien}, sondage ${String(v.elections.maCampagne.sondage).replace(".", ",")} %.`);
   if (d.cand !== undefined) return act("/api/candidature", { poste: d.cand || null, programme: ($("e-prog") || {}).value || "" }, () => d.cand ? "Candidature enregistrée : caution versée à la CENI. Bonne campagne !" : "Candidature retirée.");
   if (d.job) return act("/api/postuler", { metier: d.job }, v => `Embauché : ${v.travail.metiers.find(j => j.id === v.travail.metier).nom}.`);
@@ -1315,6 +1412,9 @@ function tips(v) {
   const p = v.perso, n = p.besoins, out = [], adult = p.age >= 18, w = v.travail, E = v.elections || {};
   if (v.consignes && !v.consignes.liste.length && p.age >= 6) out.push(["📋", `Donne tes consignes du jour : ${p.prenom} les suivra même quand tu n'es pas là.`, "Donner mes consignes", "orders"]);
   if (v.police && v.police.prisonJusqu) out.push(["🔒", `Tu es en prison jusqu'au ${dt(v.police.prisonJusqu)}. Paie la caution pour sortir plus tôt.`, "Voir", "state:police"]);
+  const PL = E.parlement || {};
+  if (PL.loi && ["depute", "senateur"].includes(PL.monPoste) && !PL.loi.monVote) out.push(["⚖️", "Un projet de loi attend ton vote au Parlement.", "Voter la loi", "state:parlement"]);
+  if (PL.siege && PL.siege.alerte) out.push(["⚠️", `Trop d'absences au Parlement (${PL.siege.taux} %) : va siéger aujourd'hui ou tu perdras ton mandat.`, "Mon mandat", "state:parlement"]);
   if (E.voteOuvert && adult && (E.candidats || []).some(c => !(E.mesVotes || {})[c.poste])) out.push(["🗳️", "Le vote est ouvert : choisis tes élus avant la date de l'élection.", "Voter", "state:elections"]);
   const hasJob = !!(w.emploiEntreprise || w.metier), Ent = v.entreprises;
   if (n.hunger < 40) out.push(["🍲", "Tu as faim : va manger au maquis pour reprendre des forces.", "Manger au maquis", "eat"]);

@@ -9,6 +9,7 @@ import {
   newspaper, cannotSendWord, neighborView, GREETINGS, WORD_MAX,
   AD_SPOTS, AD_COLORS, adPrice, cannotCreateAd, adView, adShownIn, PUBLIC_COMPANIES, BILLS, SOE_RESERVE, STATE_SEED, vatOf, publicPayer, billsFor, soeView, promoPrice, cannotPromote, PROMO_PRICE, PROMO_MAX_DAYS, tickerItems, cannotCreateCommunique, goalsView, newlyReached, cannotChooseGoal, GOAL_REP, pickStars, STAR_DOMAINS,
   BUDGET_POSTS, LIFESTYLES, LIFESTYLE_MIN_AGE, lifestyleCost, lifestyleFor, lifestyleStep, lifeExpectancy, OLD_AGE_HEALTH, tenueBlocks, livingView, CHILD_REAL_DAYS,
+  LAWS, VAT_LIMITS, cannotSetVat, BUDGET_LINES, cleanBudget, budgetText, PARLIAMENT, PARLIAMENT_SEATS, cannotProposeBudget, cannotVoteBill, billOutcome, attendance, dechuText,
   CAMPAIGN_MAX_DAYS, ambassadorFee, cannotHireAmbassador, LEAGUE_NAME, NPC_CLUBS, CLUB_MIN_AGE, CLUB_MAX_AGE, MATCH_GATE, clubStrength, playMatch, pairClubs, standings, seasonKey, scorersText, cannotRecruit, CLUB_CONTRACT_DAYS, cannotAddLogo, LOGOS_MAX_SHOWN,
 } from "./life.js";
 import { sendPush, newVapidKeys } from "./webpush.js";
@@ -23,6 +24,15 @@ async function loadSettings(db, now, force) {
   if (!force && now - setAt < 30e3) return;
   setAt = now;
   try { const { results } = await db.prepare(`SELECT cle, valeur FROM reglages`).all(); applySettings(Object.fromEntries(results.map(r => [r.cle, r.valeur]))); } catch (e) { console.error(e); }
+  try { await loadLaws(db); } catch (e) { console.error(e); }
+}
+// lois en vigueur : TVA fixée par décret du Président, budget voté par le Parlement (table jeu)
+async function loadLaws(db) {
+  const { results } = await db.prepare(`SELECT cle, valeur FROM jeu WHERE cle IN ('tva', 'tva_le', 'budget', 'budget_le')`).all();
+  const kv = Object.fromEntries(results.map(r => [r.cle, r.valeur]));
+  let b = {}; try { b = kv.budget ? JSON.parse(kv.budget) : {}; } catch (e) { }
+  LAWS.tva = Number(kv.tva) || 16; LAWS.tvaLe = Number(kv.tva_le) || null; LAWS.budgetLe = Number(kv.budget_le) || null;
+  LAWS.budget = { ...Object.fromEntries(BUDGET_LINES.map(l => [l.id, 0])), ...b };
 }
 
 // ---------------------------------------------------------------- utilitaires
@@ -131,11 +141,11 @@ function childView(k, now) {
 // un client paie : l'argent va dans la caisse d'une entreprise de joueur de ce type (au hasard), sinon à la ville
 async function payToCompany(db, type, payerId, amount, motif, now) {
   const e = await db.prepare(`SELECT id FROM entreprises WHERE type = ? AND proprietaire_id != ? ORDER BY RANDOM() LIMIT 1`).bind(type, payerId).first();
-  const tva = vatOf(amount), net = amount - tva;   // la TVA (16 %, comprise dans le prix) va au Trésor
+  const tva = vatOf(amount), net = amount - tva;   // la TVA (fixée par le Président, comprise dans le prix) va au Trésor
   return [
     ...(e ? [db.prepare(`UPDATE entreprises SET caisse = caisse + ? WHERE id = ?`).bind(net, e.id)] : []),
     db.prepare(`INSERT INTO transactions (id, de_id, vers_id, montant, motif, le) VALUES (?, ?, ?, ?, ?, ?)`).bind(uid(), payerId, e ? e.id : null, net, motif, now),
-    ...taxTo(db, payerId, tva, "TVA 16 % (DGI) : " + motif, now),
+    ...taxTo(db, payerId, tva, "TVA " + LAWS.tva + " % (DGI) : " + motif, now),
   ];
 }
 // dépenses du quotidien : le client choisit une entreprise de joueur parmi ces types. Celles qui ont une campagne ou une
@@ -148,7 +158,7 @@ async function payToCompanies(db, types, payerId, amount, motif, now) {
   return [
     ...(e ? [db.prepare(`UPDATE entreprises SET caisse = caisse + ? WHERE id = ?`).bind(net, e.id)] : []),
     ...(net > 0 ? [db.prepare(`INSERT INTO transactions (id, de_id, vers_id, montant, motif, le) VALUES (?, ?, ?, ?, ?, ?)`).bind(uid(), payerId, e ? e.id : null, net, motif, now)] : []),
-    ...taxTo(db, payerId, tva, "TVA 16 % (DGI) : " + motif, now),
+    ...taxTo(db, payerId, tva, "TVA " + LAWS.tva + " % (DGI) : " + motif, now),
   ];
 }
 // ---- train de vie : une fois par jour (heure de Kinshasa), chaque adulte dépense pour vivre selon ses moyens
@@ -296,7 +306,74 @@ async function dailyPublic(db, now) {
   const sol = await ledger(db, PUBLIC_IDS);
   const st = PUBLIC_COMPANIES.filter(c => sol[c.id] > SOE_RESERVE).map(c => tx(db, c.id, STATE_ID, sol[c.id] - SOE_RESERVE, "versement au Trésor : " + c.nom, now));
   if (st.length) await db.batch(st);
+  // budget voté : versement du jour à l'Office de la voirie (si le Trésor peut payer)
+  const voirie = LAWS.budget.voirie || 0;
+  if (voirie > 0 && (sol[STATE_ID] || 0) >= voirie) await db.batch([tx(db, STATE_ID, "sp-voirie", voirie, "budget voté : routes et propreté", now)]);
   await payArrears(db, now);
+  await parliamentAttendance(db, now);
+}
+// ---------------------------------------------------------------- Parlement (pouvoirs des élus, 25/11)
+const communiqueSt = (db, auteur, texte, now, jours = 7) => db.prepare(`INSERT INTO communiques (id, auteur, texte, debut, fin, accord, actif, cree_le) VALUES (?, ?, ?, ?, ?, 0, 1, ?)`).bind(uid(), auteur, texte.slice(0, 280), now, now + jours * 864e5, now);
+async function seats(db) {
+  const { results } = await db.prepare(`SELECT poste, COUNT(*) AS n FROM mandats m JOIN personnages p ON p.id = m.personnage_id WHERE m.fin IS NULL AND p.mort_le IS NULL GROUP BY poste`).all();
+  return Object.fromEntries(results.map(r => [r.poste, r.n]));
+}
+async function sittingDays(db, id, poste, now) {
+  const { results } = await db.prepare(`SELECT le FROM activites WHERE personnage_id = ? AND activite = ? AND le > ?`).bind(id, "travail:elu-" + poste, now - (PARLIAMENT.fenetreJours + 1) * 864e5).all();
+  return results.map(r => dayKey(r.le));
+}
+// une fois par jour : un député ou un sénateur absent à plus d'une séance sur quatre perd son mandat (après 7 jours de grâce)
+async function parliamentAttendance(db, now) {
+  const { results } = await db.prepare(`SELECT m.personnage_id AS id, m.poste, m.debut, p.prenom || ' ' || p.nom AS nom FROM mandats m JOIN personnages p ON p.id = m.personnage_id
+      WHERE m.fin IS NULL AND m.poste IN ('depute', 'senateur') AND p.mort_le IS NULL LIMIT 700`).all();
+  for (const x of results) {
+    const a = attendance(x.debut, await sittingDays(db, x.id, x.poste, now), now), poste = (POSTS.find(y => y.id === x.poste) || {}).nom || x.poste;
+    if (a.dechu) await db.batch([
+      db.prepare(`UPDATE mandats SET fin = ? WHERE personnage_id = ? AND poste = ? AND fin IS NULL`).bind(now, x.id, x.poste),
+      db.prepare(`UPDATE emplois SET fin = ? WHERE personnage_id = ? AND metier_id = ? AND fin IS NULL`).bind(now, x.id, "elu-" + x.poste),
+      repSt(db, x.id, -PARLIAMENT.repDechu, now),
+      db.prepare(`INSERT INTO mouvements (id, personnage_id, icone, texte, par_consigne, le) VALUES (?, ?, '⚖️', ?, 0, ?)`).bind(uid(), x.id, dechuText(x.nom, poste, a) + ` Mandat perdu, réputation −${PARLIAMENT.repDechu}.`, now),
+      communiqueSt(db, "Parlement", dechuText(x.nom, poste, a), now),
+    ]).then(() => { TICKER.at = 0; });
+    else if (a.alerte) await db.prepare(`INSERT INTO mouvements (id, personnage_id, icone, texte, par_consigne, le) VALUES (?, ?, '⚠️', ?, 0, ?)`).bind(uid(), x.id,
+      `Parlement : ${a.absences} absences sur ${a.seances} séances (${a.taux} %). Au-delà d'une sur quatre, tu perds ton mandat : va siéger (travailler) chaque jour.`, now).run();
+  }
+}
+// clôture des votes arrivés à échéance : la loi adoptée entre en vigueur, sinon l'ancien budget reste
+async function parlement(db, now) {
+  const { results: due } = await db.prepare(`SELECT * FROM lois WHERE statut = 'vote' AND fin_vote <= ?`).bind(now).all();
+  for (const l of due) {
+    const { results: votes } = await db.prepare(`SELECT chambre, choix FROM votes_lois WHERE loi_id = ?`).bind(l.id).all();
+    const r = billOutcome(votes, await seats(db)), contenu = JSON.parse(l.contenu);
+    const st = [db.prepare(`UPDATE lois SET statut = ?, resultat = ? WHERE id = ? AND statut = 'vote'`).bind(r.adoptee ? "adoptee" : "rejetee", JSON.stringify(r), l.id), GUARD(db)];
+    if (r.adoptee) st.push(
+      db.prepare(`INSERT INTO jeu (cle, valeur) VALUES ('budget', ?) ON CONFLICT(cle) DO UPDATE SET valeur = excluded.valeur`).bind(l.contenu),
+      db.prepare(`INSERT INTO jeu (cle, valeur) VALUES ('budget_le', ?) ON CONFLICT(cle) DO UPDATE SET valeur = excluded.valeur`).bind(String(now)));
+    const texte = `${l.titre} : ${r.raison}. ` + (r.adoptee ? `En vigueur : ${budgetText(contenu)}.` : "L'ancien budget reste en vigueur.");
+    st.push(communiqueSt(db, "Parlement", texte, now),
+      db.prepare(`INSERT INTO mouvements (id, personnage_id, icone, texte, par_consigne, le) VALUES (?, ?, '📜', ?, 0, ?)`).bind(uid(), l.auteur_id, "Ton projet : " + texte, now));
+    try { await db.batch(st); } catch (e) { if (!guardFailed(e)) throw e; continue; }   // déjà clôturée ailleurs
+    if (r.adoptee) { LAWS.budget = { ...LAWS.budget, ...contenu }; LAWS.budgetLe = now; }
+    TICKER.at = 0;
+  }
+}
+async function parliamentView(db, me, poste, now) {
+  const { results: lois } = await db.prepare(`SELECT id, type, titre, contenu, auteur_id, statut, depot, fin_vote, resultat, (SELECT prenom || ' ' || nom FROM personnages WHERE id = auteur_id) AS auteur FROM lois ORDER BY depot DESC LIMIT 6`).all();
+  const cur = lois.find(l => l.statut === "vote");
+  let loi = null;
+  if (cur) {
+    const { results: v } = await db.prepare(`SELECT chambre, choix, COUNT(*) AS n FROM votes_lois WHERE loi_id = ? GROUP BY chambre, choix`).bind(cur.id).all();
+    const mine = await db.prepare(`SELECT choix FROM votes_lois WHERE loi_id = ? AND personnage_id = ?`).bind(cur.id, me).first();
+    const n = (c, k) => (v.find(x => x.chambre === c && x.choix === k) || {}).n || 0;
+    loi = { id: cur.id, titre: cur.titre, auteur: cur.auteur, contenu: JSON.parse(cur.contenu), depot: cur.depot, finVote: cur.fin_vote, monVote: mine ? mine.choix : null,
+      assemblee: { oui: n("depute", "oui"), non: n("depute", "non") }, senat: { oui: n("senateur", "oui"), non: n("senateur", "non") } };
+  }
+  const sieges = await seats(db);
+  const mandat = poste ? await db.prepare(`SELECT debut FROM mandats WHERE personnage_id = ? AND poste = ? AND fin IS NULL`).bind(me, poste).first() : null;
+  const siege = mandat && PARLIAMENT_SEATS.includes(poste) ? attendance(mandat.debut, await sittingDays(db, me, poste, now), now) : null;
+  return { tva: LAWS.tva, tvaLe: LAWS.tvaLe, prochainTva: LAWS.tvaLe ? LAWS.tvaLe + VAT_LIMITS.delaiJours * 864e5 : null, limites: VAT_LIMITS, budget: LAWS.budget, budgetLe: LAWS.budgetLe, lignes: BUDGET_LINES, regles: PARLIAMENT,
+    sieges, quorum: Math.max(1, Math.ceil((sieges.depute || 0) * PARLIAMENT.quorum)), monPoste: poste || null, siege, loi,
+    lois: lois.filter(l => l.statut !== "vote").map(l => ({ titre: l.titre, auteur: l.auteur, statut: l.statut, depot: l.depot, contenu: JSON.parse(l.contenu), raison: l.resultat ? JSON.parse(l.resultat).raison : "" })) };
 }
 async function publicFinance(db, now) {
   const since = now - 864e5, sol = await ledger(db, PUBLIC_IDS);
@@ -428,6 +505,8 @@ async function loadCharacter(db, id) {
   const pub = await publicState(db);
   const now = Date.now(), cal = await elections(db, now);
   const elec = await electionView(db, cal, id);
+  await parlement(db, now);
+  elec.parlement = await parliamentView(db, id, mandat && mandat.poste, now);
   const pol = await db.prepare(`SELECT COUNT(*) AS n FROM emplois WHERE metier_id = 'policier' AND fin IS NULL`).first();
   const { results: casier } = await db.prepare(`SELECT type, amende, prison_heures, le FROM infractions WHERE personnage_id = ? ORDER BY le DESC LIMIT 20`).bind(id).all();
   const notif = await db.prepare(`SELECT COUNT(*) AS n FROM abonnements_push WHERE compte_id = ?`).bind(p.compte_id).first();
@@ -599,7 +678,7 @@ async function applyOrders(env, db, compte, ch, now, force) {
 }
 
 function view(compte, ch, now) { const v = viewBase(compte, ch, now); v.objectifs = goalsView(ch.objectifs || [], goalFacts(ch)); v.salaireDu = ch.dus || 0;
-  if (ch.fin) v.etat.finances = { tresor: ch.fin.tresor, impotsJour: ch.fin.impotsJour, salairesJour: ch.fin.salairesJour, arrieres: ch.fin.arrieres, societes: ch.fin.societes, tva: 16 };
+  if (ch.fin) v.etat.finances = { tresor: ch.fin.tresor, impotsJour: ch.fin.impotsJour, salairesJour: ch.fin.salairesJour, arrieres: ch.fin.arrieres, societes: ch.fin.societes, tva: LAWS.tva };
   v.promo = { prix: PROMO_PRICE, maxJours: PROMO_MAX_DAYS };
   v.train = livingView(ch.train || {}, ch.p.makuta, ageYears(ch.p.ne_le, now));
   v.blessure = ch.blessure ? { le: ch.blessure.le, vitesse: ch.blessure.vitesse } : null;
@@ -903,6 +982,8 @@ const worker = {
   // toutes les 15 minutes (Cron Trigger gratuit) : les personnages suivent leurs consignes, même joueur déconnecté
   async scheduled(event, env, ctx) {
     const db = env.DB, now = Date.now();
+    await loadSettings(db, now);
+    try { await parlement(db, now); } catch (e) { console.error(e); }
     try { await kidAlerts(env, now); } catch (e) { console.error(e); }
     try { await morningPush(env, now); } catch (e) { console.error(e); }
     try { await dailyPublic(db, now); } catch (e) { console.error(e); }
@@ -1570,7 +1651,7 @@ const worker = {
             ? [db.prepare(`INSERT INTO transactions (id, de_id, vers_id, montant, motif, le) VALUES (?, ?, NULL, ?, ?, ?)`).bind(uid(), p.id, item.prix - Math.round(item.prix * TAX.douane), "achat : " + item.nom, now),
                ...taxTo(db, p.id, Math.round(item.prix * TAX.douane), "droits de douane 10 % (DGDA) : " + item.nom, now)]
             : [db.prepare(`INSERT INTO transactions (id, de_id, vers_id, montant, motif, le) VALUES (?, ?, NULL, ?, ?, ?)`).bind(uid(), p.id, item.prix - vatOf(item.prix), "achat : " + item.nom, now),
-               ...taxTo(db, p.id, vatOf(item.prix), "TVA 16 % (DGI) : " + item.nom, now)]),
+               ...taxTo(db, p.id, vatOf(item.prix), "TVA " + LAWS.tva + " % (DGI) : " + item.nom, now)]),
         ];
         if (item.type !== "nourriture") {
           // un vêtement acheté est porté tout de suite (il remplace celui du même emplacement)
@@ -1634,6 +1715,10 @@ const worker = {
         if (grudge > 0) pay.rancune = Math.round(familyShareRate(grudge) * 100);
         pay.impot = Math.round(pay.montant * TAX.salaire);   // IPR prélevé par la DGI
         const fromState = PUBLIC_JOBS.some(j => j.id === job.id) || !!job.elu;
+        if (fromState && !ch.boss && !job.elu && LAWS.budget.primes > 0) {   // prime votée au budget pour les agents publics (les élus ne se l'accordent pas)
+          pay.prime = Math.round(pay.montant * LAWS.budget.primes / 100); pay.montant += pay.prime;
+          pay.famille = familyShare(pay.montant, grudge); pay.impot = Math.round(pay.montant * TAX.salaire);
+        }
         if (fromState && !ch.boss) {
           await payArrears(db, now, p.id);   // d'abord les anciens salaires dus, si l'argent est rentré
           const pp = publicPayer({ ...job, salaire: pay.montant }, await ledger(db, PUBLIC_IDS));
@@ -1754,11 +1839,12 @@ const worker = {
       if (url.pathname === "/api/soigner" && req.method === "POST") {
         await settle(db, p, now);
         if (p.sante >= 95 && !ch.blessure) return fail(h, 409, "Tu es en bonne santé, pas besoin de soins.");
-        const c = careCost(p.assure_jusqu, p.assureur, now);
+        const c = careCost(p.assure_jusqu, p.assureur, now, (await ledger(db, [STATE_ID]))[STATE_ID] >= CARE.prix ? LAWS.budget.sante : 0);   // part de l'État si le Trésor peut payer
         if (p.makuta < c.prix) return fail(h, 409, `Les soins coûtent ${fmtMakuta(c.prix)}.`);
         await db.batch([
           db.prepare(`UPDATE personnages SET makuta = makuta - ?, sante = MIN(100, sante + ?) WHERE id = ? AND makuta >= ?`).bind(c.prix, CARE.sante, p.id, c.prix), GUARD(db),
           ...(c.prix > 0 ? await payToCompany(db, "pharmacie", p.id, c.prix, "soins au centre de santé", now) : []),
+          ...(c.etat > 0 ? await payToCompany(db, "pharmacie", STATE_ID, c.etat, "budget santé : soins de " + p.prenom, now) : []),
           db.prepare(`DELETE FROM blessures WHERE personnage_id = ?`).bind(p.id),   // soigné : la blessure de l'accident guérit
         ]);
         return json(h, 200, { soins: c, ...view(compte, await loadCharacter(db, p.id), now) });
@@ -1815,6 +1901,54 @@ const worker = {
           db.prepare(`UPDATE campagnes_elec SET soutien = MIN(?, soutien + ?), dernier_jour = ?, depense = depense + ? WHERE personnage_id = ? AND (dernier_jour IS NULL OR dernier_jour != ?)`).bind(C.maxSoutien, gain, jour, C.cout, p.id, jour), GUARD(db),
           tx(db, p.id, "sp-regie", C.cout, "campagne électorale : meeting et affiches", now),
           db.prepare(`INSERT INTO mouvements (id, personnage_id, icone, texte, par_consigne, le) VALUES (?, ?, '📣', ?, 0, ?)`).bind(uid(), p.id, `Meeting de campagne à ${p.quartier || "Kinshasa"} : +${gain} de soutien${parole ? " (talent de parole)" : ""}.`, now),
+        ]);
+        return json(h, 200, view(compte, await loadCharacter(db, p.id), now));
+      }
+
+      // ---- pouvoirs des élus : décret sur la TVA (Président), projet de budget (gouvernement), vote des lois (Parlement)
+      if (url.pathname === "/api/presidence/tva" && req.method === "POST") {
+        await loadLaws(db);
+        const taux = Math.round(Number(body.taux)), avant = LAWS.tva;
+        const no = cannotSetVat({ president: ch.mandat && ch.mandat.poste === "president", taux, actuel: avant, dernier: LAWS.tvaLe, now });
+        if (no) return fail(h, 409, no);
+        const texte = `Décret présidentiel : la TVA passe de ${avant} % à ${taux} % dès aujourd'hui, comprise dans tous les prix.`;
+        await db.batch([
+          db.prepare(`INSERT INTO jeu (cle, valeur) VALUES ('tva', ?) ON CONFLICT(cle) DO UPDATE SET valeur = excluded.valeur`).bind(String(taux)),
+          db.prepare(`INSERT INTO jeu (cle, valeur) VALUES ('tva_le', ?) ON CONFLICT(cle) DO UPDATE SET valeur = excluded.valeur`).bind(String(now)),
+          communiqueSt(db, "Présidence", texte, now),
+          db.prepare(`INSERT INTO mouvements (id, personnage_id, icone, texte, par_consigne, le) VALUES (?, ?, '🏛️', ?, 0, ?)`).bind(uid(), p.id, texte, now),
+        ]);
+        LAWS.tva = taux; LAWS.tvaLe = now; TICKER.at = 0;
+        return json(h, 200, view(compte, await loadCharacter(db, p.id), now));
+      }
+      if (url.pathname === "/api/parlement/projet" && req.method === "POST") {
+        const c = cleanBudget(body.budget || {});
+        if (c.erreur) return fail(h, 400, c.erreur);
+        const en = await db.prepare(`SELECT 1 FROM lois WHERE statut = 'vote'`).first();
+        const no = cannotProposeBudget({ president: ch.mandat && ch.mandat.poste === "president", enCours: !!en });
+        if (no) return fail(h, 409, no);
+        const fin = now + PARLIAMENT.voteJours * 864e5;
+        try {
+          await db.batch([
+            db.prepare(`INSERT INTO lois (id, type, titre, contenu, auteur_id, statut, depot, fin_vote) VALUES (?, 'budget', 'La loi de finances', ?, ?, 'vote', ?, ?)`).bind(uid(), JSON.stringify(c.budget), p.id, now, fin),
+            communiqueSt(db, "Gouvernement", `Projet de budget déposé au Parlement : ${budgetText(c.budget)}. Vote des députés et des sénateurs pendant ${PARLIAMENT.voteJours} jours.`, now, PARLIAMENT.voteJours),
+            db.prepare(`INSERT INTO mouvements (id, personnage_id, icone, texte, par_consigne, le) VALUES (?, ?, '📜', ?, 0, ?)`).bind(uid(), p.id, `Projet de budget déposé au Parlement : ${budgetText(c.budget)}.`, now),
+          ]);
+        } catch (e) { if (/UNIQUE/i.test(String(e && e.message))) return fail(h, 409, "Un projet de loi est déjà en cours de vote au Parlement."); throw e; }
+        TICKER.at = 0;
+        return json(h, 200, view(compte, await loadCharacter(db, p.id), now));
+      }
+      if (url.pathname === "/api/parlement/vote" && req.method === "POST") {
+        const choix = body.choix === "oui" ? "oui" : body.choix === "non" ? "non" : null;
+        if (!choix) return fail(h, 400, "Vote invalide : pour ou contre.");
+        const loi = await db.prepare(`SELECT * FROM lois WHERE id = ?`).bind(String(body.loi || "")).first();
+        const deja = loi && await db.prepare(`SELECT 1 FROM votes_lois WHERE loi_id = ? AND personnage_id = ?`).bind(loi.id, p.id).first();
+        const siege = ch.mandat && ch.mandat.poste;
+        const no = cannotVoteBill({ siege, loi, deja: !!deja, now });
+        if (no) return fail(h, 409, no);
+        await db.batch([
+          db.prepare(`INSERT OR IGNORE INTO votes_lois (loi_id, personnage_id, chambre, choix, le) VALUES (?, ?, ?, ?, ?)`).bind(loi.id, p.id, siege, choix, now), GUARD(db),
+          db.prepare(`INSERT INTO mouvements (id, personnage_id, icone, texte, par_consigne, le) VALUES (?, ?, '🗳️', ?, 0, ?)`).bind(uid(), p.id, `Vote au Parlement : ${choix === "oui" ? "pour" : "contre"} ${loi.titre.toLowerCase()}.`, now),
         ]);
         return json(h, 200, view(compte, await loadCharacter(db, p.id), now));
       }
@@ -1900,10 +2034,12 @@ const worker = {
         if (!ch.enr) return fail(h, 409, "Inscris-toi d'abord dans une école.");
         await settle(db, p, now);
         const f = FORMATIONS.find(x => x.id === ch.enr.formation);
-        const res = attendCourse(f, ch.enr, tal.map(t => ({ talent: t.talent_id, discovered: !!t.decouvert })), p.makuta, p.energie, now, rng(seedOf()));
+        const res = attendCourse(f, ch.enr, tal.map(t => ({ talent: t.talent_id, discovered: !!t.decouvert })), p.makuta, p.energie, now, rng(seedOf()),
+          (await ledger(db, [STATE_ID]))[STATE_ID] >= 2000 ? LAWS.budget.ecole : 0);   // part des frais payée par l'État (budget éducation)
         if (res.error) return fail(h, 409, res.error);
         const st = [db.prepare(`UPDATE personnages SET energie = MAX(0, energie - ?), makuta = makuta - ? WHERE id = ? AND makuta >= ?`).bind(15, res.fee, p.id, res.fee), GUARD(db), matSt(db, p.id, MATURITY_GAIN.cours)];
         if (res.fee) st.push(db.prepare(`INSERT INTO transactions (id, de_id, vers_id, montant, motif, le) VALUES (?, ?, NULL, ?, ?, ?)`).bind(uid(), p.id, res.fee, "frais de cours : " + f.nom, now));
+        if (res.etat) st.push(db.prepare(`INSERT INTO transactions (id, de_id, vers_id, montant, motif, le) SELECT ?, ?, NULL, ?, ?, ? WHERE (SELECT ok FROM garde WHERE id = 1) = 1`).bind(uid(), STATE_ID, res.etat, "budget éducation : frais de cours de " + p.prenom, now));
         if (res.fin) st.push(
           db.prepare(`INSERT OR IGNORE INTO diplomes_obtenus (personnage_id, formation_id, obtenu_le, note) VALUES (?, ?, ?, ?)`).bind(p.id, f.id, now, res.fin.note),
           db.prepare(`DELETE FROM inscriptions WHERE personnage_id = ?`).bind(p.id));

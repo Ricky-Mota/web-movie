@@ -422,3 +422,25 @@ CREATE TABLE IF NOT EXISTS resultats_elections (
   le INTEGER NOT NULL,
   PRIMARY KEY (cycle, poste, personnage_id)
 );
+
+-- Parlement (pouvoirs des élus, 25/11) : projets de loi déposés par le gouvernement du Président, votés par les députés et les sénateurs
+CREATE TABLE IF NOT EXISTS lois (
+  id TEXT PRIMARY KEY,
+  type TEXT NOT NULL,
+  titre TEXT NOT NULL,
+  contenu TEXT NOT NULL,
+  auteur_id TEXT NOT NULL,
+  statut TEXT NOT NULL DEFAULT 'vote',   -- vote, adoptee, rejetee
+  depot INTEGER NOT NULL,
+  fin_vote INTEGER NOT NULL,
+  resultat TEXT
+);
+CREATE UNIQUE INDEX IF NOT EXISTS lois_un_seul_vote ON lois (statut) WHERE statut = 'vote';
+CREATE TABLE IF NOT EXISTS votes_lois (
+  loi_id TEXT NOT NULL,
+  personnage_id TEXT NOT NULL,
+  chambre TEXT NOT NULL,
+  choix TEXT NOT NULL,
+  le INTEGER NOT NULL,
+  PRIMARY KEY (loi_id, personnage_id)
+);
