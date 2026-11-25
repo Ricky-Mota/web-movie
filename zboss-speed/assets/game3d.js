@@ -941,13 +941,15 @@
         if (h.bag && hr) { const c = hr.getWorldPosition(humV1); h.obj.worldToLocal(c); h.bag.position.set(c.x, c.y - .17, c.z); }
       }
       const sp = Math.abs(q.v || 0) * S * (q.player ? 1 : 1);
-      if (q.state === "cower") humPlay(h, "cower", 1);
+      if (q.state === "down") humPlay(h, "idle", 0);   // blessé : allongé au sol
+      else if (q.state === "cower") humPlay(h, "cower", 1);
       else if (q.state === "dodge" || sp > 2.4) humPlay(h, "run", Math.min(1.8, Math.max(.7, sp / 3.1)));
       else if (q.state === "walk" && sp > .2) humPlay(h, "walk", Math.min(2.2, Math.max(.5, sp / 1.05)));
       else humPlay(h, "idle", 1);
       h.mixer.update(dt);
       h.obj.position.set(q.x * S, .02 + (q.state === "dodge" ? Math.sin((.55 - (q.st || 0)) / .55 * Math.PI) * .25 : 0), q.y * S);
-      h.obj.rotation.y = Math.PI / 2 - q.a;
+      h.obj.rotation.y = Math.PI / 2 - q.a; h.obj.rotation.z = q.state === "down" ? 1.45 : 0;
+      if (q.state === "down") h.obj.position.y = .14;
       h.obj.scale.setScalar(q.player ? 1 : .96 + (L.h - .94) * .6);
       if (q.state === "sit") sitPose(h);
       done.add(q);
@@ -1044,7 +1046,8 @@
       if (q.state === "cower") { crouch = .78; arms = 2.4; }
       if (q.state === "idle" && q.staff) arms = Math.sin(q.t * .8) * .1;
       const sit = q.state === "sit"; if (sit) { sw = 0; arms = .55; }
-      mP.makeRotationY(-q.a).setPosition(q.x * S, .02 - (sit ? .44 : 0) + (q.state === "dodge" ? Math.sin((.55 - q.st) / .55 * Math.PI) * .35 : 0), q.y * S);
+      const down = q.state === "down"; if (down) { sw = 0; arms = 1.4; lean = 1.45; }
+      mP.makeRotationY(-q.a).setPosition(q.x * S, .02 - (sit ? .44 : 0) + (down ? .12 : 0) + (q.state === "dodge" ? Math.sin((.55 - q.st) / .55 * Math.PI) * .35 : 0), q.y * S);
       mA.makeScale(sc, sc * crouch, sc); mP.multiply(mA);
       if (lean) { mA.makeRotationZ(-lean); mP.multiply(mA); }
       // jambes : cuisse + mollet (genou qui plie à la marche) + chaussure qui reste à plat

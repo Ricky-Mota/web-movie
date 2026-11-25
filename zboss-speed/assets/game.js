@@ -807,6 +807,7 @@
     if (q.play) return;
     if (q.bus) { busPed(q, dt); return; }
     q.t += dt;
+    if (q.state === "down") { q.st -= dt; if (q.st <= 0) { q.state = "cower"; q.st = 2; q.hurt = false; } return; }   // blessé au sol, puis se relève
     if (q.talk) { // le joueur lui parle : il s'arrête et le regarde
       q.talk -= dt; q.state = "idle"; const f = G.foot; if (f) { const da = angDiff(q.a, Math.atan2(f.y - q.y, f.x - q.x)); q.a += Math.max(-4 * dt, Math.min(4 * dt, da)); }
       if (q.talk <= 0) { q.talk = 0; q.state = q.staff ? "idle" : "walk"; } return;
@@ -901,6 +902,30 @@
   // voiture (boîte orientée) contre piéton : le piéton est repoussé hors de la carrosserie
   function pushFromCar(c, x, y, r) { return pushOut({ x: c.x, y: c.y, ux: Math.cos(c.a), uy: Math.sin(c.a), hw: c.hl || CAR_HL, hh: c.hw || CAR_HW }, x, y, r); }
   function moveBody(q, d) { const nx = q.x + d[0], ny = q.y + d[1]; if (!walkBlocked(nx, ny)) { q.x = nx; q.y = ny; return true; } if (!walkBlocked(nx, q.y)) { q.x = nx; return true; } if (!walkBlocked(q.x, ny)) { q.y = ny; return true; } return false; }
+  // voiture contre piéton (règle validée le 25/11) : choc fort = accident avec blessure, choc léger = simple bousculade.
+  // Vitesse en unités du jeu (x 0,45 = km/h) : au-dessus de 55 (environ 25 km/h), c'est un accident.
+  const BUMP_MIN = 8, CRASH_SPEED = 55, HURT_SECONDS = 25;
+  function carHitsPed(c, q) {
+    const sp = Math.hypot(c.vx || 0, c.vy || 0); if (sp < BUMP_MIN || (q.hitCd || 0) > G.t) return;
+    q.hitCd = G.t + 3;
+    const me = q === G.foot, mine = c === G.player, near = me || mine || (G.foot && Math.hypot(q.x - G.foot.x, q.y - G.foot.y) < 500);
+    const who = me ? "Ton personnage" : q.cop ? "Un policier" : ident(q).nom, kmh = Math.round(sp * .45);
+    const ux = sp ? c.vx / sp : 0, uy = sp ? c.vy / sp : 0;
+    c.stun = Math.max(c.stun || 0, sp >= CRASH_SPEED ? 3 : 1);   // le conducteur s'arrête
+    if (sp >= CRASH_SPEED) {   // accident : le piéton tombe et reste au sol, blessé
+      moveBody(q, [ux * 14, uy * 14]);
+      if (me) { G.energy = Math.max(0, G.energy - 35); const t = `🚑 Accident : ton personnage a été renversé par une voiture à ${kmh} km/h. Blessé, il doit aller se soigner au centre de santé.`; if (G.me && G.me.journal) note(t, "alert"); else msg(t, 5, "alert"); return; }
+      q.chat = null; q.talk = 0; q.greet = null; q.state = "down"; q.st = HURT_SECONDS; q.hurt = true;
+      if (near) msg(`🚑 Accident : ${who} est ${ident(q).woman ? "blessée" : "blessé"} par une voiture (${kmh} km/h). Les secours arrivent.`, 5, "alert");
+      if (mine) msg("🚓 Tu as blessé un piéton : la police note ta plaque.", 4, "alert");
+      return;
+    }
+    // bousculade : le piéton est poussé, a peur un instant, puis repart
+    moveBody(q, [ux * 6, uy * 6]);
+    if (me) { G.energy = Math.max(0, G.energy - 3); msg("😬 Bousculade : une voiture a frôlé ton personnage, plus de peur que de mal.", 3); return; }
+    if (q.state !== "down") { q.state = "cower"; q.st = 1.5; }
+    if (near) msg(`😬 Bousculade : ${who} a été légèrement ${ident(q).woman ? "poussée" : "poussé"} par une voiture.`, 3);
+  }
   // piétons et personnage : contre les obstacles fixes, les voitures et entre eux
   function resolveBodies(cars) {
     const f = G.foot, bodies = G.peds.filter(q => !q.play && !q.gone && !q.enter && !(q.bus && q.bus.phase === "board"));
@@ -908,7 +933,7 @@
     const grid = new Map(), gk = (x, y) => ogKey(Math.floor(x / 32), Math.floor(y / 32));
     for (const q of bodies) {
       for (const o of obstNear(q.x, q.y)) { const d = pushOut(o, q.x, q.y, PED_R); if (d) moveBody(q, d); }
-      for (const c of cars) { if (Math.abs(c.x - q.x) > 60 || Math.abs(c.y - q.y) > 60) continue; const d = pushFromCar(c, q.x, q.y, PED_R); if (d) moveBody(q, d); }
+      for (const c of cars) { if (Math.abs(c.x - q.x) > 60 || Math.abs(c.y - q.y) > 60) continue; const d = pushFromCar(c, q.x, q.y, PED_R); if (d) { moveBody(q, d); carHitsPed(c, q); } }
       const k = gk(q.x, q.y); if (!grid.has(k)) grid.set(k, []); grid.get(k).push(q);
     }
     const min = PED_R * 2;
