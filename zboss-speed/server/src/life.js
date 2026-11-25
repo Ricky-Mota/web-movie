@@ -269,6 +269,9 @@ export const JOBS = [
   { id: "mecanicien", nom: "Mécanicien au garage", talent: "technique", salaire: 170, minAge: 18, etudesMin: "primaire" },
   { id: "animateur", nom: "Animateur à la radio", talent: "parole", salaire: 150, minAge: 18, etudesMin: "secondaire" },
   { id: "repetiteur", nom: "Répétiteur (cours du soir)", talent: "etudes", salaire: 140, minAge: 16, etudesMin: "secondaire" },
+  // vie religieuse (25/11) : métiers d'église ouverts aux joueurs ; les plus connus deviennent des célébrités
+  { id: "chef-chorale", nom: "Chef de chorale à l'église", talent: "art", salaire: 150, minAge: 16, religion: true },
+  { id: "pasteur", nom: "Pasteur d'une église de quartier", talent: "parole", salaire: 240, minAge: 25, etudesMin: "secondaire", religion: true },
   // carrières qui demandent des études (ouvertes avec l'école et l'université)
   { id: "medecin", nom: "Médecin", talent: "soin", salaire: 600, minAge: 24, formation: "medecine", diplome: "Doctorat en médecine" },
   { id: "ingenieur", nom: "Ingénieur", talent: "technique", salaire: 500, minAge: 22, formation: "ingenieur", diplome: "Diplôme d'ingénieur civil" },
@@ -283,6 +286,7 @@ export const JOBS = [
   { id: "inventeur", nom: "Inventeur (atelier d'innovation)", talent: "technique", salaire: 400, minAge: 20, talentRequis: true },
   { id: "chercheur", nom: "Chercheur à l'université", talent: "etudes", salaire: 420, minAge: 22, talentRequis: true },
   { id: "infirmier-chef", nom: "Infirmier chef", talent: "soin", salaire: 360, minAge: 20, talentRequis: true },
+  { id: "grand-pasteur", nom: "Pasteur d'une grande église (vedette)", talent: "parole", salaire: 420, minAge: 28, talentRequis: true, religion: true },
 ];
 export function cannotApply(job, age, diplomas, talents = []) {
   if (!job) return "Métier inconnu.";
@@ -1683,3 +1687,42 @@ export function protestText(type, valeur, seed = 1) {
   return `Manifestation ${lieu} ${why}.`;
 }
 export const PROTEST_REP = 5;
+
+// ---- la vie en direct d'une célébrité (26/11) : où elle habite, ce qu'elle fait à l'heure de Kinshasa, son entourage
+// lieux : type de scène dessinée à l'écran
+const AGENDAS = {
+  politique: [[5, 7, "maison", "Prière et lecture des journaux à la maison"], [7, 8, "route", "En route vers le Palais du peuple, escorté"], [8, 13, "parlement", "En séance au Palais du peuple"], [13, 14, "maquis", "Déjeuner de travail avec des collègues"], [14, 17, "quartier", "Visite d'un chantier dans sa commune"], [17, 19, "bureau", "Reçoit les habitants de sa commune"], [19, 22, "maison", "En famille, dîner à la maison"], [22, 29, "nuit", "Dort chez lui"]],
+  sport: [[5, 7, "quartier", "Footing au bord du fleuve"], [7, 8, "maison", "Petit-déjeuner et soins"], [8, 11, "stade", "Entraînement au stade"], [11, 13, "salle", "Musculation et récupération"], [13, 15, "maison", "Repas et sieste"], [15, 17, "stade", "Séance tactique avec l'équipe"], [17, 19, "quartier", "Signe des autographes pour les enfants"], [19, 22, "maison", "Soirée tranquille à la maison"], [22, 29, "nuit", "Dort (le repos, c'est sacré)"]],
+  musique: [[5, 11, "nuit", "Dort après le concert de la nuit"], [11, 13, "maison", "Écrit une nouvelle chanson"], [13, 16, "studio", "Répétition avec l'orchestre au studio"], [16, 18, "radio", "Interview à la radio"], [18, 20, "maison", "Se prépare : tenue de scène et coiffure"], [20, 24, "scene", "En concert dans une salle de Matonge"], [24, 29, "maquis", "Fête avec les musiciens après le concert"]],
+  religion: [[5, 7, "eglise", "Prière du matin à l'église"], [7, 9, "maison", "Petit-déjeuner en famille"], [9, 12, "quartier", "Visite les malades et les familles en difficulté"], [12, 14, "maison", "Repas et méditation"], [14, 17, "eglise", "Répétition de la chorale et préparation du culte"], [17, 20, "eglise", "Culte du soir devant les fidèles"], [20, 22, "maison", "Conseille des couples à la maison"], [22, 29, "nuit", "Dort chez lui"]],
+  academique: [[5, 7, "maison", "Lecture et préparation des cours"], [7, 8, "route", "Route vers l'université"], [8, 12, "universite", "Donne cours à l'université"], [12, 13, "maquis", "Déjeuner avec des étudiants"], [13, 16, "bibliotheque", "Recherche à la bibliothèque"], [16, 18, "universite", "Corrige les copies et reçoit les étudiants"], [18, 22, "maison", "Écrit son prochain livre à la maison"], [22, 29, "nuit", "Dort chez lui"]],
+  autres: [[5, 7, "maison", "Se lève tôt, prière et café"], [7, 12, "boutique", "Ouvre et dirige son commerce"], [12, 13, "maquis", "Déjeuner rapide au maquis"], [13, 17, "marche", "Négocie avec les fournisseurs au marché"], [17, 19, "boutique", "Fait la caisse avec ses employés"], [19, 22, "maison", "Dîner en famille"], [22, 29, "nuit", "Dort chez lui"]],
+};
+const HOMES = [[0, "Maison familiale de trois pièces"], [30, "Belle maison avec cour et manguier"], [55, "Villa avec groupe électrogène et gardien"], [80, "Grande villa avec piscine et vue sur le fleuve"]];
+const RIDES = [[0, "les taxis-bus et la moto"], [30, "une voiture d'occasion"], [55, "un 4x4 avec chauffeur"], [80, "un convoi de 4x4 avec chauffeur et escorte"]];
+const ENTOURAGE = {
+  politique: ["un chef de cabinet", "deux gardes du corps", "une attachée de presse"], sport: ["un entraîneur personnel", "un agent", "un kiné"], musique: ["un orchestre de 12 musiciens", "un manager", "des danseuses"],
+  religion: ["les diacres de l'église", "la chorale", "un comité de femmes"], academique: ["des assistants de recherche", "des doctorants"], autres: ["des employés du quartier", "un comptable", "un chauffeur"],
+};
+export function celebLive(c, now = Date.now()) {
+  const h = kinHour(now), m = new Date(now + 36e5).getUTCMinutes(), d = c.domaine in AGENDAS ? c.domaine : "autres";
+  const ag = AGENDAS[d].map(([a, b, lieu, texte]) => ({ de: a % 24, a: b % 24, lieu, texte: texte.replace("chez lui", g(c.sexe, "chez lui", "chez elle")).replace("escorté", g(c.sexe, "escorté", "escortée")) }));
+  const hh = h < 5 ? h + 24 : h;   // la nuit continue après minuit
+  let i = AGENDAS[d].findIndex(([a, b]) => hh >= a && hh < b); if (i < 0) i = 0;
+  let maintenant = { ...ag[i] };
+  if (c.prison) maintenant = { lieu: "prison", texte: "En cellule au commissariat (24 h)" };
+  else if (c.blesse) maintenant = { lieu: "hopital", texte: "Au centre de santé après un accident" };
+  const rep = Math.max(0, c.rep || 0), lvl = a => [...a].reverse().find(([min]) => rep >= min)[1];
+  const quartier = (c.logement && c.logement.quartier) || c.quartier || "Gombe";
+  const cv = communeView(quartier);
+  const maison = c.logement ? `${c.logement.statut === "proprio" ? "Propriétaire" : "Locataire"} d'une maison à ${quartier}` : lvl(HOMES) + " à " + quartier;
+  let s = hashStr(c.id || c.prenom); const r = () => ((s = (s * 1103515245 + 12345) >>> 0) / 4294967296);
+  const enfants = c.age > 25 ? Math.floor(r() * 5) : 0, marie = c.age > 24 && r() < .7;
+  return {
+    heure: `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`, nuit: h >= 19 || h < 6, maintenant, agenda: ag, indice: i,
+    maison, commune: cv ? { nom: cv.nom, zone: cv.zone, bon: cv.bon, mauvais: cv.mauvais } : { nom: quartier },
+    transport: /Président|Ministre|Gouverneur/.test(c.titre || "") ? "Se déplace en cortège officiel de l'État, avec escorte" : `Se déplace avec ${lvl(RIDES)}`, train: c.train || null,
+    famille: c.vraieVie ? null : `${marie ? g(c.sexe, "Marié", "Mariée") : "Célibataire"}${enfants ? `, ${enfants} enfant${enfants > 1 ? "s" : ""}` : ", pas d'enfant"}`,
+    entourage: ENTOURAGE[d],
+  };
+}

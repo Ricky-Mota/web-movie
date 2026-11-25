@@ -78,6 +78,25 @@
     .quote { font-style: italic; color: var(--text); border-left: 3px solid var(--accent); padding: 4px 0 4px 12px; margin: 16px 0 0; }
     .foot { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 22px; }
     .empty { color: var(--muted); font-size: 14px; }
+    /* vie en direct */
+    .scene { position: relative; border-radius: 18px; overflow: hidden; border: 1px solid var(--line); }
+    .scene svg { width: 100%; height: auto; }
+    .live { position: absolute; left: 12px; top: 12px; display: flex; gap: 8px; align-items: center; font: 700 12px var(--font-display); letter-spacing: .12em; text-transform: uppercase; }
+    .live .rec { background: var(--siren-red); color: #fff; border-radius: 6px; padding: 3px 8px; }
+    .live .clock { background: rgba(0,0,0,.55); color: #fff; border-radius: 6px; padding: 3px 8px; }
+    .now { background: var(--panel); border: 1px solid rgba(255,90,31,.45); border-radius: 14px; padding: 14px 16px; margin: 12px 0; }
+    .now small { display: block; color: var(--accent-2); font: 700 12px var(--font-display); letter-spacing: .12em; text-transform: uppercase; }
+    .now b { font-size: 18px; }
+    .agenda { display: grid; gap: 6px; }
+    .agenda div { display: grid; grid-template-columns: 92px 1fr; gap: 10px; padding: 8px 12px; border-radius: 10px; background: var(--panel); border: 1px solid var(--line); font-size: 14px; color: var(--muted); }
+    .agenda div.on { border-color: var(--accent); color: var(--text); background: rgba(255,90,31,.12); }
+    .agenda div.done { opacity: .6; }
+    .agenda time { font: 700 13px var(--font-display); color: var(--accent-2); }
+    .cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
+    .box { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; }
+    .box h3 { font-family: var(--font-display); text-transform: uppercase; font-size: 15px; margin: 0 0 8px; }
+    .box p, .box li { color: var(--muted); font-size: 14px; margin: 0 0 6px; }
+    .box ul { margin: 0; padding-left: 18px; }
   </style>
 </head>
 <body>
@@ -110,7 +129,13 @@
     <div class="head" id="f-head"></div>
     <div class="tabs" role="tablist" id="f-tabs"></div>
     <div id="f-body"></div>
-    <div class="foot"><button class="btn btn-ghost" id="f-prev" type="button">← Précédente</button><button class="btn btn-ghost" id="f-next" type="button">Suivante →</button><button class="btn btn-primary" id="f-follow" type="button">☆ Suivre</button></div>
+    <div class="foot"><button class="btn btn-primary" id="f-live" type="button">👁️ Sa vie en direct</button><button class="btn btn-ghost" id="f-prev" type="button">← Précédente</button><button class="btn btn-ghost" id="f-next" type="button">Suivante →</button><button class="btn btn-primary" id="f-follow" type="button">☆ Suivre</button></div>
+  </main>
+
+  <!-- la vie en direct d'une célébrité -->
+  <main class="page" id="direct" hidden>
+    <button class="back" id="to-fiche" type="button">← Sa fiche</button>
+    <div id="d-body"></div>
   </main>
 
   <script src="config.js"></script>

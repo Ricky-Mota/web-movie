@@ -240,18 +240,22 @@ const CELEBS = { at: 0, data: null };
 async function celebrities(db, now) {
   if (CELEBS.data && now - CELEBS.at < 10 * 60e3) return CELEBS.data;
   const q = async (sql, ...b) => (await db.prepare(sql).bind(...b).all()).results;
-  const base = `p.id, p.prenom, p.nom, p.sexe, p.quartier, p.ne_le, COALESCE(r.points, 0) AS rep`, rj = `LEFT JOIN reputations r ON r.personnage_id = p.id`, alive = `p.mort_le IS NULL AND p.compte_id IS NOT NULL`;
+  const base = `p.id, p.prenom, p.nom, p.sexe, p.quartier, p.ne_le, p.prison_jusqu, COALESCE(r.points, 0) AS rep, (SELECT quartier || '|' || statut FROM logements WHERE personnage_id = p.id) AS loge,
+      (SELECT niveau FROM train_de_vie WHERE personnage_id = p.id) AS train, EXISTS (SELECT 1 FROM blessures WHERE personnage_id = p.id) AS blesse`, rj = `LEFT JOIN reputations r ON r.personnage_id = p.id`, alive = `p.mort_le IS NULL AND p.compte_id IS NOT NULL`;
   const byTalent = t => q(`SELECT ${base} FROM talents_personnage t JOIN personnages p ON p.id = t.personnage_id ${rj} WHERE t.talent_id = ? AND t.decouvert = 1 AND ${alive} ORDER BY t.niveau DESC, rep DESC LIMIT 3`, t);
   const POSTE = { president: ["Président de la République", "Présidente de la République"], senateur: ["Sénateur", "Sénatrice"], depute: ["Député national", "Députée nationale"] };
   const cands = {
     politique: await q(`SELECT ${base}, m.poste FROM mandats m JOIN personnages p ON p.id = m.personnage_id ${rj} WHERE m.fin IS NULL AND ${alive} ORDER BY m.voix DESC LIMIT 3`),
-    sport: await byTalent("sport"), musique: await byTalent("art"), religion: [],
+    sport: await byTalent("sport"), musique: await byTalent("art"),
+    religion: await q(`SELECT ${base}, e.metier_id AS metier FROM emplois e JOIN personnages p ON p.id = e.personnage_id ${rj} WHERE e.fin IS NULL AND e.metier_id IN ('grand-pasteur', 'pasteur', 'chef-chorale') AND ${alive}
+      ORDER BY CASE e.metier_id WHEN 'grand-pasteur' THEN 0 WHEN 'pasteur' THEN 1 ELSE 2 END, rep DESC LIMIT 3`),
     academique: await q(`SELECT ${base} FROM diplomes_obtenus d JOIN personnages p ON p.id = d.personnage_id ${rj} WHERE ${alive} GROUP BY p.id HAVING COUNT(*) >= 2 ORDER BY COUNT(*) DESC, rep DESC LIMIT 3`),
     autres: await q(`SELECT ${base} FROM entreprises e JOIN personnages p ON p.id = e.proprietaire_id ${rj} WHERE ${alive} GROUP BY p.id ORDER BY SUM(e.capital) DESC LIMIT 3`),
   };
   const seen = new Set();
   for (const k in cands) cands[k] = cands[k].filter(x => !seen.has(x.id) && seen.add(x.id)).map(x => ({ id: x.id, prenom: x.prenom, nom: x.nom.charAt(0) + ".", sexe: x.sexe, quartier: x.quartier, rep: x.rep,
-    age: Math.floor(ageYears(x.ne_le, now)), titre: x.poste ? POSTE[x.poste][x.sexe === "F" ? 1 : 0] : undefined }));
+    age: Math.floor(ageYears(x.ne_le, now)), titre: x.poste ? POSTE[x.poste][x.sexe === "F" ? 1 : 0] : x.metier ? (JOBS.find(j => j.id === x.metier) || {}).nom : undefined,
+    logement: x.loge ? { quartier: x.loge.split("|")[0], statut: x.loge.split("|")[1] } : null, train: x.train || null, blesse: !!x.blesse, prison: !!(x.prison_jusqu && x.prison_jusqu > now) }));
   const L = pickCelebrities(cands, now);
   for (const c of L.celebrites) {
     if (c.pnj) { Object.assign(c, celebStory(c, hashCode(c.id + L.jour.slice(0, 7)))); continue; }
