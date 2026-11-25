@@ -1,5 +1,5 @@
-// 2 Life : bandeau défilant en bas de l'écran. Annonces des partenaires (avec accord écrit), promotions des
-// entreprises du jeu, communiqués et décisions publiques, Trésor, élections, une du journal.
+// 2 Life : bandeau défilant en bas de l'écran. Annonces des partenaires (avec accord écrit), promotions et ambassadeurs des
+// entreprises du jeu, résultats du championnat, communiqués et décisions publiques, Trésor, élections, une du journal.
 // Mode réel : /api/bandeau (mis à jour chaque minute). Démo : mêmes règles, avec les données de ce navigateur.
 import { tickerItems, adShownIn, STATE_SEED, newspaper } from "../server/src/life.js";
 
@@ -35,9 +35,11 @@ function demoItems() {
   const pubs = (read("twolife_demo_pubs") || []).filter(a => a.actif && a.debut <= now && a.fin > now && adShownIn(a, "bandeau"));
   const communiques = (read("twolife_demo_communiques") || []).filter(c => c.actif && c.debut <= now && c.fin > now);
   const tresor = STATE_SEED + (d.tresor || 0) + (d.tva || 0);
-  return tickerItems({ pubs, communiques, tresor, impotsJour: (d.tva || 0) + Math.max(0, d.tresor || 0), salairesJour: 0, une: newspaper({}, now).une }, now);
+  const campagnes = (d.campagnes || []).filter(c => c.fin > now);
+  const foot = d.foot || [], matchs = foot.length ? foot.filter(m => m.jour === foot[0].jour) : [];
+  return tickerItems({ pubs, communiques, tresor, impotsJour: (d.tva || 0) + Math.max(0, d.tresor || 0), salairesJour: 0, une: newspaper({}, now).une, campagnes, matchs }, now);
 }
-const label = { pub: "Annonce", communique: "Communiqué", etat: "État", journal: "Journal" };
+const label = { pub: "Annonce", communique: "Communiqué", etat: "État", journal: "Journal", sport: "Sport" };
 let items = [], rot = 0, rotTimer = null;
 function draw() {
   if (!items.length) { bar.hidden = true; document.body.classList.remove("has-bandeau"); return; }

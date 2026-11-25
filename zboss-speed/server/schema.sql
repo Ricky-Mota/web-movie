@@ -329,3 +329,44 @@ CREATE TABLE IF NOT EXISTS communiques (
   actif INTEGER NOT NULL DEFAULT 1,
   cree_le INTEGER NOT NULL
 );
+
+-- train de vie : niveau choisi (ou « auto »), présentation (tenue) et vitalité, dernière journée de dépenses
+CREATE TABLE IF NOT EXISTS train_de_vie (
+  personnage_id TEXT PRIMARY KEY,
+  niveau TEXT NOT NULL DEFAULT 'auto',
+  tenue INTEGER NOT NULL DEFAULT 40,
+  vitalite INTEGER NOT NULL DEFAULT 50,
+  dernier_jour TEXT,
+  dernier_niveau TEXT,
+  depense_jour INTEGER NOT NULL DEFAULT 0,
+  maj_le INTEGER NOT NULL
+);
+
+-- campagnes publicitaires : une entreprise de joueur paie un ambassadeur pour se faire connaître
+CREATE TABLE IF NOT EXISTS campagnes (
+  id TEXT PRIMARY KEY,
+  entreprise_id TEXT NOT NULL,
+  ambassadeur_id TEXT NOT NULL,
+  prix_jour INTEGER NOT NULL,
+  jours INTEGER NOT NULL,
+  slogan TEXT,
+  debut INTEGER NOT NULL,
+  fin INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS campagnes_fin ON campagnes (fin);
+
+-- championnat de Kinshasa : un match par jour pour chaque club (clubs des joueurs + clubs du jeu)
+CREATE TABLE IF NOT EXISTS matchs (
+  id TEXT PRIMARY KEY,
+  saison TEXT NOT NULL,
+  jour TEXT NOT NULL,
+  dom_id TEXT NOT NULL,
+  dom_nom TEXT NOT NULL,
+  ext_id TEXT NOT NULL,
+  ext_nom TEXT NOT NULL,
+  buts_dom INTEGER NOT NULL,
+  buts_ext INTEGER NOT NULL,
+  buteurs TEXT,
+  le INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS matchs_saison ON matchs (saison, jour);

@@ -487,8 +487,9 @@ export function splitEstate(total, heirs) {
   const pot = total - report - ville, each = heirs > 0 ? Math.floor(pot / heirs) : 0;
   return { report, ville: ville + (pot - each * heirs), each, heritiers: each * heirs };
 }
-export function deathCause(needs, neglectDays = 0) {
+export function deathCause(needs, neglectDays = 0, vieux = false) {
   if (needs.health > 0) return null;
+  if (vieux) return "vieillesse";
   if (neglectDays >= NEGLECT_DANGER_DAYS) return "négligé par sa famille";
   return needs.hunger < 15 ? "mort de faim" : "maladie non soignée";
 }
@@ -754,6 +755,9 @@ export function describeAction(path, body = {}, r = {}) {
     "/api/postuler": () => ["💼", body.entreprise ? "Embauché dans une entreprise" : "Nouveau métier : " + nm(JOBS, body.metier)],
     "/api/travailler": () => r.paie && r.paie.arriere ? ["⏳", `Journée de travail : salaire de ${fmtMakuta(r.paie.arriere)} dû par l'État (caisse vide)`] : ["🛠️", `Journée de travail${pay ? " : +" + pay : ""}`],
     "/api/promouvoir": () => ["📣", "Promotion lancée pour son entreprise"],
+    "/api/train": () => ["🧺", "Nouveau train de vie : " + (body.niveau === "auto" ? "automatique (selon ses moyens)" : nm(LIFESTYLES, body.niveau))],
+    "/api/campagne": () => ["📣", `Campagne publicitaire avec ${r.ambassadeur || "un ambassadeur"} (${fmtMakuta(r.cout || 0)})`],
+    "/api/club/recruter": () => ["⚽", `A recruté ${r.recrue || "un joueur"} pour son club`],
     "/api/objectif": () => body.action === "abandonner" ? null : ["🎯", "Nouvel objectif de vie : " + nm(GOALS, body.id)],
     "/api/ecole/inscription": () => ["🎓", "Inscrit à l'école : " + nm(FORMATIONS, body.formation)],
     "/api/ecole/cours": () => ["📚", "A suivi un cours"],
@@ -1177,9 +1181,11 @@ export function cannotPromote(a = {}, makuta = 0, owns = false, active = false) 
 }
 
 // ---------------------------------------------------------------- bandeau défilant (bas de l'écran)
-export function tickerItems({ pubs = [], tresor = 0, impotsJour = 0, salairesJour = 0, arrieres = 0, elec = null, une = null, communiques = [] } = {}, now = Date.now()) {
+export function tickerItems({ pubs = [], tresor = 0, impotsJour = 0, salairesJour = 0, arrieres = 0, elec = null, une = null, communiques = [], campagnes = [], matchs = [] } = {}, now = Date.now()) {
   const out = [];
   pubs.forEach(a => out.push({ type: "pub", icone: "📣", texte: `${a.titre} · ${a.annonceur}${a.texte ? " : " + a.texte : ""}`, couleur: a.couleur }));
+  campagnes.forEach(c => out.push({ type: "pub", icone: "🌟", texte: `${c.entreprise} : ${c.ambassadeur} ${c.fem ? "est la nouvelle ambassadrice" : "est le nouvel ambassadeur"}${c.slogan ? " · « " + c.slogan + " »" : ""}`, couleur: "#7dff8a" }));
+  if (matchs.length) out.push({ type: "sport", icone: "⚽", texte: `${LEAGUE_NAME} : ` + matchs.slice(0, 6).map(m => `${m.dom_nom} ${m.buts_dom}-${m.buts_ext} ${m.ext_nom}`).join(" · ") });
   communiques.forEach(c => out.push({ type: "communique", icone: "📢", texte: `${c.auteur} : ${c.texte}` }));
   out.push({ type: "etat", icone: "🏛️", texte: `Trésor public : ${fmtMakuta(tresor)} · impôts et taxes du jour : ${fmtMakuta(impotsJour)} · salaires publics payés : ${fmtMakuta(salairesJour)}` });
   if (arrieres > 0) out.push({ type: "etat", icone: "⚠️", texte: `${arrieres} agent${arrieres > 1 ? "s" : ""} de l'État attend${arrieres > 1 ? "ent" : ""} leur salaire : le Trésor manque d'impôts.` });
@@ -1256,4 +1262,153 @@ export function pickStars(cands = {}, now = Date.now(), seedNames = null) {
     return { ...s, domaine: d.id, domaineNom: d.nom, icone: d.icone, titre: s.titre || titre,
       actualites: s.actualites && s.actualites.length ? s.actualites : [0, 1, 2].map(i => ({ icone: d.icone, texte: `${s.prenom} ${news[(h + i * 7) % news.length]}.` })) };
   }).filter(Boolean);
+}
+
+// ---------------------------------------------------------------- train de vie : les dépenses du quotidien (v46)
+// Chaque jour (heure de Kinshasa), un personnage adulte dépense pour vivre, selon ses moyens. Le loyer et les factures
+// d'eau et d'électricité sont prélevés à part (logement, sociétés publiques). L'argent va aux entreprises des joueurs
+// (TVA de 16 % au Trésor) : les entreprises qui font de la publicité attirent plus de clients.
+export const BUDGET_POSTS = [
+  { id: "nourriture", icone: "🍚", label: "Nourriture à la maison", vers: ["supermarche", "boutique", "maquis"] },
+  { id: "habits", icone: "👕", label: "Habits, coiffure et entretien", vers: ["boutique", "salon"] },
+  { id: "transport", icone: "🚕", label: "Déplacements (taxi, bus, moto)", vers: ["taxi"] },
+  { id: "sante", icone: "💊", label: "Santé, hygiène et savon", vers: ["pharmacie"] },
+  { id: "telephone", icone: "📱", label: "Crédit téléphone et internet", vers: [] },
+  { id: "formation", icone: "📚", label: "Livres, journaux et formation", vers: ["ecole"] },
+  { id: "loisirs", icone: "🎉", label: "Sorties, fêtes et loisirs", vers: ["maquis", "hotel", "club"] },
+  { id: "entraide", icone: "🤝", label: "Likelemba, église et entraide", vers: [] },
+];
+// montants en makuta par jour réel ; effets appliqués une fois par jour
+export const LIFESTYLES = [
+  { id: "survie", nom: "Survie", icone: "🥣", desc: "Un repas simple par jour, rien d'autre.", postes: { nourriture: 20 },
+    effet: { faim: 35, sante: -2, bonheur: -4 }, tenue: 10, vitalite: 20 },
+  { id: "modeste", nom: "Modeste", icone: "🍲", desc: "Deux repas, savon, un peu de transport et de crédit.", postes: { nourriture: 40, habits: 10, transport: 15, sante: 5, telephone: 5, entraide: 5 },
+    effet: { faim: 55, sante: 1, bonheur: 0 }, tenue: 45, vitalite: 50 },
+  { id: "confort", nom: "Confort", icone: "🏡", desc: "Bien manger, de beaux habits, taxi, soins et sorties.", postes: { nourriture: 70, habits: 30, transport: 30, sante: 15, telephone: 10, formation: 10, loisirs: 20, entraide: 10 },
+    effet: { faim: 70, sante: 2, bonheur: 4 }, tenue: 75, vitalite: 75 },
+  { id: "aise", nom: "Aisé", icone: "💎", desc: "Le meilleur : tenue soignée, médecin privé, voyages et fêtes.", postes: { nourriture: 120, habits: 80, transport: 60, sante: 30, telephone: 20, formation: 20, loisirs: 60, entraide: 20 },
+    effet: { faim: 85, sante: 3, bonheur: 8 }, tenue: 95, vitalite: 95 },
+];
+export const LIFESTYLE_MIN_AGE = 18;          // avant 18 ans, l'entretien payé par les parents couvre tout
+export const LIFESTYLE_RESERVE_DAYS = 10;     // en automatique, le personnage garde de quoi tenir 10 jours à ce niveau
+export const lifestyleCost = id => { const l = LIFESTYLES.find(x => x.id === id); return l ? Object.values(l.postes).reduce((a, b) => a + b, 0) : 0; };
+// le niveau réellement payé aujourd'hui : celui choisi, ou moins si l'argent manque ; "auto" = le personnage décide selon ses moyens
+export function lifestyleFor(choice, makuta) {
+  const order = LIFESTYLES.map(l => l.id);
+  let i = choice && choice !== "auto" ? order.indexOf(choice) : order.length - 1;
+  if (i < 0) i = 1;
+  const reserve = !choice || choice === "auto" ? LIFESTYLE_RESERVE_DAYS : 1;
+  while (i > 0 && lifestyleCost(order[i]) * reserve > makuta) i--;
+  const l = LIFESTYLES[i];
+  return lifestyleCost(l.id) <= makuta ? l : null;   // null : même la survie est trop chère (pas de repas)
+}
+// présentation (tenue) et vitalité : se rapprochent chaque jour du niveau de vie
+export const TENUE_STEP = 10, VITALITE_STEP = 3;
+const toward = (x, t, s) => x < t ? Math.min(t, x + s) : Math.max(t, x - s);
+export function lifestyleStep(st = {}, l) {
+  const t = st.tenue ?? 40, v = st.vitalite ?? 50;
+  return l ? { tenue: toward(t, l.tenue, TENUE_STEP), vitalite: toward(v, l.vitalite, VITALITE_STEP) } : { tenue: toward(t, 0, TENUE_STEP), vitalite: toward(v, 0, VITALITE_STEP) };
+}
+// espérance de vie : de 55 à 80 ans selon la vitalité (bien manger, se soigner, ne pas manquer)
+export const LIFE_BASE = 55, LIFE_RANGE = 25;
+export const lifeExpectancy = vitalite => Math.round(LIFE_BASE + LIFE_RANGE * Math.max(0, Math.min(100, vitalite ?? 50)) / 100);
+export const OLD_AGE_HEALTH = 8;              // au-delà de son espérance de vie, la santé baisse de 8 points par jour
+// présentation : les postes bien payés demandent une tenue correcte
+export const TENUE_JOB_MIN = 40, TENUE_JOB_PAY = 250;
+export const tenueLabel = t => t >= 80 ? "très soignée" : t >= 55 ? "soignée" : t >= TENUE_JOB_MIN ? "correcte" : t >= 20 ? "négligée" : "en haillons";
+export function tenueBlocks(job, tenue) {
+  if (!job || tenue == null) return null;
+  if ((job.salaire >= TENUE_JOB_PAY || job.formation) && tenue < TENUE_JOB_MIN)
+    return `Le recruteur trouve ta tenue ${tenueLabel(tenue)} : il faut une présentation correcte (${TENUE_JOB_MIN}). Passe au train de vie « Modeste » ou mieux quelques jours.`;
+  return null;
+}
+export function livingView(st = {}, makuta = 0, age = 30) {
+  const choice = st.niveau || "auto", today = lifestyleFor(choice, makuta);
+  return {
+    choix: choice, minAge: LIFESTYLE_MIN_AGE, adulte: age >= LIFESTYLE_MIN_AGE,
+    niveaux: LIFESTYLES.map(l => ({ id: l.id, nom: l.nom, icone: l.icone, desc: l.desc, cout: lifestyleCost(l.id), postes: l.postes, tenue: l.tenue, vitalite: l.vitalite, effet: l.effet })),
+    postes: BUDGET_POSTS.map(p => ({ id: p.id, icone: p.icone, label: p.label })),
+    prevu: today ? today.id : null, prevuCout: today ? lifestyleCost(today.id) : 0,
+    tenue: st.tenue ?? 40, tenueLabel: tenueLabel(st.tenue ?? 40), vitalite: st.vitalite ?? 50, esperance: lifeExpectancy(st.vitalite ?? 50),
+    dernier: st.dernier_jour ? { jour: st.dernier_jour, niveau: st.dernier_niveau, depense: st.depense_jour || 0 } : null,
+    reserveJours: LIFESTYLE_RESERVE_DAYS,
+  };
+}
+
+// ---------------------------------------------------------------- campagnes publicitaires avec un ambassadeur
+// Une entreprise de joueur paie un personnage (souvent une star) pour la faire connaître. Tant que la campagne dure,
+// les habitants choisissent plus souvent cette entreprise pour leurs dépenses, et le bandeau l'annonce.
+export const CAMPAIGN_MAX_DAYS = 14, AMBASSADOR_MIN_AGE = 18, AMBASSADOR_TENUE = 50;
+export function ambassadorFee(rep = 0, star = false) { return Math.round((100 + 8 * Math.max(0, rep)) * (star ? 3 : 1)); }   // makuta par jour
+export function cannotHireAmbassador({ owns, active, self, age, rep, tenue, star, prix, jours, makuta, slogan } = {}) {
+  if (!owns) return "Cette entreprise n'est pas à toi.";
+  if (self) return "Tu ne peux pas être ton propre ambassadeur.";
+  if (active) return "Cette entreprise a déjà une campagne en cours.";
+  const j = Number(jours); if (!Number.isInteger(j) || j < 1 || j > CAMPAIGN_MAX_DAYS) return `Durée : 1 à ${CAMPAIGN_MAX_DAYS} jours.`;
+  const s = String(slogan || "").trim(); if (s.length > 60) return "Slogan : 60 caractères au plus.";
+  if (/https?:|www\.|\.com|\d{6,}/i.test(s.replace(/\s/g, ""))) return "Pas de lien ni de numéro de téléphone dans le slogan.";
+  if (age < AMBASSADOR_MIN_AGE) return `Un ambassadeur doit avoir au moins ${AMBASSADOR_MIN_AGE} ans.`;
+  if (rep <= REP_BAD) return "Cette personne a trop mauvaise réputation : elle ferait fuir tes clients.";
+  if ((tenue ?? 50) < AMBASSADOR_TENUE) return "Sa tenue est trop négligée pour une publicité : elle refuse de poser comme ça.";
+  const fee = ambassadorFee(rep, star);
+  if (!Number.isInteger(Number(prix)) || Number(prix) < fee) return `Offre refusée : cette personne demande au moins ${fmtMakuta(fee)} par jour.`;
+  if (makuta < Number(prix) * j) return `Il te faut ${fmtMakuta(Number(prix) * j)} pour payer toute la campagne.`;
+  return null;
+}
+
+// ---------------------------------------------------------------- football : clubs, recrutement, championnat
+// Les clubs des joueurs (type d'entreprise « club ») recrutent des personnages et jouent un match par jour contre les
+// autres clubs de la ville. Noms des clubs du jeu inventés (aucun vrai club).
+COMPANY_TYPES.push({ id: "club", nom: "Club de football", icone: "⚽", prix: 300000, recette: 4000, job: "joueur-club", poste: "Joueur de football", talent: "sport", salaire: 220, places: 18,
+  desc: "Recrute des joueurs, joue le championnat de Kinshasa et vend des billets les jours de match." });
+export const LEAGUE_NAME = "Championnat de Kinshasa";
+export const NPC_CLUBS = [
+  { id: "pnj-simba", nom: "Simba ya Kin", force: 62 }, { id: "pnj-ndjili", nom: "Étoile de Ndjili", force: 55 },
+  { id: "pnj-kinkole", nom: "Pirogues de Kinkole", force: 50 }, { id: "pnj-lemba", nom: "Lemba Sporting", force: 58 },
+  { id: "pnj-matete", nom: "Jeunesse de Matete", force: 52 }, { id: "pnj-kimbanseke", nom: "Kimbanseke United", force: 47 },
+  { id: "pnj-ngaliema", nom: "Colline de Ngaliema", force: 60 }, { id: "pnj-bandal", nom: "Bandal Olympique", force: 54 },
+];
+export const CLUB_MIN_AGE = 16, CLUB_MAX_AGE = 38, CLUB_MIN_PLAYERS = 1, CLUB_CONTRACT_DAYS = 30;
+export const MATCH_GATE = { victoire: 2500, nul: 1200, defaite: 600 };   // billetterie (makuta) versée à la caisse du club
+// force d'un club de joueurs : effectif et niveau en sport (talent découvert) de ses joueurs
+export function clubStrength(players = []) {
+  if (!players.length) return 30;
+  const lv = players.map(p => p.niveau || 25).sort((a, b) => b - a).slice(0, 11);
+  return Math.round(30 + Math.min(11, players.length) * 2.5 + lv.reduce((a, b) => a + b, 0) / lv.length * 0.25);
+}
+// un match : la force décide en moyenne, la chance fait le reste
+export function playMatch(fa, fb, r = Math.random) {
+  const goals = f => { const lam = Math.max(0.3, 1.3 * f / 55); let k = 0, p = Math.exp(-lam), s = p, u = r(); while (u > s && k < 7) { k++; p *= lam / k; s += p; } return k; };
+  return [goals(fa * 1.05), goals(fb)];   // petit avantage à domicile
+}
+export function pairClubs(clubs, day = "") {
+  const list = clubs.slice().sort((a, b) => hashStr(day + a.id) - hashStr(day + b.id)), out = [];
+  if (list.length % 2) { const i = list.map(c => String(c.id).startsWith("pnj-")).lastIndexOf(true); list.splice(i >= 0 ? i : list.length - 1, 1); }   // nombre impair : un club du jeu se repose
+  for (let i = 0; i + 1 < list.length; i += 2) out.push([list[i], list[i + 1]]);
+  return out;
+}
+export function standings(matches = []) {
+  const t = {};
+  const row = (id, nom) => (t[id] = t[id] || { id, nom, j: 0, g: 0, n: 0, p: 0, bp: 0, bc: 0, pts: 0 });
+  for (const m of matches) {
+    const a = row(m.dom_id, m.dom_nom), b = row(m.ext_id, m.ext_nom);
+    a.j++; b.j++; a.bp += m.buts_dom; a.bc += m.buts_ext; b.bp += m.buts_ext; b.bc += m.buts_dom;
+    if (m.buts_dom > m.buts_ext) { a.g++; b.p++; a.pts += 3; } else if (m.buts_dom < m.buts_ext) { b.g++; a.p++; b.pts += 3; } else { a.n++; b.n++; a.pts++; b.pts++; }
+  }
+  return Object.values(t).sort((x, y) => y.pts - x.pts || (y.bp - y.bc) - (x.bp - x.bc) || y.bp - x.bp);
+}
+export function scorersText(names = []) { const c = {}; names.forEach(n => c[n] = (c[n] || 0) + 1); return Object.entries(c).map(([n, k]) => k > 1 ? `${n} (${k})` : n).join(", ") || null; }
+export const seasonKey = (now = Date.now()) => dayKey(now).slice(0, 7);   // une saison = un mois
+// le joueur accepte-t-il l'offre du club ? (le personnage décide seul, comme un vrai joueur)
+export function cannotRecruit({ owns, isClub, self, age, prix, current = 0, places, used, prison } = {}) {
+  if (!owns) return "Ce club n'est pas à toi.";
+  if (!isClub) return "Seul un club de football peut recruter des joueurs.";
+  if (self) return "Tu es le président du club : recrute quelqu'un d'autre.";
+  if (used >= places) return "L'effectif est complet.";
+  if (prison) return "Ce joueur est en prison.";
+  if (age < CLUB_MIN_AGE || age > CLUB_MAX_AGE) return `Un joueur doit avoir entre ${CLUB_MIN_AGE} et ${CLUB_MAX_AGE} ans.`;
+  const min = Math.max(150, Math.round(current * 1.1));
+  if (!Number.isInteger(Number(prix)) || Number(prix) < min) return `Le joueur refuse : il veut au moins ${fmtMakuta(min)} par journée (10 % de plus que son salaire actuel).`;
+  if (Number(prix) > 2000) return "Salaire trop élevé : 100 e-makuta par journée au plus.";
+  return null;
 }

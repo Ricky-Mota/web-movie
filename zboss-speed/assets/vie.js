@@ -9,6 +9,8 @@ import {
   streakStep, streakView, nightSummary, prevDayKey,
   newspaper, cannotSendWord, neighborView, GREETINGS, WORD_MAX,
   PUBLIC_COMPANIES, STATE_SEED, soeView, promoPrice, cannotPromote, PROMO_PRICE, PROMO_MAX_DAYS, goalsView, newlyReached, cannotChooseGoal, GOAL_REP, pickStars, vatOf, AD_COLORS,
+  LIFESTYLES, LIFESTYLE_MIN_AGE, lifestyleCost, lifestyleFor, lifestyleStep, lifeExpectancy, OLD_AGE_HEALTH, tenueBlocks, livingView, BILLS,
+  CAMPAIGN_MAX_DAYS, ambassadorFee, cannotHireAmbassador, LEAGUE_NAME, NPC_CLUBS, CLUB_MIN_AGE, CLUB_MAX_AGE, MATCH_GATE, clubStrength, playMatch, pairClubs, standings, scorersText, cannotRecruit, CLUB_CONTRACT_DAYS,
 } from "../server/src/life.js";
 import { launchDemo } from "./lancement-demo.js";
 
@@ -61,6 +63,8 @@ const demo = {
     v.etat.tresor = tresor;
     v.etat.finances = { tresor, impotsJour: (d.tva || 0) + Math.max(0, d.tresor || 0), salairesJour: 0, arrieres: 0, societes: soeView(soldes, { "sp-mwinda": 3, "sp-mai": 2, "sp-regie": 1, "sp-voirie": 6 }), tva: 16, demo: true };
     v.salaireDu = 0; v.promo = { prix: PROMO_PRICE, maxJours: PROMO_MAX_DAYS };
+    v.train = livingView(d.train || {}, d.perso.makuta, ageYears(d.perso.neLe));
+    v.campagnes = { maxJours: CAMPAIGN_MAX_DAYS, liste: (d.campagnes || []).filter(x => x.fin > Date.now()) };
     return v;
   },
   viewBase(d) {
@@ -92,7 +96,7 @@ const demo = {
         return { id: k.id, prenom: k.prenom, nom: k.nom, sexe: k.sex, age: Math.round(a * 100) / 100, etapeLabel: stageOf(a).label, joueur: true, simule: true,
           besoins: Object.fromEntries(Object.entries(kn).map(([x, y]) => [x, Math.round(y)])), makuta: k.makuta, prochainEntretien: a < 18 ? supportDue(k.entretienLe, k.neLe, now).next : null }; }),
       entretienParJour: SUPPORT_PER_DAY, demo: true,
-      entreprises: companyView((d.ent || []).map(e => ({ ...e, employes: 0 })), { aVendre: demoOthers().filter(e => e.en_vente && !(d.achetees || []).includes(e.id)), offres: demoOthers().filter(e => !(d.achetees || []).includes(e.id)).slice(0, 6) }, now),
+      entreprises: companyView((d.ent || []).map(e => ({ ...e, employes: ((d.club || {})[e.id] || []).length })), { aVendre: demoOthers().filter(e => e.en_vente && !(d.achetees || []).includes(e.id)), offres: demoOthers().filter(e => !(d.achetees || []).includes(e.id)).slice(0, 6) }, now),
       voyage: { quartiers: KINSHASA_QUARTIERS, communes: COMMUNES.map(c => communeView(c.nom)), prix: TAXI_FARE, fatigue: TAXI_ENERGY, villes: OTHER_CITIES },
       elections: launchDemo.elections(this.me(d)),
       mouvements: d.mouvements || [],
@@ -160,6 +164,47 @@ const demo = {
     }
     return d.market;
   },
+  // train de vie (démo : même règle que le serveur, une fois par jour de Kinshasa)
+  living(d) {
+    const c = d.perso, now = Date.now(), jour = dayKey(now);
+    if (ageYears(c.neLe, now) < LIFESTYLE_MIN_AGE) return;
+    const t = d.train = d.train || { niveau: "auto", tenue: 40, vitalite: 50 };
+    if (t.dernier_jour === jour) return;
+    t.dernier_jour = jour; this.settle(c);
+    const l = lifestyleFor(t.niveau, c.makuta), nx = lifestyleStep(t, l), cost = l ? lifestyleCost(l.id) : 0, e = l ? l.effet : { faim: 0, sante: -3, bonheur: -6 };
+    const esp = lifeExpectancy(nx.vitalite), vieux = ageYears(c.neLe, now) > esp, cl = x => Math.max(0, Math.min(100, x));
+    c.makuta -= cost; c.hunger = cl(c.hunger + e.faim); c.health = cl(c.health + e.sante - (vieux ? OLD_AGE_HEALTH : 0)); c.happiness = cl(c.happiness + e.bonheur);
+    Object.assign(t, nx, { dernier_niveau: l ? l.id : null, depense_jour: cost });
+    if (l) { d.tva = (d.tva || 0) + Object.values(l.postes).reduce((a, n) => a + vatOf(n), 0); this.flow(d, "depense", cost);
+      this.move(d, l.icone, `Dépenses du jour, train de vie ${l.nom.toLowerCase()}${t.niveau === "auto" ? " (choisi selon ses moyens)" : t.niveau !== l.id ? " (l'argent manque pour mieux)" : ""} : ${fmtMakuta(cost)}.`); }
+    else this.move(d, "😣", `${c.firstName} n'a pas de quoi acheter à manger aujourd'hui : la santé et le moral baissent.`);
+    if (vieux) this.move(d, "👴", `${c.firstName} a dépassé son espérance de vie (${esp} ans) : la vieillesse fait baisser sa santé chaque jour.`);
+  },
+  // championnat (démo) : une journée de matchs par jour, ou à la demande avec le bouton « journée suivante »
+  footDay(d, force) {
+    const jour = dayKey();
+    if (!force && d.footJour === jour) return;
+    d.footJour = jour; d.footRound = (d.footRound || 0) + 1;
+    const mine = (d.ent || []).filter(e => e.type === "club" && ((d.club || {})[e.id] || []).length).map(e => ({ id: e.id, nom: e.nom, force: clubStrength(d.club[e.id]), joueurs: d.club[e.id] }));
+    const out = [];
+    for (const [a, b] of pairClubs(mine.concat(NPC_CLUBS), jour + d.footRound)) {
+      const [ga, gb] = playMatch(a.force, b.force), but = [];
+      for (const [t, g] of [[a, ga], [b, gb]]) if (t.joueurs) for (let i = 0; i < g; i++) but.push(t.joueurs[Math.floor(Math.random() * t.joueurs.length)]);
+      out.push({ jour: d.footRound, dom_id: a.id, dom_nom: a.nom, ext_id: b.id, ext_nom: b.nom, buts_dom: ga, buts_ext: gb, buteurs: scorersText(but.map(j => j.nom)) });
+      for (const [t, me, them] of [[a, ga, gb], [b, gb, ga]]) {
+        const e = (d.ent || []).find(x => x.id === t.id); if (!e) continue;
+        const gate = me > them ? MATCH_GATE.victoire : me === them ? MATCH_GATE.nul : MATCH_GATE.defaite;
+        e.caisse = (e.caisse || 0) + gate;
+        this.move(d, "⚽", `Match de ${e.nom} : ${a.nom} ${ga}-${gb} ${b.nom}. Billetterie : +${fmtMakuta(gate)} dans la caisse du club.`);
+      }
+    }
+    d.foot = out.concat(d.foot || []).slice(0, 300);
+  },
+  footView(d) {
+    const m = d.foot || [], last = m.length ? m.filter(x => x.jour === m[0].jour) : [];
+    return { ligue: LEAGUE_NAME, saison: dayKey().slice(0, 7), classement: standings(m), derniers: last.map(x => ({ dom: x.dom_nom, ext: x.ext_nom, bd: x.buts_dom, be: x.buts_ext, buteurs: x.buteurs })),
+      mesClubs: (d.ent || []).filter(e => e.type === "club").map(e => ({ id: e.id, nom: e.nom, force: clubStrength((d.club || {})[e.id] || []), joueurs: ((d.club || {})[e.id] || []).map(j => ({ id: j.id, nom: j.nom })) })), gains: MATCH_GATE, demo: true };
+  },
   rent(d) {
     const L = d.logement; if (!L || L.statut !== "loue") return;
     const weeks = rentDue(L.paye_jusqu); if (!weeks) return;
@@ -206,7 +251,8 @@ const demo = {
     let d = store.get(LS_DEMO);
     if (d && d.perso && !d.mort) {
       this.support(d);
-      const cause = deathCause(needsAt(d.perso), 0); if (cause) this.die(d, cause);
+      this.living(d); this.footDay(d);
+      const cause = deathCause(needsAt(d.perso), 0, !!d.train && ageYears(d.perso.neLe) > lifeExpectancy(d.train.vitalite)); if (cause) this.die(d, cause);
       this.rent(d);
       if (!d.lastEvent || Date.now() - d.lastEvent >= EVENT_EVERY_H * 36e5) {   // le destin (démo : même règle)
         d.lastEvent = Date.now(); this.settle(d.perso); const c0 = d.perso, e = drawEvent(Math.random, { quartier: c0.quartier, camp: roleOf(d.origine, c0.look).camp });
@@ -312,7 +358,9 @@ const demo = {
     if (path === "/api/demo/lendemain") {   // démo seulement : on fait comme si la journée était passée
       const C = this.orders(d), y = prevDayKey(C.jour);
       if (d.fid && d.fid.dernier_jour === C.jour) d.fid.dernier_jour = y;
-      d.consignes = { jour: C.jour, liste: [], journal: [] }; store.set(LS_DEMO, d); return this.view(d);
+      d.consignes = { jour: C.jour, liste: [], journal: [] };
+      if (d.train) d.train.dernier_jour = null; d.footJour = null;   // nouvelle journée de dépenses et de matchs
+      this.living(d); this.footDay(d); store.set(LS_DEMO, d); return this.view(d);
     }
     if (BIG_DECISIONS.includes(path) || (path === "/api/mariage/repondre" && body.accepte)) { const no = cannotDecide(d.origine, c.firstName); if (no) throw new Error(no); }
     if (inPrison(d.prison) && PRISON_BLOCKED.includes(path)) throw new Error(`Tu es en prison jusqu'au ${new Date(d.prison).toLocaleString("fr-FR")}. Paie la caution pour sortir plus tôt.`);
@@ -445,6 +493,7 @@ const demo = {
       const e = demoOthers().find(x => x.id === body.entreprise);
       if (!e) throw new Error("Entreprise introuvable.");
       if (ageYears(c.neLe) < 18) throw new Error("Il faut avoir 18 ans pour travailler dans une entreprise.");
+      const look = tenueBlocks(companyJob(e), d.train ? d.train.tenue : null); if (look) throw new Error(look);
       d.boss = { id: e.id, nom: e.nom, type: e.type }; d.job = companyJob(d.boss).id;
       store.set(LS_DEMO, d); return { embauche: e.nom, ...this.view(d) };
     }
@@ -546,6 +595,46 @@ const demo = {
         couleur: AD_COLORS[e.nom.length % AD_COLORS.length], debut: n, fin: n + Number(body.jours) * 864e5, prix_usd: 0, paye: true, accord: true, actif: true, cree_le: n, jeu: true });
       store.set("twolife_demo_pubs", pubs.slice(0, 100)); store.set(LS_DEMO, d); return { promo: true, ...this.view(d) };
     }
+    if (path === "/api/train") {
+      if (body.niveau !== "auto" && !LIFESTYLES.some(l => l.id === body.niveau)) throw new Error("Train de vie inconnu.");
+      if (ageYears(c.neLe) < LIFESTYLE_MIN_AGE) throw new Error(`Avant ${LIFESTYLE_MIN_AGE} ans, ce sont les parents qui paient la vie de tous les jours.`);
+      d.train = { ...(d.train || { tenue: 40, vitalite: 50 }), niveau: body.niveau }; store.set(LS_DEMO, d); return this.view(d);
+    }
+    if (path === "/api/ambassadeurs") {
+      const L = demoNeighbors(c).filter(x => ageYears(x.ne_le) >= 18).map((x, i) => { const star = i < 2, tenue = 30 + (i * 17) % 65;
+        return { id: x.id, nom: `${x.prenom} ${x.nom}`, sexe: x.sexe, quartier: x.quartier, joueur: true, rep: x.reputation, tenue, star, prix: ambassadorFee(x.reputation, star) }; });
+      return { ambassadeurs: L, maxJours: CAMPAIGN_MAX_DAYS, demo: true };
+    }
+    if (path === "/api/campagne") {
+      this.settle(c);
+      const e = (d.ent || []).find(x => x.id === body.entreprise), a = (await this.run("/api/ambassadeurs", {})).ambassadeurs.find(x => x.id === body.ambassadeur);
+      if (!a) throw new Error("Ambassadeur introuvable.");
+      d = store.get(LS_DEMO);
+      const active = e && (d.campagnes || []).some(x => x.entrepriseId === e.id && x.fin > Date.now()), prix = Number(body.prix), jours = Number(body.jours), slogan = String(body.slogan || "").trim().slice(0, 60);
+      const no = cannotHireAmbassador({ owns: !!e, active, self: false, age: 25, rep: a.rep, tenue: a.tenue, star: a.star, prix, jours, makuta: d.perso.makuta, slogan }); if (no) throw new Error(no);
+      const total = prix * jours; d.perso.makuta -= total; d.tresor = (d.tresor || 0) + Math.round(total * TAX.salaire); this.flow(d, "depense", total);
+      d.campagnes = [{ entreprise: e.nom, entrepriseId: e.id, ambassadeur: a.nom, fem: a.sexe === "F", moi: false, prixJour: prix, fin: Date.now() + jours * 864e5, slogan }, ...(d.campagnes || [])].slice(0, 20);
+      store.set(LS_DEMO, d); return { ambassadeur: a.nom, cout: total, ...this.view(d) };
+    }
+    if (path === "/api/foot") return this.footView(d);
+    if (path === "/api/demo/foot") { this.footDay(d, true); store.set(LS_DEMO, d); return this.footView(d); }
+    if (path === "/api/club/marche") {
+      const r = rng((c.look || 3) ^ 0xf007), taken = new Set(Object.values(d.club || {}).flat().map(j => j.id));
+      const L = demoNeighbors(c).map(x => ({ x, a: ageYears(x.ne_le) })).filter(o => o.a >= CLUB_MIN_AGE && o.a <= CLUB_MAX_AGE && !taken.has(o.x.id)).map(({ x, a }) => {
+        const sport = r() < .5 ? 40 + Math.floor(r() * 55) : null, job = JOBS.find(j => j.id === x.metier), sal = job ? job.salaire : 0;
+        return { id: x.id, nom: `${x.prenom} ${x.nom}`, sexe: x.sexe, age: Math.floor(a), quartier: x.quartier, joueur: true, sport, niveau: sport || 25 + Math.floor(r() * 30), poste: job ? job.nom : null, salaire: sal, demande: Math.max(150, Math.round(sal * 1.1)) };
+      }).sort((p, q) => (q.sport || 0) - (p.sport || 0));
+      return { joueurs: L, contratJours: CLUB_CONTRACT_DAYS, demo: true };
+    }
+    if (path === "/api/club/recruter") {
+      const e = (d.ent || []).find(x => x.id === body.entreprise), j = (await this.run("/api/club/marche", {})).joueurs.find(x => x.id === body.joueur);
+      if (!j) throw new Error("Joueur introuvable.");
+      d = store.get(LS_DEMO); d.club = d.club || {};
+      const t = COMPANY_TYPES.find(x => x.id === "club"), used = e ? (d.club[e.id] || []).length : 0;
+      const no = cannotRecruit({ owns: !!e, isClub: !!e && e.type === "club", self: false, age: j.age, prix: Number(body.salaire), current: j.salaire, places: t.places, used, prison: false }); if (no) throw new Error(no);
+      (d.club[e.id] = d.club[e.id] || []).push({ id: j.id, nom: j.nom, niveau: j.niveau, salaire: Number(body.salaire) });
+      store.set(LS_DEMO, d); return { recrue: j.nom, ...this.view(d) };
+    }
     if (path === "/api/stars") {
       const V = demoNeighbors(c), cands = { sport: [], musique: [], affaires: [], politique: [], cuisine: [] };
       // démo : quelques voisins simulés deviennent les stars du jour
@@ -553,7 +642,7 @@ const demo = {
       return { stars: pickStars(cands, Date.now()), demo: true };
     }
     if (path === "/api/postuler") {
-      const job = JOBS.find(j => j.id === body.metier), no = cannotApply(job, ageYears(c.neLe), d.dip || [], c.talents.filter(t => t.discovered).map(t => t.talent));
+      const job = JOBS.find(j => j.id === body.metier), no = cannotApply(job, ageYears(c.neLe), d.dip || [], c.talents.filter(t => t.discovered).map(t => t.talent)) || tenueBlocks(job, d.train ? d.train.tenue : null);
       if (no) throw new Error(no);
       d.job = job.id; d.boss = null; store.set(LS_DEMO, d); return this.view(d);
     }
@@ -734,7 +823,7 @@ function render(v) {
   ] : []).concat([["Joueur", v.compte.pseudo], ["Né le", new Date(p.neLe).toLocaleDateString("fr-FR")]])
     .map(([a, b]) => `<div class="row"><span>${a}</span><span style="text-align:right">${b}</span></div>`).join("")
     + (v.demo ? `<button class="mini" id="b-demo-die" type="button" style="margin-top:12px">💀 Simuler la mort (démo)</button>` : "");
-  renderNight(v); renderNeighbors(v); renderJournal(); renderGoals(v); renderStars(); renderDash(v); renderCouple(v); renderCity(v);
+  renderNight(v); renderNeighbors(v); renderJournal(); renderGoals(v); renderStars(); renderTrain(v); renderFoot(); renderDash(v); renderCouple(v); renderCity(v);
   renderShop(v); renderWallet(v); renderWork(v); renderSchool(v); renderKids(v); renderCompanies(v); renderTravel(v); renderState(v); renderTips(v); renderOrders(v); renderMoves(v);
   if (!render.hashDone && ["#moves", "#nuit", "#orders", "#voisins", "#journal"].includes(location.hash)) { render.hashDone = true; setTimeout(() => goTo(location.hash.slice(1)), 300); }
   portrait(p);
@@ -957,6 +1046,74 @@ function promoForm(v, e) {
     <label for="pr-jours">Combien de jours ? (1 à ${P.maxJours})</label><input id="pr-jours" type="number" min="1" max="${P.maxJours}" value="2">
     <button class="btn" type="submit">Payer et lancer la promotion</button></form>`;
 }
+let ambFor = null, ambList = null, recFor = null, recList = null;
+function campaignLine(v, e) {
+  const c = (v.campagnes ? v.campagnes.liste : []).find(x => x.entrepriseId === e.id && !x.moi);
+  return c ? `<p style="font-size:13px;margin:6px 0 0">🌟 Campagne en cours avec <b>${esc(c.ambassadeur)}</b> jusqu'au ${new Date(c.fin).toLocaleDateString("fr-FR")} : les habitants choisissent plus souvent ton entreprise pour leurs dépenses.</p>` : "";
+}
+function ambForm(v, e) {
+  const box = `<div style="margin-top:10px;border-top:1px solid var(--line);padding-top:10px">`;
+  if (!ambList) return box + `<p style="font-size:13px;margin:0">Recherche des personnalités disponibles…</p></div>`;
+  const max = (v.campagnes || {}).maxJours || 14;
+  return box + `<p style="font-size:13px;margin:0 0 6px">Paie un habitant (une star coûte plus cher) pour faire connaître ${esc(e.nom)}. Pendant la campagne, les habitants choisissent ton entreprise deux fois sur trois pour leurs dépenses, et le bandeau l'annonce. 5 % d'impôt sur le cachet de l'ambassadeur.</p>
+    <label for="amb-jours">Combien de jours ? (1 à ${max})</label><input id="amb-jours" type="number" min="1" max="${max}" value="3">
+    <label for="amb-slogan">Slogan (60 caractères, facultatif)</label><input id="amb-slogan" maxlength="60" placeholder="ex. Le meilleur pondu de la ville">` +
+    (ambList.length ? ambList.map(a => `<div class="item"><span class="sw">${a.star ? "⭐" : a.sexe === "F" ? "👩🏾" : "👨🏾"}</span><div class="t">${esc(a.nom)}<small>${a.star ? "Star du jour · " : ""}réputation ${a.rep} · tenue ${a.tenue} · ${mk(a.prix)} par jour</small></div>
+      <button class="mini fill" data-hire="${esc(a.id)}" type="button" ${dis(a.tenue < 50, "Sa tenue est trop négligée : cette personne refuse de poser pour une publicité.")}>Engager</button></div>`).join("") : `<p style="font-size:13px">Personne de disponible pour l'instant.</p>`) + `</div>`;
+}
+function recruitForm(v, e) {
+  const box = `<div style="margin-top:10px;border-top:1px solid var(--line);padding-top:10px">`;
+  if (!recList) return box + `<p style="font-size:13px;margin:0">Le recruteur fait le tour des terrains…</p></div>`;
+  return box + `<p style="font-size:13px;margin:0 0 6px">Chaque joueur décide seul : il signe si tu lui offres au moins 10 % de plus que son salaire actuel. Ses journées de travail (entraînements) sont payées par la caisse du club, et chaque match rapporte la billetterie.</p>` +
+    (recList.length ? recList.map(a => `<div class="item"><span class="sw">⚽</span><div class="t">${esc(a.nom)}, ${a.age} ans<small>${a.sport ? `talent sport découvert · niveau ${a.sport}` : "talent sport inconnu"}${a.poste ? " · " + esc(a.poste) : " · sans emploi"}</small></div>
+      <button class="mini fill" data-sign="${esc(a.id)}" type="button">Recruter · ${mk(a.demande)}/jour</button></div>`).join("") : `<p style="font-size:13px">Aucun joueur libre pour l'instant.</p>`) + `</div>`;
+}
+// ---- train de vie : dépenses du quotidien selon les moyens
+function renderTrain(v) {
+  const T = v.train, box = $("train"), p = v.perso; if (!T) { box.innerHTML = ""; return; }
+  if (!T.adulte) { box.innerHTML = `<p style="font-size:14px;margin:0">Avant ${T.minAge} ans, la vie de tous les jours de ${esc(p.prenom)} (repas, habits, école) est payée par ses parents : ${mk(v.entretienParJour)} d'entretien par jour.</p>`; return; }
+  const lv = T.niveaux, cur = lv.find(l => l.id === T.prevu), sign = n => (n > 0 ? "+" : "") + n;
+  const chips = [{ id: "auto", nom: "Automatique", icone: "🤖", cout: 0 }, ...lv].map(l => `<button class="tal${T.choix === l.id ? " on" : ""}" data-train="${l.id}" type="button">${l.icone} ${l.nom}${l.cout ? " · " + mk(l.cout) + "/j" : ""}</button>`).join("");
+  const L = v.logement && v.logement.actuel, bills = L ? Object.entries(BILLS).reduce((a, [, n]) => a + n, 0) : 0;
+  const rows = cur ? T.postes.filter(x => cur.postes[x.id]).map(x => `<div class="row"><span>${x.icone} ${x.label}</span><span>${mk(cur.postes[x.id])}</span></div>`).join("") : "";
+  const fixed = `<div class="row"><span>🏠 Loyer</span><span>${L ? (L.statut === "proprio" ? "propriétaire : rien à payer" : mk(L.loyer) + " par semaine") : "chez les parents"}</span></div>` +
+    `<div class="row"><span>💡🚰 Électricité et eau (Mwinda, Mai ya Kin)</span><span>${L ? mk(bills) + " par jour" : "payées par les parents"}</span></div>`;
+  const why = T.choix === "auto" ? `En automatique, ${esc(p.prenom)} choisit le meilleur niveau qu'il peut tenir ${T.reserveJours} jours avec son argent.` : T.prevu !== T.choix ? `⚠️ L'argent manque : ${esc(p.prenom)} vivra au niveau « ${cur ? cur.nom : "rien"} » tant que ça ne va pas mieux.` : "";
+  const bar = (label, x, extra) => `<div class="need">${label} · ${x}${extra ? " · " + extra : ""}<div class="bar"><i class="${x < 25 ? "low" : x < 55 ? "mid" : ""}" style="width:${x}%"></i></div></div>`;
+  box.innerHTML = `<p style="font-size:14px;margin:0 0 8px">Chaque jour, ${esc(p.prenom)} paie sa vie selon ses moyens. Mieux vivre rend plus beau et en meilleure santé : on vit plus longtemps et on est embauché plus facilement. L'argent dépensé fait vivre les commerces des joueurs (TVA de 16 % pour l'État).</p>
+    <div class="talents">${chips}</div>
+    ${why ? `<p style="font-size:13px;margin:8px 0 0">${why}</p>` : ""}
+    ${cur ? `<h2 style="font-size:16px;margin:14px 0 4px">${cur.icone} Aujourd'hui : ${cur.nom} · ${mk(cur.cout)} par jour</h2><p style="font-size:13px;margin:0 0 6px">${esc(cur.desc)} Faim ${sign(cur.effet.faim)}, santé ${sign(cur.effet.sante)}, bonheur ${sign(cur.effet.bonheur)} chaque jour.</p>${rows}`
+      : `<p class="sim" style="margin:12px 0 0">😣 Pas assez d'argent, même pour un repas : la santé et le moral baissent chaque jour. Un petit boulot peut aider.</p>`}
+    <h2 style="font-size:16px;margin:14px 0 4px">Prélevé à part</h2>${fixed}
+    <div class="grid2" style="margin-top:12px">${bar("Présentation", T.tenue, T.tenueLabel)}${bar("Vitalité", T.vitalite)}</div>
+    <div class="row" style="margin-top:8px"><span>❤️ Espérance de vie</span><span><b>${T.esperance} ans</b> (âge actuel : ${Math.floor(p.age)} ans)</span></div>
+    <p style="font-size:13px;margin:6px 0 0">Les métiers payés ${mk(250)} ou plus par journée, et ceux qui demandent un diplôme, exigent une présentation d'au moins 40. Après son espérance de vie, la santé baisse chaque jour.</p>
+    ${T.dernier ? `<p style="font-size:13px;margin:6px 0 0">Dernière journée (${T.dernier.jour}) : ${mk(T.dernier.depense)} dépensés${T.dernier.niveau ? ", niveau " + (lv.find(l => l.id === T.dernier.niveau) || {}).nom : ""}.</p>` : ""}`;
+}
+$("train").onclick = e => {
+  const b = e.target.closest("button"); if (!b || b.disabled || !b.dataset.train) return;
+  act("/api/train", { niveau: b.dataset.train }, () => b.dataset.train === "auto" ? "Ton personnage choisira lui-même son train de vie selon ses moyens." : "Nouveau train de vie : il s'applique dès la prochaine journée de dépenses.");
+};
+// ---- football : championnat de Kinshasa
+let footData = null;
+function renderFoot() {
+  const F = footData, box = $("foot");
+  if (!F) { box.innerHTML = `<p style="font-size:14px;margin:0 0 10px">Chaque jour, les clubs de la ville jouent un match : les clubs des joueurs (achète un « Club de football » dans tes entreprises) contre les clubs du jeu. Les présidents recrutent des joueurs et touchent la billetterie.</p><button class="mini fill" id="b-foot" type="button">⚽ Voir le classement</button>`; return; }
+  const tab = F.classement.length ? `<table style="width:100%;font-size:13px;border-collapse:collapse"><tr style="text-align:left"><th>#</th><th>Club</th><th>J</th><th>Diff.</th><th>Pts</th></tr>` +
+    F.classement.map((c, i) => `<tr${F.mesClubs.some(m => m.id === c.id) ? ' style="font-weight:700"' : ""}><td>${i + 1}</td><td>${esc(c.nom)}</td><td>${c.j}</td><td>${c.bp - c.bc > 0 ? "+" : ""}${c.bp - c.bc}</td><td>${c.pts}</td></tr>`).join("") + `</table>` : `<p style="font-size:13px">Pas encore de match ce mois-ci : la première journée se joue aujourd'hui.</p>`;
+  box.innerHTML = `<p style="font-size:13px;margin:0 0 6px">${esc(F.ligue)} · saison ${esc(F.saison)} (une saison = un mois). Billetterie : ${mk(F.gains.victoire)} la victoire, ${mk(F.gains.nul)} le nul, ${mk(F.gains.defaite)} la défaite.</p>` + tab +
+    (F.derniers.length ? `<h2 style="font-size:16px;margin:14px 0 4px">Derniers résultats</h2>` + F.derniers.map(m => `<div class="row"><span>${esc(m.dom)} <b>${m.bd}-${m.be}</b> ${esc(m.ext)}</span><span style="font-size:12px">${m.buteurs ? "⚽ " + esc(m.buteurs) : ""}</span></div>`).join("") : "") +
+    (F.mesClubs.length ? `<h2 style="font-size:16px;margin:14px 0 4px">Mes clubs</h2>` + F.mesClubs.map(c => `<div class="row"><span>${esc(c.nom)} · force ${c.force}</span><span>${c.joueurs.length ? c.joueurs.map(j => esc(j.nom)).join(", ") : "aucun joueur : recrute pour jouer"}</span></div>`).join("") : "") +
+    `<div class="two-btn" style="margin-top:10px"><button class="mini" id="b-foot" type="button">↻ Actualiser</button>${F.demo ? `<button class="mini" id="b-foot-next" type="button">⏩ Journée suivante (démo)</button>` : ""}</div>`;
+}
+$("foot").addEventListener("click", async e => {
+  const b = e.target.closest("button"); if (!b || b.disabled) return;
+  try {
+    if (b.id === "b-foot") { b.disabled = true; footData = await call("/api/foot", {}); renderFoot(); }
+    if (b.id === "b-foot-next") { b.disabled = true; footData = await call("/api/demo/foot", {}); renderFoot(); if (window.TWO_LIFE_BANDEAU) window.TWO_LIFE_BANDEAU.reload(); }
+  } catch (err) { toast(err.message); b.disabled = false; }
+});
 function renderCompanies(v) {
   const p = v.perso, E = v.entreprises;
   if (p.age < 18) { $("companies").innerHTML = `<p style="font-size:14px;margin:0">${p.prenom} pourra ouvrir ou racheter une entreprise à 18 ans.</p>`; return; }
@@ -967,15 +1124,21 @@ function renderCompanies(v) {
       <div class="row"><span>Caisse</span><span style="text-align:right"><b>${mk(e.caisse)}</b>${e.plein ? ` <small style="color:var(--warn)">pleine : encaisse vite</small>` : ""}</span></div>
       <div class="two-btn"><button class="mini fill" data-cash="${e.id}" type="button" ${dis(e.caisse < 1, "La caisse est vide pour l'instant : reviens plus tard.")}>Encaisser</button>
       <button class="mini" data-promo="${e.id}" type="button">📣 Promouvoir</button>
+      <button class="mini" data-amb="${e.id}" type="button">🌟 Ambassadeur</button>
+      ${e.type === "club" ? `<button class="mini" data-recruit="${e.id}" type="button">⚽ Recruter</button>` : ""}
       ${e.en_vente ? `<button class="mini" data-unsell="${e.id}" type="button">Retirer de la vente (${mk(e.en_vente)})</button>` : `<button class="mini" data-sellco="${e.id}" data-price="${Math.round(t.prix * 1.2)}" type="button">Mettre en vente (${mk(Math.round(t.prix * 1.2))})</button>`}</div>
+      ${campaignLine(v, e)}
       ${promoFor === e.id ? promoForm(v, e) : ""}
+      ${ambFor === e.id ? ambForm(v, e) : ""}
+      ${recFor === e.id ? recruitForm(v, e) : ""}
     </div>`; }).join("") + `<p style="font-size:13px;margin:8px 0 0">La caisse se remplit seule pendant ${E.plafondJours} jours, puis elle s'arrête : passe encaisser régulièrement. Chaque journée d'un employé rapporte son salaire plus 60 %.</p>`
     : `<p style="font-size:14px;margin:0 0 6px">Tu n'as pas encore d'entreprise. Ouvre un commerce ou rachète celui d'un autre joueur.</p>`;
   const market = E.aVendre.length ? E.aVendre.map(e => `<div class="item"><span class="sw">${e.icone || "🏢"}</span><div class="t">${esc(e.nom)} · ${mk(e.en_vente)}<small>${e.typeNom} · ${esc(e.quartier || "")} · vendu par ${esc(e.proprietaire || "un joueur")}</small></div>
     <button class="mini fill" data-buyco="${e.id}" type="button" ${dis(p.makuta < e.en_vente, `Il te manque ${mk(e.en_vente - p.makuta)}.`)}>Acheter</button></div>`).join("") : `<p style="font-size:14px;margin:0">Aucune entreprise à vendre pour l'instant.</p>`;
   const list = E.types.map(t => `<div class="item"><span class="sw">${t.icone}</span><div class="t">${t.nom} · ${mk(t.prix)}<small>${t.desc} Gagne ${mk(t.recette)} par jour.</small></div>
     <button class="mini fill" data-open="${t.id}" type="button" ${dis(p.makuta < t.prix, `Il te manque ${mk(t.prix - p.makuta)} pour ouvrir cette entreprise.`)}>Ouvrir</button></div>`).join("");
-  $("companies").innerHTML = mine +
+  const amb = (v.campagnes ? v.campagnes.liste : []).filter(x => x.moi).map(x => `<p class="sim" style="margin:0 0 10px">🌟 ${esc(p.prenom)} est ${p.sexe === "F" ? "l'ambassadrice" : "l'ambassadeur"} de ${esc(x.entreprise)} jusqu'au ${new Date(x.fin).toLocaleDateString("fr-FR")}${x.slogan ? ` · « ${esc(x.slogan)} »` : ""}.</p>`).join("");
+  $("companies").innerHTML = amb + mine +
     `<h2 style="font-size:16px;margin:16px 0 4px">À vendre par d'autres joueurs</h2>${market}` +
     `<h2 style="font-size:16px;margin:16px 0 4px">Ouvrir un commerce</h2><label for="co-name" style="margin-top:4px">Nom (facultatif)</label><input id="co-name" maxlength="40" placeholder="ex. Chez ${esc(p.prenom)}">${list}`;
 }
@@ -984,8 +1147,14 @@ $("companies").addEventListener("submit", e => {
   const body = { entreprise: f.dataset.promoForm, titre: $("pr-titre").value, texte: $("pr-texte").value, emplacement: $("pr-place").value, jours: Number($("pr-jours").value) };
   act("/api/promouvoir", body, () => { promoFor = null; if (window.TWO_LIFE_BANDEAU) window.TWO_LIFE_BANDEAU.reload(); return "Promotion lancée ! Elle passe dès maintenant pour tous les habitants."; });
 });
-$("companies").onclick = e => {
+$("companies").onclick = async e => {
   const b = e.target.closest("button"); if (!b || b.disabled) return;
+  if (b.dataset.amb) { ambFor = ambFor === b.dataset.amb ? null : b.dataset.amb; ambList = null; renderCompanies(state); if (ambFor) { try { ambList = (await call("/api/ambassadeurs", {})).ambassadeurs || []; } catch (err) { toast(err.message); ambList = []; } renderCompanies(state); } return; }
+  if (b.dataset.recruit) { recFor = recFor === b.dataset.recruit ? null : b.dataset.recruit; recList = null; renderCompanies(state); if (recFor) { try { recList = (await call("/api/club/marche", {})).joueurs || []; } catch (err) { toast(err.message); recList = []; } renderCompanies(state); } return; }
+  if (b.dataset.hire) { b.disabled = true; const x = (ambList || []).find(a => a.id === b.dataset.hire);
+    return act("/api/campagne", { entreprise: ambFor, ambassadeur: x.id, prix: x.prix, jours: Number(($("amb-jours") || {}).value || 3), slogan: ($("amb-slogan") || {}).value || "" }, v2 => { ambFor = null; if (window.TWO_LIFE_BANDEAU) window.TWO_LIFE_BANDEAU.reload(); return `${v2.ambassadeur} fait maintenant la publicité de ton entreprise (${mk(v2.cout)}). Les clients vont venir plus souvent.`; }); }
+  if (b.dataset.sign) { b.disabled = true; const x = (recList || []).find(a => a.id === b.dataset.sign);
+    return act("/api/club/recruter", { entreprise: recFor, joueur: x.id, salaire: x.demande }, v2 => { recList = recList.filter(a => a.id !== x.id); footData = null; return `${v2.recrue} signe dans ton club !`; }); }
   if (b.dataset.promo) { promoFor = promoFor === b.dataset.promo ? null : b.dataset.promo; return renderCompanies(state); }
   if (b.dataset.open) { b.disabled = true; return act("/api/entreprise/ouvrir", { type: b.dataset.open, nom: ($("co-name") || {}).value }, v => `Ton entreprise « ${v.ouverte} » est ouverte !`); }
   if (b.dataset.cash) return act("/api/entreprise/encaisser", { entreprise: b.dataset.cash }, v => `Tu as encaissé ${mk(v.encaisse)}.`);
