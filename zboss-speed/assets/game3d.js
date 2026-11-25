@@ -263,7 +263,7 @@
   { const t = towers.reduce((a, b) => b.h > a.h ? b : a, towers[0]); if (t) { const m = new THREE.Mesh(new THREE.CylinderGeometry(.3, .5, 18, 6), new THREE.MeshStandardMaterial({ color: "#ddd" })); m.position.set(t.x, t.h + 9, t.z); scene.add(m); const l = new THREE.Mesh(new THREE.SphereGeometry(.8), new THREE.MeshBasicMaterial({ color: "#ff3030" })); l.position.set(t.x, t.h + 18.5, t.z); scene.add(l); } }
   {
     const st = MAP.start, near = towers.filter(t => t.h > 30).sort((a, b) => Math.hypot(a.x - st.x * S, a.z - st.y * S) - Math.hypot(b.x - st.x * S, b.z - st.y * S)).slice(0, 10);
-    near.forEach(t => boards.push({ x: t.x, z: t.z, y: t.h + .2, w: Math.min(16, Math.max(t.w, t.d) * .8), ry: t.w > t.d ? 0 : Math.PI / 2, top: true, text: pick([["2 LIFE", "Nais à Kinshasa"], ["BÊTA OUVERTE", "Inscris-toi sur le site"], ["TA MARQUE ICI", "Espace partenaire"], ["KIN LA BELLE", "Roule prudemment"]]) }));
+    near.forEach(t => boards.push({ x: t.x, z: t.z, y: t.h + .2, w: Math.min(16, Math.max(t.w, t.d) * .8), ry: t.w > t.d ? 0 : Math.PI / 2, top: true, text: pick([["2 LIFE", "NAÎTRE À KINSHASA"], ["BÊTA OUVERTE", "Inscris-toi sur le site"], ["TA MARQUE ICI", "Espace partenaire"], ["KIN LA BELLE", "Roule prudemment"]]) }));
   }
   boards.forEach(b => {
     const m = new THREE.Mesh(new THREE.PlaneGeometry(b.w, b.w * .31), new THREE.MeshBasicMaterial({ map: boardTex(b.text), side: THREE.DoubleSide }));
@@ -644,7 +644,7 @@
   PLACES3.forEach(buildPlace);
   // panneaux LED doubles faces (publicités inventées, aucune marque réelle)
   const ADS = [
-    ["2 LIFE", "Nais avant tout le monde", "#ff5a1f", "#120806"],
+    ["2 LIFE", "Naître avant tout le monde", "#ff5a1f", "#120806"],
     ["MOKILI CLUB", "Ce soir · 18+ · entrée libre", "#ff2bd6", "#0a0010"],
     ["MAMA KITOKO", "Alimentation · prix doux", "#ffd23f", "#4a0f0f"],
     ["VOTRE PUB ICI", "Espace partenaire · contactez 2 Life", "#18e0ff", "#04161c"],
@@ -979,7 +979,8 @@
   }
   function updatePeds(G, camX, camZ, dt) {
     let list = G.peds.filter(q => Math.abs(q.x * S - camX) < 140 && Math.abs(q.y * S - camZ) < 140).slice(0, PEDMAX - 1);
-    if (G.foot) list.push(Object.assign(G.foot, { player: true, state: G.foot.sit ? "sit" : Math.abs(G.foot.v) > 4 ? "walk" : "idle", look: 0, v: G.foot.v }));
+    if (G.foot && G.foot.inBus) { for (const [q, h] of HUM.byPed) if (q.player) { h.ped = null; scene.remove(h.obj); HUM.byPed.delete(q); } }
+    else if (G.foot) list.push(Object.assign(G.foot, { player: true, state: G.foot.sit ? "sit" : Math.abs(G.foot.v) > 4 ? "walk" : "idle", look: 0, v: G.foot.v }));
     else for (const [q, h] of HUM.byPed) if (q.player) { h.ped = null; scene.remove(h.obj); HUM.byPed.delete(q); }
     const real = updateHumans(list, camX, camZ, dt || 1 / 60);
     if (real.size) list = list.filter(q => !real.has(q));
@@ -1091,6 +1092,18 @@
     wheels(g, L, Wd);
     return g;
   }
+  const doorMat = new THREE.MeshPhysicalMaterial({ color: "#20303f", metalness: .6, roughness: .15, transparent: true, opacity: .85 });
+  const doorFrameMat = new THREE.MeshStandardMaterial({ color: "#070a0e", roughness: .9 });
+  function addBusDoor(m, c) { // porte double : deux battants qui coulissent quand le bus s'arrête
+    const L = c.hl ? c.hl * 2 * S : 7.2, Wd = 2.3, dx = L / 2 * .55, z = Wd / 2 + .03;
+    const hole = addBox(m, 1.2, 2.1, .02, dx, 1.4, z, doorFrameMat);
+    const a = addBox(m, .58, 2.0, .04, dx - .3, 1.4, z + .02, doorMat), b = addBox(m, .58, 2.0, .04, dx + .3, 1.4, z + .02, doorMat);
+    m.userData.door = { a, b, dx, z, hole };
+  }
+  function animDoor(c, m) {
+    const D = m.userData.door; if (!D) return; const o = Math.max(0, Math.min(1, c.door || 0));
+    D.a.position.set(D.dx - .3 - o * .55, 1.4, D.z + .02 + o * .12); D.b.position.set(D.dx + .3 + o * .55, 1.4, D.z + .02 + o * .12);
+  }
   const TRAFFIC_COLS = ["#5b6476", "#9aa0ad", "#3f6e8c", "#8c6a3f", "#6b3f3f", "#4f7a59", "#d9d9d9"];
   const models = new Map();
   let playerModel = null, playerDef = null;
@@ -1118,6 +1131,7 @@
       else if (c.kind === "cop" || c.kind === "block") m = makeCarModel("police", "#f2f4f8");
       else if (c.bus) m = makeCarModel("bus");
       else m = makeCarModel("car", c.taxi ? "#f2c230" : TRAFFIC_COLS[c.tIdx % TRAFFIC_COLS.length], { taxi: c.taxi });
+      if (c.bus) addBusDoor(m, c);
       scene.add(m); models.set(c, m);
     }
     m.userData.seen = frame;
@@ -1166,6 +1180,16 @@
   }
   let sitOrbit = 0;
   function updateCamera(G, dt) {
+    if (G.foot && G.foot.inBus) {
+      const c = G.foot.inBus, bx = c.x * S, bz = c.y * S;
+      camYaw += angDiff(camYaw, c.a) * Math.min(1, dt * 2.5);
+      const cx = Math.cos(camYaw), cz = Math.sin(camYaw), t = clearPath(bx, bz, bx - cx * 13, bz - cz * 13), dd = Math.max(5, 13 * t);
+      tmp.set(bx - cx * dd + -cz * 2.5, 6.5, bz - cz * dd + cx * 2.5); camPos.lerp(tmp, Math.min(1, dt * 3));
+      tmp2.set(bx + cx * 10, 1.6, bz + cz * 10); camLook.lerp(tmp2, Math.min(1, dt * 4));
+      camera.fov += (64 - camera.fov) * Math.min(1, dt * 3); camera.updateProjectionMatrix();
+      camera.position.copy(camPos); camera.lookAt(camLook);
+      return;
+    }
     if (G.foot) {
       const f = G.foot, fx_ = f.x * S, fz_ = f.y * S;
       if (f.sit) { // assis : la caméra tourne lentement autour, comme un regard sur le quartier
@@ -1234,6 +1258,29 @@
     const bar = m.userData.bar;
     if (bar) { const on = (c.mode === "chase" || c.kind === "block") && c.alive, ph = Math.floor((t + (c.flash || 0)) * 6) % 2; bar.r.material.color.set(on && ph ? "#ff2d4a" : "#40141c"); bar.b.material.color.set(on && !ph ? "#2d7bff" : "#101c40"); bar.r.material = bar.r.material; }
   }
+  let stopsBuilt = false;
+  function buildStops() {
+    if (stopsBuilt || !WORLD.busNet) return; stopsBuilt = true;
+    let N; try { N = WORLD.busNet(); } catch (e) { return; }
+    if (!N || !N.stops) return;
+    const roofM = new THREE.MeshStandardMaterial({ color: "#1d4fa0", roughness: .6 }), postM = new THREE.MeshStandardMaterial({ color: "#c9ccd6", metalness: .6, roughness: .4 });
+    const glassM = new THREE.MeshPhysicalMaterial({ color: "#a8c8e8", transparent: true, opacity: .35, roughness: .05 }), benchM = mat("#6b4a2b");
+    N.stops.forEach(st => {
+      const g = new THREE.Group(); let bx = st.sx - st.x, by = st.sy - st.y; const l = Math.hypot(bx, by) || 1; bx /= l; by /= l;
+      g.position.set(st.sx * S, 0, st.sy * S); g.rotation.y = Math.atan2(bx, by);
+      addBox(g, 3.2, .1, 1.5, 0, 2.45, .1, roofM, true);
+      addBox(g, 3.1, 1.9, .04, 0, 1.35, .75, glassM);
+      [-1.5, 1.5].forEach(x => addBox(g, .08, 2.4, .08, x, 1.2, .72, postM));
+      addBox(g, 2.4, .08, .4, 0, .5, .45, benchM); addBox(g, 2.4, .5, .06, 0, .5, .65, benchM);
+      const pole = addBox(g, .08, 2.6, .08, 2.1, 1.3, -.1, postM);
+      const tex = canvasTex(256, 160, (x, w, h) => { x.fillStyle = "#1d4fa0"; x.fillRect(0, 0, w, h); x.fillStyle = "#f2c230"; x.fillRect(0, 0, w, 52);
+        x.fillStyle = "#0b1018"; x.font = "bold 40px sans-serif"; x.textAlign = "center"; x.fillText("BUS · Ligne 1", w / 2, 40);
+        x.fillStyle = "#fff"; x.font = "bold 22px sans-serif"; const nm = (st.place && st.place.nom || "").slice(0, 20); x.fillText("Arrêt", w / 2, 88); x.fillText(nm, w / 2, 120); });
+      const sign = new THREE.Mesh(new THREE.PlaneGeometry(.9, .56), new THREE.MeshBasicMaterial({ map: tex, side: THREE.DoubleSide }));
+      sign.position.set(2.1, 2.55, -.1); sign.rotation.y = Math.PI / 2; g.add(sign);
+      scene.add(g);
+    });
+  }
   let animT = 0;
   function animateWorld(dt) {
     animT += dt;
@@ -1247,8 +1294,9 @@
     animateWorld(dt);
     const p = G.player;
     const fc = G.foot || p;
-    const all = [p, ...G.cops, ...G.traffic];
-    for (const c of all) { if (c !== p && (Math.abs(c.x - fc.x) > 2200 || Math.abs(c.y - fc.y) > 2200)) continue; placeCar(c, modelFor(c), G.t); }
+    const all = [p, ...G.cops, ...G.traffic, ...(G.buses || [])];
+    for (const c of all) { if (c !== p && (Math.abs(c.x - fc.x) > 2200 || Math.abs(c.y - fc.y) > 2200)) continue; const m = modelFor(c); placeCar(c, m, G.t); if (c.bus) animDoor(c, m); }
+    buildStops();
     if (G.parked) for (const c of G.parked) { if (Math.abs(c.x - fc.x) > 1100 || Math.abs(c.y - fc.y) > 1100) continue; placeCar(c, modelFor(c), G.t); }
     for (const [c, m] of models) if (m.userData.seen !== frame) { scene.remove(m); models.delete(c); }
     // herses

@@ -37,3 +37,25 @@ Les clés des notifications (VAPID) sont créées toutes seules au premier usage
 
 L'offre gratuite donne 100 000 requêtes par jour, une base D1 de 5 Go, et des Cron Triggers.
 C'est largement suffisant pour les premiers joueurs.
+
+## Paiements réels (dépôts et retraits)
+
+Le guichet de « Ma vie » est prêt pour l'argent réel. Tant que `REAL_MONEY` vaut `false` dans `src/life.js`, tout reste en simulation.
+
+Le jour où les autorisations sont obtenues :
+
+1. Signer avec un agrégateur de paiement agréé en RDC (mobile money M-Pesa, Orange Money, Airtel Money, et cartes).
+2. Dans Cloudflare, Worker `two-life`, Settings, Variables and Secrets :
+   - variable `PAY_PROVIDER` = `agregateur`
+   - variable `PAY_API_URL` = l'adresse de l'API de l'agrégateur
+   - secret `PAY_API_KEY` = la clé fournie par l'agrégateur
+   - secret `PAY_WEBHOOK_SECRET` = le secret de signature des notifications
+3. Donner à l'agrégateur l'adresse de notification : `https://two-life.motaricky243.workers.dev/api/paiement/notification`.
+4. Si les noms de champs de l'agrégateur diffèrent, adapter seulement `toProviderCollect`, `toProviderPayout` et `fromProviderNotice` dans `src/paiement.js`.
+5. Passer `REAL_MONEY` à `true` dans `src/life.js`, puis déployer.
+
+Fonctionnement :
+
+- Dépôt : le joueur choisit le moyen et le montant (sans plafond). Le serveur crée une demande « en attente » et l'envoie à l'agrégateur. Les e-makuta ne sont crédités qu'à la notification signée « payé », une seule fois, et seulement si le montant correspond.
+- Retrait : chaque fin de mois (les 3 derniers jours, heure de Kinshasa), une fois par mois. Les e-makuta sont retirés tout de suite. Si l'agrégateur refuse ou échoue, ils sont rendus automatiquement.
+- Les numéros de téléphone ne sont jamais enregistrés en entier (3 derniers chiffres seulement). Aucun numéro de carte ne passe par 2 Life.

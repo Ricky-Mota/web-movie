@@ -4,9 +4,10 @@ import {
   ageYears, stageOf, STAGES, realMsUntil, TALENTS, ACTIVITIES, rng, drawTalents, doActivity,
   needsAt, newIdentity, BIRTH_GIFT, BIRTH_USD, ADMIN_FEE_USD, NEGLECT_STEAL_AGE, neglectStealChance, NEGLECT_DANGER_DAYS, NEGLECT_DANGER_HEALTH, splitEstate, deathCause, familyShareRate, REP, REP_BAD, REP_GOOD, repLabel, repDiscount, DOT_MAKUTA, cannotMarry, STREET_JOBS, cannotStreetJob, RENT, rentOf, houseOf, rentDue, HOUSING_MIN_AGE, SALE_TAX, LIFE_EVENTS, EVENT_EVERY_H, drawEntry, classOfWealth, classLabel, eduLabel, MATURITY_GAIN, BIG_DECISIONS, cannotDecide, dashboard, SETTINGS, SET, applySettings, food, drawEvent, eventMoney, lifeAlbum, SHOP, cannotBuy, OFFERS, USD_TO_MAKUTA, USD_UNITS, fmtMakuta, WITHDRAW_FEE, walletInfo, birthShiftMs, REAL_MONEY, shopView, familyOf, JOBS, payFor, cannotWork, workView, cannotApply, FORMATIONS, cannotEnroll, attendCourse, schoolView, SUPPORT_PER_DAY, HOST_MIN_AGE, MAX_CHILDREN, supportDue, unpaidEffect, familyShare, DAY, LAUNCH_RULES, launchStatus, canSignupBeforeLaunch, COMPANY_TYPES, cannotOpenCompany, companyName, companyView, companyAccrue, companyJob, EMPLOYEE_YIELD, RESELL_RATE, TAXI_FARE, TAXI_ENERGY, KINSHASA_QUARTIERS, OTHER_CITIES, STATE_ID, TAX, POSTS, PUBLIC_JOBS, BANKS, bankAccrue, INSURERS, CARE, careCost, OPERATORS, RECHARGES, CALL, stateView, ELECTION_EVERY, VOTER_MIN_AGE, electionCalendar, tally, CRIMES, catchChance, sentence, inPrison, PRISON_BLOCKED, PRISON_HOURS, BAIL, RECIDIVE, policeView,
   describeAction, ORDER_DONE, ORDERS, ORDERS_PER_DAY, ORDERS_CHECK_MS, dayKey, ordersToRun, cannotGiveOrder,
-  PAY_METHODS, cannotDeposit, cannotWithdraw, maskPhone, withdrawUsd,
+  PAY_METHODS, cannotDeposit, cannotWithdraw, maskPhone, withdrawUsd, COMMUNES, communeView, ROLES, drawRole, roleOf,
 } from "./life.js";
 import { sendPush, newVapidKeys } from "./webpush.js";
+import { payConfigured, startDeposit, startPayout, readNotice } from "./paiement.js";
 
 const SESSION_DAYS = 30;
 // un repas au maquis : prix recalculé avec les réglages de l'admin
@@ -78,6 +79,7 @@ async function birth(db, compteId, now, offer, fondateur = false) {
   }
   // bébé chez un parent joueur : les 10 $ (après les 5 $ de l'administrateur) sont confiés au parent, qui gère l'argent de l'enfant
   const toParent = !!host && !parent && !invest;
+  const destin = drawRole(r);   // caractère et rôle, bon ou mauvais : c'est le serveur qui décide
   const classe = entry ? (host ? classOfWealth(host.makuta) : entry.classe) : classOfWealth(gift);
   const stmts = [
     db.prepare(`INSERT INTO personnages (id, compte_id, ville_id, prenom, nom, sexe, quartier, apparence, ne_le, maj_le, makuta, pere_nom, mere_nom, pere_id, mere_id, accueille_enfants, entretien_le, fondateur)
@@ -88,7 +90,8 @@ async function birth(db, compteId, now, offer, fondateur = false) {
     db.prepare(`INSERT INTO transactions (id, de_id, vers_id, montant, motif, le) VALUES (?, NULL, ?, ?, ?, ?)`)
       .bind(uid(), toParent ? host.id : id, gift, parent ? "épargne de départ (naître parent)" : invest ? "investissement simulé : " + offer.nom
         : toParent ? `naissance de ${who.firstName} : argent de l'enfant confié aux parents` : adultEntry ? `arrivée adulte : 10 $ confiés + économies (${classLabel(classe).toLowerCase()})` : "naissance : argent de l'enfant (géré par la famille)", now),
-    db.prepare(`INSERT INTO origines (personnage_id, classe, adulte, maturite, arrive_le) VALUES (?, ?, ?, ?, ?)`).bind(id, classe, adultEntry ? 1 : 0, adultEntry ? 0 : 100, now),
+    db.prepare(`INSERT INTO origines (personnage_id, classe, adulte, maturite, arrive_le, caractere, role, camp) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`).bind(id, classe, adultEntry ? 1 : 0, adultEntry ? 0 : 100, now, destin.caractere, destin.role, destin.camp),
+    repSt(db, id, (ROLES.find(x => x.id === destin.role) || {}).rep || 0, now),
     ...(adultEntry ? entry.diplomes.map(f => db.prepare(`INSERT OR IGNORE INTO diplomes_obtenus (personnage_id, formation_id, obtenu_le, note) VALUES (?, ?, ?, NULL)`).bind(id, f, now)) : []),
     db.prepare(`INSERT INTO depots (id, compte_id, offre, usd, makuta, simule, le) VALUES (?, ?, ?, ?, ?, ?, ?)`)
       .bind(uid(), compteId, fondateur ? "fondateur" : offer ? offer.id : "bebe", fondateur ? 0 : offer ? offer.usd : BIRTH_USD, invest ? gift : 0, REAL_MONEY ? 0 : 1, now),
@@ -226,7 +229,7 @@ async function loadCharacter(db, id) {
   const { results: ord } = await db.prepare(`SELECT ordre FROM consignes WHERE personnage_id = ? AND jour = ? ORDER BY donnee_le`).bind(id, jour).all();
   const { results: journal } = await db.prepare(`SELECT ordre, ok, message, le FROM consignes_journal WHERE personnage_id = ? AND jour = ? ORDER BY le DESC LIMIT 30`).bind(id, jour).all();
   const reputation = await repOf(db, id);
-  const origine = await db.prepare(`SELECT classe, adulte, maturite, arrive_le FROM origines WHERE personnage_id = ?`).bind(id).first();
+  const origine = await db.prepare(`SELECT classe, adulte, maturite, arrive_le, caractere, role, camp FROM origines WHERE personnage_id = ?`).bind(id).first();
   const flux = await db.prepare(`SELECT SUM(CASE WHEN vers_id = ?1 THEN montant ELSE 0 END) AS recu, SUM(CASE WHEN de_id = ?1 THEN montant ELSE 0 END) AS depense,
       SUM(CASE WHEN de_id = ?1 AND (motif LIKE 'aide %' OR motif LIKE 'entretien%') THEN montant ELSE 0 END) AS famille,
       SUM(CASE WHEN de_id = ?1 AND vers_id = ?2 THEN montant ELSE 0 END) AS impots,
@@ -343,11 +346,11 @@ function view(compte, { origine = null, flux = {}, logement = null, lastStreet =
     activites: ACTIVITIES.map(a => ({ id: a.id, label: a.label, minAge: a.minAge, energie: a.energy })),
     repas: { ...FOOD, prix: Math.round(FOOD.prix * repDiscount(reputation)) },
     tableau: dashboard({ makuta: p.makuta, banque: comptes.reduce((s, c) => s + c.solde, 0), biens: inv.reduce((s, o) => s + ((SHOP.find(x => x.id === o.objet_id) || {}).prix || 0), 0),
-      entreprises: ent.reduce((s, e) => s + (e.capital || 0), 0), maison: logement && logement.statut === "proprio" ? houseOf(logement.quartier) : 0, flux: flux || {}, depots: dep, origine, diplomas: dip, now }),
+      entreprises: ent.reduce((s, e) => s + (e.capital || 0), 0), maison: logement && logement.statut === "proprio" ? houseOf(logement.quartier) : 0, flux: flux || {}, depots: dep, origine, diplomas: dip, now, quartier: p.quartier, seed: p.apparence }),
     reputation: { points: reputation, label: repLabel(reputation), mauvaise: reputation <= REP_BAD, bonne: reputation >= REP_GOOD },
     couple: { ...couple, dot: DOT_MAKUTA },
     petitsBoulots: { liste: STREET_JOBS, dernier: lastStreet },
-    logement: { actuel: logement, quartiers: Object.keys(RENT).map(q => ({ quartier: q, loyer: rentOf(q), prix: houseOf(q) })), minAge: HOUSING_MIN_AGE },
+    logement: { actuel: logement, quartiers: Object.keys(RENT).map(q => ({ ...communeView(q), quartier: q, loyer: rentOf(q), prix: houseOf(q) })), minAge: HOUSING_MIN_AGE },
     annonces: annonces.map(a => ({ id: a.id, prix: a.prix, le: a.cree_le, vendeur: a.vendeur, moi: a.vendeur_id === p.id, objet: SHOP.find(x => x.id === a.objet_id) || { nom: a.objet_id } })),
     ...shopView(inv, dep, ret, p.makuta, now, gui),
     travail: { ...workView(job && job.metier_id, lastShift, now), emploiEntreprise: boss ? companyJob(boss) : null },
@@ -358,7 +361,7 @@ function view(compte, { origine = null, flux = {}, logement = null, lastStreet =
     etat: stateView({ comptes, assureur: p.assureur, assureJusqu: p.assure_jusqu, operateur: p.operateur, credit: p.credit, candidature: cand && cand.poste }, pub, now),
     elections: elec,
     police: policeView({ policiers, prisonJusqu: p.prison_jusqu, casier: casier.map(c => ({ ...c, nom: (CRIMES.find(x => x.id === c.type) || {}).nom || c.type })) }, now),
-    voyage: { quartiers: KINSHASA_QUARTIERS, prix: TAXI_FARE, fatigue: TAXI_ENERGY, villes: OTHER_CITIES },
+    voyage: { quartiers: KINSHASA_QUARTIERS, communes: COMMUNES.map(c => communeView(c.nom)), prix: TAXI_FARE, fatigue: TAXI_ENERGY, villes: OTHER_CITIES },
     mouvements,
     notifications: { actives: notifications > 0 },
     consignes: { ...consignes, max: ORDERS_PER_DAY, catalogue: ORDERS, verifieToutesLesMinutes: ORDERS_CHECK_MS / 60e3 },
@@ -452,13 +455,15 @@ async function dailyEvent(db, pid, now) {
   if (last && last.le && now - last.le < EVENT_EVERY_H * 36e5) return;
   const p = await db.prepare(`SELECT * FROM personnages WHERE id = ? AND mort_le IS NULL`).bind(pid).first(); if (!p) return;
   await settle(db, p, now);
-  const e = drawEvent(), st = [db.prepare(`INSERT INTO activites (id, personnage_id, activite, score, resultat, le) VALUES (?, ?, ?, 0, '', ?)`).bind(uid(), pid, "evenement:" + (e ? e.id : "calme"), now)];
+  const o = await db.prepare(`SELECT caractere, role, camp FROM origines WHERE personnage_id = ?`).bind(pid).first();
+  const e = drawEvent(Math.random, { quartier: p.quartier, camp: roleOf(o, p.apparence).camp }), st = [db.prepare(`INSERT INTO activites (id, personnage_id, activite, score, resultat, le) VALUES (?, ?, ?, 0, '', ?)`).bind(uid(), pid, "evenement:" + (e ? e.id : "calme"), now)];
   if (e) {
     let m = eventMoney(e); if (m < 0) m = -Math.min(-m, p.makuta);
     st.push(db.prepare(`UPDATE personnages SET sante = MAX(1, MIN(100, sante + ?)), energie = MAX(0, MIN(100, energie + ?)), bonheur = MAX(0, MIN(100, bonheur + ?)), makuta = makuta + ? WHERE id = ?`)
       .bind(e.sante || 0, e.energie || 0, e.bonheur || 0, m, pid),
       db.prepare(`INSERT INTO mouvements (id, personnage_id, icone, texte, par_consigne, le) VALUES (?, ?, ?, ?, 0, ?)`).bind(uid(), pid, e.icone, `${p.prenom} ${e.texte}${m ? ` (${m > 0 ? "+" : "−"}${fmtMakuta(Math.abs(m))})` : ""}.`, now));
     if (m) st.push(db.prepare(`INSERT INTO transactions (id, de_id, vers_id, montant, motif, le) VALUES (?, ?, ?, ?, ?, ?)`).bind(uid(), m < 0 ? pid : null, m > 0 ? pid : null, Math.abs(m), "destin : " + e.id, now));
+    if (e.rep) st.push(repSt(db, pid, e.rep, now));
   }
   await db.batch(st);
 }
@@ -564,6 +569,48 @@ async function createAccount(db, body, now, offer, fondateur) {
 }
 
 // ---------------------------------------------------------------- routes
+// ---------------------------------------------------------------- passerelle de paiement (argent réel)
+// retrait refusé ou échoué : les e-makuta reviennent au joueur, une seule fois
+async function refundPayout(db, ref, now) {
+  const g = await db.prepare(`SELECT * FROM guichet WHERE id = ? AND sens = 'retrait'`).bind(ref).first();
+  if (!g || !g.personnage_id) return;
+  const u = await db.prepare(`UPDATE guichet SET statut = 'echoue' WHERE id = ? AND statut IN ('en_attente', 'traitement')`).bind(ref).run();
+  if (!u.meta || u.meta.changes !== 1) return;
+  await db.batch([
+    db.prepare(`UPDATE personnages SET makuta = makuta + ? WHERE id = ?`).bind(g.makuta, g.personnage_id),
+    db.prepare(`DELETE FROM retraits WHERE compte_id = ? AND le = ?`).bind(g.compte_id, g.le),
+    db.prepare(`INSERT INTO transactions (id, de_id, vers_id, montant, motif, le) VALUES (?, NULL, ?, ?, ?, ?)`).bind(uid(), g.personnage_id, g.makuta, "retrait échoué : e-makuta rendus", now),
+  ]);
+}
+async function paymentNotice(env, req, h) {
+  if (!REAL_MONEY || !payConfigured(env)) return fail(h, 404, "Route inconnue.");
+  const n = await readNotice(env, req);
+  if (!n || !n.ref) return fail(h, 401, "Signature invalide.");
+  const db = env.DB, now = Date.now();
+  const g = await db.prepare(`SELECT * FROM guichet WHERE id = ?`).bind(n.ref).first();
+  if (!g) return fail(h, 404, "Référence inconnue.");
+  if (n.status === "en_attente") return json(h, 200, { ok: true });
+  if (g.sens === "retrait") {
+    if (n.status === "paye") await db.prepare(`UPDATE guichet SET statut = 'paye' WHERE id = ? AND statut = 'en_attente'`).bind(g.id).run();
+    else await refundPayout(db, g.id, now);
+    return json(h, 200, { ok: true });
+  }
+  // dépôt : on crédite une seule fois, et seulement si le montant payé est le bon
+  if (n.status !== "paye" || !(Math.abs(n.amount - g.usd) < .005)) {
+    await db.prepare(`UPDATE guichet SET statut = 'echoue' WHERE id = ? AND statut = 'en_attente'`).bind(g.id).run();
+    return json(h, 200, { ok: true });
+  }
+  const u = await db.prepare(`UPDATE guichet SET statut = 'traitement' WHERE id = ? AND statut = 'en_attente'`).bind(g.id).run();
+  if (!u.meta || u.meta.changes !== 1) return json(h, 200, { ok: true, deja: true });
+  await db.batch([
+    db.prepare(`INSERT INTO depots (id, compte_id, offre, usd, makuta, simule, le) VALUES (?, ?, 'recharge', ?, ?, 0, ?)`).bind(uid(), g.compte_id, g.usd, g.makuta, now),
+    db.prepare(`UPDATE personnages SET makuta = makuta + ? WHERE id = ?`).bind(g.makuta, g.personnage_id),
+    db.prepare(`INSERT INTO transactions (id, de_id, vers_id, montant, motif, le) VALUES (?, NULL, ?, ?, ?, ?)`).bind(uid(), g.personnage_id, g.makuta, "dépôt au guichet", now),
+    db.prepare(`UPDATE guichet SET statut = 'paye' WHERE id = ?`).bind(g.id),
+  ]);
+  return json(h, 200, { ok: true });
+}
+
 const worker = {
   // toutes les 15 minutes (Cron Trigger gratuit) : les personnages suivent leurs consignes, même joueur déconnecté
   async scheduled(event, env, ctx) {
@@ -615,6 +662,8 @@ const worker = {
     const url = new URL(req.url);
     const db = env.DB;
     const now = Date.now();
+    // notification signée de la passerelle de paiement (corps brut, pas de session joueur)
+    if (url.pathname === "/api/paiement/notification" && req.method === "POST") return paymentNotice(env, req, h);
     let body = {};
     if (req.method === "POST") { try { body = await req.json(); } catch (e) { return fail(h, 400, "Requête illisible."); } }
 
@@ -1310,8 +1359,21 @@ const worker = {
       if (url.pathname === "/api/guichet/deposer" && req.method === "POST") {
         const usdIn = Math.round(Number(body.usd) * 100) / 100, no = cannotDeposit(body.moyen, usdIn, body.telephone);
         if (no) return fail(h, 400, no);
-        if (REAL_MONEY) return fail(h, 501, "Le paiement réel passe par le partenaire agréé.");
         const mk = Math.round(usdIn * USD_UNITS), num = maskPhone(body.telephone);
+        if (REAL_MONEY) {
+          // argent réel : on enregistre une demande, la passerelle confirme plus tard par /api/paiement/notification
+          if (!payConfigured(env)) return fail(h, 503, "Le paiement réel n'est pas encore branché.");
+          const ref = uid();
+          await db.prepare(`INSERT INTO guichet (id, compte_id, personnage_id, sens, moyen, numero, usd, makuta, statut, simule, le) VALUES (?, ?, ?, 'depot', ?, ?, ?, ?, 'en_attente', 0, ?)`).bind(ref, compte.id, p.id, body.moyen, num, usdIn, mk, now).run();
+          try {
+            const g = await startDeposit(env, { ref, usd: usdIn, moyen: body.moyen, telephone: String(body.telephone || "").replace(/\D/g, ""), notifyUrl: `${url.origin}/api/paiement/notification`, returnUrl: `${url.origin}/vie.html#wallet` });
+            if (g.providerRef) await db.prepare(`UPDATE guichet SET ref_partenaire = ? WHERE id = ?`).bind(String(g.providerRef), ref).run();
+            return json(h, 200, { ...view(compte, await loadCharacter(db, p.id), now), paiement: { ref, attente: true, redirect: g.redirect, message: g.message } });
+          } catch (e) {
+            await db.prepare(`UPDATE guichet SET statut = 'echoue' WHERE id = ?`).bind(ref).run();
+            return fail(h, 502, e.message);
+          }
+        }
         await db.batch([
           db.prepare(`INSERT INTO depots (id, compte_id, offre, usd, makuta, simule, le) VALUES (?, ?, 'recharge', ?, ?, 1, ?)`).bind(uid(), compte.id, usdIn, mk, now),
           db.prepare(`INSERT INTO guichet (id, compte_id, sens, moyen, numero, usd, makuta, statut, simule, le) VALUES (?, ?, 'depot', ?, ?, ?, ?, 'simule', 1, ?)`).bind(uid(), compte.id, body.moyen, num, usdIn, mk, now),
@@ -1323,16 +1385,23 @@ const worker = {
 
       if (url.pathname === "/api/retirer" && req.method === "POST") {
         const mk = Math.floor(Number(body.makuta) || 0);
-        const w = walletInfo(ch.dep, p.makuta, now);
-        const no = cannotWithdraw(w, ageYears(p.ne_le, now), p.makuta, mk, body.moyen, body.telephone);
+        const w = walletInfo(ch.dep, p.makuta, now, ch.ret);
+        const no = cannotWithdraw(w, p.makuta, mk, body.moyen, body.telephone);
         if (no) return fail(h, 409, no);
-        const usd = withdrawUsd(mk);
+        if (REAL_MONEY && !payConfigured(env)) return fail(h, 503, "Le paiement réel n'est pas encore branché.");
+        const usd = withdrawUsd(mk), ref = uid();
         await db.batch([
-          db.prepare(`INSERT INTO guichet (id, compte_id, sens, moyen, numero, usd, makuta, statut, simule, le) VALUES (?, ?, 'retrait', ?, ?, ?, ?, ?, ?, ?)`).bind(uid(), compte.id, body.moyen, maskPhone(body.telephone), usd, mk, REAL_MONEY ? "demande" : "simule", REAL_MONEY ? 0 : 1, now),
+          db.prepare(`INSERT INTO guichet (id, compte_id, personnage_id, sens, moyen, numero, usd, makuta, statut, simule, le) VALUES (?, ?, ?, 'retrait', ?, ?, ?, ?, ?, ?, ?)`).bind(ref, compte.id, p.id, body.moyen, maskPhone(body.telephone), usd, mk, REAL_MONEY ? "en_attente" : "simule", REAL_MONEY ? 0 : 1, now),
           db.prepare(`UPDATE personnages SET makuta = makuta - ? WHERE id = ? AND makuta >= ?`).bind(mk, p.id, mk),
           db.prepare(`INSERT INTO retraits (id, compte_id, makuta, usd, simule, le) VALUES (?, ?, ?, ?, ?, ?)`).bind(uid(), compte.id, mk, usd, REAL_MONEY ? 0 : 1, now),
           db.prepare(`INSERT INTO transactions (id, de_id, vers_id, montant, motif, le) VALUES (?, ?, NULL, ?, ?, ?)`).bind(uid(), p.id, mk, "retrait vers l'argent réel" + (REAL_MONEY ? "" : " (simulé)"), now),
         ]);
+        if (REAL_MONEY) {
+          try {
+            const g = await startPayout(env, { ref, usd, moyen: body.moyen, telephone: String(body.telephone || "").replace(/\D/g, ""), notifyUrl: `${url.origin}/api/paiement/notification` });
+            if (g.providerRef) await db.prepare(`UPDATE guichet SET ref_partenaire = ? WHERE id = ?`).bind(String(g.providerRef), ref).run();
+          } catch (e) { await refundPayout(db, ref, Date.now()); return fail(h, 502, e.message + " Tes e-makuta t'ont été rendus."); }
+        }
         return json(h, 200, view(compte, await loadCharacter(db, p.id), now));
       }
 

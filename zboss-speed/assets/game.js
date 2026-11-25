@@ -522,7 +522,7 @@
       if (solidAt(x, y)) continue;
       if ([...G.traffic, ...G.parked, ...G.cops].some(o => Math.abs(o.x - x) < 50 && Math.abs(o.y - y) < 50)) continue;   // jamais sur une autre voiture
       const c = makeCar("traffic", x, y, a, { maxSpeed: 150 + rand() * 90, accel: 260, steerMax: 2.2, dmgMul: 1, mass: .8, grip: 9 });
-      c.from = from; c.to = to; c.tIdx = (rand() * TRAFFIC_SPRITES.length) | 0; c.sprite = TRAFFIC_SPRITES[c.tIdx]; c.bus = rand() < .18; c.taxi = !c.bus && rand() < .38; if (c.bus) c.maxSpeed *= .8;
+      c.from = from; c.to = to; c.tIdx = (rand() * TRAFFIC_SPRITES.length) | 0; c.sprite = TRAFFIC_SPRITES[c.tIdx]; c.bus = rand() < .12; c.taxi = !c.bus && rand() < .38; if (c.bus) { c.maxSpeed *= .8; Object.assign(c, { hl: BUS_HL, hw: BUS_HW, offs: BUS_OFF, mass: 3 }); }
       const sp = c.maxSpeed * .7; c.vx = Math.cos(a) * sp; c.vy = Math.sin(a) * sp;
       G.traffic.push(c); return;
     }
@@ -612,10 +612,10 @@
   }
   // forme d'une voiture : 3 cercles alignés (avant, milieu, arrière) ; elle fait ~4,2 m sur 1,8 m
   const CAR_HL = 21, CAR_HW = 9, CAR_OFF = [-12, 0, 12];
-  function carDiscs(c) { const fx = Math.cos(c.a), fy = Math.sin(c.a); return CAR_OFF.map(o => [c.x + fx * o, c.y + fy * o]); }
+  function carDiscs(c) { const fx = Math.cos(c.a), fy = Math.sin(c.a); return (c.offs || CAR_OFF).map(o => [c.x + fx * o, c.y + fy * o]); }
   function carOverlap(A, Bc) {
     // plus forte pénétration entre les cercles des deux voitures
-    let best = null; const da = carDiscs(A), db = carDiscs(Bc), min = CAR_HW * 2;
+    let best = null; const da = carDiscs(A), db = carDiscs(Bc), min = (A.hw || CAR_HW) + (Bc.hw || CAR_HW);
     for (const [ax, ay] of da) for (const [bx, by] of db) {
       const dx = bx - ax, dy = by - ay, d2 = dx * dx + dy * dy; if (d2 >= min * min) continue;
       const d = Math.sqrt(d2) || .01, ov = min - d; if (!best || ov > best.ov) best = { ov, nx: d > .01 ? dx / d : 1, ny: d > .01 ? dy / d : 0 };
@@ -625,7 +625,7 @@
   function collideCars(list) {
     for (let a = 0; a < list.length; a++) for (let b = a + 1; b < list.length; b++) {
       const A = list[a], Bc = list[b];
-      const dx = Bc.x - A.x, dy = Bc.y - A.y, d2 = dx * dx + dy * dy, lim = (CAR_HL + CAR_HW) * 2;
+      const dx = Bc.x - A.x, dy = Bc.y - A.y, d2 = dx * dx + dy * dy, lim = (A.hl || CAR_HL) + (Bc.hl || CAR_HL) + (A.hw || CAR_HW) + (Bc.hw || CAR_HW);
       if (d2 >= lim * lim) continue;
       const hit = carOverlap(A, Bc); if (!hit) continue;
       const nx = hit.nx, ny = hit.ny, ov = hit.ov;
@@ -681,10 +681,10 @@
     const L = LIGHT_AT.get(to);
     if (L) { const d = Math.hypot(L.x - c.x, L.y - c.y); if (d < L.w / 2 + 95 && d > L.w / 2 + 8) { const st = redFor(L, c.a, G.t); if (st === "r" || (st === "y" && d > L.w / 2 + 40)) return true; } }
     const fx = Math.cos(c.a), fy = Math.sin(c.a);
-    for (const o of G.traffic) { if (o === c) continue; const dx = o.x - c.x, dy = o.y - c.y, ah = dx * fx + dy * fy; if (ah > 0 && ah < 62 && Math.abs(-dx * fy + dy * fx) < 16 && Math.hypot(o.vx, o.vy) < Math.hypot(c.vx, c.vy) + 20) return true; }
+    for (const o of G.buses ? G.traffic.concat(G.buses) : G.traffic) { if (o === c) continue; const dx = o.x - c.x, dy = o.y - c.y, ah = dx * fx + dy * fy; if (ah > 0 && ah < (c.hl || CAR_HL) + (o.hl || CAR_HL) + 20 && Math.abs(-dx * fy + dy * fx) < (o.hw || CAR_HW) + 7 && Math.hypot(o.vx, o.vy) < Math.hypot(c.vx, c.vy) + 20) return true; }
     // un piéton (ou le personnage) sur la chaussée juste devant : on le laisse passer
     const walkersNear = G.foot ? [G.foot, ...G.peds] : G.peds;
-    for (const q of walkersNear) { if (q.gone || q.sit) continue; const dx = q.x - c.x, dy = q.y - c.y; if (Math.abs(dx) > 70 || Math.abs(dy) > 70) continue; const ah = dx * fx + dy * fy; if (ah > CAR_HL - 4 && ah < CAR_HL + 34 && Math.abs(-dx * fy + dy * fx) < CAR_HW + 8) return true; }
+    for (const q of walkersNear) { if (q.gone || q.sit) continue; const dx = q.x - c.x, dy = q.y - c.y; if (Math.abs(dx) > 70 || Math.abs(dy) > 70) continue; const ah = dx * fx + dy * fy; const hl = c.hl || CAR_HL; if (ah > hl - 4 && ah < hl + 34 && Math.abs(-dx * fy + dy * fx) < (c.hw || CAR_HW) + 8) return true; }
     return false;
   }
   function angDiff(a, b) { let d = b - a; while (d > Math.PI) d -= Math.PI * 2; while (d < -Math.PI) d += Math.PI * 2; return d; }
@@ -761,6 +761,7 @@
       forte: pick(FORCES), faible: pick(FAIBLESSES),
     };
     if (q.kit) q.idn.force = Math.max(q.idn.force, 7);
+    if (q.tourist) { q.idn.metier = "touriste venu" + (woman ? "e" : "") + " de " + pick(PAYS_TOURISTES); q.idn.commune = "en visite à Kinshasa"; q.idn.car = "curieux"; }
     return q.idn;
   }
   // un habitant sur sept rentre chez lui : itinéraire par les rues jusqu'à sa maison
@@ -804,6 +805,7 @@
   }
   function pedStep(q, dt, cars) {
     if (q.play) return;
+    if (q.bus) { busPed(q, dt); return; }
     q.t += dt;
     if (q.talk) { // le joueur lui parle : il s'arrête et le regarde
       q.talk -= dt; q.state = "idle"; const f = G.foot; if (f) { const da = angDiff(q.a, Math.atan2(f.y - q.y, f.x - q.x)); q.a += Math.max(-4 * dt, Math.min(4 * dt, da)); }
@@ -821,7 +823,7 @@
       const da = angDiff(q.a, Math.atan2(ty - q.y, tx - q.x)); q.a += Math.max(-4 * dt, Math.min(4 * dt, da));
       const nx = q.x + Math.cos(q.a) * q.v * dt, ny = q.y + Math.sin(q.a) * q.v * dt; q.enterT = (q.enterT || 0) + dt;
       if (!walkBlocked(nx, ny)) { q.x = nx; q.y = ny; } else q.home = true;
-      if (q.home || q.enterT > 14) { q.gone = true; const f = G.foot; if (f && Math.hypot(f.x - q.x, f.y - q.y) < 260) msg("🏠 " + ident(q).nom + " rentre chez lui" + (ident(q).woman ? "… chez elle." : "."), 2.5); }
+      if (q.home || q.enterT > 14) { q.gone = true; const f = G.foot; if (f && Math.hypot(f.x - q.x, f.y - q.y) < 260) msg(q.tourist ? "📸 " + ident(q).nom + " (touriste) entre visiter " + (q.visit || "le lieu") + "." : "🏠 " + ident(q).nom + " rentre chez lui" + (ident(q).woman ? "… chez elle." : "."), 2.5); }
       return;
     }
     if (q.greet) { // un passant vient saluer le personnage assis
@@ -897,16 +899,16 @@
   })();
   const PED_R = 4;
   // voiture (boîte orientée) contre piéton : le piéton est repoussé hors de la carrosserie
-  function pushFromCar(c, x, y, r) { return pushOut({ x: c.x, y: c.y, ux: Math.cos(c.a), uy: Math.sin(c.a), hw: CAR_HL, hh: CAR_HW }, x, y, r); }
+  function pushFromCar(c, x, y, r) { return pushOut({ x: c.x, y: c.y, ux: Math.cos(c.a), uy: Math.sin(c.a), hw: c.hl || CAR_HL, hh: c.hw || CAR_HW }, x, y, r); }
   function moveBody(q, d) { const nx = q.x + d[0], ny = q.y + d[1]; if (!walkBlocked(nx, ny)) { q.x = nx; q.y = ny; return true; } if (!walkBlocked(nx, q.y)) { q.x = nx; return true; } if (!walkBlocked(q.x, ny)) { q.y = ny; return true; } return false; }
   // piétons et personnage : contre les obstacles fixes, les voitures et entre eux
   function resolveBodies(cars) {
-    const f = G.foot, bodies = G.peds.filter(q => !q.play && !q.gone && !q.enter);
-    if (f && !f.sit) bodies.push(f);
+    const f = G.foot, bodies = G.peds.filter(q => !q.play && !q.gone && !q.enter && !(q.bus && q.bus.phase === "board"));
+    if (f && !f.sit && !f.inBus) bodies.push(f);
     const grid = new Map(), gk = (x, y) => ogKey(Math.floor(x / 32), Math.floor(y / 32));
     for (const q of bodies) {
       for (const o of obstNear(q.x, q.y)) { const d = pushOut(o, q.x, q.y, PED_R); if (d) moveBody(q, d); }
-      for (const c of cars) { if (Math.abs(c.x - q.x) > 40 || Math.abs(c.y - q.y) > 40) continue; const d = pushFromCar(c, q.x, q.y, PED_R); if (d) moveBody(q, d); }
+      for (const c of cars) { if (Math.abs(c.x - q.x) > 60 || Math.abs(c.y - q.y) > 60) continue; const d = pushFromCar(c, q.x, q.y, PED_R); if (d) moveBody(q, d); }
       const k = gk(q.x, q.y); if (!grid.has(k)) grid.set(k, []); grid.get(k).push(q);
     }
     const min = PED_R * 2;
@@ -929,7 +931,7 @@
   function carVsStatic(c) {
     if (c.parked) return;
     for (const [x, y] of carDiscs(c)) for (const o of obstNear(x, y)) {
-      const d = pushOut(o, x, y, CAR_HW); if (!d) continue;
+      const d = pushOut(o, x, y, c.hw || CAR_HW); if (!d) continue;
       c.x += d[0]; c.y += d[1]; const l = Math.hypot(d[0], d[1]) || 1; impact(c, d[0] / l, d[1] / l, .2);
     }
   }
@@ -943,7 +945,7 @@
     if (!walkBlocked(f.x, ny)) f.y = ny;
     f.t += dt * Math.abs(f.v) / 30;
     // les voitures poussent le piéton (pas de blessure)
-    for (const c of [G.player, ...G.traffic, ...G.cops, ...G.parked]) { if (Math.abs(f.x - c.x) > 40 || Math.abs(f.y - c.y) > 40) continue; const d = pushFromCar(c, f.x, f.y, PED_R); if (d) moveBody(f, d); }
+    for (const c of [G.player, ...G.traffic, ...G.cops, ...G.parked, ...(G.buses || [])]) { if (Math.abs(f.x - c.x) > 60 || Math.abs(f.y - c.y) > 60) continue; const d = pushFromCar(c, f.x, f.y, PED_R); if (d) moveBody(f, d); }
   }
   function nearSlot(x, y) {
     for (const o of SHOPS) for (const sl of o.slots || []) if (Math.hypot(x - sl.x, y - sl.y) < 48) return { o, sl, car: CARS[o.slots.indexOf(sl) % CARS.length] };
@@ -1146,6 +1148,7 @@
   const SORTIES = [
     { id: "promenade", ic: "🚶", nom: "Promenade", txt: "Il marche au hasard, visite des lieux et s'assoit sur les bancs." },
     { id: "tourisme", ic: "📸", nom: "Tourisme", txt: "Visite guidée des lieux à voir : institutions, stade, bureau Zboss Sarlu." },
+    { id: "bus", ic: "🚌", nom: "Tour en bus", txt: "Il prend le bus de la ligne 1, regarde la ville défiler et descend visiter un lieu." },
     { id: "footing", ic: "🏃", nom: "Footing", txt: "Il court d'un banc à l'autre. Bon pour la santé, mais fatigant." },
     { id: "match", ic: "⚽", nom: "Voir un match", txt: "Il va au stade ou au terrain de basket et regarde le match depuis un banc." },
     { id: "courses", ic: "🛒", nom: "Courses", txt: "Alimentations et magasins : il fait le tour des boutiques." },
@@ -1177,6 +1180,7 @@
     if (on) {
       if (!G.foot) { msg("Descends d'abord du taxi pour te promener seul.", 2.5); return; }
       if (G.foot.sit) standUp(true);
+      if (G.foot.inBus) { const d = busDoor(G.foot.inBus); G.foot.inBus = null; G.foot.x = d.x; G.foot.y = d.y; }
       mode = mode || lastSortie; lastSortie = mode;
       G.auto = { phase: "walk", path: null, mode, seen: [] };
       if (mode === "tourisme") G.auto.tour = tourPlan();
@@ -1219,6 +1223,10 @@
     if (mode === "rencontres") {
       const bs = BENCHES.filter(b => !b.taken).sort((a, b) => Math.hypot(a.x - f.x, a.y - f.y) - Math.hypot(b.x - f.x, b.y - f.y));
       const b = bs[(rand() * Math.min(4, bs.length)) | 0]; if (b) return { x: b.x, y: b.y, nom: "un banc pour rencontrer des gens", icone: "🪑", bench: b, meet: true };
+    }
+    if (mode === "bus") {   // il marche jusqu'à l'arrêt le plus proche
+      const st = nearestStop(f.x, f.y); if (st) return { x: st.wx, y: st.wy, nom: st.nom, icone: "🚏", busStop: st };
+      A.mode = "promenade";
     }
     if (mode === "tourisme") {
       const o = A.tour && A.tour.shift();
@@ -1282,6 +1290,7 @@
   }
   function arrive() {
     const A = G.auto, d = A.dest; G.foot.v = 0;
+    if (d.busStop) { A.phase = "waitbus"; A.stop = d.busStop; A.waitT = 0; A.doing = "🚏 Il attend le bus à l'" + d.busStop.nom; msg("🚏 Ton personnage attend le bus de la ligne 1.", 3); return; }
     if (d.bench) {
       sitDown(d.bench, true); A.phase = "sit";
       if (d.match) { A.sitT = 40 + rand() * 25; A.doing = "Regarde le match " + d.icone; msg(d.icone + " Ton personnage s'installe pour regarder le match.", 3, "ok"); }
@@ -1411,6 +1420,7 @@
         A.path = findPath(a, b) || [a, b]; A.i = 0; A.stuck = 0; A.dropAt = drop; G.foot = null; A.phase = "ride";
       }
     } else if (A.phase === "ride") autoRide(dt);
+    else if (A.phase === "waitbus" || A.phase === "boardbus" || A.phase === "inbus") busRider(dt);
   }
 
   // ---- bancs publics : s'asseoir, observer, rencontrer des gens
@@ -1601,6 +1611,7 @@
     { id: "courses", ic: "🛒", nom: "Faire les courses", dur: 1.5, mode: "courses" },
     { id: "match", ic: "⚽", nom: "Voir un match", dur: 2, mode: "match" },
     { id: "tourisme", ic: "📸", nom: "Visiter la ville", dur: 2.5, mode: "tourisme" },
+    { id: "bus", ic: "🚌", nom: "Tour de la ville en bus", dur: 2.5, mode: "bus" },
     { id: "rencontres", ic: "🪑", nom: "Rencontrer des gens", dur: 2, mode: "rencontres" },
     { id: "footing", ic: "🏃", nom: "Faire du sport", dur: 1, mode: "footing" },
     { id: "promenade", ic: "🚶", nom: "Se promener", dur: 1.5, mode: "promenade" },
@@ -1815,6 +1826,7 @@
     if (me.car === "curieux" || likes("politique") || likes("lecture")) add("tourisme", 3, me.car === "curieux" ? "il est curieux de découvrir la ville" : "il aime " + (likes("politique") ? "la politique : il veut voir les institutions" : "apprendre des choses"));
     if (likes("mode") || likes("cuisine") || me.car === "fier") add("courses", 3, likes("cuisine") ? "il veut cuisiner ce soir" : "il veut soigner son style");
     if (me.force >= 7) add("footing", 3, "il est sportif");
+    if (me.car === "curieux" || likes("voyage") || me.argent >= 10) add("bus", me.car === "curieux" ? 3 : 1.2, me.car === "curieux" ? "il est curieux : il veut voir la ville depuis le bus" : "il a envie de faire un tour en bus");
     if (["timide", "méfiant", "calme"].includes(me.car)) add("promenade", 4, "il est " + me.car + " : il préfère marcher tranquillement");
     add("promenade", 1.5, "il a envie de flâner"); add("courses", 1, "il manque quelque chose à la maison");
     let tot = c.reduce((s, o) => s + o.w, 0), r = rand() * tot;
@@ -1823,6 +1835,7 @@
   }
   function nextActivity() {
     const L = G.life, h = G.hour; if (!L) return;
+    if (G.auto && (G.auto.phase === "inbus" || G.auto.phase === "boardbus" || G.auto.phase === "waitbus") && h < 20) return;   // on ne saute pas d'un bus en marche
     let a = null, why = "";
     while (!a && L.orders.length) {
       const A = ACT(L.orders.shift());
@@ -1923,6 +1936,176 @@
   // densité de la ville selon l'heure (rues vides la nuit, heure de pointe le matin et le soir)
   const dens = h => h < 5 ? .2 : h < 6.5 ? .45 : h < 9 ? 1 : h < 17 ? .85 : h < 20 ? 1 : h < 22 ? .6 : .3;
 
+
+  // ---------------------------------------------------------------- ligne de bus 1 : arrêts, portes, passagers, touristes
+  // Les bus suivent une boucle qui passe devant les lieux de la ville. À chaque arrêt ils se rangent,
+  // ouvrent la porte (côté trottoir), laissent descendre puis monter les gens, et repartent.
+  const BUS_HL = 36, BUS_HW = 11, BUS_OFF = [-26, -13, 0, 13, 26], BUS_FARE = 2, BUS_CAP = 24;
+  const PAYS_TOURISTES = ["Belgique", "France", "Sénégal", "Côte d'Ivoire", "Cameroun", "Angola", "Brésil", "Chine", "Canada", "Afrique du Sud", "Nigeria", "Japon"];
+  let NET = null;
+  function busNet() {
+    if (NET) return NET;
+    NET = { stops: [], route: [] };
+    const pl = PLACES.filter(o => o.door && o.id !== "maison" && o.type !== "parking");
+    if (pl.length < 3) return NET;
+    const cx = pl.reduce((t, o) => t + o.x, 0) / pl.length, cy = pl.reduce((t, o) => t + o.y, 0) / pl.length;
+    pl.sort((a, b) => Math.atan2(a.y - cy, a.x - cx) - Math.atan2(b.y - cy, b.x - cx));
+    const want = Math.min(8, pl.length), cand = [];
+    for (let k = 0; k < want; k++) { const o = pl[Math.floor(k * pl.length / want)], n = nearestNode(o.door.x, o.door.y); if (nodes[n].nb.length >= 2 && !cand.some(c => c.n === n)) cand.push({ n, o }); }
+    // relie les arrêts dans l'ordre ; un arrêt injoignable est sauté
+    const seq = [], legs = [];
+    for (const c of cand) {
+      if (!seq.length) { seq.push(c); continue; }
+      const P = findPath(seq[seq.length - 1].n, c.n); if (!P || P.length < 3) continue;
+      seq.push(c); legs.push(P);
+    }
+    while (seq.length >= 3) { const P = findPath(seq[seq.length - 1].n, seq[0].n); if (P && P.length >= 3) { legs.push(P); break; } seq.pop(); legs.pop(); }
+    if (seq.length < 3) return NET;
+    const route = [];
+    seq.forEach((c, k) => { c.ri = route.length; route.push(...legs[k].slice(0, -1)); });
+    const L = route.length;
+    seq.forEach((c, k) => {
+      const n = c.n, prev = route[(c.ri - 1 + L) % L], N = nodes[n], Pn = nodes[prev];
+      const dx = N.x - Pn.x, dy = N.y - Pn.y, len = Math.hypot(dx, dy) || 1, ux = dx / len, uy = dy / len, rx = -uy, ry = ux;
+      const back = Math.min(90, len * .45), lane = Math.min(30, N.w * .22), bx = N.x - ux * back, by = N.y - uy * back;
+      let side = N.w / 2 + 16; while (side > 6 && walkBlocked(bx + rx * side, by + ry * side)) side -= 4;
+      NET.stops.push({ k, n, ri: c.ri, place: c.o, nom: "arrêt " + c.o.nom, a: Math.atan2(uy, ux), ux, uy, rx, ry,
+        x: bx + rx * lane, y: by + ry * lane, sx: bx + rx * side, sy: by + ry * side, wx: bx + rx * side - ux * 14, wy: by + ry * side - uy * 14 });
+    });
+    NET.route = route;
+    return NET;
+  }
+  function nearestStop(x, y) { const N = busNet(); let best = null, bd = 1e18; for (const st of N.stops) { const d = Math.hypot(st.sx - x, st.sy - y); if (d < bd) { bd = d; best = st; } } return best; }
+  // point de la porte (avant droit du bus, côté trottoir)
+  function busDoor(c) { const fx = Math.cos(c.a), fy = Math.sin(c.a); return { x: c.x + fx * BUS_HL * .55 - fy * (BUS_HW + 7), y: c.y + fy * BUS_HL * .55 + fx * (BUS_HW + 7) }; }
+  function initBuses() {
+    const N = busNet(); G.buses = [];
+    if (N.stops.length < 3) return;
+    const n = N.stops.length, nb = Math.min(3, n);
+    for (let j = 0; j < nb; j++) {
+      const st = N.stops[Math.floor(j * n / nb)];
+      const c = makeCar("traffic", st.x, st.y, st.a, { maxSpeed: 165, accel: 190, steerMax: 1.9, dmgMul: .4, mass: 3, grip: 10 });
+      Object.assign(c, { bus: true, line: 1, num: j + 1, hl: BUS_HL, hw: BUS_HW, offs: BUS_OFF, tIdx: 0, sprite: TRAFFIC_SPRITES[0],
+        ri: st.ri, at: st.k, next: (st.k + 1) % n, state: "stop", wait: 3 + j * 2, door: 0, closing: false, pax: [], stuck: 0 });
+      // des passagers sont déjà à bord
+      for (let k = 0; k < 4 + j * 2; k++) c.pax.push(newPax(st.k, rand() < .35));
+      G.buses.push(c);
+    }
+  }
+  function newPax(from, tourist) {
+    const n = busNet().stops.length;
+    return { id: ++pedSeq, look: (rand() * 7) | 0, tourist, dest: (from + 1 + ((rand() * (n - 1)) | 0)) % n };
+  }
+  function busAI(c, dt) {
+    const N = NET, L = N.route.length, n = N.stops.length;
+    if (c.state === "stop") {
+      c.inp.gas = 0; c.inp.brake = 1; c.inp.steer = 0; c.inp.hand = 1;
+      const st = N.stops[c.at];
+      if (c.closing) { c.door = Math.max(0, c.door - dt * 1.4); if (c.door <= 0) { c.closing = false; c.state = "drive"; c.ri = st.ri; c.inp.hand = 0; } return; }
+      c.door = Math.min(1, c.door + dt * 1.4); c.wait -= dt;
+      if (c.door >= 1) busExchange(c, st, dt);
+      const boarding = G.peds.some(q => q.bus && q.bus.car === c) || (G.auto && G.auto.phase === "boardbus" && G.auto.bus === c);
+      if (c.wait <= 0 && (!boarding || c.wait < -10) && !(c.alight && c.alight.length)) c.closing = true;
+      return;
+    }
+    // conduite « sur rails » le long de la ligne : le bus suit sa voie, ralentit aux virages et aux arrêts, attend les feux et les piétons
+    const st = N.stops[c.next], i = c.ri, j = (i + 1) % L, b = N.route[j], toStop = j === st.ri;
+    const t = toStop ? st : edgePoint(N.route[i], b, Math.min(30, nodes[b].w * .22));
+    const dx = t.x - c.x, dy = t.y - c.y, d = Math.hypot(dx, dy);
+    let want = 120;
+    if (toStop) want = Math.min(want, 16 + d * .8);
+    else { const nb = nodes[b], na = nodes[N.route[i]], nc = nodes[N.route[(j + 1) % L]], turn = Math.abs(angDiff(Math.atan2(nb.y - na.y, nb.x - na.x), Math.atan2(nc.y - nb.y, nc.x - nb.x))); if (turn > .5 && d < 170) want = 42; }
+    c.blockT = c.blockT || 0;
+    if (c.blockT < 4 && stopHere(c, b)) { want = 0; c.blockT += dt; }
+    else if (c.blockT >= 4) { c.blockT += dt; if (c.blockT > 7) c.blockT = 0; }
+    else c.blockT = 0;
+    c.spd = c.spd || 0; c.spd += Math.max(-220 * dt, Math.min(80 * dt, want - c.spd));
+    const mv = Math.min(d, c.spd * dt);
+    if (d > .5) { c.x += dx / d * mv; c.y += dy / d * mv; c.a += angDiff(c.a, Math.atan2(dy, dx)) * Math.min(1, dt * 3.2); }
+    c.vx = Math.cos(c.a) * c.spd; c.vy = Math.sin(c.a) * c.spd;
+    c.inp.gas = c.spd < want ? 1 : 0; c.inp.brake = c.spd > want + 5 || c.spd < 1 ? 1 : 0; c.inp.steer = 0; c.inp.hand = 0;
+    if (toStop && d < 3) { c.state = "stop"; c.at = st.k; c.next = (st.k + 1) % n; c.wait = 6 + rand() * 3; c.vx = c.vy = c.spd = 0; busArrive(c, st); return; }
+    if (!toStop && d < 22) c.ri = j;
+  }
+  // arrivée à un arrêt : qui descend ?
+  function busArrive(c, st) {
+    c.alight = c.pax.filter(x => x.dest === st.k); c.pax = c.pax.filter(x => x.dest !== st.k); c.xT = .8;
+    const f = G.foot, A = G.auto;
+    if (f && f.inBus === c && A && A.phase === "inbus") {
+      A.left--;
+      const g = GUIDE[st.place.id];
+      if (A.left > 0) { msg("🚌 Arrêt : " + st.place.nom + (g ? ". " + g : "."), 5, "ok"); note("🚌 Le bus passe par " + st.place.nom + "."); }
+      else { A.getOff = st; msg("🚌 Ton personnage descend à l'" + st.nom + ".", 3.5, "ok"); }
+    }
+  }
+  // portes ouvertes : on descend un par un, puis ceux qui attendent montent
+  function busExchange(c, st, dt) {
+    c.xT -= dt;
+    const f = G.foot, A = G.auto;
+    if (A && A.phase === "inbus" && f && f.inBus === c && A.getOff === st && c.xT <= 0) {   // le personnage descend
+      const dpt = busDoor(c); f.inBus = null; f.x = dpt.x; f.y = dpt.y; f.a = st.a + Math.PI / 2; f.v = 0; A.getOff = null; c.xT = .7;
+      A.phase = "walk"; A.path = null; A.mode = "tourisme"; A.tour = [st.place].concat((A.tour || []).filter(o => o !== st.place));
+      note("🚌 Il descend du bus pour visiter " + st.place.nom + "."); if (G.life) G.life.until = Math.max(G.life.until || 0, Math.min(21, G.hour + 1.5)); return;
+    }
+    if (c.alight && c.alight.length) { if (c.xT <= 0) { spawnFromBus(c, st, c.alight.shift()); c.xT = .7; } return; }
+    if (c.pax.length >= BUS_CAP) return;
+    for (const q of G.peds) if (q.bus && q.bus.phase === "wait" && q.bus.stop === st.k) { q.bus.phase = "board"; q.bus.car = c; }
+  }
+  function spawnFromBus(c, st, x) {
+    const dpt = busDoor(c), n = st.n, nb = nodes[n].nb, m = nb[(rand() * nb.length) | 0];
+    const q = { x: dpt.x, y: dpt.y, a: st.a + Math.PI / 2, from: n, to: m, side: 1, off: nodes[n].w / 2 + 14, v: 11 + rand() * 5, t: rand() * 9, state: "walk", st: 0, look: x.look, id: x.id, tourist: x.tourist };
+    if (x.tourist) { const o = st.place; q.visit = o.nom; ident(q).home = { x: o.door.x, y: o.door.y }; planHome(q); }
+    G.peds.push(q);
+  }
+  // gens qui attendent aux arrêts proches (des habitants et des touristes)
+  function busCrowd(dt) {
+    const N = NET; if (!N || !N.stops.length) return;
+    const f = G.foot || G.player, h = G.hour, busy = h >= 6 && h < 21 ? 1 : .15;
+    for (const st of N.stops) {
+      if (Math.abs(st.sx - f.x) > 1600 || Math.abs(st.sy - f.y) > 1600) continue;
+      const waiting = G.peds.filter(q => q.bus && q.bus.stop === st.k).length;
+      if (waiting < 4 && rand() < dt * .12 * busy) {
+        const k = waiting, x = st.wx - st.ux * k * 9 + st.rx * (rand() * 6 - 3), y = st.wy - st.uy * k * 9 + st.ry * (rand() * 6 - 3);
+        if (walkBlocked(x, y)) continue;
+        const nb = nodes[st.n].nb, tourist = rand() < .35;
+        G.peds.push({ x, y, a: st.a - Math.PI / 2, from: st.n, to: nb[0], side: 1, off: nodes[st.n].w / 2 + 14, v: 12, t: rand() * 9, state: "idle", st: 0, look: (rand() * 7) | 0, id: ++pedSeq, tourist,
+          bus: { stop: st.k, phase: "wait", dest: newPax(st.k, tourist).dest, waitT: 0 } });
+      }
+    }
+  }
+  function busPed(q, dt) {
+    const B = q.bus;
+    if (B.phase === "wait") { q.state = "idle"; B.waitT += dt; if (B.waitT > 240) { q.bus = null; q.state = "walk"; } return; }
+    const c = B.car;
+    if (!c || c.state !== "stop" || c.closing) { B.phase = "wait"; B.car = null; return; }
+    const d = busDoor(c), dx = d.x - q.x, dy = d.y - q.y, dist = Math.hypot(dx, dy);
+    if (dist < 7) { q.gone = true; c.pax.push({ id: q.id, look: q.look, tourist: q.tourist, dest: B.dest, idn: q.idn }); return; }
+    q.state = "walk"; q.a = Math.atan2(dy, dx); const v = Math.min(dist, 16 * dt); q.x += dx / dist * v; q.y += dy / dist * v; q.t += dt;
+  }
+  // le personnage du joueur : attendre, monter, regarder la ville, descendre
+  function busRider(dt) {
+    const A = G.auto, f = G.foot; if (!f) { G.auto = null; return; }
+    const st = A.stop;
+    if (A.phase === "waitbus") {
+      A.waitT += dt; f.v = 0;
+      const c = (G.buses || []).find(b => b.state === "stop" && b.at === st.k && !b.closing && b.door > .9);
+      if (c) { A.phase = "boardbus"; A.bus = c; return; }
+      if (A.waitT > 420) { msg("🚏 Le bus tarde : ton personnage repart à pied.", 3); A.phase = "walk"; A.path = null; A.mode = "promenade"; }
+      return;
+    }
+    if (A.phase === "boardbus") {
+      const c = A.bus; if (!c || c.state !== "stop" || c.closing) { A.phase = "waitbus"; A.bus = null; return; }
+      const d = busDoor(c), dx = d.x - f.x, dy = d.y - f.y, dist = Math.hypot(dx, dy);
+      if (dist < 8) {
+        if (!pay(BUS_FARE, "ticket de bus, ligne 1")) { msg("🚏 Pas assez d'argent pour le bus.", 3, "alert"); A.phase = "walk"; A.path = null; A.mode = "promenade"; return; }
+        f.inBus = c; A.phase = "inbus"; A.left = 3 + ((rand() * 3) | 0); A.doing = "🚌 Dans le bus de la ligne 1 : il regarde la ville";
+        msg("🚌 Ton personnage monte dans le bus n° " + c.num + " de la ligne 1. Il descendra dans " + A.left + " arrêts.", 4, "ok"); return;
+      }
+      f.a = Math.atan2(dy, dx); f.v = 20; const v = Math.min(dist, 20 * dt); f.x += dx / dist * v; f.y += dy / dist * v; f.t += dt;
+      return;
+    }
+    if (A.phase === "inbus") { const c = f.inBus; if (!c) { A.phase = "walk"; A.path = null; return; } f.x = c.x; f.y = c.y; f.a = c.a; f.v = 0; }
+  }
   function update(dt) {
     const p = G.player; G.t += dt;
     if (WALK) clockStep(dt);
@@ -1938,6 +2121,7 @@
     if (G.foot && G.foot.sit && (kUp || kDown || kSteer) && !G.auto) standUp();
     if (G.auto) { autoUpdate(dt); if (!G.foot && G.auto && G.auto.phase === "ride") { /* le taxi roule tout seul */ } else if (G.foot) { p.inp.gas = 0; p.inp.brake = 1; p.inp.steer = 0; p.inp.hand = 1; p.inp.nitro = 0; } }
     else if (G.foot && G.foot.sit) { p.inp.gas = 0; p.inp.brake = 1; p.inp.steer = 0; p.inp.hand = 1; G.foot.v = 0; }
+    else if (G.foot && G.foot.inBus) { p.inp.gas = 0; p.inp.brake = 1; }
     else if (G.foot) { p.inp.gas = 0; p.inp.brake = 1; p.inp.steer = 0; p.inp.hand = 1; p.inp.nitro = 0; footStep(dt, kUp, kDown, kSteer, (keys.ShiftLeft || keys.ShiftRight || touch.nitro) && G.energy > 8); }
     else {
       p.inp.gas = kUp ? 1 : 0;
@@ -1966,10 +2150,11 @@
     G.seen = false;
     G.cops.forEach(c => copAI(c, dt));
     G.traffic.forEach(trafficAI);
+    if (WALK) { if (!G.buses) initBuses(); G.buses.forEach(c => busAI(c, dt)); busCrowd(dt); }
     stepCar(p, dt); G.cops.forEach(c => stepCar(c, dt)); G.traffic.forEach(c => stepCar(c, dt));
     // à pied, les collisions se calculent autour du personnage (pas de la voiture laissée au parking)
     const cc = G.foot || p, nearC = c => Math.abs(c.x - cc.x) < 1400 && Math.abs(c.y - cc.y) < 1400 || Math.abs(c.x - p.x) < 1400 && Math.abs(c.y - p.y) < 1400;
-    const near = [p, ...G.cops.filter(nearC), ...G.traffic.filter(nearC)];
+    const near = [p, ...G.cops.filter(nearC), ...G.traffic.filter(nearC), ...(G.buses || []).filter(nearC)];
     const fcar = G.foot || p, pk = G.parked.filter(c => Math.abs(c.x - fcar.x) < 1400 && Math.abs(c.y - fcar.y) < 1400 || Math.abs(c.x - p.x) < 200 && Math.abs(c.y - p.y) < 200);
     collideCars(near.concat(pk));
     near.forEach(carVsStatic);
@@ -2009,7 +2194,7 @@
     G.peds = G.peds.filter(q => !q.gone && (q.staff || Math.hypot(q.x - fc.x, q.y - fc.y) < 1900));
     const nPed = Math.round(PED_N * dn), walkers = G.peds.filter(q => !q.staff);
     for (let k = walkers.length; k < nPed; k++) spawnPed(false);
-    if (walkers.length > nPed + 3) { const q = walkers.find(q => !q.route && !q.enter && Math.hypot(q.x - fc.x, q.y - fc.y) > 700); if (q) planHome(q); if (q && !q.route) q.gone = true; }
+    if (walkers.length > nPed + 3) { const q = walkers.find(q => !q.route && !q.enter && !q.bus && Math.hypot(q.x - fc.x, q.y - fc.y) > 700); if (q) planHome(q); if (q && !q.route) q.gone = true; }
     G.peds.forEach(q => pedStep(q, dt, near));
     resolveBodies(near.concat(pk));
     updatePrompt();
@@ -2147,7 +2332,7 @@
       ctx.restore();
       if (!c.alive && rand() < .4) G.parts.push({ x: c.x, y: c.y, vx: 0, vy: -20, life: 1, max: 1, kind: "fire", r: 6 });
     };
-    G.parked.forEach(c => { if (Math.abs(c.x - G.cam.x) < 1400 && Math.abs(c.y - G.cam.y) < 1400) drawCar(c); }); G.traffic.forEach(drawCar); G.cops.forEach(drawCar); drawCar(p);
+    G.parked.forEach(c => { if (Math.abs(c.x - G.cam.x) < 1400 && Math.abs(c.y - G.cam.y) < 1400) drawCar(c); }); G.traffic.forEach(drawCar); (G.buses || []).forEach(drawCar); G.cops.forEach(drawCar); drawCar(p);
 
     // particules
     for (const q of G.parts) {
@@ -2324,6 +2509,6 @@
   resize(); show("menu");
 
   // Accès pour les tests automatisés
-  window.ZBOSS_WORLD = { addObst, OBST, W, H, C, MW, MH, mask, MAP, ROADS, FILL, walkBlocked, SHOPS, PLACES, BILLBOARDS, BENCHES, LIGHTS, lightState, isOpen, SHOP_W, SHOP_D, SHOP_DOOR, nodes, nodesNear, nearestNode, solidAt, groundAt, angDiff, rand };
-  window.__zboss = { get state() { return G; }, start: () => start(chosen), spawnCop, keys, touch, act: () => { actPressed = true; }, sortie: m => autoToggle(true, m), sorties: openSorties, plan: openPlan, me: showMe, setHour: h => { G.hour = h; }, step: (n, dt) => { for (let i = 0; i < n && G && !G.paused; i++) update(dt || 1 / 30); } };
+  window.ZBOSS_WORLD = { busNet, addObst, OBST, W, H, C, MW, MH, mask, MAP, ROADS, FILL, walkBlocked, SHOPS, PLACES, BILLBOARDS, BENCHES, LIGHTS, lightState, isOpen, SHOP_W, SHOP_D, SHOP_DOOR, nodes, nodesNear, nearestNode, solidAt, groundAt, angDiff, rand };
+  window.__zboss = { get state() { return G; }, start: () => start(chosen), spawnCop, keys, touch, act: () => { actPressed = true; }, sortie: m => autoToggle(true, m), auto: m => autoToggle(true, m, true), sorties: openSorties, plan: openPlan, me: showMe, setHour: h => { G.hour = h; }, step: (n, dt) => { for (let i = 0; i < n && G && !G.paused; i++) update(dt || 1 / 30); } };
 })();

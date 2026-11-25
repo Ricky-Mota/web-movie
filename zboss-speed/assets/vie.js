@@ -5,7 +5,7 @@ import {
   SHOP, cannotBuy, OFFERS, USD_TO_MAKUTA, USD_UNITS, fmtMakuta, WITHDRAW_FEE, walletInfo, birthShiftMs, shopView, familyOf, JOBS, payFor, cannotWork, workView, SHIFT_ENERGY, cannotApply, FORMATIONS, cannotEnroll, attendCourse, schoolView, STUDY_ENERGY, SUPPORT_PER_DAY, HOST_MIN_AGE, canSignupBeforeLaunch, COMPANY_TYPES, cannotOpenCompany, companyName, companyView, companyAccrue, companyJob, EMPLOYEE_YIELD, RESELL_RATE, TAXI_FARE, TAXI_ENERGY, KINSHASA_QUARTIERS, OTHER_CITIES, TAX, POSTS, PUBLIC_JOBS, BANKS, bankAccrue, INSURERS, CARE, careCost, OPERATORS, RECHARGES, CALL, stateView, supportDue, unpaidEffect, familyShare, FIRST_NAMES,
   describeAction, ORDER_DONE, ORDERS, ORDERS_PER_DAY, ORDERS_CHECK_MS, dayKey, ordersToRun, cannotGiveOrder,
   VOTER_MIN_AGE, NEGLECT_DANGER_DAYS, NEGLECT_DANGER_HEALTH, splitEstate, deathCause, familyShareRate, REP, REP_BAD, REP_GOOD, repLabel, repDiscount, DOT_MAKUTA, MARRY_MIN_AGE, STREET_JOBS, cannotStreetJob, RENT, rentOf, houseOf, rentDue, HOUSING_MIN_AGE, SALE_TAX, LIFE_EVENTS, EVENT_EVERY_H, drawEvent, eventMoney, lifeAlbum, CRIMES, catchChance, sentence, inPrison, PRISON_BLOCKED, BAIL, PRISON_HOURS, RECIDIVE, policeView, applySettings, food, drawEntry, classOfWealth, classLabel, MATURITY_GAIN, BIG_DECISIONS, cannotDecide, dashboard,
-  PAY_METHODS, cannotDeposit, cannotWithdraw, maskPhone, withdrawUsd,
+  PAY_METHODS, cannotDeposit, cannotWithdraw, maskPhone, withdrawUsd, COMMUNES, communeView, ROLES, drawRole, roleOf,
 } from "../server/src/life.js";
 import { launchDemo } from "./lancement-demo.js";
 
@@ -50,10 +50,10 @@ const demo = {
       repas: { ...FOOD, prix: Math.round(FOOD.prix * repDiscount(d.rep || 0)) },
       reputation: { points: d.rep || 0, label: repLabel(d.rep || 0), mauvaise: (d.rep || 0) <= REP_BAD, bonne: (d.rep || 0) >= REP_GOOD },
       tableau: dashboard({ makuta: c.makuta, banque: (d.comptes || []).reduce((a, x) => a + bankAccrue(x, now), 0), biens: (d.inv || []).reduce((a, o) => a + ((SHOP.find(x => x.id === (o.objet || o.objet_id || o.id)) || {}).prix || 0), 0),
-        entreprises: (d.ent || []).reduce((a, e) => a + (e.capital || 0), 0), maison: d.logement && d.logement.statut === "proprio" ? houseOf(d.logement.quartier) : 0, flux: d.flux || {}, depots: d.dep || [], origine: d.origine || null, diplomas: d.dip || [], now }),
+        entreprises: (d.ent || []).reduce((a, e) => a + (e.capital || 0), 0), maison: d.logement && d.logement.statut === "proprio" ? houseOf(d.logement.quartier) : 0, flux: d.flux || {}, depots: d.dep || [], origine: d.origine || null, diplomas: d.dip || [], now, quartier: c.quartier, seed: c.look }),
       couple: { conjoint: d.conjoint || null, recues: [], envoyees: [], dot: DOT_MAKUTA },
       petitsBoulots: { liste: STREET_JOBS, dernier: d.lastStreet || null },
-      logement: { actuel: d.logement || null, quartiers: Object.keys(RENT).map(q => ({ quartier: q, loyer: rentOf(q), prix: houseOf(q) })), minAge: HOUSING_MIN_AGE },
+      logement: { actuel: d.logement || null, quartiers: Object.keys(RENT).map(q => ({ ...communeView(q), quartier: q, loyer: rentOf(q), prix: houseOf(q) })), minAge: HOUSING_MIN_AGE },
       annonces: this.market(d).map(a => ({ id: a.id, prix: a.prix, le: a.le, vendeur: a.vendeur, moi: !!a.moi, objet: SHOP.find(x => x.id === a.objet) })),
       ...shopView(d.inv || [], d.dep || [], d.ret || [], c.makuta, now, (d.gui || []).slice().reverse().slice(0, 30)),
       travail: { ...workView(d.job, d.lastShift, now), emploiEntreprise: d.boss ? companyJob(d.boss) : null },
@@ -63,7 +63,7 @@ const demo = {
           besoins: Object.fromEntries(Object.entries(kn).map(([x, y]) => [x, Math.round(y)])), makuta: k.makuta, prochainEntretien: a < 18 ? supportDue(k.entretienLe, k.neLe, now).next : null }; }),
       entretienParJour: SUPPORT_PER_DAY, demo: true,
       entreprises: companyView((d.ent || []).map(e => ({ ...e, employes: 0 })), { aVendre: demoOthers().filter(e => e.en_vente && !(d.achetees || []).includes(e.id)), offres: demoOthers().filter(e => !(d.achetees || []).includes(e.id)).slice(0, 6) }, now),
-      voyage: { quartiers: KINSHASA_QUARTIERS, prix: TAXI_FARE, fatigue: TAXI_ENERGY, villes: OTHER_CITIES },
+      voyage: { quartiers: KINSHASA_QUARTIERS, communes: COMMUNES.map(c => communeView(c.nom)), prix: TAXI_FARE, fatigue: TAXI_ENERGY, villes: OTHER_CITIES },
       elections: launchDemo.elections(this.me(d)),
       mouvements: d.mouvements || [],
       notifications: { actives: !!d.notif },
@@ -141,7 +141,7 @@ const demo = {
     const e = drawEntry(r), gift = BIRTH_GIFT + extra + (e.adulte ? e.epargne : 0);
     return { e, perso: { ...who, neLe: e.adulte ? now - birthShiftMs(e.age + .01) : now, updatedAt: now, hunger: 100, energy: 100, happiness: 80, health: 100, makuta: gift,
       talents: drawTalents(r).map(t => ({ ...t, discovered: false, hints: 0 })) },
-      origine: { classe: e.classe, adulte: e.adulte ? 1 : 0, maturite: e.adulte ? 0 : 100, arrive_le: now }, dip: e.diplomes.slice(), flux: { recu: gift } };
+      origine: { classe: e.classe, adulte: e.adulte ? 1 : 0, maturite: e.adulte ? 0 : 100, arrive_le: now, ...drawRole(r) }, dip: e.diplomes.slice(), flux: { recu: gift } };
   },
   addRep(d, n) { d.rep = Math.max(-100, Math.min(100, (d.rep || 0) + n)); },
   move(d, icone, texte) { d.mouvements = [{ icone, texte, par_consigne: 0, le: Date.now() }, ...(d.mouvements || [])].slice(0, 100); },
@@ -176,9 +176,10 @@ const demo = {
       const cause = deathCause(needsAt(d.perso), 0); if (cause) this.die(d, cause);
       this.rent(d);
       if (!d.lastEvent || Date.now() - d.lastEvent >= EVENT_EVERY_H * 36e5) {   // le destin (démo : même règle)
-        d.lastEvent = Date.now(); this.settle(d.perso); const e = drawEvent(), c0 = d.perso;
+        d.lastEvent = Date.now(); this.settle(d.perso); const c0 = d.perso, e = drawEvent(Math.random, { quartier: c0.quartier, camp: roleOf(d.origine, c0.look).camp });
         if (e) { let m = eventMoney(e); if (m < 0) m = -Math.min(-m, c0.makuta);
           c0.health = Math.max(1, Math.min(100, c0.health + (e.sante || 0))); c0.energy = Math.max(0, Math.min(100, c0.energy + (e.energie || 0))); c0.happiness = Math.max(0, Math.min(100, c0.happiness + (e.bonheur || 0))); c0.makuta += m;
+          if (e.rep) this.addRep(d, e.rep);
           this.move(d, e.icone, `${c0.firstName} ${e.texte}${m ? ` (${m > 0 ? "+" : "−"}${fmtMakuta(Math.abs(m))})` : ""}.`); }
       }
       // démo : un joueur simulé achète parfois tes annonces à un prix raisonnable
@@ -203,7 +204,7 @@ const demo = {
       if (offer.id === "bebe") {
         const A = this.arrive(r, who, now);
         d = { pseudo: body.pseudo, email: String(body.email || "").trim().toLowerCase(), inv: [], ret: [], accueil: false, enfants: [],
-          dep: [{ offre: offer.id, usd: offer.usd, makuta: 0, le: now }], perso: A.perso, origine: A.origine, dip: A.dip, flux: A.flux };
+          dep: [{ offre: offer.id, usd: offer.usd, makuta: 0, le: now }], perso: A.perso, origine: A.origine, dip: A.dip, flux: A.flux, rep: (ROLES.find(x => x.id === A.origine.role) || {}).rep || 0 };
         this.move(d, A.e.adulte ? "🧑🏾" : "👶", A.e.adulte ? `Le jeu a décidé : ${who.firstName} arrive à ${who.quartier} à ${A.e.age} ans (${classLabel(A.e.classe).toLowerCase()}). Il faut d'abord grandir avant les grandes décisions.` : `Le jeu a décidé : ${who.firstName} naît bébé à ${who.quartier}, dans une famille ${classLabel(A.e.classe).toLowerCase()}.`);
         store.set(LS_DEMO, d); store.set(LS_TOKEN, "demo");
         return { token: "demo", ...this.view(d), naissance: true };
@@ -233,7 +234,7 @@ const demo = {
         const vies = [...(d.vies || []), d.mort];
         const A = this.arrive(r, who, now, d.report || 0);
         d = { pseudo: d.pseudo, email: d.email, inv: [], ret: d.ret || [], accueil: false, enfants: [], notif: d.notif, vies, deuils: d.deuils || [],
-          dep: [...(d.dep || []), { offre: o.id, usd: o.usd, makuta: 0, le: now }], perso: A.perso, origine: A.origine, dip: A.dip, flux: A.flux };
+          dep: [...(d.dep || []), { offre: o.id, usd: o.usd, makuta: 0, le: now }], perso: A.perso, origine: A.origine, dip: A.dip, flux: A.flux, rep: (ROLES.find(x => x.id === A.origine.role) || {}).rep || 0 };
         this.move(d, A.e.adulte ? "🧑🏾" : "👶", A.e.adulte ? `Nouvelle vie : ${who.firstName} ${who.lastName} arrive à ${who.quartier} à ${A.e.age} ans.` : `Nouvelle vie : ${who.firstName} ${who.lastName} est né${who.sex === "F" ? "e" : ""} à ${who.quartier}.`);
         store.set(LS_DEMO, d); return { ...this.view(d), renaissance: true };
       }
@@ -539,8 +540,8 @@ const demo = {
       c.makuta += mk; this.flow(d, "recu", mk); store.set(LS_DEMO, d); return this.view(d);
     }
     if (path === "/api/retirer") {
-      const mk = Math.floor(Number(body.makuta) || 0), w = walletInfo(d.dep || [], c.makuta);
-      const no = cannotWithdraw(w, ageYears(c.neLe, Date.now()), c.makuta, mk, body.moyen, body.telephone);
+      const mk = Math.floor(Number(body.makuta) || 0), w = walletInfo(d.dep || [], c.makuta, Date.now(), d.ret || []);
+      const no = cannotWithdraw(w, c.makuta, mk, body.moyen, body.telephone);
       if (no) throw new Error(no);
       c.makuta -= mk; this.flow(d, "depense", mk);
       (d.ret = d.ret || []).push({ makuta: mk, usd: withdrawUsd(mk), statut: "demande", le: Date.now() });
@@ -661,7 +662,7 @@ function renderCity(v) {
   const cur = Lg.actuel;
   $("home").innerHTML = (cur ? `<div class="item"><span class="sw">${cur.statut === "proprio" ? "🏡" : "🏠"}</span><div class="t">${cur.statut === "proprio" ? "Ta parcelle" : "Location"} à ${esc(cur.quartier)}<small>${cur.statut === "proprio" ? "Tu es chez toi : plus de loyer." : `Loyer ${mk(cur.loyer)} par semaine, payé jusqu'au ${new Date(cur.paye_jusqu).toLocaleDateString("fr-FR")}. Impayé = expulsion.`}</small></div>${cur.statut === "loue" ? `<button class="mini" id="b-leave" type="button">Quitter</button>` : ""}</div>`
       : `<p style="font-size:13px;margin:0 0 8px">${p.age < Lg.minAge ? `Tu vis chez tes parents. Possible de louer à partir de ${Lg.minAge} ans.` : "Tu vis encore chez tes parents. Loue un logement (loyer chaque semaine) ou achète ta parcelle."}</p>`)
-    + (p.age >= Lg.minAge && (!cur || cur.statut !== "proprio") ? `<details style="margin-top:8px"><summary style="cursor:pointer;font-size:14px">Voir les quartiers et les prix</summary>${Lg.quartiers.map(q => `<div class="item"><span class="sw">📍</span><div class="t">${esc(q.quartier)}<small>Loyer ${mk(q.loyer)}/semaine · parcelle ${mk(q.prix)}</small></div>
+    + (p.age >= Lg.minAge && (!cur || cur.statut !== "proprio") ? `<details style="margin-top:8px"><summary style="cursor:pointer;font-size:14px">Voir les quartiers et les prix</summary>${Lg.quartiers.map(q => `<div class="item"><span class="sw">📍</span><div class="t">${esc(q.quartier)}<small>${q.zone ? esc(q.zone) + " · " : ""}Loyer ${mk(q.loyer)}/semaine · parcelle ${mk(q.prix)}${q.bon ? `<br><span style="color:var(--ok)">＋ ${esc(q.bon[0])}</span> · <span style="color:#f08a8d">− ${esc(q.mauvais[0])}</span>` : ""}</small></div>
         <button class="mini" data-rent="${esc(q.quartier)}" type="button" ${dis(p.makuta < q.loyer, `Il te manque ${mk(q.loyer - p.makuta)} pour louer ici.`)}>Louer</button><button class="mini fill" data-house="${esc(q.quartier)}" type="button" ${dis(p.makuta < q.prix, `Il te manque ${mk(q.prix - p.makuta)} pour acheter ici.`)}>Acheter</button></div>`).join("")}</details>` : "");
   const mine = A.filter(a => a.moi), others = A.filter(a => !a.moi);
   const inv = (v.inventaire || []).map(x => ({ ...x, it: v.boutique.find(b => b.id === x.objet) })).filter(x => x.it && x.it.type !== "nourriture");
@@ -684,6 +685,8 @@ $("market").onclick = e => {
 };
 
 // ---------------------------------------------------------------- tableau de bord du personnage
+// les bons et les mauvais côtés d'un environnement de la ville
+const quartierHtml = q => `<div class="qtr"><div>${q.bon.map(x => `<span class="good">＋ ${esc(x)}</span>`).join("")}</div><div>${q.mauvais.map(x => `<span class="bad">− ${esc(x)}</span>`).join("")}</div></div>`;
 function renderDash(v) {
   const T = v.tableau; if (!T) { $("dash-card").hidden = true; return; } $("dash-card").hidden = false;
   const R = T.richesse, A = T.argent, P = T.proprietaire, N = v.perso.besoins, M = T.maturite;
@@ -693,6 +696,9 @@ function renderDash(v) {
       <div><div class="need">Richesse accumulée</div><div style="font-family:var(--font-d);font-size:24px;color:var(--accent)">${mk(R.total)}</div></div>
       <div><div class="need">Classe sociale</div><div style="font-size:16px;font-weight:600">${esc(T.classe.actuelleLabel)}</div><small style="color:var(--muted)">${T.classe.naissanceLabel ? "Né" + (v.perso.sexe === "F" ? "e" : "") + " : " + esc(T.classe.naissanceLabel.toLowerCase()) : ""}</small></div>
     </div>
+    ${T.role ? `<h3 style="font-size:15px;margin:14px 0 6px">Son caractère et son rôle</h3>
+    <div class="role ${T.role.camp}"><b>${esc(T.role.roleNom)}</b> · ${esc(T.role.caractereNom)} <span class="camp">${T.role.camp === "bon" ? "👍 bon" : "👎 mauvais"}</span><small>${esc(T.role.roleDesc)} Donné par le jeu à l'arrivée.</small></div>` : ""}
+    ${T.quartier ? `<h3 style="font-size:15px;margin:14px 0 6px">Son quartier : ${esc(T.quartier.nom)} <small style="color:var(--muted);font-weight:400">· ${esc(T.quartier.zone)}</small></h3>${quartierHtml(T.quartier)}` : ""}
     <h3 style="font-size:15px;margin:14px 0 2px">Ce qu'il possède</h3>
     ${row("En poche", mk(R.poche))}${R.banque ? row("À la banque", mk(R.banque)) : ""}${R.biens ? row("Objets", mk(R.biens)) : ""}${R.entreprises ? row("Entreprises", mk(R.entreprises)) : ""}${R.maison ? row("Maison", mk(R.maison)) : ""}
     <h3 style="font-size:15px;margin:14px 0 6px">Ses besoins</h3>
@@ -784,9 +790,10 @@ function renderShop(v) {
 function renderWallet(v) {
   const w = v.portefeuille, p = v.perso, M = w.moyens || [];
   const keep = {}; document.querySelectorAll("#wallet input").forEach(i => keep[i.id || i.name + i.value] = i.type === "radio" ? i.checked : i.value);
-  const lock = w.retraitPossibleLe ? (w.retraitPossible ? "Retrait possible" : `Retrait possible à partir du ${new Date(w.retraitPossibleLe).toLocaleDateString("fr-FR")}`) : "Aucun dépôt";
+  const dLe = new Date(w.retraitPossibleLe).toLocaleDateString("fr-FR", { timeZone: "Africa/Kinshasa" });
+  const lock = w.retraitPossible ? "ouvert maintenant" : w.dejaRetireCeMois ? `déjà retiré ce mois, prochain le ${dLe}` : `à partir du ${dLe}`;
   const rows = [["Solde", mk(p.makuta)], ["Valeur au retrait", `${usd(w.valeurUsd)} (après ${Math.round(w.frais * 100)} % de frais)`], ["Taux", `1 $ = ${w.taux} e-makuta`],
-    ["Total déposé", usd(w.deposeUsd)], ["Blocage", `${w.blocageJours} jours après le premier dépôt · ${lock}`]];
+    ["Total déposé", usd(w.deposeUsd)], ["Retrait du mois", lock]];
   const inv = w.offres.filter(o => o.type === "investissement").map(o => `<div class="item"><span class="sw">💼</span><div class="t">${o.nom} · ${usd(o.usd)}<small>${o.desc} Tu reçois ${mk(o.usd * USD_UNITS)}.</small></div>
       <button class="mini fill" data-inv="${o.id}" type="button">Investir</button></div>`).join("");
   const nomMoyen = id => (M.find(m => m.id === id) || { nom: id }).nom;
@@ -797,18 +804,18 @@ function renderWallet(v) {
     .map(([t, x]) => `<div class="row"><span>${new Date(t).toLocaleDateString("fr-FR")}</span><span style="text-align:right">${x}</span></div>`).join("");
   const pick = sens => `<div class="paygrid">` + M.filter(m => sens === "dep" || !m.depotSeulement).map((m, i) =>
     `<label class="pay"><input type="radio" name="g-${sens}" value="${m.id}" ${i === 0 ? "checked" : ""}><span>${m.icone} ${m.nom}</span></label>`).join("") + `</div>`;
-  const wdNo = p.age < (w.retraitAge || 18) ? `Le retrait est réservé aux adultes (${w.retraitAge || 18} ans).` : !w.retraitPossible ? (w.retraitPossibleLe ? `Retrait possible à partir du ${new Date(w.retraitPossibleLe).toLocaleDateString("fr-FR")} (argent bloqué ${w.blocageJours} jours après le premier dépôt).` : "Il faut d'abord un dépôt.") : p.makuta < USD_UNITS ? `Il faut au moins ${mk(USD_UNITS)} (1 $) pour retirer.` : "";
-  const D = w.depot || { min: 1, max: 500 }, emk = Math.floor(p.makuta / (USD_UNITS / w.taux));
+  const wdNo = !w.retraitPossible ? (w.dejaRetireCeMois ? `Tu as déjà retiré ton dû ce mois-ci. Prochain retrait à partir du ${dLe}.` : `Le retrait se fait en fin de mois : à partir du ${dLe}.`) : p.makuta < USD_UNITS ? `Il faut au moins ${mk(USD_UNITS)} (1 $) pour retirer.` : "";
+  const D = w.depot || { min: 1 }, emk = Math.floor(p.makuta / (USD_UNITS / w.taux));
   $("wallet").innerHTML = rows.map(([a, b]) => `<div class="row"><span>${a}</span><span style="text-align:right">${b}</span></div>`).join("") +
     `<div class="guichet"><h2 style="font-size:16px;margin:0 0 4px">🏧 Guichet · déposer de l'argent</h2>
-      <p style="font-size:13px;margin:0 0 8px">Mobile money, carte ou espèces chez un agent, converti en e-makuta (1 $ = ${w.taux} e-makuta, sans frais au dépôt).</p>
+      <p style="font-size:13px;margin:0 0 8px">Mobile money, carte ou espèces chez un agent, converti en e-makuta (1 $ = ${w.taux} e-makuta, sans frais et sans plafond).</p>
       ${pick("dep")}
-      <div class="g-row"><input id="g-dep-usd" type="number" min="${D.min}" max="${D.max}" step="1" value="5" inputmode="decimal" aria-label="Montant à déposer en dollars"><span>$ → <b id="g-dep-out"></b></span></div>
+      <div class="g-row"><input id="g-dep-usd" type="number" min="${D.min}" step="1" value="5" inputmode="decimal" aria-label="Montant à déposer en dollars"><span>$ → <b id="g-dep-out"></b></span></div>
       <input id="g-dep-tel" class="g-tel" type="tel" inputmode="tel" autocomplete="tel" placeholder="Numéro mobile money (ex. 081 234 5678)" aria-label="Numéro mobile money">
       <p class="g-note" id="g-dep-note"></p>
       <button class="btn" id="b-deposit" type="button">Déposer</button></div>` +
     `<div class="guichet"><h2 style="font-size:16px;margin:0 0 4px">💸 Guichet · retirer mes e-makuta</h2>
-      <p style="font-size:13px;margin:0 0 8px">Tes e-makuta sont convertis en dollars et envoyés sur ton mobile money ou ta carte. Frais ${Math.round(w.frais * 100)} %. Dès ${w.retraitAge || 18} ans, ${w.blocageJours} jours après ton premier dépôt.</p>
+      <p style="font-size:13px;margin:0 0 8px">Tes e-makuta sont convertis en dollars et envoyés sur ton mobile money ou ta carte. Frais ${Math.round(w.frais * 100)} %. Chaque fin de mois (les ${w.fenetreJours || 3} derniers jours), tu peux retirer ton dû une fois, à tout âge.</p>
       ${pick("wd")}
       <div class="g-row"><input id="g-wd-mk" type="number" min="${w.taux}" max="${emk}" step="1" value="${emk}" inputmode="numeric" aria-label="Montant à retirer en e-makuta"><span>e-makuta → <b id="g-wd-out"></b></span></div>
       <input id="g-wd-tel" class="g-tel" type="tel" inputmode="tel" autocomplete="tel" placeholder="Numéro qui reçoit l'argent" aria-label="Numéro qui reçoit l'argent">
@@ -952,6 +959,7 @@ function renderTravel(v) {
   if (p.age < 12) { $("travel").innerHTML = `<p style="font-size:14px;margin:0">${p.prenom} se déplace avec ses parents. Il pourra prendre le taxi seul à 12 ans.</p>`; return; }
   $("travel").innerHTML = `<p style="font-size:14px;margin:0 0 8px">Tu es à <b>${esc(p.quartier)}</b>. Une course en taxi coûte ${mk(V.prix)} et un peu d'énergie. L'argent va au taxi d'un joueur.</p>
     <div class="chips">${V.quartiers.filter(q => q !== p.quartier).map(q => `<button class="chip" data-go="${q}" type="button">${q}</button>`).join("")}</div>
+    ${V.communes ? `<details style="margin-top:10px"><summary style="cursor:pointer;font-size:14px">Les communes de Kinshasa : bons et mauvais côtés</summary>${V.communes.map(c => `<div class="item" style="display:block"><b style="font-size:14px">${esc(c.nom)}</b> <small style="color:var(--muted)">· ${esc(c.zone)}</small>${quartierHtml(c)}</div>`).join("")}</details>` : ""}
     <h2 style="font-size:16px;margin:14px 0 6px">Autres villes</h2><div class="chips">${V.villes.map(c => `<button class="chip" type="button" aria-disabled="true" data-why="${esc(c)} ouvrira plus tard, après Kinshasa.">${c} · bientôt</button>`).join("")}</div>`;
 }
 $("travel").onclick = e => { const b = e.target.closest("[data-go]"); if (b) act("/api/voyager", { quartier: b.dataset.go }, v => `Bienvenue à ${v.arrive} !`); };
@@ -1102,10 +1110,11 @@ $("wallet").oninput = walletLive;
 $("wallet").onchange = walletLive;
 $("wallet").onclick = e => {
   const b = e.target.closest("[data-inv]");
-  if (b) { const o = state.portefeuille.offres.find(x => x.id === b.dataset.inv); return act("/api/investir", { offre: o.id }, v => `Investissement simulé : ${mk(o.usd * USD_UNITS)} ajoutés. Retrait possible après 3 mois.`); }
+  if (b) { const o = state.portefeuille.offres.find(x => x.id === b.dataset.inv); return act("/api/investir", { offre: o.id }, v => `Investissement simulé : ${mk(o.usd * USD_UNITS)} ajoutés. Retrait de ton dû chaque fin de mois.`); }
   const moyen = sens => (document.querySelector(`input[name=g-${sens}]:checked`) || {}).value, w = state.portefeuille;
   if (e.target.id === "b-deposit") act("/api/guichet/deposer", { moyen: moyen("dep"), usd: Number($("g-dep-usd").value), telephone: $("g-dep-tel").value },
-    v => `Dépôt ${w.simulation ? "simulé " : ""}reçu : +${mk(Math.round(Number($("g-dep-usd").value) * USD_UNITS))} dans ta poche.`);
+    v => { if (v.paiement) { if (v.paiement.redirect) setTimeout(() => location.assign(v.paiement.redirect), 1200); return v.paiement.message; }
+      return `Dépôt ${w.simulation ? "simulé " : ""}reçu : +${mk(Math.round(Number($("g-dep-usd").value) * USD_UNITS))} dans ta poche.`; });
   if (e.target.id === "b-withdraw") act("/api/retirer", { moyen: moyen("wd"), makuta: Math.floor(Number($("g-wd-mk").value) * USD_UNITS / w.taux), telephone: $("g-wd-tel").value },
     v => `Retrait ${w.simulation ? "simulé" : "demandé"} : ${usd(v.portefeuille.retraits.at(-1).usd)} vers ${(w.moyens.find(m => m.id === moyen("wd")) || {}).nom}.`);
 };

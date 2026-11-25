@@ -113,7 +113,8 @@ const FIRST_M = ["Junior", "Patient", "Glody", "Merveil", "Exaucé", "Christian"
 const FIRST_F = ["Grâce", "Merveille", "Divine", "Plamedie", "Exaucée", "Gloria", "Ornella", "Bénédicte", "Naomie", "Rachel", "Dorcas", "Prisca"];
 const LAST = ["Mbuyi", "Kabeya", "Ilunga", "Lukusa", "Mukendi", "Tshibangu", "Kasongo", "Nzuzi", "Makiese", "Lutumba", "Mbala", "Kalala", "Mputu", "Kanku"];
 FIRST_NAMES.M = FIRST_M; FIRST_NAMES.F = FIRST_F;
-const QUARTIERS = ["Gombe", "Lingwala", "Kinshasa", "Barumbu", "Kalamu", "Limete", "Kasa-Vubu", "Bandalungwa"];
+// toutes les communes de la ville-province de Kinshasa (+ Matonge, quartier célèbre de Kalamu) : voir COMMUNES plus bas
+const QUARTIERS = () => COMMUNES.map(c => c.nom);
 
 export function newIdentity(r, sex) {
   const s = sex || (r() < 0.5 ? "F" : "M");
@@ -123,7 +124,7 @@ export function newIdentity(r, sex) {
     sex: s,
     firstName: pick(s === "F" ? FIRST_F : FIRST_M),
     lastName: last,
-    quartier: pick(QUARTIERS),
+    quartier: pick(QUARTIERS()),
     mother: pick(FIRST_F) + " " + last,
     father: pick(FIRST_M) + " " + last,
     look: Math.floor(r() * 1e6),
@@ -181,7 +182,6 @@ export const UNITS_PER_MAKUTA = 20;        // makuta par e-makuta
 export const USD_UNITS = USD_TO_MAKUTA * UNITS_PER_MAKUTA;   // makuta par dollar (100)
 export const fmtMakuta = n => (n / UNITS_PER_MAKUTA).toLocaleString("fr-FR", { minimumFractionDigits: n % UNITS_PER_MAKUTA ? 2 : 0, maximumFractionDigits: 2 }) + " e-makuta";
 export const WITHDRAW_FEE = 0.10;          // 10 % de frais au retrait (finance la ville et le service)
-export const LOCK_DAYS = 90;               // argent bloqué 3 mois réels avant tout retrait
 export const OFFERS = [
   { id: "bebe", nom: "Naissance (le jeu décide)", type: "entree", usd: BIRTH_USD, fraisAdmin: ADMIN_FEE_USD, desc: "Le jeu décide de ton arrivée : bébé dans une famille, ou jeune adulte qui doit d'abord grandir. Ta classe sociale et tes études de départ sont tirées au sort. Sur les 15 $, 5 $ font vivre le jeu et 10 $ (50 e-makuta) te sont confiés (à tes parents si tu nais bébé)." },
   { id: "parent", nom: "Naître parent", type: "entree", usd: 5000, desc: "Tu nais adulte (25 ans), tes talents sont déjà connus et tu reçois 250 e-makuta d'épargne.", age: 25, epargne: 5000 },
@@ -196,13 +196,22 @@ export function birthShiftMs(years) {
 }
 
 // état du portefeuille : quand le retrait devient possible et combien on recevrait
-export function walletInfo(deposits, makuta, now = Date.now()) {
-  const first = deposits.length ? Math.min(...deposits.map(d => d.le)) : null;
-  const unlock = first == null ? null : first + LOCK_DAYS * DAY;
+// Retrait : chaque fin de mois (les derniers jours du mois, heure de Kinshasa), une fois par mois, à tout âge.
+export const WITHDRAW_WINDOW_DAYS = 3;
+const KIN_MS = 36e5;   // Kinshasa = UTC+1
+export function withdrawWindow(now = Date.now()) {
+  const k = new Date(now + KIN_MS), y = k.getUTCFullYear(), m = k.getUTCMonth();
+  const startOf = (yy, mm) => Date.UTC(yy, mm, new Date(Date.UTC(yy, mm + 1, 0)).getUTCDate() - WITHDRAW_WINDOW_DAYS + 1) - KIN_MS;
+  const start = startOf(y, m), end = Date.UTC(y, m + 1, 1) - KIN_MS;
+  return { start, end, open: now >= start && now < end, next: now < start ? start : startOf(y, m + 1) };
+}
+export function walletInfo(deposits, makuta, now = Date.now(), retraits = []) {
+  const win = withdrawWindow(now), done = retraits.some(r => r.le >= win.start && r.le < win.end);
+  const ok = win.open && !done;
   return {
-    simulation: !REAL_MONEY, taux: USD_TO_MAKUTA, frais: WITHDRAW_FEE, blocageJours: LOCK_DAYS,
+    simulation: !REAL_MONEY, taux: USD_TO_MAKUTA, frais: WITHDRAW_FEE, fenetreJours: WITHDRAW_WINDOW_DAYS, dejaRetireCeMois: done,
     deposeUsd: deposits.reduce((s, d) => s + d.usd, 0),
-    retraitPossibleLe: unlock, retraitPossible: unlock != null && now >= unlock,
+    retraitPossibleLe: ok ? win.start : win.open ? win.next : win.start, retraitPossible: ok,
     valeurUsd: Math.floor(makuta / USD_UNITS * (1 - WITHDRAW_FEE) * 100) / 100,
   };
 }
@@ -212,8 +221,8 @@ export function shopView(inv, dep, ret, makuta, now, gui = []) {
   return {
     boutique: SHOP,
     inventaire: inv.map(x => ({ id: x.id, objet: x.objet_id, porte: !!x.porte, le: x.acquis_le })),
-    portefeuille: { ...walletInfo(dep, makuta, now), offres: OFFERS, depots: dep, retraits: ret,
-      moyens: PAY_METHODS, guichet: gui, depot: DEPOSIT_USD, retraitAge: WITHDRAW_MIN_AGE },
+    portefeuille: { ...walletInfo(dep, makuta, now, ret), offres: OFFERS, depots: dep, retraits: ret,
+      moyens: PAY_METHODS, guichet: gui, depot: DEPOSIT_USD },
   };
 }
 
@@ -412,7 +421,7 @@ export function cannotStreetJob(j, age, energy, last, now = Date.now()) {
 }
 // Logement : à partir de 18 ans on loue (loyer prélevé chaque semaine réelle) ou on achète sa parcelle.
 // Un loyer impayé = expulsion (retour chez les parents) et réputation en baisse.
-export const RENT = { Gombe: 900, Ngaliema: 700, Limete: 500, Lingwala: 400, Kinshasa: 400, Barumbu: 350, Kalamu: 350, "Kasa-Vubu": 350, Bandalungwa: 350, Matonge: 300, Lemba: 300, Masina: 250 };
+// RENT (loyer par commune) est défini plus bas, avec COMMUNES
 export const HOUSE_WEEKS = 40;          // une parcelle coûte 40 semaines de loyer
 export const HOUSING_MIN_AGE = 18;
 export const rentOf = q => RENT[q] || 350;
@@ -433,12 +442,19 @@ export const LIFE_EVENTS = [
   { id: "oncle", icone: "🎁", texte: "un oncle de Mbandaka a envoyé un cadeau", makuta: [100, 400], bonheur: 8, p: .08 },
   { id: "fete", icone: "🎉", texte: "grande fête dans le quartier, tout le monde a dansé", bonheur: 12, p: .12 },
   { id: "dette", icone: "🤝", texte: "un ami a remboursé une vieille dette", makuta: [60, 200], p: .06 },
+  { id: "vol", icone: "👜", texte: "s'est fait voler son argent dans la rue", makuta: [-200, -60], bonheur: -6, p: .05 },
+  { id: "entraide", icone: "🫶", texte: "a aidé un voisin dans le besoin, le quartier en parle en bien", bonheur: 8, rep: 3, p: .08, camp: "bon" },
+  { id: "arnaque", icone: "🃏", texte: "a arnaqué un passant au marché, sa réputation en prend un coup", makuta: [80, 250], rep: -4, p: .08, camp: "mauvais" },
 ];
 export const EVENT_EVERY_H = 20;
-export function drawEvent(r = Math.random) {
+export function drawEvent(r = Math.random, ctx = {}) {
   if (!(SET.destin > 0)) return null;
+  const Q = communeOf(ctx.quartier), mult = (Q && Q.risques) || {};
+  // le quartier change QUELS événements arrivent, pas leur fréquence totale
+  const list = LIFE_EVENTS.filter(e => !e.camp || e.camp === ctx.camp);
+  const base = list.reduce((t, e) => t + e.p, 0), w = list.map(e => e.p * (mult[e.id] || 1)), k = base / w.reduce((t, v) => t + v, 0);
   let x = r() / SET.destin;
-  for (const e of LIFE_EVENTS) { if (x < e.p) return e; x -= e.p; }
+  for (let i = 0; i < list.length; i++) { const pe = w[i] * k; if (x < pe) return list[i]; x -= pe; }
   return null;   // journée calme
 }
 export function eventMoney(e, r = Math.random) { return e.makuta ? Math.round(e.makuta[0] + r() * (e.makuta[1] - e.makuta[0])) : 0; }
@@ -519,7 +535,7 @@ export const EMPLOYEE_YIELD = 1.6;
 export const RESELL_RATE = 0.5;      // revendre un objet : la moitié de son prix
 export const TAXI_FARE = 200;        // course en taxi dans Kinshasa (10 e-makuta)
 export const TAXI_ENERGY = 5;
-export const KINSHASA_QUARTIERS = ["Gombe", "Lingwala", "Kinshasa", "Barumbu", "Kalamu", "Limete", "Kasa-Vubu", "Bandalungwa", "Matonge", "Ngaliema", "Masina", "Lemba"];
+// KINSHASA_QUARTIERS est défini plus bas, avec COMMUNES
 export const OTHER_CITIES = ["Lubumbashi", "Goma", "Kisangani", "Matadi"];
 export function companyAccrue(e, now = Date.now()) {
   const t = COMPANY_TYPES.find(x => x.id === e.type), since = e.maj_le || e.cree_le;
@@ -850,7 +866,7 @@ export function cannotDecide(o, prenom, now = Date.now()) {
   return m >= MATURE_AT ? null : `${prenom} vient d'arriver dans la vie adulte et doit d'abord grandir avant les grandes décisions (maturité ${m}/${MATURE_AT}). Le temps, le travail et les études font mûrir.`;
 }
 // tableau de bord : richesse, flux d'argent, part du propriétaire réel
-export function dashboard({ makuta, banque = 0, biens = 0, entreprises = 0, maison = 0, flux = {}, depots = [], origine = null, diplomas = [], now = Date.now() }) {
+export function dashboard({ makuta, banque = 0, biens = 0, entreprises = 0, maison = 0, flux = {}, depots = [], origine = null, diplomas = [], now = Date.now(), quartier = null, seed = 1 }) {
   const total = makuta + banque + biens + entreprises + maison;
   const naissances = depots.filter(d => d.offre === "bebe").length, depose = depots.reduce((s, d) => s + d.usd, 0);
   return {
@@ -861,6 +877,8 @@ export function dashboard({ makuta, banque = 0, biens = 0, entreprises = 0, mais
     classe: { naissance: origine ? origine.classe : null, naissanceLabel: origine ? classLabel(origine.classe) : null, actuelle: classOfWealth(total), actuelleLabel: classLabel(classOfWealth(total)) },
     etudes: { niveau: eduLevel(diplomas), label: eduLabel(eduLevel(diplomas)), bonus: EDU_LEVELS[eduRank(eduLevel(diplomas))].bonus },
     maturite: { points: maturityOf(origine, now), max: MATURE_AT, arriveAdulte: !!(origine && origine.adulte) },
+    role: roleOf(origine, seed),
+    quartier: communeView(quartier),
   };
 }
 
@@ -874,25 +892,92 @@ export const PAY_METHODS = [
   { id: "carte", nom: "Carte bancaire", type: "carte", icone: "💳" },
   { id: "agent", nom: "Espèces chez un agent", type: "especes", icone: "💵", depotSeulement: true },
 ];
-export const DEPOSIT_USD = { min: 1, max: 500 };
-export const WITHDRAW_MIN_AGE = 18;
+export const DEPOSIT_USD = { min: 1 };   // pas de plafond (décision du propriétaire, 25/11)
 // on ne garde jamais le numéro complet : seulement les 3 derniers chiffres pour l'historique
 export function maskPhone(s) { const d = String(s || "").replace(/\D/g, ""); return d.length >= 9 && d.length <= 12 ? "•••• " + d.slice(-3) : null; }
 export const withdrawUsd = mk => Math.floor(mk / USD_UNITS * (1 - WITHDRAW_FEE) * 100) / 100;
 export function cannotDeposit(moyen, usd, phone) {
   const m = PAY_METHODS.find(x => x.id === moyen);
   if (!m) return "Choisis un moyen de paiement.";
-  if (!(usd >= DEPOSIT_USD.min && usd <= DEPOSIT_USD.max)) return `Dépôt entre ${DEPOSIT_USD.min} $ et ${DEPOSIT_USD.max} $.`;
+  if (!Number.isFinite(usd) || usd < DEPOSIT_USD.min) return `Dépôt minimum : ${DEPOSIT_USD.min} $.`;
   if (m.type === "mobile" && !maskPhone(phone)) return "Numéro de téléphone invalide (9 à 12 chiffres).";
   return null;
 }
-export function cannotWithdraw(w, age, makuta, mk, moyen, phone) {
+export function cannotWithdraw(w, makuta, mk, moyen, phone) {
   const m = PAY_METHODS.find(x => x.id === moyen);
-  if (age < WITHDRAW_MIN_AGE) return `Le retrait est réservé aux adultes (${WITHDRAW_MIN_AGE} ans).`;
-  if (!w.retraitPossible) return w.retraitPossibleLe ? `Retrait possible à partir du ${new Date(w.retraitPossibleLe).toLocaleDateString("fr-FR")} (argent bloqué ${LOCK_DAYS} jours après le premier dépôt).` : "Il faut d'abord un dépôt.";
+  if (!w.retraitPossible) return w.dejaRetireCeMois ? `Tu as déjà retiré ton dû ce mois-ci. Prochain retrait à partir du ${new Date(w.retraitPossibleLe).toLocaleDateString("fr-FR", { timeZone: "Africa/Kinshasa" })}.`
+    : `Le retrait se fait en fin de mois : à partir du ${new Date(w.retraitPossibleLe).toLocaleDateString("fr-FR", { timeZone: "Africa/Kinshasa" })}.`;
   if (!m || m.depotSeulement) return "Choisis où recevoir l'argent.";
   if (!(mk >= USD_UNITS)) return `Minimum ${USD_TO_MAKUTA} e-makuta (1 $).`;
   if (mk > makuta) return "Tu n'as pas assez d'e-makuta en poche.";
   if (m.type === "mobile" && !maskPhone(phone)) return "Numéro de téléphone invalide (9 à 12 chiffres).";
   return null;
+}
+
+// ---------------------------------------------------------------- les communes de Kinshasa (ville et province)
+// Chaque environnement a ses bons et ses mauvais côtés. « risques » multiplie la chance des événements du destin.
+export const COMMUNES = [
+  { nom: "Gombe", zone: "Centre-ville", loyer: 900, bon: ["Quartier d'affaires, banques et ministères", "Rues sûres, beaucoup de policiers", "Courant et eau presque tout le temps"], mauvais: ["Tout est cher", "Embouteillages chaque jour"], risques: { vol: .5, coupure: .4, inondation: .5, paludisme: .7 } },
+  { nom: "Lingwala", zone: "Centre", loyer: 400, bon: ["Proche du centre-ville", "Radio, télé et culture"], mauvais: ["Quartier bruyant", "Ruelles serrées"], risques: { vol: 1.1, coupure: 1 } },
+  { nom: "Kinshasa", zone: "Centre", loyer: 400, bon: ["À côté du Grand Marché : beaucoup de commerce"], mauvais: ["Foule et pickpockets", "Embouteillages"], risques: { vol: 1.4, fete: 1.1 } },
+  { nom: "Barumbu", zone: "Centre", loyer: 350, bon: ["Vieux quartier plein d'histoire", "Proche du fleuve et du port"], mauvais: ["Maisons serrées", "Inondations à la saison des pluies"], risques: { inondation: 1.4, vol: 1.2 } },
+  { nom: "Kintambo", zone: "Ouest", loyer: 400, bon: ["Grand marché de Kintambo Magasin", "Bien desservi par les bus"], mauvais: ["Bruit et circulation"], risques: { vol: 1.1 } },
+  { nom: "Ngaliema", zone: "Ouest", loyer: 700, bon: ["Quartiers résidentiels calmes", "Vue sur le fleuve, collines vertes"], mauvais: ["Loin du centre pour les petits budgets", "Érosions sur certaines pentes"], risques: { vol: .7, inondation: .8, fete: .8 } },
+  { nom: "Bandalungwa", zone: "Cité", loyer: 350, bon: ["« Bandal » : ambiance et musique", "Bonne entente entre voisins"], mauvais: ["Soirées bruyantes", "Coupures de courant"], risques: { fete: 1.4, coupure: 1.2 } },
+  { nom: "Kasa-Vubu", zone: "Cité", loyer: 350, bon: ["Commerces et marchés proches", "Animé de jour comme de nuit"], mauvais: ["Embouteillages", "Petits vols"], risques: { vol: 1.2, fete: 1.2 } },
+  { nom: "Kalamu", zone: "Cité", loyer: 350, bon: ["Stade Tata Raphaël, sport et loisirs", "Ambiance de quartier"], mauvais: ["La rivière Kalamu déborde parfois"], risques: { inondation: 1.4, fete: 1.2 } },
+  { nom: "Matonge", zone: "Cité (Kalamu)", loyer: 300, bon: ["Cœur de la rumba et des nuits de Kinshasa", "Maquis et terrasses partout"], mauvais: ["Bruit la nuit", "Pickpockets dans la foule"], risques: { fete: 1.6, vol: 1.4 } },
+  { nom: "Ngiri-Ngiri", zone: "Cité", loyer: 300, bon: ["Quartier populaire et solidaire", "Loyers abordables"], mauvais: ["Ruelles inondées quand il pleut"], risques: { inondation: 1.3 } },
+  { nom: "Makala", zone: "Cité", loyer: 250, bon: ["Loyers bas", "Petits commerces partout"], mauvais: ["Quartier très peuplé", "Insécurité la nuit"], risques: { vol: 1.4, paludisme: 1.1 } },
+  { nom: "Bumbu", zone: "Cité", loyer: 220, bon: ["Loyers très bas"], mauvais: ["Inondations fréquentes", "Routes en mauvais état"], risques: { inondation: 1.6, paludisme: 1.2 } },
+  { nom: "Selembao", zone: "Cité", loyer: 220, bon: ["Collines et grand air", "Loyers bas"], mauvais: ["Érosions dangereuses", "Peu de transport"], risques: { inondation: 1.5, vol: 1.2 } },
+  { nom: "Ngaba", zone: "Est", loyer: 280, bon: ["Proche de l'université (UNIKIN)", "Beaucoup d'étudiants"], mauvais: ["Rond-point Ngaba toujours bouché"], risques: { vol: 1.1 } },
+  { nom: "Lemba", zone: "Est", loyer: 300, bon: ["Université et écoles : on étudie bien ici", "Quartier vivant"], mauvais: ["Coupures d'eau et de courant"], risques: { coupure: 1.3 } },
+  { nom: "Limete", zone: "Est", loyer: 500, bon: ["Zone industrielle : beaucoup d'emplois", "Grand boulevard Lumumba"], mauvais: ["Pollution des usines", "Circulation lourde"], risques: { accident: 1.4, vol: .9 } },
+  { nom: "Matete", zone: "Est", loyer: 280, bon: ["Grand marché de Matete", "Ambiance populaire"], mauvais: ["Inondations", "Petits vols au marché"], risques: { inondation: 1.3, vol: 1.2 } },
+  { nom: "Kisenso", zone: "Est", loyer: 200, bon: ["Loyers parmi les plus bas", "Vie de quartier simple"], mauvais: ["Érosions et routes coupées", "Loin de tout"], risques: { inondation: 1.6, paludisme: 1.2 } },
+  { nom: "Masina", zone: "Est", loyer: 250, bon: ["Très animé, marché de la Liberté", "Proche de l'aéroport de Ndjili"], mauvais: ["Inondations", "Quartier surpeuplé"], risques: { inondation: 1.4, vol: 1.2, fete: 1.1 } },
+  { nom: "Ndjili", zone: "Est", loyer: 260, bon: ["Aéroport international tout près", "Quartiers bien tracés"], mauvais: ["Bruit des avions", "Coupures de courant"], risques: { coupure: 1.3 } },
+  { nom: "Kimbanseke", zone: "Est", loyer: 200, bon: ["Commune la plus peuplée : beaucoup de clients", "Terrains pas chers"], mauvais: ["Peu de routes goudronnées", "Insécurité la nuit"], risques: { vol: 1.4, paludisme: 1.2, inondation: 1.2 } },
+  { nom: "Mont-Ngafula", zone: "Province (sud)", loyer: 450, bon: ["Collines vertes et air frais", "Grandes parcelles"], mauvais: ["Loin du centre", "Érosions"], risques: { vol: .8, inondation: 1.2, paludisme: 1.1 } },
+  { nom: "Nsele", zone: "Province (est)", loyer: 220, bon: ["Champs et élevage : on peut cultiver", "Calme et nature, bord du fleuve"], mauvais: ["Très loin du centre", "Moustiques et paludisme"], risques: { paludisme: 1.5, vol: .6, coupure: 1.3 } },
+  { nom: "Maluku", zone: "Province (rurale)", loyer: 150, bon: ["Plus grande commune : nature, fleuve et pêche", "Vie très bon marché"], mauvais: ["Presque pas de transport", "Peu d'hôpitaux et beaucoup de paludisme"], risques: { paludisme: 1.6, vol: .5, coupure: 1.5, fete: .7 } },
+];
+export const RENT = Object.fromEntries(COMMUNES.map(c => [c.nom, c.loyer]));
+export const KINSHASA_QUARTIERS = COMMUNES.map(c => c.nom);
+export const communeOf = q => COMMUNES.find(c => c.nom === q) || null;
+export function communeView(q) {
+  const c = communeOf(q); if (!c) return null;
+  return { nom: c.nom, zone: c.zone, loyer: c.loyer, bon: c.bon, mauvais: c.mauvais };
+}
+
+// ---------------------------------------------------------------- caractère et rôle (donnés par le serveur à l'inscription)
+export const CARACTERES = [
+  { id: "honnete", nom: "Honnête", camp: "bon" }, { id: "travailleur", nom: "Travailleur", camp: "bon" }, { id: "genereux", nom: "Généreux", camp: "bon" },
+  { id: "courageux", nom: "Courageux", camp: "bon" }, { id: "patient", nom: "Patient", camp: "bon" }, { id: "loyal", nom: "Loyal", camp: "bon" },
+  { id: "menteur", nom: "Menteur", camp: "mauvais" }, { id: "paresseux", nom: "Paresseux", camp: "mauvais" }, { id: "avare", nom: "Avare", camp: "mauvais" },
+  { id: "colerique", nom: "Colérique", camp: "mauvais" }, { id: "jaloux", nom: "Jaloux", camp: "mauvais" }, { id: "ruse", nom: "Rusé et malhonnête", camp: "mauvais" },
+];
+export const ROLES = [
+  { id: "voisin", nom: "Bon voisin", camp: "bon", desc: "Aide les gens de son quartier. Sa réputation monte avec le temps.", rep: 10 },
+  { id: "entrepreneur", nom: "Entrepreneur honnête", camp: "bon", desc: "Veut créer des emplois et faire grandir le quartier.", rep: 5 },
+  { id: "protecteur", nom: "Protecteur du quartier", camp: "bon", desc: "Défend les plus faibles et respecte la loi.", rep: 10 },
+  { id: "educateur", nom: "Éducateur", camp: "bon", desc: "Aime apprendre et transmettre aux plus jeunes.", rep: 5 },
+  { id: "soignant", nom: "Soignant de cœur", camp: "bon", desc: "S'occupe des malades et des anciens.", rep: 5 },
+  { id: "escroc", nom: "Petit escroc", camp: "mauvais", desc: "Cherche l'argent facile en trompant les autres.", rep: -10 },
+  { id: "pickpocket", nom: "Voleur à la tire", camp: "mauvais", desc: "Profite de la foule des marchés. La police le surveille.", rep: -10 },
+  { id: "trafiquant", nom: "Trafiquant", camp: "mauvais", desc: "Fait des affaires louches dans l'ombre.", rep: -5 },
+  { id: "bagarreur", nom: "Fauteur de troubles", camp: "mauvais", desc: "Se dispute facilement et cherche la bagarre.", rep: -5 },
+  { id: "usurier", nom: "Usurier", camp: "mauvais", desc: "Prête de l'argent à des taux injustes.", rep: -5 },
+];
+export const GOOD_ROLE_CHANCE = 0.7;
+export function drawRole(r = Math.random) {
+  const camp = r() < GOOD_ROLE_CHANCE ? "bon" : "mauvais", pick = a => a[Math.floor(r() * a.length)];
+  return { camp, caractere: pick(CARACTERES.filter(c => c.camp === camp)).id, role: pick(ROLES.filter(x => x.camp === camp)).id };
+}
+// un personnage né avant cette règle reçoit quand même un rôle, toujours le même (tiré de son apparence)
+export function roleOf(o, seed) {
+  const d = o && o.role ? { camp: o.camp, caractere: o.caractere, role: o.role } : drawRole(rng((seed || 1) ^ 0x5bd1e995));
+  const c = CARACTERES.find(x => x.id === d.caractere) || CARACTERES[0], R = ROLES.find(x => x.id === d.role) || ROLES[0];
+  return { camp: d.camp, caractere: c.id, caractereNom: c.nom, role: R.id, roleNom: R.nom, roleDesc: R.desc };
 }

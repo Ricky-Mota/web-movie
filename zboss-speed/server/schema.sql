@@ -250,7 +250,8 @@ CREATE TABLE IF NOT EXISTS logements (personnage_id TEXT PRIMARY KEY, statut TEX
 CREATE TABLE IF NOT EXISTS reglages (cle TEXT PRIMARY KEY, valeur REAL NOT NULL, maj_le INTEGER NOT NULL);
 
 -- origine du personnage : classe sociale de naissance, arrivée adulte (décidée par le jeu) et maturité
-CREATE TABLE IF NOT EXISTS origines (personnage_id TEXT PRIMARY KEY, classe TEXT NOT NULL, adulte INTEGER NOT NULL DEFAULT 0, maturite INTEGER NOT NULL DEFAULT 100, arrive_le INTEGER NOT NULL);
+CREATE TABLE IF NOT EXISTS origines (personnage_id TEXT PRIMARY KEY, classe TEXT NOT NULL, adulte INTEGER NOT NULL DEFAULT 0, maturite INTEGER NOT NULL DEFAULT 100, arrive_le INTEGER NOT NULL, caractere TEXT, role TEXT, camp TEXT);
 
 -- guichet : dépôts et retraits avec moyen de paiement (numéro masqué, jamais complet). simule = 1 tant que l'argent réel n'est pas autorisé.
-CREATE TABLE IF NOT EXISTS guichet (id TEXT PRIMARY KEY, compte_id TEXT NOT NULL, sens TEXT NOT NULL, moyen TEXT NOT NULL, numero TEXT, usd REAL NOT NULL, makuta INTEGER NOT NULL, statut TEXT NOT NULL DEFAULT 'simule', simule INTEGER NOT NULL DEFAULT 1, le INTEGER NOT NULL);
+-- statut : simule, en_attente (passerelle), traitement, paye, echoue.
+CREATE TABLE IF NOT EXISTS guichet (id TEXT PRIMARY KEY, compte_id TEXT NOT NULL, personnage_id TEXT, ref_partenaire TEXT, sens TEXT NOT NULL, moyen TEXT NOT NULL, numero TEXT, usd REAL NOT NULL, makuta INTEGER NOT NULL, statut TEXT NOT NULL DEFAULT 'simule', simule INTEGER NOT NULL DEFAULT 1, le INTEGER NOT NULL);
