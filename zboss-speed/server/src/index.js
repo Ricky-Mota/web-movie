@@ -2,13 +2,25 @@
 // Le serveur est l'arbitre : il décide de l'âge, des talents et de l'argent ; le téléphone ne fait qu'afficher.
 import {
   ageYears, stageOf, STAGES, realMsUntil, TALENTS, ACTIVITIES, rng, drawTalents, doActivity,
-  needsAt, newIdentity, BIRTH_GIFT, SHOP, cannotBuy, OFFERS, USD_TO_MAKUTA, USD_UNITS, fmtMakuta, WITHDRAW_FEE, walletInfo, birthShiftMs, REAL_MONEY, shopView, familyOf, JOBS, payFor, cannotWork, workView, cannotApply, FORMATIONS, cannotEnroll, attendCourse, schoolView, SUPPORT_PER_DAY, HOST_MIN_AGE, MAX_CHILDREN, supportDue, unpaidEffect, familyShare, DAY, LAUNCH_RULES, launchStatus, canSignupBeforeLaunch, COMPANY_TYPES, cannotOpenCompany, companyName, companyView, companyAccrue, companyJob, EMPLOYEE_YIELD, RESELL_RATE, TAXI_FARE, TAXI_ENERGY, KINSHASA_QUARTIERS, OTHER_CITIES, STATE_ID, TAX, POSTS, PUBLIC_JOBS, BANKS, bankAccrue, INSURERS, CARE, careCost, OPERATORS, RECHARGES, CALL, stateView, ELECTION_EVERY, VOTER_MIN_AGE, electionCalendar, tally, CRIMES, catchChance, sentence, inPrison, PRISON_BLOCKED, PRISON_HOURS, BAIL, RECIDIVE, policeView,
+  needsAt, newIdentity, BIRTH_GIFT, BIRTH_USD, ADMIN_FEE_USD, NEGLECT_STEAL_AGE, neglectStealChance, NEGLECT_DANGER_DAYS, NEGLECT_DANGER_HEALTH, splitEstate, deathCause, familyShareRate, REP, REP_BAD, REP_GOOD, repLabel, repDiscount, DOT_MAKUTA, cannotMarry, STREET_JOBS, cannotStreetJob, RENT, rentOf, houseOf, rentDue, HOUSING_MIN_AGE, SALE_TAX, LIFE_EVENTS, EVENT_EVERY_H, drawEntry, classOfWealth, classLabel, eduLabel, MATURITY_GAIN, BIG_DECISIONS, cannotDecide, dashboard, SETTINGS, SET, applySettings, food, drawEvent, eventMoney, lifeAlbum, SHOP, cannotBuy, OFFERS, USD_TO_MAKUTA, USD_UNITS, fmtMakuta, WITHDRAW_FEE, walletInfo, birthShiftMs, REAL_MONEY, shopView, familyOf, JOBS, payFor, cannotWork, workView, cannotApply, FORMATIONS, cannotEnroll, attendCourse, schoolView, SUPPORT_PER_DAY, HOST_MIN_AGE, MAX_CHILDREN, supportDue, unpaidEffect, familyShare, DAY, LAUNCH_RULES, launchStatus, canSignupBeforeLaunch, COMPANY_TYPES, cannotOpenCompany, companyName, companyView, companyAccrue, companyJob, EMPLOYEE_YIELD, RESELL_RATE, TAXI_FARE, TAXI_ENERGY, KINSHASA_QUARTIERS, OTHER_CITIES, STATE_ID, TAX, POSTS, PUBLIC_JOBS, BANKS, bankAccrue, INSURERS, CARE, careCost, OPERATORS, RECHARGES, CALL, stateView, ELECTION_EVERY, VOTER_MIN_AGE, electionCalendar, tally, CRIMES, catchChance, sentence, inPrison, PRISON_BLOCKED, PRISON_HOURS, BAIL, RECIDIVE, policeView,
   describeAction, ORDER_DONE, ORDERS, ORDERS_PER_DAY, ORDERS_CHECK_MS, dayKey, ordersToRun, cannotGiveOrder,
+  PAY_METHODS, cannotDeposit, cannotWithdraw, maskPhone, withdrawUsd, COMMUNES, communeView, ROLES, drawRole, roleOf,
+  streakStep, streakView, nightSummary, morningText, reminderText, kinHour,
+  newspaper, cannotSendWord, neighborView, GREETINGS, WORD_MAX,
 } from "./life.js";
 import { sendPush, newVapidKeys } from "./webpush.js";
+import { payConfigured, startDeposit, startPayout, readNotice } from "./paiement.js";
 
 const SESSION_DAYS = 30;
-const FOOD = { prix: 25, faim: 45 }; // un repas au maquis
+// un repas au maquis : prix recalculé avec les réglages de l'admin
+const FOOD = { get prix() { return food().prix; }, get faim() { return food().faim; } };
+// réglages en direct : relus dans D1 au plus toutes les 30 s
+let setAt = 0;
+async function loadSettings(db, now, force) {
+  if (!force && now - setAt < 30e3) return;
+  setAt = now;
+  try { const { results } = await db.prepare(`SELECT cle, valeur FROM reglages`).all(); applySettings(Object.fromEntries(results.map(r => [r.cle, r.valeur]))); } catch (e) { console.error(e); }
+}
 
 // ---------------------------------------------------------------- utilitaires
 const enc = new TextEncoder();
@@ -51,11 +63,13 @@ async function birth(db, compteId, now, offer, fondateur = false) {
   const who = newIdentity(r);
   const talents = drawTalents(r);
   const parent = offer && offer.id === "parent", invest = offer && offer.type === "investissement";
-  const born = offer && offer.age ? now - birthShiftMs(offer.age + .01) : now;     // « naître parent » ou investisseur : on arrive adulte
-  const gift = parent ? offer.epargne : invest ? offer.usd * USD_UNITS : BIRTH_GIFT;
+  // parcours normal : c'est le jeu qui décide, bébé ou jeune adulte (classe sociale et études tirées au sort)
+  const entry = !offer || offer.id === "bebe" ? drawEntry(r) : null, adultEntry = !!(entry && entry.adulte);
+  const born = offer && offer.age ? now - birthShiftMs(offer.age + .01) : adultEntry ? now - birthShiftMs(entry.age + .01) : now;
+  const gift = parent ? offer.epargne : invest ? offer.usd * USD_UNITS : BIRTH_GIFT + (adultEntry ? entry.epargne : 0);
   // le bébé naît chez un parent joueur qui accueille des enfants (sinon dans une famille gérée par le jeu)
   let host = null;
-  if (!offer || !offer.age) host = await db.prepare(`SELECT p.id, p.sexe, p.prenom, p.nom, p.quartier FROM personnages p
+  if ((!offer || !offer.age) && !adultEntry) host = await db.prepare(`SELECT p.id, p.sexe, p.prenom, p.nom, p.quartier, p.makuta FROM personnages p
       WHERE p.compte_id IS NOT NULL AND p.mort_le IS NULL AND p.accueille_enfants = 1 AND p.ne_le <= ?
         AND (SELECT COUNT(*) FROM personnages k WHERE (k.pere_id = p.id OR k.mere_id = p.id) AND k.mort_le IS NULL) < ?
       ORDER BY RANDOM() LIMIT 1`).bind(now - birthShiftMs(HOST_MIN_AGE), MAX_CHILDREN).first();
@@ -65,15 +79,24 @@ async function birth(db, compteId, now, offer, fondateur = false) {
     who.father = host.sexe === "M" ? host.prenom + " " + host.nom : other + " " + host.nom;
     who.mother = host.sexe === "F" ? host.prenom + " " + host.nom : other + " " + host.nom;
   }
+  // bébé chez un parent joueur : les 10 $ (après les 5 $ de l'administrateur) sont confiés au parent, qui gère l'argent de l'enfant
+  const toParent = !!host && !parent && !invest;
+  const destin = drawRole(r);   // caractère et rôle, bon ou mauvais : c'est le serveur qui décide
+  const classe = entry ? (host ? classOfWealth(host.makuta) : entry.classe) : classOfWealth(gift);
   const stmts = [
     db.prepare(`INSERT INTO personnages (id, compte_id, ville_id, prenom, nom, sexe, quartier, apparence, ne_le, maj_le, makuta, pere_nom, mere_nom, pere_id, mere_id, accueille_enfants, entretien_le, fondateur)
                 VALUES (?, ?, 'kinshasa', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
-      .bind(id, compteId, who.firstName, who.lastName, who.sex, who.quartier, who.look, born, now, gift, who.father, who.mother,
+      .bind(id, compteId, who.firstName, who.lastName, who.sex, who.quartier, who.look, born, now, toParent ? 0 : gift, who.father, who.mother,
         host && host.sexe === "M" ? host.id : null, host && host.sexe === "F" ? host.id : null, parent ? 1 : 0, now, fondateur ? 1 : 0),
+    ...(toParent ? [db.prepare(`UPDATE personnages SET makuta = makuta + ? WHERE id = ?`).bind(gift, host.id)] : []),
     db.prepare(`INSERT INTO transactions (id, de_id, vers_id, montant, motif, le) VALUES (?, NULL, ?, ?, ?, ?)`)
-      .bind(uid(), id, gift, parent ? "épargne de départ (naître parent)" : invest ? "investissement simulé : " + offer.nom : "naissance : épargne des parents", now),
+      .bind(uid(), toParent ? host.id : id, gift, parent ? "épargne de départ (naître parent)" : invest ? "investissement simulé : " + offer.nom
+        : toParent ? `naissance de ${who.firstName} : argent de l'enfant confié aux parents` : adultEntry ? `arrivée adulte : 10 $ confiés + économies (${classLabel(classe).toLowerCase()})` : "naissance : argent de l'enfant (géré par la famille)", now),
+    db.prepare(`INSERT INTO origines (personnage_id, classe, adulte, maturite, arrive_le, caractere, role, camp) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`).bind(id, classe, adultEntry ? 1 : 0, adultEntry ? 0 : 100, now, destin.caractere, destin.role, destin.camp),
+    repSt(db, id, (ROLES.find(x => x.id === destin.role) || {}).rep || 0, now),
+    ...(adultEntry ? entry.diplomes.map(f => db.prepare(`INSERT OR IGNORE INTO diplomes_obtenus (personnage_id, formation_id, obtenu_le, note) VALUES (?, ?, ?, NULL)`).bind(id, f, now)) : []),
     db.prepare(`INSERT INTO depots (id, compte_id, offre, usd, makuta, simule, le) VALUES (?, ?, ?, ?, ?, ?, ?)`)
-      .bind(uid(), compteId, fondateur ? "fondateur" : offer ? offer.id : "bebe", fondateur ? 0 : offer ? offer.usd : 0, invest ? gift : 0, REAL_MONEY ? 0 : 1, now),
+      .bind(uid(), compteId, fondateur ? "fondateur" : offer ? offer.id : "bebe", fondateur ? 0 : offer ? offer.usd : BIRTH_USD, invest ? gift : 0, REAL_MONEY ? 0 : 1, now),
     db.prepare(`UPDATE comptes SET vie_id = ? WHERE id = ?`).bind(id, compteId),
     // « naître parent » : talents déjà connus (apprentissage accéléré)
     ...talents.map(t => db.prepare(`INSERT INTO talents_personnage (personnage_id, talent_id, niveau, decouvert, decouvert_par, decouvert_le) VALUES (?, ?, ?, ?, ?, ?)`)
@@ -173,6 +196,7 @@ async function loadCharacter(db, id) {
   const { results: inv } = await db.prepare(`SELECT id, objet_id, porte, acquis_le FROM possessions WHERE proprietaire_id = ? ORDER BY acquis_le`).bind(id).all();
   const { results: dep } = await db.prepare(`SELECT offre, usd, makuta, le FROM depots WHERE compte_id = ? ORDER BY le`).bind(p.compte_id).all();
   const { results: ret } = await db.prepare(`SELECT makuta, usd, statut, le FROM retraits WHERE compte_id = ? ORDER BY le`).bind(p.compte_id).all();
+  const { results: gui } = await db.prepare(`SELECT sens, moyen, numero, usd, makuta, statut, le FROM guichet WHERE compte_id = ? ORDER BY le DESC LIMIT 30`).bind(p.compte_id).all();
   const job = await db.prepare(`SELECT id, metier_id, entreprise_id FROM emplois WHERE personnage_id = ? AND fin IS NULL ORDER BY depuis DESC LIMIT 1`).bind(id).first();
   const last = await db.prepare(`SELECT MAX(le) AS le FROM activites WHERE personnage_id = ? AND activite LIKE 'travail:%'`).bind(id).first();
   const enr = await db.prepare(`SELECT formation_id AS formation, annee, cours, points, dernier FROM inscriptions WHERE personnage_id = ?`).bind(id).first();
@@ -206,8 +230,25 @@ async function loadCharacter(db, id) {
   const { results: mv } = await db.prepare(`SELECT icone, texte, par_consigne, le FROM mouvements WHERE personnage_id = ? ORDER BY le DESC LIMIT 100`).bind(id).all();
   const { results: ord } = await db.prepare(`SELECT ordre FROM consignes WHERE personnage_id = ? AND jour = ? ORDER BY donnee_le`).bind(id, jour).all();
   const { results: journal } = await db.prepare(`SELECT ordre, ok, message, le FROM consignes_journal WHERE personnage_id = ? AND jour = ? ORDER BY le DESC LIMIT 30`).bind(id, jour).all();
-  return { p, tal, inv, dep, ret, job, lastShift: last && last.le, enr, dip: dip.map(d => d.formation_id), kids, par, sibs, ent, aVendre, offres, boss, comptes, cand, pub, elec, policiers: pol.n, casier,
-    consignes: { jour, liste: ord.map(o => o.ordre), journal }, mouvements: mv, notifications: notif.n };
+  const reputation = await repOf(db, id);
+  const { results: motsRecus } = await db.prepare(`SELECT m.id, m.de_id, m.texte, m.le, m.lu, p.prenom, p.nom, c.pseudo FROM mots m JOIN personnages p ON p.id = m.de_id LEFT JOIN comptes c ON c.id = p.compte_id WHERE m.vers_id = ? ORDER BY m.le DESC LIMIT 30`).bind(id).all();
+  const { results: motsEnvoyes } = await db.prepare(`SELECT m.vers_id, m.texte, m.le, p.prenom, p.nom FROM mots m JOIN personnages p ON p.id = m.vers_id WHERE m.de_id = ? ORDER BY m.le DESC LIMIT 15`).bind(id).all();
+  const fid = p.compte_id ? await db.prepare(`SELECT serie, meilleure, dernier_jour, resume_vu_le, makuta_vu FROM fidelite WHERE compte_id = ?`).bind(p.compte_id).first() : null;
+  const origine = await db.prepare(`SELECT classe, adulte, maturite, arrive_le, caractere, role, camp FROM origines WHERE personnage_id = ?`).bind(id).first();
+  const flux = await db.prepare(`SELECT SUM(CASE WHEN vers_id = ?1 THEN montant ELSE 0 END) AS recu, SUM(CASE WHEN de_id = ?1 THEN montant ELSE 0 END) AS depense,
+      SUM(CASE WHEN de_id = ?1 AND (motif LIKE 'aide %' OR motif LIKE 'entretien%') THEN montant ELSE 0 END) AS famille,
+      SUM(CASE WHEN de_id = ?1 AND vers_id = ?2 THEN montant ELSE 0 END) AS impots,
+      SUM(CASE WHEN vers_id = ?1 AND (motif LIKE 'aide %' OR motif LIKE 'entretien%' OR motif LIKE 'héritage%') THEN montant ELSE 0 END) AS recuFamille
+      FROM transactions WHERE de_id = ?1 OR vers_id = ?1`).bind(id, STATE_ID).first();
+  const logement = await db.prepare(`SELECT statut, quartier, loyer, paye_jusqu, depuis FROM logements WHERE personnage_id = ?`).bind(id).first();
+  const lastStreet = await db.prepare(`SELECT MAX(le) AS le FROM activites WHERE personnage_id = ? AND activite LIKE 'boulot:%'`).bind(id).first();
+  const { results: annonces } = await db.prepare(`SELECT a.id, a.prix, a.cree_le, a.vendeur_id, o.objet_id, p.prenom || ' ' || p.nom AS vendeur FROM annonces a JOIN possessions o ON o.id = a.possession_id
+      JOIN personnages p ON p.id = a.vendeur_id WHERE a.statut = 'ouverte' ORDER BY a.cree_le DESC LIMIT 40`).all();
+  const conjoint = p.conjoint_id ? await db.prepare(`SELECT p.prenom, p.nom, p.sexe, c.pseudo FROM personnages p LEFT JOIN comptes c ON c.id = p.compte_id WHERE p.id = ?`).bind(p.conjoint_id).first() : null;
+  const { results: dmIn } = await db.prepare(`SELECT d.id, d.le, p.prenom, p.nom, p.sexe, c.pseudo FROM demandes_mariage d JOIN personnages p ON p.id = d.de_id LEFT JOIN comptes c ON c.id = p.compte_id WHERE d.vers_id = ? AND d.statut = 'attente' ORDER BY d.le DESC`).bind(id).all();
+  const { results: dmOut } = await db.prepare(`SELECT d.id, d.le, p.prenom, p.nom, c.pseudo FROM demandes_mariage d JOIN personnages p ON p.id = d.vers_id LEFT JOIN comptes c ON c.id = p.compte_id WHERE d.de_id = ? AND d.statut = 'attente' ORDER BY d.le DESC`).bind(id).all();
+  return { origine, flux, logement, lastStreet: lastStreet && lastStreet.le, annonces, reputation, couple: { conjoint, recues: dmIn, envoyees: dmOut }, p, tal, inv, dep, ret, gui, job, lastShift: last && last.le, enr, dip: dip.map(d => d.formation_id), kids, par, sibs, ent, aVendre, offres, boss, comptes, cand, pub, elec, policiers: pol.n, casier,
+    consignes: { jour, liste: ord.map(o => o.ordre), journal }, mouvements: mv, notifications: notif.n, fid, motsRecus, motsEnvoyes };
 }
 
 // ---------------------------------------------------------------- notifications sur le téléphone
@@ -229,6 +270,59 @@ async function notify(env, db, compteId, message) {
   for (const sub of results) {
     try { if (await sendPush(keys, sub, message) === "expire") await db.prepare(`DELETE FROM abonnements_push WHERE endpoint = ?`).bind(sub.endpoint).run(); }
     catch (e) { console.error(e); }
+  }
+}
+
+// ---- journal : les vrais faits des dernières 24 heures
+async function newsFacts(db, now) {
+  const since = now - 864e5;
+  const q = async (sql, ...b) => (await db.prepare(sql).bind(...b).all()).results;
+  const [naissances, deces, mariages, entreprises, elus, arrestations, vivants] = await Promise.all([
+    q(`SELECT p.prenom, p.nom, p.sexe, p.quartier, o.arrive_le AS le FROM origines o JOIN personnages p ON p.id = o.personnage_id WHERE o.arrive_le > ? AND p.compte_id IS NOT NULL ORDER BY o.arrive_le DESC LIMIT 15`, since),
+    q(`SELECT prenom, nom, quartier, cause_mort AS cause, ne_le, mort_le AS le FROM personnages WHERE mort_le > ? AND compte_id IS NOT NULL ORDER BY mort_le DESC LIMIT 10`, since),
+    q(`SELECT a.prenom || ' ' || a.nom AS a, b.prenom || ' ' || b.nom AS b, a.quartier, d.le FROM demandes_mariage d JOIN personnages a ON a.id = d.de_id JOIN personnages b ON b.id = d.vers_id WHERE d.statut = 'acceptee' AND d.le > ? LIMIT 10`, since),
+    q(`SELECT e.nom, e.type, e.local AS quartier, e.cree_le AS le, p.prenom || ' ' || p.nom AS proprio FROM entreprises e JOIN personnages p ON p.id = e.proprietaire_id WHERE e.cree_le > ? ORDER BY e.cree_le DESC LIMIT 10`, since),
+    q(`SELECT p.prenom || ' ' || p.nom AS nom, p.sexe, m.poste, m.voix, m.debut AS le FROM mandats m JOIN personnages p ON p.id = m.personnage_id WHERE m.debut > ? LIMIT 10`, since),
+    q(`SELECT p.quartier, COUNT(*) AS n FROM infractions i JOIN personnages p ON p.id = i.personnage_id WHERE i.le > ? AND p.quartier IS NOT NULL GROUP BY p.quartier ORDER BY n DESC LIMIT 5`, since),
+    q(`SELECT COUNT(*) AS n FROM personnages p JOIN comptes c ON c.vie_id = p.id WHERE p.mort_le IS NULL`),
+  ]);
+  return { naissances, deces: deces.map(d => ({ ...d, age: Math.floor(ageYears(d.ne_le, d.le)) })), mariages, entreprises, elus, arrestations,
+    chiffres: { joueurs: vivants[0].n, naissances: naissances.length, deces: deces.length, entreprises: entreprises.length } };
+}
+
+// ---- fidélité : la série avance d'un jour à la première consigne du jour ; bonus aux paliers
+async function streakAdvance(db, compteId, pid, fid, jour, now) {
+  const sk = streakStep(fid, jour);
+  if (!sk.nouveau) return sk;
+  const st = [db.prepare(`INSERT INTO fidelite (compte_id, serie, meilleure, dernier_jour) VALUES (?, ?, ?, ?) ON CONFLICT(compte_id) DO UPDATE SET serie = excluded.serie, meilleure = excluded.meilleure, dernier_jour = excluded.dernier_jour`).bind(compteId, sk.serie, sk.meilleure, jour)];
+  if (sk.bonus) st.push(db.prepare(`UPDATE personnages SET makuta = makuta + ? WHERE id = ?`).bind(sk.bonus, pid),
+    db.prepare(`INSERT INTO transactions (id, de_id, vers_id, montant, motif, le) VALUES (?, NULL, ?, ?, ?, ?)`).bind(uid(), pid, sk.bonus, `bonus de série : ${sk.serie} jours`, now));
+  await db.batch(st);
+  return sk;
+}
+// 5 h à Kinshasa : « ton personnage s'est réveillé » ; 9 h : rappel si la série va se perdre (une fois par jour et par compte)
+async function morningPush(env, now) {
+  const h = kinHour(now); if (h !== 5 && h !== 9) return;
+  const db = env.DB, jour = dayKey(now), type = h === 5 ? "matin" : "rappel_serie";
+  const { results } = await db.prepare(`SELECT c.id AS compte_id, p.id AS pid, p.prenom, p.sexe, p.makuta, p.faim, p.energie, p.bonheur, p.sante, p.maj_le,
+      f.serie, f.meilleure, f.dernier_jour, f.resume_vu_le, f.makuta_vu
+      FROM comptes c JOIN personnages p ON p.id = c.vie_id LEFT JOIN fidelite f ON f.compte_id = c.id
+      WHERE p.mort_le IS NULL AND EXISTS (SELECT 1 FROM abonnements_push a WHERE a.compte_id = c.id) LIMIT 1000`).all();
+  for (const r of results) {
+    try {
+      const S = streakView(r, now);
+      if (type === "rappel_serie" && !(S.enDanger && S.serie >= 2)) continue;
+      const ins = await db.prepare(`INSERT OR IGNORE INTO alertes (personnage_id, compte_id, type, jour) VALUES (?, ?, ?, ?)`).bind(r.pid, r.compte_id, type, jour).run();
+      if (!(ins.meta && ins.meta.changes)) continue;
+      let texte;
+      if (type === "matin") {
+        const { results: mv } = await db.prepare(`SELECT icone, texte, le FROM mouvements WHERE personnage_id = ? AND le > ? ORDER BY le DESC LIMIT 100`).bind(r.pid, Math.max(r.resume_vu_le || 0, now - 36 * 36e5)).all();
+        const n = needsAt({ hunger: r.faim, energy: r.energie, happiness: r.bonheur, health: r.sante, updatedAt: r.maj_le }, now);
+        const R = nightSummary({ prenom: r.prenom, fem: r.sexe === "F", mouvements: mv, vuLe: r.resume_vu_le, makutaVu: r.makuta_vu, makuta: r.makuta, besoins: n, now });
+        texte = morningText(r.prenom, R, S, r.sexe === "F") + (R.alertes.length ? " " + R.alertes[0] : "");
+      } else texte = reminderText(r.prenom, S);
+      await notify(env, db, r.compte_id, { titre: "2 Life", texte, url: type === "matin" ? "vie.html#nuit" : "vie.html#orders" });
+    } catch (e) { console.error(e); }
   }
 }
 
@@ -287,7 +381,7 @@ async function applyOrders(env, db, compte, ch, now, force) {
   return true;
 }
 
-function view(compte, { p, tal, inv = [], dep = [], ret = [], job = null, lastShift = null, enr = null, dip = [], kids = [], par = [], sibs = [], ent = [], aVendre = [], offres = [], boss = null, comptes = [], cand = null, pub = {}, elec = null, policiers = 0, casier = [], consignes = { jour: dayKey(now), liste: [], journal: [] }, mouvements = [], notifications = 0 }, now) {
+function view(compte, { origine = null, flux = {}, logement = null, lastStreet = null, annonces = [], reputation = 0, couple = { conjoint: null, recues: [], envoyees: [] }, p, tal, inv = [], dep = [], ret = [], gui = [], job = null, lastShift = null, enr = null, dip = [], kids = [], par = [], sibs = [], ent = [], aVendre = [], offres = [], boss = null, comptes = [], cand = null, pub = {}, elec = null, policiers = 0, casier = [], consignes = { jour: dayKey(now), liste: [], journal: [] }, mouvements = [], notifications = 0, fid = null, motsRecus = [], motsEnvoyes = [] }, now) {
   const age = ageYears(p.ne_le, now);
   const st = stageOf(age);
   const next = STAGES[STAGES.indexOf(st) + 1];
@@ -308,8 +402,15 @@ function view(compte, { p, tal, inv = [], dep = [], ret = [], job = null, lastSh
       indices: tal.filter(t => !t.decouvert && t.indices > 0).map(t => TALENTS.find(x => x.id === t.talent_id).hint),
     },
     activites: ACTIVITIES.map(a => ({ id: a.id, label: a.label, minAge: a.minAge, energie: a.energy })),
-    repas: FOOD,
-    ...shopView(inv, dep, ret, p.makuta, now),
+    repas: { ...FOOD, prix: Math.round(FOOD.prix * repDiscount(reputation)) },
+    tableau: dashboard({ makuta: p.makuta, banque: comptes.reduce((s, c) => s + c.solde, 0), biens: inv.reduce((s, o) => s + ((SHOP.find(x => x.id === o.objet_id) || {}).prix || 0), 0),
+      entreprises: ent.reduce((s, e) => s + (e.capital || 0), 0), maison: logement && logement.statut === "proprio" ? houseOf(logement.quartier) : 0, flux: flux || {}, depots: dep, origine, diplomas: dip, now, quartier: p.quartier, seed: p.apparence }),
+    reputation: { points: reputation, label: repLabel(reputation), mauvaise: reputation <= REP_BAD, bonne: reputation >= REP_GOOD },
+    couple: { ...couple, dot: DOT_MAKUTA },
+    petitsBoulots: { liste: STREET_JOBS, dernier: lastStreet },
+    logement: { actuel: logement, quartiers: Object.keys(RENT).map(q => ({ ...communeView(q), quartier: q, loyer: rentOf(q), prix: houseOf(q) })), minAge: HOUSING_MIN_AGE },
+    annonces: annonces.map(a => ({ id: a.id, prix: a.prix, le: a.cree_le, vendeur: a.vendeur, moi: a.vendeur_id === p.id, objet: SHOP.find(x => x.id === a.objet_id) || { nom: a.objet_id } })),
+    ...shopView(inv, dep, ret, p.makuta, now, gui),
     travail: { ...workView(job && job.metier_id, lastShift, now), emploiEntreprise: boss ? companyJob(boss) : null },
     ecole: schoolView(enr, dip, now),
     enfants: kids.map(k => childView(k, now)),
@@ -318,9 +419,13 @@ function view(compte, { p, tal, inv = [], dep = [], ret = [], job = null, lastSh
     etat: stateView({ comptes, assureur: p.assureur, assureJusqu: p.assure_jusqu, operateur: p.operateur, credit: p.credit, candidature: cand && cand.poste }, pub, now),
     elections: elec,
     police: policeView({ policiers, prisonJusqu: p.prison_jusqu, casier: casier.map(c => ({ ...c, nom: (CRIMES.find(x => x.id === c.type) || {}).nom || c.type })) }, now),
-    voyage: { quartiers: KINSHASA_QUARTIERS, prix: TAXI_FARE, fatigue: TAXI_ENERGY, villes: OTHER_CITIES },
+    voyage: { quartiers: KINSHASA_QUARTIERS, communes: COMMUNES.map(c => communeView(c.nom)), prix: TAXI_FARE, fatigue: TAXI_ENERGY, villes: OTHER_CITIES },
     mouvements,
     notifications: { actives: notifications > 0 },
+    fidelite: streakView(fid, now),
+    mots: { recus: motsRecus.map(m => ({ id: m.id, de: m.de_id, nom: `${m.prenom} ${m.nom}`, pseudo: m.pseudo, texte: m.texte, le: m.le, lu: !!m.lu })), nonLus: motsRecus.filter(m => !m.lu).length,
+      envoyes: motsEnvoyes.map(m => ({ vers: m.vers_id, nom: `${m.prenom} ${m.nom}`, texte: m.texte, le: m.le })), modeles: GREETINGS, max: WORD_MAX },
+    resume: nightSummary({ prenom: p.prenom, fem: p.sexe === "F", mouvements, vuLe: fid && fid.resume_vu_le, makutaVu: fid && fid.makuta_vu, makuta: p.makuta, besoins: needs, now }),
     consignes: { ...consignes, max: ORDERS_PER_DAY, catalogue: ORDERS, verifieToutesLesMinutes: ORDERS_CHECK_MS / 60e3 },
   };
 }
@@ -345,8 +450,8 @@ async function settle(db, p, now) {
 }
 
 // entretien des enfants : calculé à la demande, pour le personnage et ses enfants mineurs
-async function supportFamily(db, pid, now) {
-  const { results: kids } = await db.prepare(`SELECT id, ne_le, entretien_le, pere_id, mere_id FROM personnages
+async function supportFamily(db, pid, now, env = null) {
+  const { results: kids } = await db.prepare(`SELECT id, prenom, sexe, ne_le, entretien_le, pere_id, mere_id, faim, energie, bonheur, sante, maj_le FROM personnages
       WHERE mort_le IS NULL AND (id = ? OR pere_id = ? OR mere_id = ?)`).bind(pid, pid, pid).all();
   for (const k of kids) {
     const par = k.pere_id || k.mere_id;
@@ -355,14 +460,138 @@ async function supportFamily(db, pid, now) {
     if (days < 1) continue;
     const pr = await db.prepare(`SELECT makuta FROM personnages WHERE id = ? AND mort_le IS NULL`).bind(par).first();
     const pay = Math.min(due, pr ? pr.makuta : 0), unpaid = Math.floor((due - pay) / SUPPORT_PER_DAY), fx = unpaidEffect(unpaid);
+    // négligence cumulée : au-delà de 7 jours, l'enfant est en danger de mort (et il s'en souviendra)
+    const neg = unpaid > 0 ? (await neglectOf(db, k.id)) + unpaid : 0, danger = neg >= NEGLECT_DANGER_DAYS;
     const st = [db.prepare(`UPDATE personnages SET entretien_le = ?, bonheur = MAX(0, bonheur - ?), sante = MAX(0, sante - ?) WHERE id = ?`)
-      .bind((k.entretien_le || k.ne_le) + days * DAY, fx.bonheur, fx.sante, k.id)];
+      .bind((k.entretien_le || k.ne_le) + days * DAY, fx.bonheur, fx.sante + (danger ? NEGLECT_DANGER_HEALTH * unpaid : 0), k.id)];
+    if (unpaid > 0) st.push(repSt(db, par, REP.negligence * unpaid, now));
+    if (unpaid > 0) st.push(db.prepare(`INSERT INTO negligences (personnage_id, jours, maj_le) VALUES (?, ?, ?) ON CONFLICT(personnage_id) DO UPDATE SET jours = jours + excluded.jours, maj_le = excluded.maj_le`).bind(k.id, unpaid, now),
+      db.prepare(`INSERT INTO mouvements (id, personnage_id, icone, texte, par_consigne, le) VALUES (?, ?, ?, ?, 0, ?)`).bind(uid(), k.id, danger ? "🆘" : "😢",
+        danger ? `${k.prenom} est ${k.sexe === "F" ? "négligée" : "négligé"} depuis ${neg} jours : ${k.sexe === "F" ? "elle" : "il"} est en danger de mort, et s'en souviendra.` : `Entretien de ${k.prenom} impayé (${neg} jour${neg > 1 ? "s" : ""} de négligence au total).`, now));
     if (pay > 0) st.push(
       db.prepare(`UPDATE personnages SET makuta = makuta - ? WHERE id = ? AND makuta >= ?`).bind(pay, par, pay),
       db.prepare(`UPDATE personnages SET makuta = makuta + ? WHERE id = ?`).bind(pay, k.id),
       db.prepare(`INSERT INTO transactions (id, de_id, vers_id, montant, motif, le) VALUES (?, ?, ?, ?, ?, ?)`).bind(uid(), par, k.id, pay, `entretien de l'enfant (${days} j)`, now));
+    // enfant négligé : il peut voler pour survivre (le joueur responsable doit veiller à ce qu'il ne manque de rien)
+    const hunger = needsAt({ hunger: k.faim, energy: k.energie, happiness: k.bonheur, health: k.sante, updatedAt: k.maj_le }, now).hunger;
+    if (unpaid > 0 && ageYears(k.ne_le, now) >= NEGLECT_STEAL_AGE && Math.random() < neglectStealChance(unpaid, hunger)) {
+      const cr = CRIMES.find(c => c.id === "vol-marche"), caught = Math.random() < catchChance(cr, 0);
+      if (caught) {
+        const fine = Math.min(cr.amende, Math.max(0, (pr ? pr.makuta : 0) - pay));
+        st.push(db.prepare(`INSERT INTO infractions (id, personnage_id, type, amende, prison_heures, le) VALUES (?, ?, ?, ?, 0, ?)`).bind(uid(), k.id, cr.id, fine, now),
+          db.prepare(`INSERT INTO mouvements (id, personnage_id, icone, texte, par_consigne, le) VALUES (?, ?, ?, ?, 0, ?)`).bind(uid(), k.id, "🚓", `${k.prenom}, sans entretien et le ventre vide, a volé au marché et s'est fait attraper. Amende payée par les parents : ${fmtMakuta(fine)}.`, now));
+        if (fine > 0) st.push(db.prepare(`UPDATE personnages SET makuta = makuta - ? WHERE id = ? AND makuta >= ?`).bind(fine, par, fine),
+          db.prepare(`INSERT INTO transactions (id, de_id, vers_id, montant, motif, le) VALUES (?, ?, ?, ?, ?, ?)`).bind(uid(), par, STATE_ID, fine, `amende : vol de l'enfant ${k.prenom}`, now));
+      } else {
+        const gain = cr.gain[0] + Math.floor(Math.random() * (cr.gain[1] - cr.gain[0]));
+        st.push(db.prepare(`UPDATE personnages SET makuta = makuta + ? WHERE id = ?`).bind(gain, k.id),
+          db.prepare(`INSERT INTO transactions (id, de_id, vers_id, montant, motif, le) VALUES (?, NULL, ?, ?, ?, ?)`).bind(uid(), k.id, gain, "vol au marché (enfant négligé)", now),
+          db.prepare(`INSERT INTO mouvements (id, personnage_id, icone, texte, par_consigne, le) VALUES (?, ?, ?, ?, 0, ?)`).bind(uid(), k.id, "🫳", `${k.prenom}, sans personne pour s'occuper de ${k.sexe === "F" ? "elle" : "lui"}, a volé ${fmtMakuta(gain)} au marché pour manger.`, now));
+      }
+    }
     await db.batch(st);
+    await checkDeath(env, db, k.id, now);
   }
+}
+
+// loyer : prélevé à chaque visite pour les semaines dues ; impayé = expulsion
+async function collectRent(db, pid, now) {
+  const L = await db.prepare(`SELECT * FROM logements WHERE personnage_id = ? AND statut = 'loue'`).bind(pid).first();
+  if (!L) return;
+  const weeks = rentDue(L.paye_jusqu, now); if (!weeks) return;
+  const p = await db.prepare(`SELECT makuta, prenom FROM personnages WHERE id = ?`).bind(pid).first(), due = weeks * L.loyer;
+  const M = (ic, t) => db.prepare(`INSERT INTO mouvements (id, personnage_id, icone, texte, par_consigne, le) VALUES (?, ?, ?, ?, 0, ?)`).bind(uid(), pid, ic, t, now);
+  if (p.makuta >= due) await db.batch([
+    db.prepare(`UPDATE personnages SET makuta = makuta - ? WHERE id = ? AND makuta >= ?`).bind(due, pid, due),
+    db.prepare(`UPDATE logements SET paye_jusqu = ? WHERE personnage_id = ?`).bind(L.paye_jusqu + weeks * 7 * DAY, pid),
+    db.prepare(`INSERT INTO transactions (id, de_id, vers_id, montant, motif, le) VALUES (?, ?, NULL, ?, ?, ?)`).bind(uid(), pid, due, `loyer (${weeks} semaine${weeks > 1 ? "s" : ""}) à ${L.quartier}`, now),
+    M("🏠", `Loyer payé : ${fmtMakuta(due)} (${L.quartier}).`)]);
+  else await db.batch([
+    db.prepare(`DELETE FROM logements WHERE personnage_id = ?`).bind(pid),
+    db.prepare(`UPDATE personnages SET bonheur = MAX(0, bonheur - 20) WHERE id = ?`).bind(pid),
+    repSt(db, pid, -5, now), M("🚪", `Loyer impayé : expulsé du logement à ${L.quartier}. Retour chez les parents.`)]);
+}
+// le destin : au plus un événement toutes les 20 heures réelles par personnage
+async function dailyEvent(db, pid, now) {
+  const last = await db.prepare(`SELECT MAX(le) AS le FROM activites WHERE personnage_id = ? AND activite LIKE 'evenement:%'`).bind(pid).first();
+  if (last && last.le && now - last.le < EVENT_EVERY_H * 36e5) return;
+  const p = await db.prepare(`SELECT * FROM personnages WHERE id = ? AND mort_le IS NULL`).bind(pid).first(); if (!p) return;
+  await settle(db, p, now);
+  const o = await db.prepare(`SELECT caractere, role, camp FROM origines WHERE personnage_id = ?`).bind(pid).first();
+  const e = drawEvent(Math.random, { quartier: p.quartier, camp: roleOf(o, p.apparence).camp }), st = [db.prepare(`INSERT INTO activites (id, personnage_id, activite, score, resultat, le) VALUES (?, ?, ?, 0, '', ?)`).bind(uid(), pid, "evenement:" + (e ? e.id : "calme"), now)];
+  if (e) {
+    let m = eventMoney(e); if (m < 0) m = -Math.min(-m, p.makuta);
+    st.push(db.prepare(`UPDATE personnages SET sante = MAX(1, MIN(100, sante + ?)), energie = MAX(0, MIN(100, energie + ?)), bonheur = MAX(0, MIN(100, bonheur + ?)), makuta = makuta + ? WHERE id = ?`)
+      .bind(e.sante || 0, e.energie || 0, e.bonheur || 0, m, pid),
+      db.prepare(`INSERT INTO mouvements (id, personnage_id, icone, texte, par_consigne, le) VALUES (?, ?, ?, ?, 0, ?)`).bind(uid(), pid, e.icone, `${p.prenom} ${e.texte}${m ? ` (${m > 0 ? "+" : "−"}${fmtMakuta(Math.abs(m))})` : ""}.`, now));
+    if (m) st.push(db.prepare(`INSERT INTO transactions (id, de_id, vers_id, montant, motif, le) VALUES (?, ?, ?, ?, ?, ?)`).bind(uid(), m < 0 ? pid : null, m > 0 ? pid : null, Math.abs(m), "destin : " + e.id, now));
+    if (e.rep) st.push(repSt(db, pid, e.rep, now));
+  }
+  await db.batch(st);
+}
+// maturité d'un adulte arrivé récemment : le travail et les études le font mûrir plus vite
+const matSt = (db, id, n) => db.prepare(`UPDATE origines SET maturite = MIN(100, maturite + ?) WHERE personnage_id = ? AND adulte = 1`).bind(n, id);
+// réputation : une ligne à ajouter au lot d'écritures
+const repSt = (db, id, d, now) => db.prepare(`INSERT INTO reputations (personnage_id, points, maj_le) VALUES (?, ?, ?) ON CONFLICT(personnage_id) DO UPDATE SET points = MAX(-100, MIN(100, points + excluded.points)), maj_le = excluded.maj_le`).bind(id, d, now);
+async function repOf(db, id) { const r = await db.prepare(`SELECT points FROM reputations WHERE personnage_id = ?`).bind(id).first(); return r ? r.points : 0; }
+
+// ---------------------------------------------------------------- mort et héritage
+async function neglectOf(db, id) { const r = await db.prepare(`SELECT jours FROM negligences WHERE personnage_id = ?`).bind(id).first(); return r ? r.jours : 0; }
+// la santé est tombée à 0 ? le personnage meurt (définitif) et sa fortune est partagée
+async function checkDeath(env, db, id, now) {
+  const p = await db.prepare(`SELECT * FROM personnages WHERE id = ? AND mort_le IS NULL`).bind(id).first();
+  if (!p) return false;
+  const n = needsAt({ hunger: p.faim, energy: p.energie, happiness: p.bonheur, health: p.sante, updatedAt: p.maj_le }, now);
+  const cause = deathCause(n, await neglectOf(db, id));
+  if (!cause) return false;
+  await die(env, db, p, cause, now);
+  return true;
+}
+async function die(env, db, p, cause, now) {
+  const { results: banks } = await db.prepare(`SELECT banque_id, solde FROM comptes_banque WHERE personnage_id = ?`).bind(p.id).all();
+  const total = p.makuta + banks.reduce((a, b) => a + b.solde, 0);
+  // héritiers : enfants et parents vivants, sinon le conjoint, sinon personne (la ville prend tout)
+  let { results: heirs } = await db.prepare(`SELECT id, compte_id FROM personnages WHERE mort_le IS NULL AND id != ? AND (pere_id = ? OR mere_id = ? OR id IN (?, ?))`)
+    .bind(p.id, p.id, p.id, p.pere_id || "", p.mere_id || "").all();
+  if (!heirs.length && p.conjoint_id) heirs = (await db.prepare(`SELECT id, compte_id FROM personnages WHERE id = ? AND mort_le IS NULL`).bind(p.conjoint_id).all()).results;
+  const sp = splitEstate(total, heirs.length);
+  const T = (de, vers, m, motif) => db.prepare(`INSERT INTO transactions (id, de_id, vers_id, montant, motif, le) VALUES (?, ?, ?, ?, ?, ?)`).bind(uid(), de, vers, m, motif, now);
+  const S = (h, part, m) => db.prepare(`INSERT INTO successions (id, defunt_id, heritier_id, part, montant, le) VALUES (?, ?, ?, ?, ?, ?)`).bind(uid(), p.id, h, part, m, now);
+  const st = [
+    db.prepare(`UPDATE personnages SET mort_le = ?, cause_mort = ?, makuta = 0, sante = 0, accueille_enfants = 0 WHERE id = ?`).bind(now, cause, p.id),
+    db.prepare(`DELETE FROM comptes_banque WHERE personnage_id = ?`).bind(p.id),
+    db.prepare(`UPDATE personnages SET conjoint_id = NULL WHERE conjoint_id = ?`).bind(p.id),
+    db.prepare(`UPDATE emplois SET fin = ? WHERE personnage_id = ? AND fin IS NULL`).bind(now, p.id),
+    db.prepare(`INSERT INTO mouvements (id, personnage_id, icone, texte, par_consigne, le) VALUES (?, ?, ?, ?, 0, ?)`).bind(uid(), p.id, "✝️", `${p.prenom} ${p.nom} est ${p.sexe === "F" ? "morte" : "mort"} (${cause}).`, now),
+    S(STATE_ID, "ville", sp.ville), ...(sp.ville > 0 ? [T(p.id, STATE_ID, sp.ville, "frais de succession de " + p.prenom + " " + p.nom)] : []),
+  ];
+  if (p.compte_id) st.push(S(null, "report", sp.report),
+    db.prepare(`INSERT INTO reports (compte_id, makuta, de_id, le) VALUES (?, ?, ?, ?) ON CONFLICT(compte_id) DO UPDATE SET makuta = makuta + excluded.makuta, de_id = excluded.de_id, le = excluded.le`).bind(p.compte_id, sp.report, p.id, now));
+  for (const hr of heirs) if (sp.each > 0) st.push(S(hr.id, "heritier", sp.each),
+    db.prepare(`UPDATE personnages SET makuta = makuta + ? WHERE id = ?`).bind(sp.each, hr.id), T(p.id, hr.id, sp.each, "héritage de " + p.prenom + " " + p.nom),
+    db.prepare(`INSERT INTO mouvements (id, personnage_id, icone, texte, par_consigne, le) VALUES (?, ?, ?, ?, 0, ?)`).bind(uid(), hr.id, "🕊️", `Héritage de ${p.prenom} ${p.nom} : ${fmtMakuta(sp.each)}.`, now));
+  await db.batch(st);
+  if (env) for (const hr of heirs) if (hr.compte_id) try { await notify(env, db, hr.compte_id, { titre: "2 Life · décès", texte: `${p.prenom} ${p.nom} est ${p.sexe === "F" ? "morte" : "mort"} (${cause}). Tu hérites de ${fmtMakuta(sp.each)}.`, url: "vie.html#moves" }); } catch (e) { console.error(e); }
+}
+function deadView(compte, p, report, now, album = null) {
+  return { compte: { pseudo: compte.pseudo, reputation: compte.reputation }, mort: { prenom: p.prenom, nom: p.nom, sexe: p.sexe, neLe: p.ne_le, mortLe: p.mort_le, cause: p.cause_mort,
+    age: Math.floor(ageYears(p.ne_le, p.mort_le || now)), album }, report: report ? report.makuta : 0, renaissance: OFFERS.find(o => o.id === "bebe") };
+}
+// album de vie : résumé d'une vie terminée
+async function albumOf(db, p) {
+  const one = async (q, ...b) => (await db.prepare(q).bind(...b).first()) || {};
+  const job = await one(`SELECT metier_id FROM emplois WHERE personnage_id = ? ORDER BY depuis DESC LIMIT 1`, p.id);
+  const { results: tl } = await db.prepare(`SELECT talent_id FROM talents_personnage WHERE personnage_id = ? AND decouvert = 1`).bind(p.id).all();
+  const sp = p.conjoint_id ? await one(`SELECT prenom || ' ' || nom AS n FROM personnages WHERE id = ?`, p.conjoint_id) : {};
+  const lastSpouse = sp.n || (await one(`SELECT q.prenom || ' ' || q.nom AS n FROM demandes_mariage d JOIN personnages q ON q.id = CASE WHEN d.de_id = ? THEN d.vers_id ELSE d.de_id END WHERE (d.de_id = ? OR d.vers_id = ?) AND d.statut = 'acceptee' ORDER BY d.le DESC LIMIT 1`, p.id, p.id, p.id)).n;
+  return lifeAlbum({ prenom: p.prenom, nom: p.nom, sexe: p.sexe, quartier: p.quartier, age: Math.floor(ageYears(p.ne_le, p.mort_le)), cause: p.cause_mort,
+    metier: job.metier_id ? (JOBS.find(j => j.id === job.metier_id) || { nom: job.metier_id }).nom : null,
+    diplomes: (await one(`SELECT COUNT(*) AS n FROM diplomes_obtenus WHERE personnage_id = ?`, p.id)).n,
+    talents: tl.map(t => (TALENTS.find(x => x.id === t.talent_id) || {}).label).filter(Boolean), conjoint: lastSpouse,
+    enfants: (await one(`SELECT COUNT(*) AS n FROM personnages WHERE pere_id = ? OR mere_id = ?`, p.id, p.id)).n,
+    entreprises: (await one(`SELECT COUNT(*) AS n FROM entreprises WHERE proprietaire_id = ?`, p.id)).n,
+    crimes: (await one(`SELECT COUNT(*) AS n FROM infractions WHERE personnage_id = ?`, p.id)).n,
+    reputation: await repOf(db, p.id), fortune: (await one(`SELECT COALESCE(SUM(montant), 0) AS n FROM successions WHERE defunt_id = ?`, p.id)).n });
 }
 
 // ---------------------------------------------------------------- lancement
@@ -402,17 +631,65 @@ async function createAccount(db, body, now, offer, fondateur) {
 }
 
 // ---------------------------------------------------------------- routes
+// ---------------------------------------------------------------- passerelle de paiement (argent réel)
+// retrait refusé ou échoué : les e-makuta reviennent au joueur, une seule fois
+async function refundPayout(db, ref, now) {
+  const g = await db.prepare(`SELECT * FROM guichet WHERE id = ? AND sens = 'retrait'`).bind(ref).first();
+  if (!g || !g.personnage_id) return;
+  const u = await db.prepare(`UPDATE guichet SET statut = 'echoue' WHERE id = ? AND statut IN ('en_attente', 'traitement')`).bind(ref).run();
+  if (!u.meta || u.meta.changes !== 1) return;
+  await db.batch([
+    db.prepare(`UPDATE personnages SET makuta = makuta + ? WHERE id = ?`).bind(g.makuta, g.personnage_id),
+    db.prepare(`DELETE FROM retraits WHERE compte_id = ? AND le = ?`).bind(g.compte_id, g.le),
+    db.prepare(`INSERT INTO transactions (id, de_id, vers_id, montant, motif, le) VALUES (?, NULL, ?, ?, ?, ?)`).bind(uid(), g.personnage_id, g.makuta, "retrait échoué : e-makuta rendus", now),
+  ]);
+}
+async function paymentNotice(env, req, h) {
+  if (!REAL_MONEY || !payConfigured(env)) return fail(h, 404, "Route inconnue.");
+  const n = await readNotice(env, req);
+  if (!n || !n.ref) return fail(h, 401, "Signature invalide.");
+  const db = env.DB, now = Date.now();
+  const g = await db.prepare(`SELECT * FROM guichet WHERE id = ?`).bind(n.ref).first();
+  if (!g) return fail(h, 404, "Référence inconnue.");
+  if (n.status === "en_attente") return json(h, 200, { ok: true });
+  if (g.sens === "retrait") {
+    if (n.status === "paye") await db.prepare(`UPDATE guichet SET statut = 'paye' WHERE id = ? AND statut = 'en_attente'`).bind(g.id).run();
+    else await refundPayout(db, g.id, now);
+    return json(h, 200, { ok: true });
+  }
+  // dépôt : on crédite une seule fois, et seulement si le montant payé est le bon
+  if (n.status !== "paye" || !(Math.abs(n.amount - g.usd) < .005)) {
+    await db.prepare(`UPDATE guichet SET statut = 'echoue' WHERE id = ? AND statut = 'en_attente'`).bind(g.id).run();
+    return json(h, 200, { ok: true });
+  }
+  const u = await db.prepare(`UPDATE guichet SET statut = 'traitement' WHERE id = ? AND statut = 'en_attente'`).bind(g.id).run();
+  if (!u.meta || u.meta.changes !== 1) return json(h, 200, { ok: true, deja: true });
+  await db.batch([
+    db.prepare(`INSERT INTO depots (id, compte_id, offre, usd, makuta, simule, le) VALUES (?, ?, 'recharge', ?, ?, 0, ?)`).bind(uid(), g.compte_id, g.usd, g.makuta, now),
+    db.prepare(`UPDATE personnages SET makuta = makuta + ? WHERE id = ?`).bind(g.makuta, g.personnage_id),
+    db.prepare(`INSERT INTO transactions (id, de_id, vers_id, montant, motif, le) VALUES (?, NULL, ?, ?, ?, ?)`).bind(uid(), g.personnage_id, g.makuta, "dépôt au guichet", now),
+    db.prepare(`UPDATE guichet SET statut = 'paye' WHERE id = ?`).bind(g.id),
+  ]);
+  return json(h, 200, { ok: true });
+}
+
 const worker = {
   // toutes les 15 minutes (Cron Trigger gratuit) : les personnages suivent leurs consignes, même joueur déconnecté
   async scheduled(event, env, ctx) {
     const db = env.DB, now = Date.now();
     try { await kidAlerts(env, now); } catch (e) { console.error(e); }
+    try { await morningPush(env, now); } catch (e) { console.error(e); }
+    // les joueurs absents peuvent aussi mourir (faim, maladie)
+    try {
+      const { results: alive } = await db.prepare(`SELECT id FROM personnages WHERE mort_le IS NULL AND compte_id IS NOT NULL ORDER BY maj_le LIMIT 300`).all();
+      for (const a of alive) await checkDeath(env, db, a.id, now);
+    } catch (e) { console.error(e); }
     const { results } = await db.prepare(`SELECT DISTINCT c.personnage_id AS pid, p.compte_id FROM consignes c JOIN personnages p ON p.id = c.personnage_id WHERE c.jour = ? AND p.mort_le IS NULL LIMIT 500`).bind(dayKey(now)).all();
     for (const r of results) {
       try {
         const compte = await db.prepare(`SELECT * FROM comptes WHERE id = ? AND vie_id = ?`).bind(r.compte_id, r.pid).first();
         if (!compte) continue;
-        await supportFamily(db, r.pid, now);
+        await supportFamily(db, r.pid, now, env);
         const ch = await loadCharacter(db, r.pid);
         if (ch) await applyOrders(env, db, compte, ch, now);
       } catch (e) { console.error(e); }
@@ -425,7 +702,7 @@ const worker = {
     if (post && res.ok) {
       try {
         const path = new URL(req.url).pathname;
-        if (!["/api/inscription", "/api/connexion", "/api/beta"].includes(path) && !path.startsWith("/api/admin/")) {
+        if (!["/api/inscription", "/api/connexion", "/api/beta", "/api/support"].includes(path) && !path.startsWith("/api/admin/")) {
           const out = await res.clone().json().catch(() => ({}));
           const d = describeAction(path, await copy.json().catch(() => ({})), out);
           const compte = d && await auth(env.DB, req, Date.now());
@@ -448,11 +725,15 @@ const worker = {
     const url = new URL(req.url);
     const db = env.DB;
     const now = Date.now();
+    // notification signée de la passerelle de paiement (corps brut, pas de session joueur)
+    if (url.pathname === "/api/paiement/notification" && req.method === "POST") return paymentNotice(env, req, h);
     let body = {};
     if (req.method === "POST") { try { body = await req.json(); } catch (e) { return fail(h, 400, "Requête illisible."); } }
 
     try {
       if (url.pathname === "/api/sante") return json(h, 200, { ok: true, jeu: "2 Life" });
+      await loadSettings(db, now);
+      if (url.pathname === "/api/reglages" && req.method === "GET") return json(h, 200, { reglages: { ...SET } });
 
       if (url.pathname === "/api/push/cle" && req.method === "GET") return json(h, 200, { cle: (await vapidKeys(env, db)).publique });
       // site servi par ce Worker : config.js pointe vers l'API du même domaine (mode réel, pas démo)
@@ -469,6 +750,20 @@ const worker = {
         const r = await db.prepare(`INSERT OR IGNORE INTO beta_inscrits (id, pseudo, email, pays, plateforme, newsletter, source, cree_le) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
           .bind(uid(), pseudo, email, t(body.country).slice(0, 60) || null, t(body.platform).slice(0, 40) || null, body.newsletter ? 1 : 0, t(body.source).slice(0, 60) || "landing", now).run();
         if (!r.meta.changes) return fail(h, 409, "Cette adresse est déjà inscrite.");
+        return json(h, 201, { ok: true });
+      }
+
+      // bureau Zboss Sarlu (guichet d'aide du jeu) : ouvert à tous, compte facultatif
+      if (url.pathname === "/api/support" && req.method === "POST") {
+        const t = v => String(v ?? "").trim();
+        const message = t(body.message).slice(0, 2000), email = t(body.email).toLowerCase().slice(0, 254);
+        if (message.length < 5) return fail(h, 400, "Écris quelques mots sur ton problème.");
+        if (email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return fail(h, 400, "Cette adresse e-mail ne semble pas valide.");
+        const c = await auth(db, req, now);
+        const recent = await db.prepare(`SELECT COUNT(*) AS n FROM support_demandes WHERE cree_le > ? AND (email = ? OR compte_id = ?)`).bind(now - 36e5, email || "-", c ? c.id : "-").first();
+        if (recent && recent.n >= 10) return fail(h, 429, "Tu as déjà envoyé beaucoup de demandes. Réessaie dans une heure.");
+        await db.prepare(`INSERT INTO support_demandes (id, compte_id, pseudo, email, categorie, message, page, statut, cree_le) VALUES (?, ?, ?, ?, ?, ?, ?, 'ouvert', ?)`)
+          .bind(uid(), c ? c.id : null, t(body.pseudo).slice(0, 40) || (c ? c.pseudo : null), email || (c ? c.email : null), t(body.categorie).slice(0, 60) || "Autre", message, t(body.page).slice(0, 40) || null, now).run();
         return json(h, 201, { ok: true });
       }
 
@@ -493,7 +788,10 @@ const worker = {
         const { hash } = await hashPassword(String(body.motdepasse || ""), c.pass_salt);
         if (!sameText(hash, c.pass_hash)) return fail(h, 401, "E-mail ou mot de passe incorrect.");
         const token = await newSession(db, c.id, now);
-        return json(h, 200, { token, ...view(c, await loadCharacter(db, c.vie_id), now), admin: isAdmin(env, c) });
+        await checkDeath(env, db, c.vie_id, now);
+        const chc = await loadCharacter(db, c.vie_id);
+        if (chc.p.mort_le) return json(h, 200, { token, ...deadView(c, chc.p, await db.prepare(`SELECT makuta FROM reports WHERE compte_id = ?`).bind(c.id).first(), now, await albumOf(db, chc.p)), admin: isAdmin(env, c) });
+        return json(h, 200, { token, ...view(c, chc, now), admin: isAdmin(env, c) });
       }
 
       // ---- routes réservées aux joueurs connectés
@@ -508,7 +806,34 @@ const worker = {
           const { results: inv } = await db.prepare(`SELECT c.pseudo, c.email, d.offre, d.usd, d.le FROM depots d JOIN comptes c ON c.id = d.compte_id WHERE d.offre IN ('petit','grand') ORDER BY d.le`).all();
           const { results: ent } = await db.prepare(`SELECT e.nom, e.type, e.local AS quartier, e.cree_le, p.prenom || ' ' || p.nom AS proprietaire FROM entreprises e JOIN personnages p ON p.id = e.proprietaire_id ORDER BY e.cree_le`).all();
           const { results: beta } = await db.prepare(`SELECT pseudo, email, pays, plateforme, newsletter, source, cree_le FROM beta_inscrits ORDER BY cree_le DESC LIMIT 2000`).all();
-          return json(h, 200, { lancement: await launch(db), parents, investisseurs: inv, entreprises: ent, elections: await elections(db, now), beta });
+          const { results: support } = await db.prepare(`SELECT id, pseudo, email, categorie, message, statut, cree_le, resolu_le FROM support_demandes ORDER BY statut = 'ouvert' DESC, cree_le DESC LIMIT 300`).all();
+          const nb = await db.prepare(`SELECT COUNT(*) AS n, COALESCE(SUM(usd), 0) AS usd FROM depots WHERE offre = 'bebe'`).first();
+          // observer le jeu pour l'améliorer : population, enfants négligés, décès, derniers événements
+          const pop = await db.prepare(`SELECT SUM(mort_le IS NULL) AS vivants, SUM(mort_le IS NOT NULL) AS morts, SUM(mort_le IS NULL AND ne_le > ?) AS enfants FROM personnages WHERE compte_id IS NOT NULL`).bind(now - birthShiftMs(18)).first();
+          const ng = await db.prepare(`SELECT SUM(n.jours > 0) AS negliges, SUM(n.jours >= ?) AS danger FROM negligences n JOIN personnages p ON p.id = n.personnage_id WHERE p.mort_le IS NULL`).bind(NEGLECT_DANGER_DAYS).first();
+          const { results: deces } = await db.prepare(`SELECT p.prenom, p.nom, p.cause_mort AS cause, p.ne_le, p.mort_le, c.pseudo,
+              (SELECT COALESCE(SUM(montant), 0) FROM successions s WHERE s.defunt_id = p.id) AS fortune FROM personnages p LEFT JOIN comptes c ON c.id = p.compte_id
+              WHERE p.mort_le IS NOT NULL ORDER BY p.mort_le DESC LIMIT 20`).all();
+          const { results: evts } = await db.prepare(`SELECT m.icone, m.texte, m.le, p.prenom || ' ' || p.nom AS qui FROM mouvements m JOIN personnages p ON p.id = m.personnage_id ORDER BY m.le DESC LIMIT 40`).all();
+          const pub = await publicState(db);
+          const observer = { vivants: pop.vivants || 0, morts: pop.morts || 0, enfants: pop.enfants || 0, negliges: ng.negliges || 0, enDanger: ng.danger || 0,
+            tresor: pub.tresor, masse: pub.masse, deces: deces.map(d => ({ ...d, age: Math.floor(ageYears(d.ne_le, d.mort_le)) })), evenements: evts };
+          return json(h, 200, { reglages: { defs: SETTINGS, valeurs: { ...SET } }, lancement: await launch(db), observer, naissances: { n: nb.n, usd: nb.usd, fraisAdmin: nb.n * ADMIN_FEE_USD, parents: nb.usd - nb.n * ADMIN_FEE_USD }, parents, investisseurs: inv, entreprises: ent, elections: await elections(db, now), beta, support });
+        }
+        if (url.pathname === "/api/admin/reglages" && req.method === "POST") {
+          const v = body.valeurs || {}, st = [];
+          for (const s of SETTINGS) if (v[s.id] != null) {
+            const n = Number(v[s.id]); if (!Number.isFinite(n) || n < s.min || n > s.max) return fail(h, 400, `${s.label} : entre ${s.min} et ${s.max}.`);
+            st.push(db.prepare(`INSERT INTO reglages (cle, valeur, maj_le) VALUES (?, ?, ?) ON CONFLICT(cle) DO UPDATE SET valeur = excluded.valeur, maj_le = excluded.maj_le`).bind(s.id, n, now));
+          }
+          if (st.length) await db.batch(st);
+          await loadSettings(db, now, true);
+          return json(h, 200, { ok: true, reglages: { defs: SETTINGS, valeurs: { ...SET } } });
+        }
+        if (url.pathname === "/api/admin/support" && req.method === "POST") {
+          const st = body.statut === "resolu" ? "resolu" : "ouvert";
+          await db.prepare(`UPDATE support_demandes SET statut = ?, resolu_le = ? WHERE id = ?`).bind(st, st === "resolu" ? now : null, String(body.id || "")).run();
+          return json(h, 200, { ok: true });
         }
         if (url.pathname === "/api/admin/parent" && req.method === "POST") {
           const r = await createAccount(db, body, now, OFFERS.find(o => o.id === "parent"), true);
@@ -540,10 +865,30 @@ const worker = {
         return fail(h, 404, "Route inconnue.");
       }
 
-      await supportFamily(db, compte.vie_id, now);
+      await supportFamily(db, compte.vie_id, now, env);
+      await checkDeath(env, db, compte.vie_id, now);
+      try { await collectRent(db, compte.vie_id, now); } catch (e) { console.error(e); }
+      try { await dailyEvent(db, compte.vie_id, now); } catch (e) { console.error(e); }
       const ch = await loadCharacter(db, compte.vie_id);
       if (!ch) return fail(h, 404, "Personnage introuvable.");
+      // personnage mort : on ne peut que voir son décès et renaître (en payant une nouvelle naissance)
+      if (ch.p.mort_le) {
+        const rep = await db.prepare(`SELECT makuta FROM reports WHERE compte_id = ?`).bind(compte.id).first();
+        if (url.pathname === "/api/renaitre" && req.method === "POST") {
+          const pid = await birth(db, compte.id, now, OFFERS.find(o => o.id === "bebe"));
+          if (rep && rep.makuta > 0) await db.batch([
+            db.prepare(`UPDATE personnages SET makuta = makuta + ? WHERE id = ?`).bind(rep.makuta, pid),
+            db.prepare(`INSERT INTO transactions (id, de_id, vers_id, montant, motif, le) VALUES (?, NULL, ?, ?, ?, ?)`).bind(uid(), pid, rep.makuta, "20 % gardés de la vie précédente", now),
+            db.prepare(`DELETE FROM reports WHERE compte_id = ?`).bind(compte.id)]);
+          const c2 = await db.prepare(`SELECT * FROM comptes WHERE id = ?`).bind(compte.id).first();
+          return json(h, 200, { ...view(c2, await loadCharacter(db, pid), now), renaissance: true });
+        }
+        if (url.pathname === "/api/moi") return json(h, 200, deadView(compte, ch.p, rep, now, await albumOf(db, ch.p)));
+        return fail(h, 409, "Ton personnage est mort. Tu peux renaître depuis la page Ma vie.");
+      }
       const { p, tal } = ch;
+      if (BIG_DECISIONS.includes(url.pathname) && req.method === "POST") { const no = cannotDecide(ch.origine, p.prenom, now); if (no) return fail(h, 409, no); }
+      if (url.pathname === "/api/mariage/repondre" && body.accepte) { const no = cannotDecide(ch.origine, p.prenom, now); if (no) return fail(h, 409, no); }
 
       if (url.pathname === "/api/moi" && req.method === "GET") {
         if (await applyOrders(env, db, compte, ch, now)) return json(h, 200, view(compte, await loadCharacter(db, p.id), Date.now()));
@@ -565,9 +910,47 @@ const worker = {
         const no = cannotGiveOrder(body.ordre, ch.consignes.liste);
         if (no) return fail(h, 409, no);
         await db.prepare(`INSERT INTO consignes (personnage_id, jour, ordre, donnee_le) VALUES (?, ?, ?, ?)`).bind(p.id, ch.consignes.jour, body.ordre, now).run();
+        const sk = await streakAdvance(db, compte.id, p.id, ch.fid, ch.consignes.jour, now);
         const c2 = await loadCharacter(db, p.id);
         await applyOrders(env, db, compte, c2, now, true);   // la consigne s'applique tout de suite si possible
-        return json(h, 200, view(compte, await loadCharacter(db, p.id), Date.now()));
+        return json(h, 200, { ...view(compte, await loadCharacter(db, p.id), Date.now()), serieBonus: sk.bonus ? { jours: sk.serie, makuta: sk.bonus } : null });
+      }
+      // ---- vie sociale : journal, voisins, petits mots
+      if (url.pathname === "/api/journal" && req.method === "POST") return json(h, 200, newspaper(await newsFacts(db, now), now, p.quartier));
+      if (url.pathname === "/api/voisins" && req.method === "POST") {
+        const { results } = await db.prepare(`SELECT p.id, p.prenom, p.nom, p.sexe, p.quartier, p.ne_le, c.pseudo,
+            (SELECT metier_id FROM emplois e WHERE e.personnage_id = p.id AND e.fin IS NULL LIMIT 1) AS metier,
+            (SELECT points FROM reputations r WHERE r.personnage_id = p.id) AS reputation
+          FROM personnages p JOIN comptes c ON c.vie_id = p.id WHERE p.mort_le IS NULL AND p.id != ?
+          ORDER BY (p.quartier = ?) DESC, p.ne_le DESC LIMIT 40`).bind(p.id, p.quartier || "").all();
+        const total = await db.prepare(`SELECT COUNT(*) AS n FROM personnages p JOIN comptes c ON c.vie_id = p.id WHERE p.mort_le IS NULL`).first();
+        return json(h, 200, { quartier: p.quartier, joueurs: total.n, voisins: results.map(n => neighborView({ ...n, memeCommune: n.quartier === p.quartier }, now)) });
+      }
+      if (url.pathname === "/api/mot" && req.method === "POST") {
+        const to = await db.prepare(`SELECT p.id, p.prenom, p.compte_id FROM personnages p JOIN comptes c ON c.vie_id = p.id WHERE p.id = ? AND p.mort_le IS NULL`).bind(String(body.vers || "")).first();
+        if (!to) return fail(h, 404, "Ce joueur n'est plus dans la ville.");
+        const sent = await db.prepare(`SELECT COUNT(*) AS n FROM mots WHERE de_id = ? AND le > ?`).bind(p.id, now - 864e5).first();
+        const texte = String(body.texte || "").trim();
+        const no = cannotSendWord(texte, sent.n, to.id === p.id); if (no) return fail(h, 409, no);
+        await db.prepare(`INSERT INTO mots (id, de_id, vers_id, texte, le) VALUES (?, ?, ?, ?, ?)`).bind(uid(), p.id, to.id, texte, now).run();
+        try { await notify(env, db, to.compte_id, { titre: `2 Life · mot de ${p.prenom}`, texte: texte.slice(0, 120), url: "vie.html#voisins" }); } catch (e) { console.error(e); }
+        return json(h, 200, { ...view(compte, await loadCharacter(db, p.id), now), envoyeA: to.prenom });
+      }
+      if (url.pathname === "/api/mots/lus" && req.method === "POST") {
+        await db.prepare(`UPDATE mots SET lu = 1 WHERE vers_id = ? AND lu = 0`).bind(p.id).run();
+        return json(h, 200, view(compte, await loadCharacter(db, p.id), now));
+      }
+      if (url.pathname === "/api/mot/signaler" && req.method === "POST") {
+        const m = await db.prepare(`SELECT m.id, m.texte, m.de_id, p.prenom, p.nom FROM mots m JOIN personnages p ON p.id = m.de_id WHERE m.id = ? AND m.vers_id = ?`).bind(String(body.mot || ""), p.id).first();
+        if (!m) return fail(h, 404, "Mot introuvable.");
+        await db.batch([db.prepare(`UPDATE mots SET signale = 1, lu = 1 WHERE id = ?`).bind(m.id),
+          db.prepare(`INSERT INTO support_demandes (id, compte_id, pseudo, email, categorie, message, page, statut, cree_le) VALUES (?, ?, ?, ?, 'Mot signalé', ?, 'voisins', 'ouvert', ?)`)
+            .bind(uid(), compte.id, compte.pseudo, compte.email, `Mot de ${m.prenom} ${m.nom} (${m.de_id}) : « ${m.texte} »`, now)]);
+        return json(h, 200, view(compte, await loadCharacter(db, p.id), now));
+      }
+      if (url.pathname === "/api/resume/vu" && req.method === "POST") {
+        await db.prepare(`INSERT INTO fidelite (compte_id, resume_vu_le, makuta_vu) VALUES (?, ?, ?) ON CONFLICT(compte_id) DO UPDATE SET resume_vu_le = excluded.resume_vu_le, makuta_vu = excluded.makuta_vu`).bind(compte.id, now, p.makuta).run();
+        return json(h, 200, view(compte, await loadCharacter(db, p.id), now));
       }
       if (inPrison(p.prison_jusqu, now) && PRISON_BLOCKED.includes(url.pathname))
         return fail(h, 423, `Tu es en prison jusqu'au ${new Date(p.prison_jusqu).toLocaleString("fr-FR", { timeZone: "Africa/Kinshasa" })}. Paie la caution pour sortir plus tôt.`);
@@ -595,6 +978,7 @@ const worker = {
           await db.batch([
             db.prepare(`UPDATE personnages SET makuta = makuta + ? WHERE id = ?`).bind(gain, p.id),
             db.prepare(`INSERT INTO transactions (id, de_id, vers_id, montant, motif, le) VALUES (?, NULL, ?, ?, ?, ?)`).bind(uid(), p.id, gain, "gain illégal : " + cr.nom, now),
+            ...(Math.random() < 0.25 ? [repSt(db, p.id, REP.crimeRumeur, now)] : []),   // des rumeurs circulent
           ]);
           return json(h, 200, { crime: { attrape: false, gain }, ...view(compte, await loadCharacter(db, p.id), now) });
         }
@@ -604,6 +988,7 @@ const worker = {
           db.prepare(`UPDATE personnages SET makuta = makuta - ?, bonheur = MAX(0, bonheur - 10), prison_jusqu = COALESCE(?, prison_jusqu) WHERE id = ?`).bind(sn.amende, until, p.id),
           db.prepare(`INSERT INTO infractions (id, personnage_id, type, amende, prison_heures, le) VALUES (?, ?, ?, ?, ?, ?)`).bind(uid(), p.id, cr.id, sn.amende, sn.heures, now),
           ...taxTo(db, p.id, sn.amende, "amende (police) : " + cr.nom, now),
+          repSt(db, p.id, REP.crimeAttrape + (sn.prison ? REP.prison : 0), now),
         ]);
         return json(h, 200, { crime: { attrape: true, ...sn }, ...view(compte, await loadCharacter(db, p.id), now) });
       }
@@ -636,12 +1021,128 @@ const worker = {
         return json(h, 200, { resultat: { score: res.score, message: res.message, talent: res.discovered ? TALENTS.find(x => x.id === res.discovered).label : null }, ...view(compte, again, now) });
       }
 
+      // ---- petits boulots de rue
+      if (url.pathname === "/api/petitboulot" && req.method === "POST") {
+        await settle(db, p, now);
+        const j = STREET_JOBS.find(x => x.id === body.boulot), no = cannotStreetJob(j, ageYears(p.ne_le, now), p.energie, ch.lastStreet, now);
+        if (no) return fail(h, 409, no);
+        const gain = j.gain[0] + Math.floor(Math.random() * (j.gain[1] - j.gain[0] + 1));
+        await db.batch([
+          db.prepare(`UPDATE personnages SET makuta = makuta + ?, energie = MAX(0, energie - ?) WHERE id = ?`).bind(gain, j.energie, p.id),
+          db.prepare(`INSERT INTO transactions (id, de_id, vers_id, montant, motif, le) VALUES (?, NULL, ?, ?, ?, ?)`).bind(uid(), p.id, gain, "petit boulot : " + j.nom, now),
+          db.prepare(`INSERT INTO activites (id, personnage_id, activite, score, resultat, le) VALUES (?, ?, ?, ?, ?, ?)`).bind(uid(), p.id, "boulot:" + j.id, gain, "", now),
+          matSt(db, p.id, MATURITY_GAIN.petitboulot),
+        ]);
+        return json(h, 200, { boulot: { nom: j.nom, gain }, ...view(compte, await loadCharacter(db, p.id), now) });
+      }
+      // ---- logement : louer ou acheter sa parcelle
+      if ((url.pathname === "/api/logement/louer" || url.pathname === "/api/logement/acheter") && req.method === "POST") {
+        const q = String(body.quartier || ""), buy = url.pathname.endsWith("acheter");
+        if (!RENT[q]) return fail(h, 404, "Quartier inconnu.");
+        if (ageYears(p.ne_le, now) < HOUSING_MIN_AGE) return fail(h, 409, `Possible à partir de ${HOUSING_MIN_AGE} ans.`);
+        if (ch.logement && ch.logement.statut === "proprio" && !buy) return fail(h, 409, "Tu as déjà ta propre parcelle.");
+        const cost = buy ? houseOf(q) : rentOf(q);
+        if (p.makuta < cost) return fail(h, 409, `Il faut ${fmtMakuta(cost)}.`);
+        await db.batch([
+          db.prepare(`UPDATE personnages SET makuta = makuta - ?, bonheur = MIN(100, bonheur + 10), quartier = ? WHERE id = ? AND makuta >= ?`).bind(cost, q, p.id, cost),
+          db.prepare(`INSERT INTO logements (personnage_id, statut, quartier, loyer, paye_jusqu, depuis) VALUES (?, ?, ?, ?, ?, ?)
+              ON CONFLICT(personnage_id) DO UPDATE SET statut = excluded.statut, quartier = excluded.quartier, loyer = excluded.loyer, paye_jusqu = excluded.paye_jusqu, depuis = excluded.depuis`)
+            .bind(p.id, buy ? "proprio" : "loue", q, buy ? 0 : cost, buy ? null : now + 7 * DAY, now),
+          db.prepare(`INSERT INTO transactions (id, de_id, vers_id, montant, motif, le) VALUES (?, ?, NULL, ?, ?, ?)`).bind(uid(), p.id, cost, buy ? "achat d'une parcelle à " + q : "premier loyer à " + q, now),
+                  ]);
+        return json(h, 200, view(compte, await loadCharacter(db, p.id), now));
+      }
+      if (url.pathname === "/api/logement/quitter" && req.method === "POST") {
+        await db.prepare(`DELETE FROM logements WHERE personnage_id = ? AND statut = 'loue'`).bind(p.id).run();
+        return json(h, 200, view(compte, await loadCharacter(db, p.id), now));
+      }
+      // ---- marché aux annonces entre joueurs
+      if (url.pathname === "/api/annonce/publier" && req.method === "POST") {
+        const own = ch.inv.find(x => x.id === body.possession), prix = Math.round(Number(body.prix));
+        if (!own) return fail(h, 404, "Objet introuvable.");
+        if (!(prix >= 1 && prix <= 1e7)) return fail(h, 400, "Prix invalide.");
+        const dup = await db.prepare(`SELECT id FROM annonces WHERE possession_id = ? AND statut = 'ouverte'`).bind(own.id).first();
+        if (dup) return fail(h, 409, "Cet objet est déjà en vente.");
+        await db.batch([db.prepare(`INSERT INTO annonces (id, vendeur_id, possession_id, prix, cree_le) VALUES (?, ?, ?, ?, ?)`).bind(uid(), p.id, own.id, prix, now),
+          db.prepare(`UPDATE possessions SET porte = 0 WHERE id = ?`).bind(own.id)]);
+        return json(h, 200, view(compte, await loadCharacter(db, p.id), now));
+      }
+      if (url.pathname === "/api/annonce/retirer" && req.method === "POST") {
+        await db.prepare(`UPDATE annonces SET statut = 'retiree' WHERE id = ? AND vendeur_id = ? AND statut = 'ouverte'`).bind(String(body.id || ""), p.id).run();
+        return json(h, 200, view(compte, await loadCharacter(db, p.id), now));
+      }
+      if (url.pathname === "/api/annonce/acheter" && req.method === "POST") {
+        const a = await db.prepare(`SELECT a.*, o.objet_id FROM annonces a JOIN possessions o ON o.id = a.possession_id WHERE a.id = ? AND a.statut = 'ouverte'`).bind(String(body.id || "")).first();
+        if (!a) return fail(h, 404, "Annonce introuvable ou déjà vendue.");
+        if (a.vendeur_id === p.id) return fail(h, 409, "C'est ton annonce.");
+        if (p.makuta < a.prix) return fail(h, 409, "Pas assez d'e-makuta.");
+        const tax = Math.round(a.prix * SALE_TAX), nom = (SHOP.find(x => x.id === a.objet_id) || { nom: a.objet_id }).nom;
+        const r = await db.prepare(`UPDATE annonces SET statut = 'vendue' WHERE id = ? AND statut = 'ouverte'`).bind(a.id).run();
+        if (!r.meta || !r.meta.changes) return fail(h, 409, "Quelqu'un l'a acheté avant toi.");
+        await db.batch([
+          db.prepare(`UPDATE personnages SET makuta = makuta - ? WHERE id = ? AND makuta >= ?`).bind(a.prix, p.id, a.prix),
+          db.prepare(`UPDATE personnages SET makuta = makuta + ? WHERE id = ?`).bind(a.prix - tax, a.vendeur_id),
+          db.prepare(`UPDATE possessions SET proprietaire_id = ?, porte = 0, acquis_le = ? WHERE id = ?`).bind(p.id, now, a.possession_id),
+          db.prepare(`INSERT INTO transactions (id, de_id, vers_id, montant, motif, le) VALUES (?, ?, ?, ?, ?, ?)`).bind(uid(), p.id, a.vendeur_id, a.prix - tax, "achat entre joueurs : " + nom, now),
+          ...taxTo(db, p.id, tax, "taxe 5 % sur la vente : " + nom, now),
+          db.prepare(`INSERT INTO mouvements (id, personnage_id, icone, texte, par_consigne, le) VALUES (?, ?, ?, ?, 0, ?)`).bind(uid(), a.vendeur_id, "🤝", `${p.prenom} ${p.nom} a acheté ton annonce : ${nom} (${fmtMakuta(a.prix - tax)} après taxe).`, now),
+        ]);
+        return json(h, 200, { achete: nom, ...view(compte, await loadCharacter(db, p.id), now) });
+      }
+      // ---- mariage entre joueurs
+      if (url.pathname === "/api/mariage/demander" && req.method === "POST") {
+        const t = await db.prepare(`SELECT p.* FROM comptes c JOIN personnages p ON p.id = c.vie_id WHERE LOWER(c.pseudo) = LOWER(?)`).bind(String(body.pseudo || "").trim()).first();
+        const no = cannotMarry(p, t, ageYears(p.ne_le, now), t ? ageYears(t.ne_le, now) : 0); if (no) return fail(h, 409, no);
+        const dup = await db.prepare(`SELECT id FROM demandes_mariage WHERE statut = 'attente' AND ((de_id = ? AND vers_id = ?) OR (de_id = ? AND vers_id = ?))`).bind(p.id, t.id, t.id, p.id).first();
+        if (dup) return fail(h, 409, "Une demande est déjà en attente entre vous deux.");
+        await db.batch([db.prepare(`INSERT INTO demandes_mariage (id, de_id, vers_id, le) VALUES (?, ?, ?, ?)`).bind(uid(), p.id, t.id, now),
+          db.prepare(`INSERT INTO mouvements (id, personnage_id, icone, texte, par_consigne, le) VALUES (?, ?, ?, ?, 0, ?)`).bind(uid(), t.id, "💍", `${p.prenom} ${p.nom} te demande en mariage.`, now)]);
+        if (t.compte_id) try { await notify(env, db, t.compte_id, { titre: "2 Life · demande en mariage", texte: `${p.prenom} ${p.nom} te demande en mariage.`, url: "vie.html#couple-card" }); } catch (e) { }
+        return json(h, 200, view(compte, await loadCharacter(db, p.id), now));
+      }
+      if (url.pathname === "/api/mariage/repondre" && req.method === "POST") {
+        const dm = await db.prepare(`SELECT * FROM demandes_mariage WHERE id = ? AND vers_id = ? AND statut = 'attente'`).bind(String(body.id || ""), p.id).first();
+        if (!dm) return fail(h, 404, "Demande introuvable.");
+        if (!body.accepte) { await db.prepare(`UPDATE demandes_mariage SET statut = 'refusee' WHERE id = ?`).bind(dm.id).run(); return json(h, 200, view(compte, await loadCharacter(db, p.id), now)); }
+        const o = await db.prepare(`SELECT * FROM personnages WHERE id = ?`).bind(dm.de_id).first();
+        const no = cannotMarry(p, o, ageYears(p.ne_le, now), o ? ageYears(o.ne_le, now) : 0); if (no) return fail(h, 409, no);
+        const groom = p.sexe === "M" ? p : o, bride = p.sexe === "M" ? o : p;
+        // la famille du marié paie : un parent joueur qui en a les moyens, sinon le marié lui-même
+        const gp = await db.prepare(`SELECT id, makuta FROM personnages WHERE id IN (?, ?) AND mort_le IS NULL AND makuta >= ? ORDER BY makuta DESC LIMIT 1`).bind(groom.pere_id || "", groom.mere_id || "", DOT_MAKUTA).first();
+        const payer = gp || (groom.makuta >= DOT_MAKUTA ? groom : null);
+        if (!payer) return fail(h, 409, `La famille du marié doit réunir la dot : ${fmtMakuta(DOT_MAKUTA)}.`);
+        const { results: bp } = await db.prepare(`SELECT id FROM personnages WHERE id IN (?, ?) AND mort_le IS NULL AND compte_id IS NOT NULL`).bind(bride.pere_id || "", bride.mere_id || "").all();
+        const takers = bp.length ? bp.map(x => x.id) : [bride.id], each = Math.floor(DOT_MAKUTA / takers.length);
+        const M = (id, t) => db.prepare(`INSERT INTO mouvements (id, personnage_id, icone, texte, par_consigne, le) VALUES (?, ?, ?, ?, 0, ?)`).bind(uid(), id, "💒", t, now);
+        await db.batch([
+          db.prepare(`UPDATE personnages SET makuta = makuta - ? WHERE id = ? AND makuta >= ?`).bind(each * takers.length, payer.id, each * takers.length),
+          ...takers.flatMap(id => [db.prepare(`UPDATE personnages SET makuta = makuta + ? WHERE id = ?`).bind(each, id),
+            db.prepare(`INSERT INTO transactions (id, de_id, vers_id, montant, motif, le) VALUES (?, ?, ?, ?, ?, ?)`).bind(uid(), payer.id, id, each, `dot : mariage de ${groom.prenom} et ${bride.prenom}`, now)]),
+          db.prepare(`UPDATE personnages SET conjoint_id = ? WHERE id = ?`).bind(bride.id, groom.id),
+          db.prepare(`UPDATE personnages SET conjoint_id = ? WHERE id = ?`).bind(groom.id, bride.id),
+          db.prepare(`UPDATE demandes_mariage SET statut = 'acceptee' WHERE id = ?`).bind(dm.id),
+          db.prepare(`UPDATE demandes_mariage SET statut = 'annulee' WHERE statut = 'attente' AND (de_id IN (?, ?) OR vers_id IN (?, ?))`).bind(p.id, o.id, p.id, o.id),
+          repSt(db, p.id, REP.mariage, now), repSt(db, o.id, REP.mariage, now),
+          M(groom.id, `Mariage avec ${bride.prenom} ${bride.nom}. Dot versée : ${fmtMakuta(DOT_MAKUTA)}${gp ? " (payée par ta famille)" : ""}.`),
+          M(bride.id, `Mariage avec ${groom.prenom} ${groom.nom}. La famille du marié a versé la dot.`),
+        ]);
+        if (o.compte_id) try { await notify(env, db, o.compte_id, { titre: "2 Life · mariage", texte: `${p.prenom} a dit oui ! Vous êtes mariés.`, url: "vie.html#couple-card" }); } catch (e) { }
+        return json(h, 200, { marie: true, ...view(compte, await loadCharacter(db, p.id), now) });
+      }
+      if (url.pathname === "/api/divorce" && req.method === "POST") {
+        if (!p.conjoint_id) return fail(h, 409, "Tu n'es pas marié.");
+        await db.batch([db.prepare(`UPDATE personnages SET conjoint_id = NULL WHERE id IN (?, ?)`).bind(p.id, p.conjoint_id),
+          repSt(db, p.id, REP.divorce, now), repSt(db, p.conjoint_id, REP.divorce, now),
+          db.prepare(`INSERT INTO mouvements (id, personnage_id, icone, texte, par_consigne, le) VALUES (?, ?, ?, ?, 0, ?)`).bind(uid(), p.conjoint_id, "💔", `${p.prenom} a demandé le divorce.`, now)]);
+        return json(h, 200, view(compte, await loadCharacter(db, p.id), now));
+      }
       if (url.pathname === "/api/manger" && req.method === "POST") {
         await settle(db, p, now);
-        if (p.makuta < FOOD.prix) return fail(h, 409, "Pas assez d'e-makuta pour un repas.");
+        const prix = Math.round(FOOD.prix * repDiscount(ch.reputation));   // prix d'ami pour les gens respectés
+        if (p.makuta < prix) return fail(h, 409, "Pas assez d'e-makuta pour un repas.");
         await db.batch([
-          db.prepare(`UPDATE personnages SET makuta = makuta - ?, faim = MIN(100, faim + ?) WHERE id = ? AND makuta >= ?`).bind(FOOD.prix, FOOD.faim, p.id, FOOD.prix),
-          ...await payToCompany(db, "maquis", p.id, FOOD.prix, "repas au maquis", now),
+          db.prepare(`UPDATE personnages SET makuta = makuta - ?, faim = MIN(100, faim + ?) WHERE id = ? AND makuta >= ?`).bind(prix, FOOD.faim, p.id, prix),
+          ...await payToCompany(db, "maquis", p.id, prix, "repas au maquis", now),
         ]);
         const again = await loadCharacter(db, p.id);
         return json(h, 200, view(compte, again, now));
@@ -682,6 +1183,8 @@ const worker = {
         return json(h, 200, view(compte, await loadCharacter(db, p.id), now));
       }
 
+      if (url.pathname === "/api/postuler" && req.method === "POST" && ch.reputation <= REP_BAD)
+        return fail(h, 409, "L'employeur refuse : ta réputation dans le quartier est trop mauvaise (vols, prison…). Travaille ta réputation d'abord.");
       if (url.pathname === "/api/postuler" && req.method === "POST" && body.entreprise) {
         const e = await db.prepare(`SELECT * FROM entreprises WHERE id = ?`).bind(body.entreprise).first();
         const t = e && COMPANY_TYPES.find(x => x.id === e.type);
@@ -699,7 +1202,7 @@ const worker = {
 
       if (url.pathname === "/api/postuler" && req.method === "POST") {
         const job = JOBS.find(j => j.id === body.metier);
-        const no = cannotApply(job, ageYears(p.ne_le, now), ch.dip);
+        const no = cannotApply(job, ageYears(p.ne_le, now), ch.dip, tal.filter(t => t.decouvert).map(t => t.talent_id));
         if (no) return fail(h, 409, no);
         await db.batch([
           db.prepare(`UPDATE emplois SET fin = ? WHERE personnage_id = ? AND fin IS NULL`).bind(now, p.id),
@@ -713,14 +1216,17 @@ const worker = {
         const job = ch.boss ? companyJob(ch.boss) : ch.job && JOBS.find(j => j.id === ch.job.metier_id);
         const no = cannotWork(job, ageYears(p.ne_le, now), p.energie, ch.lastShift, now);
         if (no) return fail(h, 409, no);
-        const pay = payFor(job, tal.map(t => ({ talent: t.talent_id, discovered: !!t.decouvert })));
+        const pay = payFor(job, tal.map(t => ({ talent: t.talent_id, discovered: !!t.decouvert })), ch.dip);
         // 10 % du salaire pour les parents : aux parents joueurs s'il y en a, sinon à la famille du jeu
-        pay.famille = familyShare(pay.montant);
+        const grudge = await neglectOf(db, p.id);   // un enfant négligé se souvient : il reverse moins
+        pay.famille = familyShare(pay.montant, grudge);
+        if (grudge > 0) pay.rancune = Math.round(familyShareRate(grudge) * 100);
         pay.impot = Math.round(pay.montant * TAX.salaire);   // IPR prélevé par la DGI
         const fromState = PUBLIC_JOBS.some(j => j.id === job.id) || !!job.elu;
         const parents = ch.par.map(x => x.id), each = parents.length ? Math.floor(pay.famille / parents.length) : 0;
         const st = [
           db.prepare(`UPDATE personnages SET makuta = makuta + ?, energie = MAX(0, energie - ?), faim = MAX(0, faim - 10) WHERE id = ?`).bind(pay.montant - pay.famille - pay.impot, 35, p.id),
+          repSt(db, p.id, REP.travail, now),
           db.prepare(`INSERT INTO transactions (id, de_id, vers_id, montant, motif, le) VALUES (?, ?, ?, ?, ?, ?)`).bind(uid(), ch.boss ? ch.boss.id : fromState ? STATE_ID : null, p.id, pay.montant, "salaire : " + job.nom, now),
           ...taxTo(db, p.id, pay.impot, "IPR 5 % (DGI) : " + job.nom, now),
           // dans l'entreprise d'un joueur : la journée rapporte salaire + 60 % à la caisse, qui paie le salaire
@@ -730,6 +1236,7 @@ const worker = {
             db.prepare(`UPDATE personnages SET makuta = makuta + ? WHERE id = ?`).bind(each, pid),
             db.prepare(`INSERT INTO transactions (id, de_id, vers_id, montant, motif, le) VALUES (?, ?, ?, ?, ?, ?)`).bind(uid(), p.id, pid, each, "aide aux parents (10 % du salaire)", now)] : []),
           db.prepare(`INSERT INTO activites (id, personnage_id, activite, score, resultat, le) VALUES (?, ?, ?, ?, ?, ?)`).bind(uid(), p.id, "travail:" + job.id, pay.montant, pay.bonus ? "bonus talent" : "", now),
+          matSt(db, p.id, MATURITY_GAIN.travail),
         ];
         await db.batch(st.filter(x => x));
         return json(h, 200, { paie: pay, ...view(compte, await loadCharacter(db, p.id), now) });
@@ -869,6 +1376,7 @@ const worker = {
         const gain = Math.floor(item.prix * RESELL_RATE);
         await db.batch([
           db.prepare(`DELETE FROM possessions WHERE id = ? AND proprietaire_id = ?`).bind(own.id, p.id),
+          db.prepare(`UPDATE annonces SET statut = 'retiree' WHERE possession_id = ? AND statut = 'ouverte'`).bind(own.id),
           db.prepare(`UPDATE personnages SET makuta = makuta + ? WHERE id = ?`).bind(gain, p.id),
           db.prepare(`INSERT INTO transactions (id, de_id, vers_id, montant, motif, le) VALUES (?, NULL, ?, ?, ?, ?)`).bind(uid(), p.id, gain, "revente : " + item.nom, now),
         ]);
@@ -904,7 +1412,7 @@ const worker = {
         const f = FORMATIONS.find(x => x.id === ch.enr.formation);
         const res = attendCourse(f, ch.enr, tal.map(t => ({ talent: t.talent_id, discovered: !!t.decouvert })), p.makuta, p.energie, now, rng(seedOf()));
         if (res.error) return fail(h, 409, res.error);
-        const st = [db.prepare(`UPDATE personnages SET energie = MAX(0, energie - ?), makuta = makuta - ? WHERE id = ?`).bind(15, res.fee, p.id)];
+        const st = [db.prepare(`UPDATE personnages SET energie = MAX(0, energie - ?), makuta = makuta - ? WHERE id = ?`).bind(15, res.fee, p.id), matSt(db, p.id, MATURITY_GAIN.cours)];
         if (res.fee) st.push(db.prepare(`INSERT INTO transactions (id, de_id, vers_id, montant, motif, le) VALUES (?, ?, NULL, ?, ?, ?)`).bind(uid(), p.id, res.fee, "frais de cours : " + f.nom, now));
         if (res.fin) st.push(
           db.prepare(`INSERT OR IGNORE INTO diplomes_obtenus (personnage_id, formation_id, obtenu_le, note) VALUES (?, ?, ?, ?)`).bind(p.id, f.id, now, res.fin.note),
@@ -948,17 +1456,53 @@ const worker = {
         return json(h, 200, view(compte, await loadCharacter(db, p.id), now));
       }
 
+      // guichet : dépôt d'argent (mobile money, carte, espèces chez un agent) converti en e-makuta
+      if (url.pathname === "/api/guichet/deposer" && req.method === "POST") {
+        const usdIn = Math.round(Number(body.usd) * 100) / 100, no = cannotDeposit(body.moyen, usdIn, body.telephone);
+        if (no) return fail(h, 400, no);
+        const mk = Math.round(usdIn * USD_UNITS), num = maskPhone(body.telephone);
+        if (REAL_MONEY) {
+          // argent réel : on enregistre une demande, la passerelle confirme plus tard par /api/paiement/notification
+          if (!payConfigured(env)) return fail(h, 503, "Le paiement réel n'est pas encore branché.");
+          const ref = uid();
+          await db.prepare(`INSERT INTO guichet (id, compte_id, personnage_id, sens, moyen, numero, usd, makuta, statut, simule, le) VALUES (?, ?, ?, 'depot', ?, ?, ?, ?, 'en_attente', 0, ?)`).bind(ref, compte.id, p.id, body.moyen, num, usdIn, mk, now).run();
+          try {
+            const g = await startDeposit(env, { ref, usd: usdIn, moyen: body.moyen, telephone: String(body.telephone || "").replace(/\D/g, ""), notifyUrl: `${url.origin}/api/paiement/notification`, returnUrl: `${url.origin}/vie.html#wallet` });
+            if (g.providerRef) await db.prepare(`UPDATE guichet SET ref_partenaire = ? WHERE id = ?`).bind(String(g.providerRef), ref).run();
+            return json(h, 200, { ...view(compte, await loadCharacter(db, p.id), now), paiement: { ref, attente: true, redirect: g.redirect, message: g.message } });
+          } catch (e) {
+            await db.prepare(`UPDATE guichet SET statut = 'echoue' WHERE id = ?`).bind(ref).run();
+            return fail(h, 502, e.message);
+          }
+        }
+        await db.batch([
+          db.prepare(`INSERT INTO depots (id, compte_id, offre, usd, makuta, simule, le) VALUES (?, ?, 'recharge', ?, ?, 1, ?)`).bind(uid(), compte.id, usdIn, mk, now),
+          db.prepare(`INSERT INTO guichet (id, compte_id, sens, moyen, numero, usd, makuta, statut, simule, le) VALUES (?, ?, 'depot', ?, ?, ?, ?, 'simule', 1, ?)`).bind(uid(), compte.id, body.moyen, num, usdIn, mk, now),
+          db.prepare(`UPDATE personnages SET makuta = makuta + ? WHERE id = ?`).bind(mk, p.id),
+          db.prepare(`INSERT INTO transactions (id, de_id, vers_id, montant, motif, le) VALUES (?, NULL, ?, ?, ?, ?)`).bind(uid(), p.id, mk, "dépôt simulé au guichet", now),
+        ]);
+        return json(h, 200, view(compte, await loadCharacter(db, p.id), now));
+      }
+
       if (url.pathname === "/api/retirer" && req.method === "POST") {
         const mk = Math.floor(Number(body.makuta) || 0);
-        const w = walletInfo(ch.dep, p.makuta, now);
-        if (!w.retraitPossible) return fail(h, 409, w.retraitPossibleLe ? `Retrait possible à partir du ${new Date(w.retraitPossibleLe).toLocaleDateString("fr-FR")}.` : "Aucun dépôt.");
-        if (mk < USD_UNITS || mk > p.makuta) return fail(h, 400, "Montant invalide.");
-        const usd = Math.floor(mk / USD_UNITS * (1 - WITHDRAW_FEE) * 100) / 100;
+        const w = walletInfo(ch.dep, p.makuta, now, ch.ret);
+        const no = cannotWithdraw(w, p.makuta, mk, body.moyen, body.telephone);
+        if (no) return fail(h, 409, no);
+        if (REAL_MONEY && !payConfigured(env)) return fail(h, 503, "Le paiement réel n'est pas encore branché.");
+        const usd = withdrawUsd(mk), ref = uid();
         await db.batch([
+          db.prepare(`INSERT INTO guichet (id, compte_id, personnage_id, sens, moyen, numero, usd, makuta, statut, simule, le) VALUES (?, ?, ?, 'retrait', ?, ?, ?, ?, ?, ?, ?)`).bind(ref, compte.id, p.id, body.moyen, maskPhone(body.telephone), usd, mk, REAL_MONEY ? "en_attente" : "simule", REAL_MONEY ? 0 : 1, now),
           db.prepare(`UPDATE personnages SET makuta = makuta - ? WHERE id = ? AND makuta >= ?`).bind(mk, p.id, mk),
           db.prepare(`INSERT INTO retraits (id, compte_id, makuta, usd, simule, le) VALUES (?, ?, ?, ?, ?, ?)`).bind(uid(), compte.id, mk, usd, REAL_MONEY ? 0 : 1, now),
           db.prepare(`INSERT INTO transactions (id, de_id, vers_id, montant, motif, le) VALUES (?, ?, NULL, ?, ?, ?)`).bind(uid(), p.id, mk, "retrait vers l'argent réel" + (REAL_MONEY ? "" : " (simulé)"), now),
         ]);
+        if (REAL_MONEY) {
+          try {
+            const g = await startPayout(env, { ref, usd, moyen: body.moyen, telephone: String(body.telephone || "").replace(/\D/g, ""), notifyUrl: `${url.origin}/api/paiement/notification` });
+            if (g.providerRef) await db.prepare(`UPDATE guichet SET ref_partenaire = ? WHERE id = ?`).bind(String(g.providerRef), ref).run();
+          } catch (e) { await refundPayout(db, ref, Date.now()); return fail(h, 502, e.message + " Tes e-makuta t'ont été rendus."); }
+        }
         return json(h, 200, view(compte, await loadCharacter(db, p.id), now));
       }
 

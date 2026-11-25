@@ -82,15 +82,46 @@
     .mini { flex: none; border: 1px solid var(--accent); background: none; color: var(--accent); border-radius: 10px; padding: 8px 12px; font-size: 13px; font-weight: 600; }
     .mini.fill { background: var(--accent); color: #1b120b; }
     .mini:disabled { opacity: .4; border-color: var(--line); color: var(--muted); background: none; }
+    [aria-disabled="true"] { opacity: .5; cursor: help; }
+    .mini[aria-disabled="true"] { border-color: var(--line); color: var(--muted); background: none; }
+    .role { padding: 10px 12px; border-radius: 12px; border: 1px solid var(--line); background: var(--panel-2); font-size: 14px; }
+    .role.bon { border-color: color-mix(in srgb, var(--ok) 55%, var(--line)); } .role.mauvais { border-color: color-mix(in srgb, var(--bad) 55%, var(--line)); }
+    .role small { display: block; color: var(--muted); font-size: 12px; margin-top: 4px; } .role .camp { float: right; font-size: 12px; }
+    .qtr { display: grid; gap: 4px; font-size: 13px; } .qtr span { display: block; margin: 2px 0; } .qtr .good { color: var(--ok); } .qtr .bad { color: #f08a8d; }
+    .guichet { margin-top: 16px; padding: 14px; border: 1px solid var(--line); border-radius: 14px; background: var(--panel-2); }
+    .paygrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 6px; }
+    .pay { margin: 0; display: block; cursor: pointer; }
+    .pay input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+    .pay span { display: block; padding: 10px; border: 1px solid var(--line); border-radius: 10px; font-size: 14px; color: var(--text); text-align: center; }
+    .pay input:checked + span { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); }
+    .pay input:focus-visible + span { outline: 2px solid var(--accent); }
+    .g-row { display: flex; gap: 10px; align-items: center; margin-top: 10px; font-size: 14px; }
+    .g-row input { width: 120px; flex: none; }
+    .g-tel { margin-top: 8px; }
+    .g-note { font-size: 12px; color: var(--muted); margin: 8px 0 0; }
     .launch { border: 1px solid var(--accent); border-radius: 12px; padding: 12px 14px; margin: 6px 0 4px; background: #2a1d12; }
     .launch > b { font-family: var(--font-d); font-size: 17px; display: block; margin-bottom: 4px; }
     .launch .need { margin-top: 10px; }
-    .offer.closed { opacity: .5; cursor: not-allowed; }
+    .offer.closed { opacity: .5; cursor: help; }
     .offer.closed small::after { content: " Ouvre au démarrage du jeu."; color: var(--warn); }
     .back { width: 36px; height: 36px; border-radius: 12px; border: 1px solid var(--line); background: var(--panel); color: var(--text); font-size: 18px; line-height: 1; margin-right: 2px; }
     .quick { display: flex; gap: 8px; overflow-x: auto; margin: 0 0 14px; padding-bottom: 4px; scrollbar-width: none; }
     .quick::-webkit-scrollbar { display: none; }
     .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+    .streak { border: 1px solid var(--line); border-radius: 14px; padding: 10px 12px; margin: 0 0 12px; background: rgba(255, 150, 40, .08); }
+    .streak.danger { border-color: #e8902a; background: rgba(232, 144, 42, .16); }
+    .card.nuit { border-color: #e8b02a; }
+    .paper-head { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 4px; border-bottom: 2px solid var(--line); padding-bottom: 6px; margin-bottom: 8px; font-size: 13px; }
+    .paper-head b { font-family: Georgia, serif; font-size: 18px; }
+    .une, .news { display: flex; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--line); }
+    .une { background: rgba(232, 176, 42, .1); border-radius: 12px; padding: 10px; border: 0; }
+    .une small { display: block; text-transform: uppercase; letter-spacing: .06em; font-size: 11px; opacity: .8; }
+    .une b { font-size: 16px; } .une p, .news p { margin: 2px 0 0; font-size: 13px; }
+    .une .ic, .news .ic { font-size: 24px; line-height: 1; }
+    .word { display: flex; justify-content: space-between; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--line); font-size: 14px; }
+    .word.new { border-left: 3px solid #e8b02a; padding-left: 8px; }
+    .word p { margin: 2px 0 0; } .w-act { display: flex; flex-direction: column; gap: 4px; align-items: flex-end; }
+    .badge { display: inline-block; font-size: 11px; padding: 1px 7px; border-radius: 99px; background: #e8b02a; color: #1a1208; vertical-align: middle; }
     .chip { flex: none; border: 1px solid var(--line); background: var(--panel-2); color: var(--text); border-radius: 99px; padding: 8px 13px; font-size: 13px; }
     .chip:disabled { color: var(--muted); opacity: .6; }
     .tips-card { border-color: var(--accent); background: linear-gradient(180deg, #2a1d12, var(--panel)); }
@@ -109,8 +140,8 @@
     <!-- Accueil : inscription / connexion -->
     <section id="v-auth" hidden>
       <div class="card">
-        <h1>Nais à Kinshasa.<br>Construis ta vie.</h1>
-        <p>Tu commences bébé, dans une famille. Tes parents découvrent tes talents, tu grandis, tu étudies, tu travailles, tu crées ton entreprise. Ta monnaie : l'e-makuta.</p>
+        <h1>Naître à Kinshasa.<br>Construire sa vie.</h1>
+        <p>Le jeu décide de ton arrivée : bébé dans une famille, ou jeune adulte qui doit d'abord grandir. Ta classe sociale et tes études de départ comptent pour ton avenir. Tu grandis, tu étudies, tu travailles, tu crées ton entreprise. Ta monnaie : l'e-makuta.</p>
         <div class="launch" id="launch" hidden></div>
         <form id="f-auth" novalidate>
           <div id="f-pseudo"><label for="pseudo">Pseudo</label><input id="pseudo" autocomplete="nickname" maxlength="40"></div>
@@ -119,10 +150,9 @@
           <div id="f-formule">
             <label>Ta formule d'entrée</label>
             <div class="offers">
-              <label class="offer"><input type="radio" name="formule" value="bebe" checked><span><b>Naître bébé · <em>100 $</em></b><small>Le parcours normal : tu grandis dans une famille qui découvre tes talents.</small></span></label>
-              <label class="offer"><input type="radio" name="formule" value="parent"><span><b>Naître parent · <em>5 000 $</em></b><small>Tu arrives adulte (25 ans), tes talents sont connus et tu reçois 250 e-makuta d'épargne.</small></span></label>
-              <label class="offer"><input type="radio" name="formule" value="petit"><span><b>Petit investisseur · <em>1 500 $</em></b><small>Tu arrives adulte (30 ans) avec 7 500 e-makuta pour créer ou racheter des entreprises. Retrait possible après 3 mois.</small></span></label>
-              <label class="offer"><input type="radio" name="formule" value="grand"><span><b>Grand investisseur · <em>30 000 $</em></b><small>Tu arrives adulte (35 ans) avec 150 000 e-makuta pour racheter de grandes entreprises. Retrait possible après 3 mois.</small></span></label>
+              <label class="offer"><input type="radio" name="formule" value="bebe" checked><span><b>Naître à Kinshasa · <em>15 $</em></b><small>Le jeu décide pour toi : tu nais bébé dans une famille, ou tu arrives jeune adulte (18 à 28 ans) qui doit d'abord grandir. Ta classe sociale et tes études de départ sont tirées au sort. 5 $ font vivre le jeu, 10 $ (50 e-makuta) te sont confiés.</small></span></label>
+              <label class="offer"><input type="radio" name="formule" value="petit"><span><b>Petit investisseur · <em>1 500 $</em></b><small>Tu arrives adulte (30 ans) avec 7 500 e-makuta pour créer ou racheter des entreprises. Retrait de ton dû chaque fin de mois.</small></span></label>
+              <label class="offer"><input type="radio" name="formule" value="grand"><span><b>Grand investisseur · <em>30 000 $</em></b><small>Tu arrives adulte (35 ans) avec 150 000 e-makuta pour racheter de grandes entreprises. Retrait de ton dû chaque fin de mois.</small></span></label>
             </div>
             <p class="sim">Simulation : aucun paiement n'est encaissé. L'argent réel (M-Pesa, carte) sera activé après les autorisations légales.</p>
           </div>
@@ -134,6 +164,11 @@
     </section>
 
     <!-- Profil du personnage -->
+    <section id="v-dead" hidden>
+      <div class="card" id="dead"></div>
+      <button class="link" id="b-out2" type="button" style="display:block;margin:4px auto">Se déconnecter</button>
+    </section>
+
     <section id="v-life" hidden>
       <div class="hero" id="hero">
         <canvas id="cv" aria-label="Ton personnage en 3D"></canvas>
@@ -143,12 +178,32 @@
       </div>
 
       <nav class="quick" aria-label="Aller à">
-        <button class="chip" data-to="orders" type="button">📋 Consignes</button><button class="chip" data-to="moves" type="button">👣 Mouvements</button><button class="chip" data-to="needs" type="button">🍲 Manger</button><button class="chip" data-to="work" type="button">💼 Travail</button><button class="chip" data-to="school" type="button">🎓 École</button><button class="chip" data-to="companies" type="button">🏪 Entreprises</button><button class="chip" data-to="shop" type="button">🛍️ Magasin</button><button class="chip" data-to="inv" type="button">🏷️ Vendre</button><button class="chip" data-to="travel" type="button">🚕 Voyager</button><button class="chip" data-to="wallet" type="button">💰 Argent</button><button class="chip" data-to="state" type="button">🏛️ État et banques</button>
+        <button class="chip" data-to="dash" type="button">📊 Tableau de bord</button><button class="chip" data-to="nuit" type="button">☀️ Ma nuit</button><button class="chip" data-to="journal" type="button">📰 Journal</button><button class="chip" data-to="voisins" type="button">🏘️ Voisins</button><button class="chip" data-to="orders" type="button">📋 Consignes</button><button class="chip" data-to="moves" type="button">👣 Mouvements</button><button class="chip" data-to="needs" type="button">🍲 Manger</button><button class="chip" data-to="work" type="button">💼 Travail</button><button class="chip" data-to="school" type="button">🎓 École</button><button class="chip" data-to="companies" type="button">🏪 Entreprises</button><button class="chip" data-to="shop" type="button">🛍️ Magasin</button><button class="chip" data-to="inv" type="button">🏷️ Vendre</button><button class="chip" data-to="travel" type="button">🚕 Voyager</button><button class="chip" data-to="couple" type="button">💍 Couple</button><button class="chip" data-to="street" type="button">🧹 Petits boulots</button><button class="chip" data-to="home" type="button">🏠 Logement</button><button class="chip" data-to="market" type="button">🤝 Annonces</button><button class="chip" data-to="wallet" type="button">💰 Argent</button><button class="chip" data-to="state" type="button">🏛️ État et banques</button>
       </nav>
+
+      <div class="card nuit" id="nuit-card" hidden>
+        <h2>☀️ Pendant ton absence</h2>
+        <div id="nuit"></div>
+      </div>
+
+      <div class="card" id="dash-card">
+        <h2>Tableau de bord</h2>
+        <div id="dash"></div>
+      </div>
 
       <div class="card tips-card">
         <h2>Que faire maintenant ?</h2>
         <div id="tips"></div>
+      </div>
+
+      <div class="card">
+        <h2>📰 Journal de Kinshasa</h2>
+        <div id="journal"></div>
+      </div>
+
+      <div class="card">
+        <h2>🏘️ Mes voisins et mes mots</h2>
+        <div id="voisins"></div>
       </div>
 
       <div class="card">
@@ -196,6 +251,16 @@
       </div>
 
       <div class="card">
+        <h2>Petits boulots</h2>
+        <div id="street"></div>
+      </div>
+
+      <div class="card">
+        <h2>Logement</h2>
+        <div id="home"></div>
+      </div>
+
+      <div class="card">
         <h2>Mes entreprises</h2>
         <div id="companies"></div>
       </div>
@@ -209,6 +274,11 @@
       <div class="card">
         <h2>Mes affaires</h2>
         <div id="inv"></div>
+      </div>
+
+      <div class="card">
+        <h2>Marché aux annonces</h2>
+        <div id="market"></div>
       </div>
 
       <div class="card">
@@ -226,6 +296,11 @@
       <div class="card">
         <h2>Voyager</h2>
         <div id="travel"></div>
+      </div>
+
+      <div class="card" id="couple-card">
+        <h2>Couple et réputation</h2>
+        <div id="couple"></div>
       </div>
 
       <div class="card">

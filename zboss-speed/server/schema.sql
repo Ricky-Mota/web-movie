@@ -205,6 +205,21 @@ CREATE TABLE IF NOT EXISTS alertes (
   PRIMARY KEY (personnage_id, compte_id, type, jour)
 );
 
+-- bureau Zboss Sarlu : problèmes signalés par les joueurs depuis le guichet d'aide du jeu
+CREATE TABLE IF NOT EXISTS support_demandes (
+  id TEXT PRIMARY KEY,
+  compte_id TEXT,
+  pseudo TEXT,
+  email TEXT,
+  categorie TEXT NOT NULL,
+  message TEXT NOT NULL,
+  page TEXT,
+  statut TEXT NOT NULL DEFAULT 'ouvert',
+  cree_le INTEGER NOT NULL,
+  resolu_le INTEGER
+);
+CREATE INDEX IF NOT EXISTS support_statut ON support_demandes (statut, cree_le);
+
 -- liste d'attente bêta (formulaire « Réserver ma place » de l'accueil)
 CREATE TABLE IF NOT EXISTS beta_inscrits (
   id TEXT PRIMARY KEY,
@@ -216,3 +231,50 @@ CREATE TABLE IF NOT EXISTS beta_inscrits (
   source TEXT,
   cree_le INTEGER NOT NULL
 );
+
+-- négligence : jours d'entretien impayés (cumulés). L'enfant s'en souvient toute sa vie.
+CREATE TABLE IF NOT EXISTS negligences (personnage_id TEXT PRIMARY KEY, jours INTEGER NOT NULL DEFAULT 0, maj_le INTEGER NOT NULL);
+-- 20 % de la fortune d'un mort, gardés par le joueur pour sa prochaine vie
+CREATE TABLE IF NOT EXISTS reports (compte_id TEXT PRIMARY KEY, makuta INTEGER NOT NULL, de_id TEXT, le INTEGER NOT NULL);
+
+-- réputation de chaque personnage (−100 à +100)
+CREATE TABLE IF NOT EXISTS reputations (personnage_id TEXT PRIMARY KEY, points INTEGER NOT NULL DEFAULT 0, maj_le INTEGER NOT NULL);
+-- demandes en mariage entre joueurs
+CREATE TABLE IF NOT EXISTS demandes_mariage (id TEXT PRIMARY KEY, de_id TEXT NOT NULL, vers_id TEXT NOT NULL, statut TEXT NOT NULL DEFAULT 'attente', le INTEGER NOT NULL);
+CREATE INDEX IF NOT EXISTS idx_mariage_vers ON demandes_mariage (vers_id, statut);
+
+-- logement : location (loyer chaque semaine) ou parcelle achetée
+CREATE TABLE IF NOT EXISTS logements (personnage_id TEXT PRIMARY KEY, statut TEXT NOT NULL, quartier TEXT NOT NULL, loyer INTEGER NOT NULL DEFAULT 0, paye_jusqu INTEGER, depuis INTEGER NOT NULL);
+
+-- réglages en direct de l'administrateur (multiplicateurs : prix, salaires, faim, vol, police, destin)
+CREATE TABLE IF NOT EXISTS reglages (cle TEXT PRIMARY KEY, valeur REAL NOT NULL, maj_le INTEGER NOT NULL);
+
+-- origine du personnage : classe sociale de naissance, arrivée adulte (décidée par le jeu) et maturité
+CREATE TABLE IF NOT EXISTS origines (personnage_id TEXT PRIMARY KEY, classe TEXT NOT NULL, adulte INTEGER NOT NULL DEFAULT 0, maturite INTEGER NOT NULL DEFAULT 100, arrive_le INTEGER NOT NULL, caractere TEXT, role TEXT, camp TEXT);
+
+-- guichet : dépôts et retraits avec moyen de paiement (numéro masqué, jamais complet). simule = 1 tant que l'argent réel n'est pas autorisé.
+-- statut : simule, en_attente (passerelle), traitement, paye, echoue.
+CREATE TABLE IF NOT EXISTS guichet (id TEXT PRIMARY KEY, compte_id TEXT NOT NULL, personnage_id TEXT, ref_partenaire TEXT, sens TEXT NOT NULL, moyen TEXT NOT NULL, numero TEXT, usd REAL NOT NULL, makuta INTEGER NOT NULL, statut TEXT NOT NULL DEFAULT 'simule', simule INTEGER NOT NULL DEFAULT 1, le INTEGER NOT NULL);
+
+-- fidélité : série de jours de consignes, dernière visite (résumé de la nuit)
+CREATE TABLE IF NOT EXISTS fidelite (
+  compte_id TEXT PRIMARY KEY,
+  serie INTEGER NOT NULL DEFAULT 0,
+  meilleure INTEGER NOT NULL DEFAULT 0,
+  dernier_jour TEXT,
+  resume_vu_le INTEGER,
+  makuta_vu INTEGER
+);
+
+-- petits mots entre joueurs (courts, sans lien ni numéro) ; signale = 1 si le destinataire le signale à l'administration
+CREATE TABLE IF NOT EXISTS mots (
+  id TEXT PRIMARY KEY,
+  de_id TEXT NOT NULL,
+  vers_id TEXT NOT NULL,
+  texte TEXT NOT NULL,
+  le INTEGER NOT NULL,
+  lu INTEGER NOT NULL DEFAULT 0,
+  signale INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_mots_vers ON mots (vers_id, le);
+CREATE INDEX IF NOT EXISTS idx_mots_de ON mots (de_id, le);

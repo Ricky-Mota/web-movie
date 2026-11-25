@@ -100,7 +100,7 @@ export function doActivity(act, talents, age, r) {
 // valeurs 0..100, recalculées à la demande depuis la dernière mise à jour
 export function needsAt(c, now = Date.now()) {
   const h = Math.max(0, (now - c.updatedAt) / 36e5);
-  const hunger = Math.max(0, c.hunger - h * 4);          // la faim baisse de 4 points par heure réelle
+  const hunger = Math.max(0, c.hunger - h * 4 * SET.faim); // la faim baisse de 4 points par heure réelle (réglable par l'admin)
   const energy = Math.min(100, c.energy + h * 12);       // l'énergie remonte au repos
   const happy = Math.max(0, Math.min(100, c.happiness - h * 1.5 + (hunger > 50 ? 0 : -h * 2)));
   const health = Math.max(0, Math.min(100, c.health - (hunger < 15 ? h * 3 : 0)));
@@ -113,7 +113,8 @@ const FIRST_M = ["Junior", "Patient", "Glody", "Merveil", "Exaucé", "Christian"
 const FIRST_F = ["Grâce", "Merveille", "Divine", "Plamedie", "Exaucée", "Gloria", "Ornella", "Bénédicte", "Naomie", "Rachel", "Dorcas", "Prisca"];
 const LAST = ["Mbuyi", "Kabeya", "Ilunga", "Lukusa", "Mukendi", "Tshibangu", "Kasongo", "Nzuzi", "Makiese", "Lutumba", "Mbala", "Kalala", "Mputu", "Kanku"];
 FIRST_NAMES.M = FIRST_M; FIRST_NAMES.F = FIRST_F;
-const QUARTIERS = ["Gombe", "Lingwala", "Kinshasa", "Barumbu", "Kalamu", "Limete", "Kasa-Vubu", "Bandalungwa"];
+// toutes les communes de la ville-province de Kinshasa (+ Matonge, quartier célèbre de Kalamu) : voir COMMUNES plus bas
+const QUARTIERS = () => COMMUNES.map(c => c.nom);
 
 export function newIdentity(r, sex) {
   const s = sex || (r() < 0.5 ? "F" : "M");
@@ -123,14 +124,18 @@ export function newIdentity(r, sex) {
     sex: s,
     firstName: pick(s === "F" ? FIRST_F : FIRST_M),
     lastName: last,
-    quartier: pick(QUARTIERS),
+    quartier: pick(QUARTIERS()),
     mother: pick(FIRST_F) + " " + last,
     father: pick(FIRST_M) + " " + last,
     look: Math.floor(r() * 1e6),
   };
 }
 
-export const BIRTH_GIFT = 500; // makuta (25 e-makuta) offerts à la naissance (épargne des parents)
+// Naissance (parcours normal) : 15 $ payés une seule fois à l'inscription.
+// 5 $ restent à l'administrateur pour faire vivre le jeu ; les 10 $ restants (50 e-makuta) sont confiés aux parents,
+// qui gèrent l'argent de l'enfant et sont libres de le lui donner ou non.
+export const BIRTH_USD = 15, ADMIN_FEE_USD = 5;
+export const BIRTH_GIFT = (BIRTH_USD - ADMIN_FEE_USD) * 100; // makuta (100 par $) : 1 000 makuta = 50 e-makuta
 
 // ---------------------------------------------------------------- magasin
 // prix en e-makuta ; les vêtements se portent et changent l'apparence 3D, la nourriture se mange tout de suite
@@ -177,9 +182,8 @@ export const UNITS_PER_MAKUTA = 20;        // makuta par e-makuta
 export const USD_UNITS = USD_TO_MAKUTA * UNITS_PER_MAKUTA;   // makuta par dollar (100)
 export const fmtMakuta = n => (n / UNITS_PER_MAKUTA).toLocaleString("fr-FR", { minimumFractionDigits: n % UNITS_PER_MAKUTA ? 2 : 0, maximumFractionDigits: 2 }) + " e-makuta";
 export const WITHDRAW_FEE = 0.10;          // 10 % de frais au retrait (finance la ville et le service)
-export const LOCK_DAYS = 90;               // argent bloqué 3 mois réels avant tout retrait
 export const OFFERS = [
-  { id: "bebe", nom: "Naissance (parcours normal)", type: "entree", usd: 100, desc: "Tu nais bébé dans une famille et tu grandis normalement." },
+  { id: "bebe", nom: "Naissance (le jeu décide)", type: "entree", usd: BIRTH_USD, fraisAdmin: ADMIN_FEE_USD, desc: "Le jeu décide de ton arrivée : bébé dans une famille, ou jeune adulte qui doit d'abord grandir. Ta classe sociale et tes études de départ sont tirées au sort. Sur les 15 $, 5 $ font vivre le jeu et 10 $ (50 e-makuta) te sont confiés (à tes parents si tu nais bébé)." },
   { id: "parent", nom: "Naître parent", type: "entree", usd: 5000, desc: "Tu nais adulte (25 ans), tes talents sont déjà connus et tu reçois 250 e-makuta d'épargne.", age: 25, epargne: 5000 },
   { id: "petit", nom: "Petit investisseur", type: "investissement", usd: 1500, age: 30, desc: "1 500 $ convertis en e-makuta pour acheter et créer des entreprises." },
   { id: "grand", nom: "Grand investisseur", type: "investissement", usd: 30000, age: 35, desc: "30 000 $ convertis en e-makuta pour racheter de grandes entreprises." },
@@ -192,23 +196,33 @@ export function birthShiftMs(years) {
 }
 
 // état du portefeuille : quand le retrait devient possible et combien on recevrait
-export function walletInfo(deposits, makuta, now = Date.now()) {
-  const first = deposits.length ? Math.min(...deposits.map(d => d.le)) : null;
-  const unlock = first == null ? null : first + LOCK_DAYS * DAY;
+// Retrait : chaque fin de mois (les derniers jours du mois, heure de Kinshasa), une fois par mois, à tout âge.
+export const WITHDRAW_WINDOW_DAYS = 3;
+const KIN_MS = 36e5;   // Kinshasa = UTC+1
+export function withdrawWindow(now = Date.now()) {
+  const k = new Date(now + KIN_MS), y = k.getUTCFullYear(), m = k.getUTCMonth();
+  const startOf = (yy, mm) => Date.UTC(yy, mm, new Date(Date.UTC(yy, mm + 1, 0)).getUTCDate() - WITHDRAW_WINDOW_DAYS + 1) - KIN_MS;
+  const start = startOf(y, m), end = Date.UTC(y, m + 1, 1) - KIN_MS;
+  return { start, end, open: now >= start && now < end, next: now < start ? start : startOf(y, m + 1) };
+}
+export function walletInfo(deposits, makuta, now = Date.now(), retraits = []) {
+  const win = withdrawWindow(now), done = retraits.some(r => r.le >= win.start && r.le < win.end);
+  const ok = win.open && !done;
   return {
-    simulation: !REAL_MONEY, taux: USD_TO_MAKUTA, frais: WITHDRAW_FEE, blocageJours: LOCK_DAYS,
+    simulation: !REAL_MONEY, taux: USD_TO_MAKUTA, frais: WITHDRAW_FEE, fenetreJours: WITHDRAW_WINDOW_DAYS, dejaRetireCeMois: done,
     deposeUsd: deposits.reduce((s, d) => s + d.usd, 0),
-    retraitPossibleLe: unlock, retraitPossible: unlock != null && now >= unlock,
+    retraitPossibleLe: ok ? win.start : win.open ? win.next : win.start, retraitPossible: ok,
     valeurUsd: Math.floor(makuta / USD_UNITS * (1 - WITHDRAW_FEE) * 100) / 100,
   };
 }
 
 // vue envoyée au joueur : catalogue, inventaire, portefeuille (même forme côté serveur et mode démo)
-export function shopView(inv, dep, ret, makuta, now) {
+export function shopView(inv, dep, ret, makuta, now, gui = []) {
   return {
     boutique: SHOP,
     inventaire: inv.map(x => ({ id: x.id, objet: x.objet_id, porte: !!x.porte, le: x.acquis_le })),
-    portefeuille: { ...walletInfo(dep, makuta, now), offres: OFFERS, depots: dep, retraits: ret },
+    portefeuille: { ...walletInfo(dep, makuta, now, ret), offres: OFFERS, depots: dep, retraits: ret,
+      moyens: PAY_METHODS, guichet: gui, depot: DEPOSIT_USD },
   };
 }
 
@@ -250,27 +264,38 @@ export const JOBS = [
   { id: "vendeur", nom: "Vendeur au marché de la Liberté", talent: "commerce", salaire: 120, minAge: 16 },
   { id: "taxi-moto", nom: "Chauffeur de taxi-moto", talent: "sport", salaire: 150, minAge: 18 },
   { id: "cuisinier", nom: "Cuisinier dans un maquis", talent: "cuisine", salaire: 140, minAge: 16 },
-  { id: "aide-soignant", nom: "Aide-soignant au centre de santé", talent: "soin", salaire: 160, minAge: 18 },
+  { id: "aide-soignant", nom: "Aide-soignant au centre de santé", talent: "soin", salaire: 160, minAge: 18, etudesMin: "secondaire" },
   { id: "musicien", nom: "Musicien dans un orchestre", talent: "art", salaire: 130, minAge: 16 },
-  { id: "mecanicien", nom: "Mécanicien au garage", talent: "technique", salaire: 170, minAge: 18 },
-  { id: "animateur", nom: "Animateur à la radio", talent: "parole", salaire: 150, minAge: 18 },
-  { id: "repetiteur", nom: "Répétiteur (cours du soir)", talent: "etudes", salaire: 140, minAge: 16 },
+  { id: "mecanicien", nom: "Mécanicien au garage", talent: "technique", salaire: 170, minAge: 18, etudesMin: "primaire" },
+  { id: "animateur", nom: "Animateur à la radio", talent: "parole", salaire: 150, minAge: 18, etudesMin: "secondaire" },
+  { id: "repetiteur", nom: "Répétiteur (cours du soir)", talent: "etudes", salaire: 140, minAge: 16, etudesMin: "secondaire" },
   // carrières qui demandent des études (ouvertes avec l'école et l'université)
   { id: "medecin", nom: "Médecin", talent: "soin", salaire: 600, minAge: 24, formation: "medecine", diplome: "Doctorat en médecine" },
   { id: "ingenieur", nom: "Ingénieur", talent: "technique", salaire: 500, minAge: 22, formation: "ingenieur", diplome: "Diplôme d'ingénieur civil" },
   { id: "avocat", nom: "Avocat", talent: "parole", salaire: 550, minAge: 22, formation: "droit", diplome: "Licence en droit" },
   { id: "enseignant", nom: "Enseignant au secondaire", talent: "etudes", salaire: 260, minAge: 18, formation: "secondaire", diplome: "Diplôme d'État" },
+  // carrières de talent : réservées à ceux dont le talent a été découvert par leurs parents
+  { id: "footballeur", nom: "Footballeur professionnel", talent: "sport", salaire: 420, minAge: 17, talentRequis: true },
+  { id: "star-rumba", nom: "Chanteur de rumba (vedette)", talent: "art", salaire: 450, minAge: 18, talentRequis: true },
+  { id: "chef", nom: "Grand chef cuisinier", talent: "cuisine", salaire: 340, minAge: 18, talentRequis: true },
+  { id: "grossiste", nom: "Commerçant grossiste", talent: "commerce", salaire: 380, minAge: 20, talentRequis: true },
+  { id: "journaliste", nom: "Journaliste vedette à la télé", talent: "parole", salaire: 380, minAge: 20, talentRequis: true },
+  { id: "inventeur", nom: "Inventeur (atelier d'innovation)", talent: "technique", salaire: 400, minAge: 20, talentRequis: true },
+  { id: "chercheur", nom: "Chercheur à l'université", talent: "etudes", salaire: 420, minAge: 22, talentRequis: true },
+  { id: "infirmier-chef", nom: "Infirmier chef", talent: "soin", salaire: 360, minAge: 20, talentRequis: true },
 ];
-export function cannotApply(job, age, diplomas) {
+export function cannotApply(job, age, diplomas, talents = []) {
   if (!job) return "Métier inconnu.";
+  if (job.talentRequis && !talents.includes(job.talent)) return `Carrière réservée aux talents découverts : ${(TALENTS.find(t => t.id === job.talent) || {}).label || job.talent}.`;
   if (job.elu) return "Ce poste s'obtient par élection.";
   if (job.formation && !diplomas.includes(job.formation)) return `Il faut d'abord le diplôme : ${job.diplome}.`;
+  if (job.etudesMin && eduRank(eduLevel(diplomas)) < eduRank(job.etudesMin)) return `Niveau d'études demandé : ${eduLabel(job.etudesMin)}.`;
   if (age < job.minAge) return `Ce métier est ouvert dès ${job.minAge} ans.`;
   return null;
 }
-export function payFor(job, talents) {
-  const t = talents.find(x => x.talent === job.talent && x.discovered);
-  return { montant: Math.round(job.salaire * (t ? 1 + TALENT_BONUS : 1)), bonus: !!t };
+export function payFor(job, talents, diplomas = []) {
+  const t = talents.find(x => x.talent === job.talent && x.discovered), e = EDU_LEVELS[eduRank(eduLevel(diplomas))];
+  return { montant: Math.round(job.salaire * (t ? 1 + TALENT_BONUS : 1) * (1 + e.bonus)), bonus: !!t, etudes: e.bonus };
 }
 export function cannotWork(job, age, energy, lastShift, now = Date.now()) {
   if (!job) return "Choisis d'abord un métier.";
@@ -353,7 +378,124 @@ export function supportDue(lastPaid, bornAt, now = Date.now()) {
 }
 // effet d'un entretien impayé : bonheur et santé baissent
 export function unpaidEffect(days) { return { bonheur: 12 * days, sante: 4 * days }; }
-export function familyShare(amount) { return Math.round(amount * FAMILY_SHARE); }
+// L'enfant se souvient d'avoir été négligé : devenu adulte, il reverse moins à ses parents (10 % → 2 % après 7 jours de négligence).
+export function familyShareRate(neglectDays = 0) { return FAMILY_SHARE - 0.08 * Math.min(1, neglectDays / NEGLECT_DANGER_DAYS); }
+export function familyShare(amount, neglectDays = 0) { return Math.round(amount * familyShareRate(neglectDays)); }
+// Un enfant dont on ne s'occupe pas (entretien impayé, faim) peut voler pour survivre, dès NEGLECT_STEAL_AGE ans.
+// C'est au joueur réel responsable de s'assurer qu'il ne manque de rien.
+// ---------------------------------------------------------------- réputation et mariage
+// La réputation (−100 à +100) : le quartier se souvient de ce que fait le personnage.
+export const REP = { crimeAttrape: -15, crimeRumeur: -5, prison: -20, travail: 1, mariage: 10, divorce: -5, negligence: -5 };
+export const REP_BAD = -30, REP_GOOD = 40;
+export function repLabel(r) { return r >= REP_GOOD ? "respecté" : r >= 10 ? "bien vu" : r > REP_BAD ? "inconnu" : r > -60 ? "mal vu" : "réputé voleur"; }
+export const repDiscount = r => r >= REP_GOOD ? 0.8 : 1;   // les gens respectés ont des prix au maquis
+// Mariage entre deux joueurs adultes : la dot est payée par la famille du marié (ses parents joueurs s'ils le peuvent, sinon lui-même)
+// et versée aux parents de la mariée (sinon à la mariée).
+export const DOT_MAKUTA = 1200;   // 60 e-makuta
+export const MARRY_MIN_AGE = 18;
+export function cannotMarry(a, b, ageA, ageB) {
+  if (!b) return "Joueur introuvable (vérifie son pseudo).";
+  if (a.id === b.id) return "Tu ne peux pas t'épouser toi-même.";
+  if (b.mort_le) return "Ce personnage est mort.";
+  if (ageA < MARRY_MIN_AGE || ageB < MARRY_MIN_AGE) return `Le mariage est possible à partir de ${MARRY_MIN_AGE} ans.`;
+  if (a.conjoint_id || b.conjoint_id) return "L'un de vous est déjà marié.";
+  if (a.sexe === b.sexe) return "La dot se verse entre la famille du marié et celle de la mariée : il faut un homme et une femme.";
+  if (a.pere_id && (a.pere_id === b.pere_id || a.mere_id === b.mere_id)) return "Vous êtes de la même famille.";
+  return null;
+}
+// ---------------------------------------------------------------- vague 4 : petits boulots, logement, annonces
+// Petits boulots de rue : sans patron ni diplôme, payés tout de suite. Personne n'est bloqué sans revenu.
+export const STREET_JOBS = [
+  { id: "cireur", nom: "Cireur de chaussures", icone: "👞", gain: [30, 70], minAge: 10, energie: 15 },
+  { id: "eau", nom: "Vendeur d'eau en sachet", icone: "💧", gain: [40, 80], minAge: 10, energie: 20 },
+  { id: "porteur", nom: "Porteur au marché", icone: "📦", gain: [60, 110], minAge: 14, energie: 30 },
+  { id: "lavage", nom: "Laveur de voitures", icone: "🚿", gain: [50, 100], minAge: 14, energie: 25 },
+];
+export const STREET_COOLDOWN_H = 3;   // un petit boulot toutes les 3 heures réelles
+export function cannotStreetJob(j, age, energy, last, now = Date.now()) {
+  if (!j) return "Petit boulot inconnu.";
+  if (age < j.minAge) return `Possible dès ${j.minAge} ans.`;
+  if (energy < j.energie) return "Trop fatigué : repose-toi d'abord.";
+  if (last && now - last < STREET_COOLDOWN_H * 36e5) return `Prochain petit boulot dans ${Math.ceil((last + STREET_COOLDOWN_H * 36e5 - now) / 6e4)} min.`;
+  return null;
+}
+// Logement : à partir de 18 ans on loue (loyer prélevé chaque semaine réelle) ou on achète sa parcelle.
+// Un loyer impayé = expulsion (retour chez les parents) et réputation en baisse.
+// RENT (loyer par commune) est défini plus bas, avec COMMUNES
+export const HOUSE_WEEKS = 40;          // une parcelle coûte 40 semaines de loyer
+export const HOUSING_MIN_AGE = 18;
+export const rentOf = q => RENT[q] || 350;
+export const houseOf = q => rentOf(q) * HOUSE_WEEKS;
+export function rentDue(paidUntil, now = Date.now()) {
+  if (!paidUntil || now < paidUntil) return 0;
+  return 1 + Math.floor((now - paidUntil) / (7 * DAY));   // semaines dues
+}
+// Marché aux annonces : les joueurs se vendent leurs objets ; 5 % de taxe sur la vente pour la ville.
+export const SALE_TAX = 0.05;
+// ---------------------------------------------------------------- vague 5 : le destin
+// Une fois par jour réel, le destin peut frapper : maladie, pluie, cadeau... (montants en makuta)
+export const LIFE_EVENTS = [
+  { id: "paludisme", icone: "🦟", texte: "a attrapé le paludisme : il faut se soigner au centre de santé", sante: -35, energie: -30, p: .16 },
+  { id: "inondation", icone: "🌧️", texte: "la pluie a inondé la maison, il a fallu réparer", bonheur: -10, makuta: [-150, -50], p: .12 },
+  { id: "coupure", icone: "🔌", texte: "coupure de courant toute la soirée dans le quartier", bonheur: -5, p: .14 },
+  { id: "accident", icone: "🛵", texte: "petit accident de moto-taxi, quelques bleus", sante: -20, p: .06 },
+  { id: "oncle", icone: "🎁", texte: "un oncle de Mbandaka a envoyé un cadeau", makuta: [100, 400], bonheur: 8, p: .08 },
+  { id: "fete", icone: "🎉", texte: "grande fête dans le quartier, tout le monde a dansé", bonheur: 12, p: .12 },
+  { id: "dette", icone: "🤝", texte: "un ami a remboursé une vieille dette", makuta: [60, 200], p: .06 },
+  { id: "vol", icone: "👜", texte: "s'est fait voler son argent dans la rue", makuta: [-200, -60], bonheur: -6, p: .05 },
+  { id: "entraide", icone: "🫶", texte: "a aidé un voisin dans le besoin, le quartier en parle en bien", bonheur: 8, rep: 3, p: .08, camp: "bon" },
+  { id: "arnaque", icone: "🃏", texte: "a arnaqué un passant au marché, sa réputation en prend un coup", makuta: [80, 250], rep: -4, p: .08, camp: "mauvais" },
+];
+export const EVENT_EVERY_H = 20;
+export function drawEvent(r = Math.random, ctx = {}) {
+  if (!(SET.destin > 0)) return null;
+  const Q = communeOf(ctx.quartier), mult = (Q && Q.risques) || {};
+  // le quartier change QUELS événements arrivent, pas leur fréquence totale
+  const list = LIFE_EVENTS.filter(e => !e.camp || e.camp === ctx.camp);
+  const base = list.reduce((t, e) => t + e.p, 0), w = list.map(e => e.p * (mult[e.id] || 1)), k = base / w.reduce((t, v) => t + v, 0);
+  let x = r() / SET.destin;
+  for (let i = 0; i < list.length; i++) { const pe = w[i] * k; if (x < pe) return list[i]; x -= pe; }
+  return null;   // journée calme
+}
+export function eventMoney(e, r = Math.random) { return e.makuta ? Math.round(e.makuta[0] + r() * (e.makuta[1] - e.makuta[0])) : 0; }
+// Album de vie : le résumé d'une vie, montré à la mort et partageable
+export function lifeAlbum(a) {
+  const L = [];
+  L.push(`${a.prenom} ${a.nom}, ${a.age} an${a.age > 1 ? "s" : ""}, ${a.quartier && a.quartier !== "Kinshasa" ? "de " + a.quartier + ", " : "de "}Kinshasa.`);
+  if (a.metier) L.push(`Métier : ${a.metier}.`);
+  if (a.diplomes) L.push(`${a.diplomes} diplôme${a.diplomes > 1 ? "s" : ""} obtenu${a.diplomes > 1 ? "s" : ""}.`);
+  if (a.talents && a.talents.length) L.push(`Talents découverts : ${a.talents.join(", ")}.`);
+  L.push(a.conjoint ? `Marié${a.sexe === "F" ? "e" : ""} à ${a.conjoint}.` : "Jamais marié" + (a.sexe === "F" ? "e" : "") + ".");
+  L.push(a.enfants ? `${a.enfants} enfant${a.enfants > 1 ? "s" : ""}.` : "Pas d'enfant.");
+  if (a.entreprises) L.push(`${a.entreprises} entreprise${a.entreprises > 1 ? "s" : ""} fondée${a.entreprises > 1 ? "s" : ""}.`);
+  if (a.crimes) L.push(`${a.crimes} infraction${a.crimes > 1 ? "s" : ""} à la police.`);
+  L.push(`Réputation : ${repLabel(a.reputation || 0)}. Fortune laissée : ${fmtMakuta(a.fortune || 0)}.`);
+  L.push(`Cause de la mort : ${a.cause}.`);
+  return L;
+}
+export const NEGLECT_STEAL_AGE = 8;
+// Après 7 jours réels de négligence (cumulés), l'enfant est en danger de mort : sa santé chute vite.
+export const NEGLECT_DANGER_DAYS = 7, NEGLECT_DANGER_HEALTH = 15;
+
+// ---------------------------------------------------------------- mort et héritage
+// La mort est définitive. Quand la santé tombe à 0, le personnage meurt et sa fortune est partagée :
+// 20 % gardés par le joueur pour sa prochaine vie, 10 % de frais de succession pour la ville,
+// 70 % aux héritiers (enfants et parents vivants à parts égales ; sinon le conjoint ; sinon la ville).
+export const ESTATE = { report: 0.20, ville: 0.10, heritiers: 0.70 };
+export function splitEstate(total, heirs) {
+  const report = Math.floor(total * ESTATE.report), ville = Math.floor(total * ESTATE.ville);
+  const pot = total - report - ville, each = heirs > 0 ? Math.floor(pot / heirs) : 0;
+  return { report, ville: ville + (pot - each * heirs), each, heritiers: each * heirs };
+}
+export function deathCause(needs, neglectDays = 0) {
+  if (needs.health > 0) return null;
+  if (neglectDays >= NEGLECT_DANGER_DAYS) return "négligé par sa famille";
+  return needs.hunger < 15 ? "mort de faim" : "maladie non soignée";
+}
+export function neglectStealChance(unpaidDays, hunger) {
+  if (unpaidDays < 1) return 0;
+  return Math.min(0.9, (0.12 * unpaidDays + (hunger < 30 ? 0.15 : 0)) * SET.vol);
+}
 
 // ---------------------------------------------------------------- lancement du jeu
 // Le jeu ne s'ouvre aux naissances qu'une fois toutes les conditions réunies ; l'administrateur appuie alors sur « Démarrer ».
@@ -393,7 +535,7 @@ export const EMPLOYEE_YIELD = 1.6;
 export const RESELL_RATE = 0.5;      // revendre un objet : la moitié de son prix
 export const TAXI_FARE = 200;        // course en taxi dans Kinshasa (10 e-makuta)
 export const TAXI_ENERGY = 5;
-export const KINSHASA_QUARTIERS = ["Gombe", "Lingwala", "Kinshasa", "Barumbu", "Kalamu", "Limete", "Kasa-Vubu", "Bandalungwa", "Matonge", "Ngaliema", "Masina", "Lemba"];
+// KINSHASA_QUARTIERS est défini plus bas, avec COMMUNES
 export const OTHER_CITIES = ["Lubumbashi", "Goma", "Kisangani", "Matadi"];
 export function companyAccrue(e, now = Date.now()) {
   const t = COMPANY_TYPES.find(x => x.id === e.type), since = e.maj_le || e.cree_le;
@@ -528,7 +670,7 @@ export const PRISON_HOURS = 24;          // une journée réelle en prison
 export const BAIL = 10000;               // caution pour sortir plus tôt (500 e-makuta)
 export const RECIDIVE = { fois: 3, jours: 30 };   // 3 infractions en 30 jours = prison
 export const POLICE_BONUS = 0.05;        // chaque policier joueur augmente le risque d'être attrapé (80 % au plus)
-export function catchChance(crime, policiers) { return Math.min(0.8, crime.risque + POLICE_BONUS * (policiers || 0)); }
+export function catchChance(crime, policiers) { return Math.min(0.95, (crime.risque + POLICE_BONUS * (policiers || 0)) * SET.police); }
 // que se passe-t-il quand on est attrapé ?
 export function sentence(crime, makuta, recentOffences) {
   const prison = recentOffences + 1 >= RECIDIVE.fois || makuta < crime.amende;
@@ -633,7 +775,315 @@ export function describeAction(path, body = {}, r = {}) {
     "/api/investir": () => ["💼", "Investissement (simulé)"],
     "/api/retirer": () => ["💵", "Retrait vers l'argent réel (simulé)"],
     "/api/consigne": () => ["📋", "Consigne du jour : " + nm(ORDERS, body.ordre)],
+    "/api/mariage/demander": () => ["💍", "Demande en mariage envoyée à " + (body.pseudo || "un joueur")],
+    "/api/mariage/repondre": () => body.accepte ? ["💒", "A dit oui : mariage célébré"] : ["🙅", "A refusé une demande en mariage"],
+    "/api/divorce": () => ["💔", "A demandé le divorce"],
+    "/api/petitboulot": () => ["🧹", r.boulot ? `Petit boulot (${r.boulot.nom}) : +${fmtMakuta(r.boulot.gain)}` : "Petit boulot"],
+    "/api/logement/louer": () => ["🏠", "A loué un logement à " + body.quartier],
+    "/api/logement/acheter": () => ["🏡", "A acheté sa parcelle à " + body.quartier],
+    "/api/logement/quitter": () => ["🧳", "A quitté son logement"],
+    "/api/annonce/publier": () => ["🏷️", "A mis un objet en vente pour " + fmtMakuta(Number(body.prix) || 0)],
+    "/api/annonce/retirer": () => ["🏷️", "A retiré une annonce"],
+    "/api/annonce/acheter": () => ["🤝", "A acheté à un joueur : " + (r.achete || "un objet")],
   };
   const f = D[path]; if (!f) return null;
   const [icone, texte] = f(); return { icone, texte };
+}
+
+// ---------------------------------------------------------------- réglages en direct (page admin)
+// Des multiplicateurs : 1 = valeur normale. L'admin les change sans redéployer le jeu.
+export const SETTINGS = [
+  { id: "prix", label: "Prix (boutique, maquis)", aide: "Tous les prix d'achat.", min: 0.5, max: 3 },
+  { id: "salaires", label: "Salaires", aide: "Paie d'une journée de travail.", min: 0.5, max: 3 },
+  { id: "faim", label: "Vitesse de la faim", aide: "Plus haut = le personnage a faim plus vite.", min: 0.25, max: 3 },
+  { id: "vol", label: "Risque de vol", aide: "Chance qu'un enfant négligé vole.", min: 0, max: 3 },
+  { id: "police", label: "Efficacité de la police", aide: "Chance d'être attrapé après un délit.", min: 0.25, max: 3 },
+  { id: "destin", label: "Fréquence des événements", aide: "Paludisme, pluie, cadeaux… 0 = aucun.", min: 0, max: 3 },
+];
+export const SET = Object.fromEntries(SETTINGS.map(s => [s.id, 1]));
+const BASE = { shop: SHOP.map(x => x.prix), jobs: JOBS.map(j => j.salaire) };
+export function applySettings(o = {}) {
+  for (const s of SETTINGS) { const v = Number(o[s.id]); SET[s.id] = Number.isFinite(v) ? Math.min(s.max, Math.max(s.min, v)) : 1; }
+  SHOP.forEach((x, i) => { x.prix = Math.max(1, Math.round(BASE.shop[i] * SET.prix)); });
+  JOBS.forEach((j, i) => { j.salaire = Math.max(1, Math.round(BASE.jobs[i] * SET.salaires)); });
+  return { ...SET };
+}
+export const FOOD_BASE = { prix: 25, faim: 45 };
+export const food = () => ({ prix: Math.max(1, Math.round(FOOD_BASE.prix * SET.prix)), faim: FOOD_BASE.faim });
+
+// ---------------------------------------------------------------- arrivée, classes sociales, études, maturité
+// Le joueur ne choisit plus : le jeu décide s'il naît bébé ou s'il arrive jeune adulte.
+export const ADULT_ENTRY_CHANCE = 0.45;
+export const SOCIAL_CLASSES = [
+  { id: "pauvre", label: "Pauvre", p: .35, epargne: [0, 400], seuil: 0 },
+  { id: "modeste", label: "Modeste", p: .33, epargne: [400, 1500], seuil: 1400 },
+  { id: "moyenne", label: "Classe moyenne", p: .22, epargne: [1500, 5000], seuil: 2500 },
+  { id: "aisee", label: "Aisée", p: .08, epargne: [5000, 15000], seuil: 6000 },
+  { id: "riche", label: "Riche", p: .02, epargne: [15000, 50000], seuil: 16000 },
+];
+export const classLabel = id => (SOCIAL_CLASSES.find(c => c.id === id) || SOCIAL_CLASSES[0]).label;
+// la classe d'aujourd'hui suit la fortune totale (makuta) : on peut monter ou descendre
+export function classOfWealth(total) { let c = SOCIAL_CLASSES[0]; for (const x of SOCIAL_CLASSES) if (total >= x.seuil) c = x; return c.id; }
+export function drawClass(r = Math.random) { let x = r(); for (const c of SOCIAL_CLASSES) { if (x < c.p) return c.id; x -= c.p; } return "pauvre"; }
+// niveaux d'études : déduits des diplômes, ils ouvrent des métiers et augmentent la paie
+export const EDU_LEVELS = [
+  { id: "aucun", label: "Sans diplôme", bonus: 0 },
+  { id: "primaire", label: "Primaire", bonus: .05 },
+  { id: "secondaire", label: "Secondaire (Diplôme d'État)", bonus: .10 },
+  { id: "superieur", label: "Supérieur (graduat, licence)", bonus: .20 },
+  { id: "doctorat", label: "Doctorat ou ingénieur", bonus: .30 },
+];
+export const eduRank = id => Math.max(0, EDU_LEVELS.findIndex(e => e.id === id));
+export const eduLabel = id => EDU_LEVELS[eduRank(id)].label;
+export function eduLevel(diplomas = []) {
+  if (diplomas.includes("medecine") || diplomas.includes("ingenieur")) return "doctorat";
+  if (diplomas.includes("droit") || diplomas.includes("commerce")) return "superieur";
+  if (diplomas.includes("secondaire")) return "secondaire";
+  if (diplomas.includes("primaire")) return "primaire";
+  return "aucun";
+}
+// arrivée décidée par le jeu : bébé, ou jeune adulte (18 à 28 ans) avec des études qui dépendent de sa classe
+export function drawEntry(r = Math.random) {
+  const classe = drawClass(r), adulte = r() < ADULT_ENTRY_CHANCE;
+  if (!adulte) return { adulte: false, age: 0, classe, diplomes: [], epargne: 0 };
+  const C = SOCIAL_CLASSES.find(c => c.id === classe), k = SOCIAL_CLASSES.indexOf(C), x = r();
+  const diplomes = [];
+  if (k >= 1 || x < .7) diplomes.push("primaire");
+  if (diplomes.length && (k >= 2 || x < .25 * (k + 1))) diplomes.push("secondaire");
+  if (diplomes.includes("secondaire") && (k >= 3 || x < .08 * (k + 1))) diplomes.push(["commerce", "droit"][Math.floor(r() * 2)]);
+  return { adulte: true, age: 18 + Math.floor(r() * 11), classe, diplomes, epargne: Math.round(C.epargne[0] + r() * (C.epargne[1] - C.epargne[0])) };
+}
+// maturité : un adulte qui vient d'arriver doit d'abord grandir avant les grandes décisions
+export const MATURE_AT = 100, MATURITY_PER_DAY = 10;
+export const MATURITY_GAIN = { travail: 8, cours: 10, petitboulot: 4 };
+export const BIG_DECISIONS = ["/api/mariage/demander", "/api/logement/acheter", "/api/entreprise/ouvrir", "/api/entreprise/acheter", "/api/candidature"];
+export function maturityOf(o, now = Date.now()) {
+  if (!o || !o.adulte) return MATURE_AT;
+  return Math.min(MATURE_AT, Math.round((o.maturite || 0) + (now - o.arrive_le) / DAY * MATURITY_PER_DAY));
+}
+export function cannotDecide(o, prenom, now = Date.now()) {
+  const m = maturityOf(o, now);
+  return m >= MATURE_AT ? null : `${prenom} vient d'arriver dans la vie adulte et doit d'abord grandir avant les grandes décisions (maturité ${m}/${MATURE_AT}). Le temps, le travail et les études font mûrir.`;
+}
+// tableau de bord : richesse, flux d'argent, part du propriétaire réel
+export function dashboard({ makuta, banque = 0, biens = 0, entreprises = 0, maison = 0, flux = {}, depots = [], origine = null, diplomas = [], now = Date.now(), quartier = null, seed = 1 }) {
+  const total = makuta + banque + biens + entreprises + maison;
+  const naissances = depots.filter(d => d.offre === "bebe").length, depose = depots.reduce((s, d) => s + d.usd, 0);
+  return {
+    richesse: { poche: makuta, banque, biens, entreprises, maison, total },
+    argent: { recu: flux.recu || 0, depense: flux.depense || 0, famille: flux.famille || 0, impots: flux.impots || 0, recuFamille: flux.recuFamille || 0 },
+    proprietaire: { deposeUsd: depose, fraisAdminUsd: naissances * ADMIN_FEE_USD, confieUsd: depose - naissances * ADMIN_FEE_USD,
+      valeurUsd: Math.floor(total / USD_UNITS * (1 - WITHDRAW_FEE) * 100) / 100, simulation: !REAL_MONEY },
+    classe: { naissance: origine ? origine.classe : null, naissanceLabel: origine ? classLabel(origine.classe) : null, actuelle: classOfWealth(total), actuelleLabel: classLabel(classOfWealth(total)) },
+    etudes: { niveau: eduLevel(diplomas), label: eduLabel(eduLevel(diplomas)), bonus: EDU_LEVELS[eduRank(eduLevel(diplomas))].bonus },
+    maturite: { points: maturityOf(origine, now), max: MATURE_AT, arriveAdulte: !!(origine && origine.adulte) },
+    role: roleOf(origine, seed),
+    quartier: communeView(quartier),
+  };
+}
+
+// ---------------------------------------------------------------- guichet : dépôt et retrait d'argent
+// SIMULATION tant que REAL_MONEY est faux : rien n'est encaissé ni versé. Plus tard, un partenaire de paiement agréé
+// (Banque Centrale du Congo, vérification d'identité) fera le vrai transfert. Noms en texte seulement, sans logo.
+export const PAY_METHODS = [
+  { id: "mpesa", nom: "M-Pesa", type: "mobile", icone: "📱" },
+  { id: "orange", nom: "Orange Money", type: "mobile", icone: "📱" },
+  { id: "airtel", nom: "Airtel Money", type: "mobile", icone: "📱" },
+  { id: "carte", nom: "Carte bancaire", type: "carte", icone: "💳" },
+  { id: "agent", nom: "Espèces chez un agent", type: "especes", icone: "💵", depotSeulement: true },
+];
+export const DEPOSIT_USD = { min: 1 };   // pas de plafond (décision du propriétaire, 25/11)
+// on ne garde jamais le numéro complet : seulement les 3 derniers chiffres pour l'historique
+export function maskPhone(s) { const d = String(s || "").replace(/\D/g, ""); return d.length >= 9 && d.length <= 12 ? "•••• " + d.slice(-3) : null; }
+export const withdrawUsd = mk => Math.floor(mk / USD_UNITS * (1 - WITHDRAW_FEE) * 100) / 100;
+export function cannotDeposit(moyen, usd, phone) {
+  const m = PAY_METHODS.find(x => x.id === moyen);
+  if (!m) return "Choisis un moyen de paiement.";
+  if (!Number.isFinite(usd) || usd < DEPOSIT_USD.min) return `Dépôt minimum : ${DEPOSIT_USD.min} $.`;
+  if (m.type === "mobile" && !maskPhone(phone)) return "Numéro de téléphone invalide (9 à 12 chiffres).";
+  return null;
+}
+export function cannotWithdraw(w, makuta, mk, moyen, phone) {
+  const m = PAY_METHODS.find(x => x.id === moyen);
+  if (!w.retraitPossible) return w.dejaRetireCeMois ? `Tu as déjà retiré ton dû ce mois-ci. Prochain retrait à partir du ${new Date(w.retraitPossibleLe).toLocaleDateString("fr-FR", { timeZone: "Africa/Kinshasa" })}.`
+    : `Le retrait se fait en fin de mois : à partir du ${new Date(w.retraitPossibleLe).toLocaleDateString("fr-FR", { timeZone: "Africa/Kinshasa" })}.`;
+  if (!m || m.depotSeulement) return "Choisis où recevoir l'argent.";
+  if (!(mk >= USD_UNITS)) return `Minimum ${USD_TO_MAKUTA} e-makuta (1 $).`;
+  if (mk > makuta) return "Tu n'as pas assez d'e-makuta en poche.";
+  if (m.type === "mobile" && !maskPhone(phone)) return "Numéro de téléphone invalide (9 à 12 chiffres).";
+  return null;
+}
+
+// ---------------------------------------------------------------- les communes de Kinshasa (ville et province)
+// Chaque environnement a ses bons et ses mauvais côtés. « risques » multiplie la chance des événements du destin.
+export const COMMUNES = [
+  { nom: "Gombe", zone: "Centre-ville", loyer: 900, bon: ["Quartier d'affaires, banques et ministères", "Rues sûres, beaucoup de policiers", "Courant et eau presque tout le temps"], mauvais: ["Tout est cher", "Embouteillages chaque jour"], risques: { vol: .5, coupure: .4, inondation: .5, paludisme: .7 } },
+  { nom: "Lingwala", zone: "Centre", loyer: 400, bon: ["Proche du centre-ville", "Radio, télé et culture"], mauvais: ["Quartier bruyant", "Ruelles serrées"], risques: { vol: 1.1, coupure: 1 } },
+  { nom: "Kinshasa", zone: "Centre", loyer: 400, bon: ["À côté du Grand Marché : beaucoup de commerce"], mauvais: ["Foule et pickpockets", "Embouteillages"], risques: { vol: 1.4, fete: 1.1 } },
+  { nom: "Barumbu", zone: "Centre", loyer: 350, bon: ["Vieux quartier plein d'histoire", "Proche du fleuve et du port"], mauvais: ["Maisons serrées", "Inondations à la saison des pluies"], risques: { inondation: 1.4, vol: 1.2 } },
+  { nom: "Kintambo", zone: "Ouest", loyer: 400, bon: ["Grand marché de Kintambo Magasin", "Bien desservi par les bus"], mauvais: ["Bruit et circulation"], risques: { vol: 1.1 } },
+  { nom: "Ngaliema", zone: "Ouest", loyer: 700, bon: ["Quartiers résidentiels calmes", "Vue sur le fleuve, collines vertes"], mauvais: ["Loin du centre pour les petits budgets", "Érosions sur certaines pentes"], risques: { vol: .7, inondation: .8, fete: .8 } },
+  { nom: "Bandalungwa", zone: "Cité", loyer: 350, bon: ["« Bandal » : ambiance et musique", "Bonne entente entre voisins"], mauvais: ["Soirées bruyantes", "Coupures de courant"], risques: { fete: 1.4, coupure: 1.2 } },
+  { nom: "Kasa-Vubu", zone: "Cité", loyer: 350, bon: ["Commerces et marchés proches", "Animé de jour comme de nuit"], mauvais: ["Embouteillages", "Petits vols"], risques: { vol: 1.2, fete: 1.2 } },
+  { nom: "Kalamu", zone: "Cité", loyer: 350, bon: ["Stade Tata Raphaël, sport et loisirs", "Ambiance de quartier"], mauvais: ["La rivière Kalamu déborde parfois"], risques: { inondation: 1.4, fete: 1.2 } },
+  { nom: "Matonge", zone: "Cité (Kalamu)", loyer: 300, bon: ["Cœur de la rumba et des nuits de Kinshasa", "Maquis et terrasses partout"], mauvais: ["Bruit la nuit", "Pickpockets dans la foule"], risques: { fete: 1.6, vol: 1.4 } },
+  { nom: "Ngiri-Ngiri", zone: "Cité", loyer: 300, bon: ["Quartier populaire et solidaire", "Loyers abordables"], mauvais: ["Ruelles inondées quand il pleut"], risques: { inondation: 1.3 } },
+  { nom: "Makala", zone: "Cité", loyer: 250, bon: ["Loyers bas", "Petits commerces partout"], mauvais: ["Quartier très peuplé", "Insécurité la nuit"], risques: { vol: 1.4, paludisme: 1.1 } },
+  { nom: "Bumbu", zone: "Cité", loyer: 220, bon: ["Loyers très bas"], mauvais: ["Inondations fréquentes", "Routes en mauvais état"], risques: { inondation: 1.6, paludisme: 1.2 } },
+  { nom: "Selembao", zone: "Cité", loyer: 220, bon: ["Collines et grand air", "Loyers bas"], mauvais: ["Érosions dangereuses", "Peu de transport"], risques: { inondation: 1.5, vol: 1.2 } },
+  { nom: "Ngaba", zone: "Est", loyer: 280, bon: ["Proche de l'université (UNIKIN)", "Beaucoup d'étudiants"], mauvais: ["Rond-point Ngaba toujours bouché"], risques: { vol: 1.1 } },
+  { nom: "Lemba", zone: "Est", loyer: 300, bon: ["Université et écoles : on étudie bien ici", "Quartier vivant"], mauvais: ["Coupures d'eau et de courant"], risques: { coupure: 1.3 } },
+  { nom: "Limete", zone: "Est", loyer: 500, bon: ["Zone industrielle : beaucoup d'emplois", "Grand boulevard Lumumba"], mauvais: ["Pollution des usines", "Circulation lourde"], risques: { accident: 1.4, vol: .9 } },
+  { nom: "Matete", zone: "Est", loyer: 280, bon: ["Grand marché de Matete", "Ambiance populaire"], mauvais: ["Inondations", "Petits vols au marché"], risques: { inondation: 1.3, vol: 1.2 } },
+  { nom: "Kisenso", zone: "Est", loyer: 200, bon: ["Loyers parmi les plus bas", "Vie de quartier simple"], mauvais: ["Érosions et routes coupées", "Loin de tout"], risques: { inondation: 1.6, paludisme: 1.2 } },
+  { nom: "Masina", zone: "Est", loyer: 250, bon: ["Très animé, marché de la Liberté", "Proche de l'aéroport de Ndjili"], mauvais: ["Inondations", "Quartier surpeuplé"], risques: { inondation: 1.4, vol: 1.2, fete: 1.1 } },
+  { nom: "Ndjili", zone: "Est", loyer: 260, bon: ["Aéroport international tout près", "Quartiers bien tracés"], mauvais: ["Bruit des avions", "Coupures de courant"], risques: { coupure: 1.3 } },
+  { nom: "Kimbanseke", zone: "Est", loyer: 200, bon: ["Commune la plus peuplée : beaucoup de clients", "Terrains pas chers"], mauvais: ["Peu de routes goudronnées", "Insécurité la nuit"], risques: { vol: 1.4, paludisme: 1.2, inondation: 1.2 } },
+  { nom: "Mont-Ngafula", zone: "Province (sud)", loyer: 450, bon: ["Collines vertes et air frais", "Grandes parcelles"], mauvais: ["Loin du centre", "Érosions"], risques: { vol: .8, inondation: 1.2, paludisme: 1.1 } },
+  { nom: "Nsele", zone: "Province (est)", loyer: 220, bon: ["Champs et élevage : on peut cultiver", "Calme et nature, bord du fleuve"], mauvais: ["Très loin du centre", "Moustiques et paludisme"], risques: { paludisme: 1.5, vol: .6, coupure: 1.3 } },
+  { nom: "Maluku", zone: "Province (rurale)", loyer: 150, bon: ["Plus grande commune : nature, fleuve et pêche", "Vie très bon marché"], mauvais: ["Presque pas de transport", "Peu d'hôpitaux et beaucoup de paludisme"], risques: { paludisme: 1.6, vol: .5, coupure: 1.5, fete: .7 } },
+];
+export const RENT = Object.fromEntries(COMMUNES.map(c => [c.nom, c.loyer]));
+export const KINSHASA_QUARTIERS = COMMUNES.map(c => c.nom);
+export const communeOf = q => COMMUNES.find(c => c.nom === q) || null;
+export function communeView(q) {
+  const c = communeOf(q); if (!c) return null;
+  return { nom: c.nom, zone: c.zone, loyer: c.loyer, bon: c.bon, mauvais: c.mauvais };
+}
+
+// ---------------------------------------------------------------- caractère et rôle (donnés par le serveur à l'inscription)
+export const CARACTERES = [
+  { id: "honnete", nom: "Honnête", camp: "bon" }, { id: "travailleur", nom: "Travailleur", camp: "bon" }, { id: "genereux", nom: "Généreux", camp: "bon" },
+  { id: "courageux", nom: "Courageux", camp: "bon" }, { id: "patient", nom: "Patient", camp: "bon" }, { id: "loyal", nom: "Loyal", camp: "bon" },
+  { id: "menteur", nom: "Menteur", camp: "mauvais" }, { id: "paresseux", nom: "Paresseux", camp: "mauvais" }, { id: "avare", nom: "Avare", camp: "mauvais" },
+  { id: "colerique", nom: "Colérique", camp: "mauvais" }, { id: "jaloux", nom: "Jaloux", camp: "mauvais" }, { id: "ruse", nom: "Rusé et malhonnête", camp: "mauvais" },
+];
+export const ROLES = [
+  { id: "voisin", nom: "Bon voisin", camp: "bon", desc: "Aide les gens de son quartier. Sa réputation monte avec le temps.", rep: 10 },
+  { id: "entrepreneur", nom: "Entrepreneur honnête", camp: "bon", desc: "Veut créer des emplois et faire grandir le quartier.", rep: 5 },
+  { id: "protecteur", nom: "Protecteur du quartier", camp: "bon", desc: "Défend les plus faibles et respecte la loi.", rep: 10 },
+  { id: "educateur", nom: "Éducateur", camp: "bon", desc: "Aime apprendre et transmettre aux plus jeunes.", rep: 5 },
+  { id: "soignant", nom: "Soignant de cœur", camp: "bon", desc: "S'occupe des malades et des anciens.", rep: 5 },
+  { id: "escroc", nom: "Petit escroc", camp: "mauvais", desc: "Cherche l'argent facile en trompant les autres.", rep: -10 },
+  { id: "pickpocket", nom: "Voleur à la tire", camp: "mauvais", desc: "Profite de la foule des marchés. La police le surveille.", rep: -10 },
+  { id: "trafiquant", nom: "Trafiquant", camp: "mauvais", desc: "Fait des affaires louches dans l'ombre.", rep: -5 },
+  { id: "bagarreur", nom: "Fauteur de troubles", camp: "mauvais", desc: "Se dispute facilement et cherche la bagarre.", rep: -5 },
+  { id: "usurier", nom: "Usurier", camp: "mauvais", desc: "Prête de l'argent à des taux injustes.", rep: -5 },
+];
+export const GOOD_ROLE_CHANCE = 0.7;
+export function drawRole(r = Math.random) {
+  const camp = r() < GOOD_ROLE_CHANCE ? "bon" : "mauvais", pick = a => a[Math.floor(r() * a.length)];
+  return { camp, caractere: pick(CARACTERES.filter(c => c.camp === camp)).id, role: pick(ROLES.filter(x => x.camp === camp)).id };
+}
+// un personnage né avant cette règle reçoit quand même un rôle, toujours le même (tiré de son apparence)
+export function roleOf(o, seed) {
+  const d = o && o.role ? { camp: o.camp, caractere: o.caractere, role: o.role } : drawRole(rng((seed || 1) ^ 0x5bd1e995));
+  const c = CARACTERES.find(x => x.id === d.caractere) || CARACTERES[0], R = ROLES.find(x => x.id === d.role) || ROLES[0];
+  return { camp: d.camp, caractere: c.id, caractereNom: c.nom, role: R.id, roleNom: R.nom, roleDesc: R.desc };
+}
+
+// ---------------------------------------------------------------- fidélité : série de jours, résumé de la nuit, réveil du matin
+// Une journée compte dans la série quand le joueur donne au moins une consigne (heure de Kinshasa).
+export const STREAK_BONUS = [{ jours: 3, makuta: 2 * 20 }, { jours: 7, makuta: 10 * 20 }, { jours: 14, makuta: 15 * 20 }, { jours: 30, makuta: 50 * 20 }];
+export const STREAK_EVERY = 7, STREAK_EVERY_MAKUTA = 10 * 20;   // après 30 jours : +10 e-makuta chaque semaine
+export function streakBonusFor(n) {
+  const b = STREAK_BONUS.find(x => x.jours === n); if (b) return b.makuta;
+  return n > 30 && n % STREAK_EVERY === 0 ? STREAK_EVERY_MAKUTA : 0;
+}
+export const prevDayKey = jour => new Date(Date.parse(jour + "T00:00:00Z") - 864e5).toISOString().slice(0, 10);
+export const kinHour = (now = Date.now()) => new Date(now + 36e5).getUTCHours();
+// une consigne donnée aujourd'hui : la série continue (hier) ou recommence à 1
+export function streakStep(f, jour) {
+  f = f || {};
+  if (f.dernier_jour === jour) return { serie: f.serie || 0, meilleure: f.meilleure || 0, dernier_jour: jour, bonus: 0, nouveau: false };
+  const serie = f.dernier_jour === prevDayKey(jour) ? (f.serie || 0) + 1 : 1;
+  return { serie, meilleure: Math.max(f.meilleure || 0, serie), dernier_jour: jour, bonus: streakBonusFor(serie), nouveau: true };
+}
+export function streakView(f, now = Date.now()) {
+  f = f || {};
+  const jour = dayKey(now), fait = f.dernier_jour === jour, vivante = fait || f.dernier_jour === prevDayKey(jour);
+  const serie = vivante ? (f.serie || 0) : 0;
+  let n = serie + 1; while (!streakBonusFor(n)) n++;
+  return { serie, meilleure: f.meilleure || 0, aujourdhui: fait, enDanger: !fait && serie > 0, perdue: !vivante && (f.serie || 0) > 1 ? f.serie : 0,
+    prochainBonus: { jours: n, dans: n - serie, makuta: streakBonusFor(n) }, paliers: STREAK_BONUS };
+}
+// ce qui s'est passé depuis la dernière visite du joueur (au plus 36 h en arrière)
+export const SUMMARY_MAX_MS = 36 * 36e5;
+export function nightSummary({ prenom, fem = false, mouvements = [], vuLe = null, makutaVu = null, makuta = 0, besoins = {}, now = Date.now() }) {
+  const depuis = Math.max(vuLe || 0, now - SUMMARY_MAX_MS);
+  const M = mouvements.filter(m => m.le > depuis).sort((a, b) => b.le - a.le);
+  const gain = vuLe && makutaVu != null ? makuta - makutaVu : null;
+  const alertes = [];
+  if (besoins.hunger !== undefined && besoins.hunger < 30) alertes.push(`🍲 ${prenom} a très faim.`);
+  if (besoins.health !== undefined && besoins.health < 40) alertes.push(`🏥 ${prenom} est malade : soigne-le.`);
+  if (besoins.energy !== undefined && besoins.energy < 20) alertes.push(`😴 ${prenom} est épuisé${fem ? "e" : ""}.`);
+  if (besoins.happiness !== undefined && besoins.happiness < 25) alertes.push(`😟 ${prenom} n'a pas le moral.`);
+  return { depuis, premiereVisite: !vuLe, nb: M.length, liste: M.slice(0, 6), gain, alertes,
+    nouveau: M.length > 0 || (gain !== null && gain !== 0) };
+}
+export function morningText(prenom, R, S, fem = false) {
+  const bits = [];
+  if (R && R.nb) bits.push(`${R.nb} action${R.nb > 1 ? "s" : ""} depuis ta dernière visite`);
+  if (R && R.gain) bits.push(`${R.gain > 0 ? "+" : "−"}${fmtMakuta(Math.abs(R.gain))}`);
+  return `☀️ ${prenom} s'est réveillé${fem ? "e" : ""}${bits.length ? " (" + bits.join(", ") + ")" : ""}. Donne-lui ses consignes avant 10 h.` + (S && S.serie > 1 ? ` 🔥 Série : ${S.serie} jours.` : "");
+}
+export function reminderText(prenom, S) {
+  return `⏳ Plus qu'une heure pour donner ses consignes à ${prenom} et garder ta série de ${S.serie} jour${S.serie > 1 ? "s" : ""} 🔥.`;
+}
+
+// ---------------------------------------------------------------- vie sociale : journal de Kinshasa, voisins, petits mots
+const hashStr = s => { let h = 2166136261; for (const c of String(s)) h = Math.imul(h ^ c.charCodeAt(0), 16777619); return h >>> 0; };
+export const JOURNAL_START = "2026-11-24";
+// faits réels (requêtes du serveur ou de la démo) + la vie de la ville, la même pour tous ce jour-là
+export function newspaper(facts = {}, now = Date.now(), quartier = null) {
+  const jour = dayKey(now), r = rng(hashStr("journal" + jour)), pick = a => a[Math.floor(r() * a.length)];
+  const items = [], add = (icone, poids, titre, texte, commune, le, reel = true) => items.push({ icone, poids, titre, texte, commune: commune || null, le: le || now, reel });
+  for (const d of facts.deces || []) add("🕯️", 90, `Deuil à ${d.quartier || "Kinshasa"}`, `${d.prenom} ${d.nom} nous a quittés à ${d.age} ans${d.cause ? " (" + d.cause + ")" : ""}. Ses héritiers se partagent ses biens.`, d.quartier, d.le);
+  for (const m of facts.mariages || []) add("💍", 80, "Mariage", `${m.a} et ${m.b} se sont dit oui. La dot a été versée, les deux familles sont en fête.`, m.quartier, m.le);
+  for (const e of facts.entreprises || []) add((COMPANY_TYPES.find(t => t.id === e.type) || {}).icone || "🏪", 70, `Nouveau à ${e.quartier || "Kinshasa"} : ${e.nom}`, `${e.proprio} ouvre un${e.type === "boutique" ? "e" : ""} ${((COMPANY_TYPES.find(t => t.id === e.type) || {}).nom || "commerce").toLowerCase()}. Allez y faire un tour !`, e.quartier, e.le);
+  for (const n of facts.naissances || []) add("👶", 60, `Bienvenue à ${n.prenom}`, `${n.prenom} ${n.nom} est arrivé${n.sexe === "F" ? "e" : ""} à ${n.quartier || "Kinshasa"}. Nouvelle vie, nouveau destin.`, n.quartier, n.le);
+  for (const m of facts.elus || []) add("🗳️", 85, "Résultat des élections", `${m.nom} est élu${m.sexe === "F" ? "e" : ""} ${m.poste} avec ${m.voix} voix.`, null, m.le);
+  for (const a of facts.arrestations || []) if (a.n) add("🚔", 40, `Police : ${a.n} arrestation${a.n > 1 ? "s" : ""} à ${a.quartier}`, `Les patrouilles ont été actives à ${a.quartier} ces dernières 24 heures. Restez prudents.`, a.quartier);
+  // la vie de la ville
+  const C = pick(COMMUNES), C2 = pick(COMMUNES);
+  const meteo = pick([["☀️", "Grand soleil sur Kin", "Journée chaude : pensez à boire de l'eau et à manger au maquis."], ["🌧️", "Grosse pluie attendue", `Risque d'inondation à ${C.nom} : les taxis augmentent leurs prix.`], ["⛅", "Temps doux", "Une belle journée pour se promener au bord du fleuve."], ["🌩️", "Orage ce soir", "Rentrez tôt : coupures de courant possibles dans plusieurs communes."]]);
+  const vie = [
+    { icone: meteo[0], titre: meteo[1], texte: meteo[2] },
+    pick([{ icone: "⚽", titre: "Football : derby à Kin", texte: `AS ${C.nom} ${Math.floor(r() * 4)} – ${Math.floor(r() * 4)} FC ${C2.nom === C.nom ? "Lingwala" : C2.nom}. Ambiance de fête dans les deux communes.` },
+      { icone: "🎶", titre: "Rumba ce soir", texte: `Concert au maquis de ${C.nom} à partir de 20 h. Entrée libre, sapeurs bienvenus.` },
+      { icone: "🧺", titre: "Marché de la Gombe", texte: `Le prix du manioc ${r() < .5 ? "baisse" : "monte"} cette semaine. Les vendeuses parlent d'un ${pick(["bon", "mauvais", "drôle de"])} arrivage.` }]),
+    pick([{ icone: "🚌", titre: "Transport", texte: "La ligne 1 du bus circule toute la journée : 2 e-makuta le ticket, et le guide raconte la ville." },
+      { icone: "🚧", titre: "Embouteillages", texte: `Gros bouchons vers ${C2.nom} en fin de journée. Prévoyez le bus ou la marche.` },
+      { icone: "🏛️", titre: "Hôtel de ville", texte: "La mairie rappelle que les impôts financent les écoles et les hôpitaux de la ville." }]),
+  ];
+  items.sort((a, b) => b.poids - a.poids || b.le - a.le);
+  const reel = items.filter(x => x.reel);
+  const une = reel[0] || { ...vie[0], reel: false };
+  const ma = quartier ? reel.filter(x => x.commune === quartier) : [];
+  const numero = Math.max(1, Math.round((Date.parse(jour) - Date.parse(JOURNAL_START)) / 864e5) + 1);
+  return { titre: "Le Journal de Kinshasa", date: jour, numero, une,
+    rubriques: [
+      { id: "commune", titre: quartier ? `Dans ta commune · ${quartier}` : "Dans ta commune", items: ma.slice(0, 12), vide: "Rien de neuf dans ta commune aujourd'hui. Et si ton personnage faisait parler de lui ?" },
+      { id: "ville", titre: "Kinshasa", items: reel.slice(0, 20), vide: "La ville se réveille : les premières nouvelles arrivent avec les premiers joueurs." },
+      { id: "vie", titre: "La vie à Kin", items: vie, vide: "" },
+    ],
+    chiffres: facts.chiffres || null };
+}
+// petits mots entre joueurs : courts, sans lien ni numéro (contre les arnaques), 10 par jour
+export const WORD_MAX = 200, WORDS_PER_DAY = 10;
+export const GREETINGS = ["👋 Mbote ! On est voisins.", "🍲 On se retrouve au maquis ?", "💼 Tu cherches du travail ? Mon entreprise embauche.", "🙏 Merci pour ton aide !", "⚽ Match ce soir au terrain, tu viens ?"];
+export function cannotSendWord(texte, sentToday, toSelf) {
+  const t = String(texte || "").trim();
+  if (toSelf) return "Tu ne peux pas t'écrire à toi-même.";
+  if (!t) return "Écris quelques mots.";
+  if (t.length > WORD_MAX) return `${WORD_MAX} caractères au plus.`;
+  if (/https?:\/\/|www\.|\.(com|net|org|cd|io)\b/i.test(t)) return "Les liens ne sont pas autorisés dans les mots.";
+  if (/(\+?\d[\s.-]?){8,}/.test(t)) return "Pas de numéro de téléphone : pour ta sécurité, garde tes échanges dans le jeu.";
+  if (sentToday >= WORDS_PER_DAY) return `Tu as déjà envoyé ${WORDS_PER_DAY} mots aujourd'hui. Reviens demain.`;
+  return null;
+}
+export function neighborView(n, now = Date.now()) {
+  const age = ageYears(n.ne_le, now);
+  return { id: n.id, prenom: n.prenom, nom: n.nom, sexe: n.sexe, pseudo: n.pseudo || null, quartier: n.quartier, age: Math.floor(age), etape: stageOf(age).label,
+    metier: n.metier ? (JOBS.find(j => j.id === n.metier) || {}).nom || n.metier : null, reputation: repLabel(n.reputation || 0), memeCommune: !!n.memeCommune };
 }

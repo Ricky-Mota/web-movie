@@ -1,6 +1,6 @@
 // 2 Life : espace administrateur (conditions de démarrage, parents fondateurs, investisseurs).
 import { launchDemo } from "./lancement-demo.js";
-import { OFFERS, COMPANY_TYPES } from "../server/src/life.js";
+import { OFFERS, COMPANY_TYPES, SETTINGS } from "../server/src/life.js";
 
 const API = (window.TWO_LIFE_API || "").replace(/\/$/, "");
 const $ = id => document.getElementById(id);
@@ -42,9 +42,51 @@ function render(e) {
       <p style="font-size:13px">Les joueurs de 18 ans et plus votent pendant 7 jours. À la date de l'élection, les voix sont comptées et les élus prennent leur poste (payés par le Trésor).</p>`;
   $("f-elec").hidden = $("b-vote-now").hidden = !L.demarre;
   $("demo-tools").hidden = !e.demo;
+  renderSettings(e.reglages || demoSettings());
+  renderObserve(e.observer || demoObserve());
+  const B = e.naissances || { n: 0, usd: 0, fraisAdmin: 0, parents: 0 };
+  $("n-births").textContent = B.n;
+  $("births").innerHTML = `<p style="font-size:14px">Chaque naissance coûte 15 $ : <b>5 $ pour l'administrateur</b> (faire vivre le jeu) et 10 $ (50 e-makuta) confiés aux parents de l'enfant.</p>
+    <div class="cond"><div class="need">Part administrateur <b>${B.fraisAdmin.toLocaleString("fr-FR")} $</b></div><small class="wait-badge">simulé</small></div>
+    <div class="cond"><div class="need">Confié aux parents <b>${B.parents.toLocaleString("fr-FR")} $</b></div><small class="wait-badge">simulé</small></div>`;
   $("n-parents").textContent = e.parents.length; $("n-inv").textContent = e.investisseurs.length;
   $("parents").innerHTML = e.parents.length ? e.parents.map(p => `<div class="item"><span class="sw">${p.sexe === "F" ? "👩🏾" : "👨🏾"}</span><div class="t">${esc(p.prenom)} ${esc(p.nom)} · ${esc(p.quartier)}<small>${esc(p.pseudo)} · ${esc(p.email)} · ajouté le ${day(p.cree_le)}</small></div></div>`).join("") : `<p>Aucun parent fondateur pour l'instant.</p>`;
   $("investors").innerHTML = e.investisseurs.length ? e.investisseurs.map(i => `<div class="item"><span class="sw">💼</span><div class="t">${esc(i.pseudo)} · ${(OFFERS.find(o => o.id === i.offre) || {}).nom || esc(i.offre)}<small>${Number(i.usd).toLocaleString("fr-FR")} $ (simulé) · ${esc(i.email)} · ${day(i.le)}</small></div></div>`).join("") : `<p>Aucun investisseur pour l'instant. Ils s'inscrivent eux-mêmes depuis la page Ma vie.</p>`;
+}
+// réglages en direct (en démo : gardés dans ce navigateur, lus par la page Ma vie et la ville)
+const LS_SET = "twolife_reglages";
+function demoSettings() { let v = {}; try { v = JSON.parse(localStorage.getItem(LS_SET) || "{}"); } catch (e) { } return { defs: SETTINGS, valeurs: Object.fromEntries(SETTINGS.map(s => [s.id, v[s.id] ?? 1])), demo: true }; }
+const fx = n => Number(n).toLocaleString("fr-FR", { maximumFractionDigits: 2 });
+function renderSettings(R) {
+  $("settings").innerHTML = R.defs.map(s => `<div class="cond" style="display:block"><label for="set-${s.id}" class="need" style="display:flex;justify-content:space-between"><span>${esc(s.label)}</span><b id="setv-${s.id}">× ${fx(R.valeurs[s.id])}</b></label>
+    <input type="range" id="set-${s.id}" data-set="${s.id}" min="${s.min}" max="${s.max}" step="0.05" value="${R.valeurs[s.id]}" style="width:100%;accent-color:var(--accent)">
+    <small style="opacity:.75">${esc(s.aide)} De ${fx(s.min)} à ${fx(s.max)}.</small></div>`).join("") + (R.demo ? `<p class="sim">Démo : les réglages sont gardés dans ce navigateur et s'appliquent à la page Ma vie et à la ville.</p>` : "");
+}
+$("settings").addEventListener("input", e => { const i = e.target.closest("[data-set]"); if (i) $("setv-" + i.dataset.set).textContent = "× " + fx(i.value); });
+const readSettings = () => Object.fromEntries([...document.querySelectorAll("[data-set]")].map(i => [i.dataset.set, Number(i.value)]));
+async function saveSettings(v) {
+  if (API) { try { const r = await call("/api/admin/reglages", { valeurs: v }); renderSettings(r.reglages); toast("Réglages enregistrés : les joueurs les voient en moins d'une minute."); } catch (err) { toast(err.message); } }
+  else { try { localStorage.setItem(LS_SET, JSON.stringify(v)); } catch (e) { } renderSettings(demoSettings()); toast("Réglages enregistrés (démo, dans ce navigateur)."); }
+}
+$("b-set").onclick = () => saveSettings(readSettings());
+$("b-set-reset").onclick = () => saveSettings(Object.fromEntries(SETTINGS.map(s => [s.id, 1])));
+// observer le jeu (en démo : la vie gardée dans ce navigateur)
+function demoObserve() {
+  let d = null; try { d = JSON.parse(localStorage.getItem("twolife_demo") || "null"); } catch (e) { }
+  if (!d || !d.perso) return { vivants: 0, morts: 0, enfants: 0, negliges: 0, enDanger: 0, deces: [], evenements: [], demo: true };
+  const kids = d.enfants || [], morts = [...(d.vies || []), ...(d.mort ? [d.mort] : [])];
+  return { vivants: (d.mort ? 0 : 1) + kids.length, morts: morts.length + (d.deuils || []).length, enfants: kids.length, negliges: kids.filter(k => k.neglige > 0).length, enDanger: kids.filter(k => k.neglige >= 7).length,
+    deces: [...morts.map(m => ({ prenom: m.prenom, nom: m.nom, cause: m.cause, age: m.age, mort_le: m.mortLe, pseudo: d.pseudo })), ...(d.deuils || []).map(k => ({ prenom: k.prenom, nom: "", cause: k.cause, age: 0, mort_le: k.le, pseudo: "enfant" }))].sort((a, b) => b.mort_le - a.mort_le),
+    evenements: (d.mouvements || []).slice(0, 40).map(m => ({ ...m, qui: d.mort ? d.mort.prenom : d.perso.firstName })), demo: true };
+}
+function renderObserve(o) {
+  const tile = (n, l, warn) => `<div class="cond"><div class="need">${l} <b${warn && n ? ' style="color:var(--warn)"' : ""}>${n}</b></div></div>`;
+  const when = t => new Date(t).toLocaleString("fr-FR", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+  $("observe").innerHTML = tile(o.vivants, "Personnages vivants") + tile(o.enfants, "Enfants (moins de 18 ans)") + tile(o.negliges, "Enfants négligés", true) + tile(o.enDanger, "En danger de mort (7 jours de négligence)", true) + tile(o.morts, "Morts", true)
+    + (o.tresor != null ? tile(Math.round(o.tresor / 20).toLocaleString("fr-FR") + " e-makuta", "Trésor de la ville") : "")
+    + `<h3 style="font-size:15px;margin:16px 0 4px">Derniers décès</h3>` + (o.deces.length ? `<div class="list">${o.deces.map(x => `<div class="item"><span class="sw">✝️</span><div class="t">${esc(x.prenom)} ${esc(x.nom)} · ${x.age} ans<small>${esc(x.cause || "")} · ${esc(x.pseudo || "")} · ${when(x.mort_le)}${x.fortune ? " · fortune partagée : " + Math.round(x.fortune / 20).toLocaleString("fr-FR") + " e-makuta" : ""}</small></div></div>`).join("")}</div>` : `<p>Aucun décès pour l'instant.</p>`)
+    + `<h3 style="font-size:15px;margin:16px 0 4px">Derniers événements</h3>` + (o.evenements.length ? `<div class="list">${o.evenements.map(x => `<div class="item"><span class="sw">${x.icone}</span><div class="t">${esc(x.qui)}<small>${esc(x.texte)} · ${when(x.le)}</small></div></div>`).join("")}</div>` : `<p>Rien pour l'instant.</p>`)
+    + (o.demo ? `<p class="sim">Démo : seule la vie jouée dans ce navigateur est visible. En ligne, tu vois tous les joueurs.</p>` : "");
 }
 // liste d'attente bêta (en mode démo : celle gardée dans ce navigateur par l'accueil)
 let betaRows = [];
@@ -68,7 +110,22 @@ $("b-beta-csv").onclick = () => {
 function demoBeta() {
   try { return (JSON.parse(localStorage.getItem("zboss_demo_signups") || "[]")).map(r => ({ pseudo: r.pseudo, email: r.email, pays: r.country, plateforme: r.platform, newsletter: r.newsletter, source: r.source, cree_le: Date.parse(r.created_at) || Date.now() })); } catch (e) { return []; }
 }
-const load = async () => { try { const e = await call("/api/admin/etat"); render(e); renderBeta(API ? e.beta : demoBeta()); show(true); } catch (err) { show(false); } };
+// bureau Zboss Sarlu : demandes d'aide des joueurs
+const demoSup = { get() { try { return JSON.parse(localStorage.getItem("twolife_demo_support") || "[]"); } catch (e) { return []; } }, set(v) { try { localStorage.setItem("twolife_demo_support", JSON.stringify(v)); } catch (e) { } } };
+function renderSupport(rows) {
+  rows = rows || [];
+  const open = rows.filter(r => r.statut !== "resolu").length;
+  $("n-sup").textContent = open;
+  $("support").innerHTML = rows.length ? rows.map(r => `<div class="item"><span class="sw">${r.statut === "resolu" ? "✅" : "🆘"}</span><div class="t">${esc(r.categorie)} · ${esc(r.pseudo || "anonyme")}${r.email ? " · " + esc(r.email) : ""}<small>${esc(r.message)}</small><small>${day(r.cree_le)}${r.statut === "resolu" ? " · résolu" : ""}</small></div>
+    <button class="btn ghost" style="flex:none;width:auto;padding:6px 12px;font-size:13px;margin-left:auto" type="button" data-sup="${esc(r.id)}" data-st="${r.statut === "resolu" ? "ouvert" : "resolu"}">${r.statut === "resolu" ? "Rouvrir" : "Marquer résolu"}</button></div>`).join("")
+    : `<p>Aucun problème signalé pour l'instant.</p>`;
+}
+$("support").addEventListener("click", async e => {
+  const b = e.target.closest("[data-sup]"); if (!b) return;
+  if (API) { try { await call("/api/admin/support", { id: b.dataset.sup, statut: b.dataset.st }); load(); } catch (err) { toast(err.message); } }
+  else { const L = demoSup.get(); const r = L.find(x => x.id === b.dataset.sup); if (r) { r.statut = b.dataset.st; demoSup.set(L); } renderSupport(L); }
+});
+const load = async () => { try { const e = await call("/api/admin/etat"); render(e); renderBeta(API ? e.beta : demoBeta()); renderSupport(API ? e.support : demoSup.get()); show(true); } catch (err) { show(false); } };
 
 $("f-login").onsubmit = async ev => {
   ev.preventDefault(); $("login-err").textContent = "";
