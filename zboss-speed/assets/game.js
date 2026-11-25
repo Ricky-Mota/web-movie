@@ -914,7 +914,7 @@
     c.stun = Math.max(c.stun || 0, sp >= CRASH_SPEED ? 3 : 1);   // le conducteur s'arrête
     if (sp >= CRASH_SPEED) {   // accident : le piéton tombe et reste au sol, blessé
       moveBody(q, [ux * 14, uy * 14]);
-      if (me) { G.energy = Math.max(0, G.energy - 35); const t = `🚑 Accident : ton personnage a été renversé par une voiture à ${kmh} km/h. Blessé, il doit aller se soigner au centre de santé.`; if (G.me && G.me.journal) note(t, "alert"); else msg(t, 5, "alert"); return; }
+      if (me) { G.energy = Math.max(0, G.energy - 35); const t = `🚑 Accident : ton personnage a été renversé par une voiture à ${kmh} km/h. Blessé, il doit aller se soigner au centre de santé.`; if (G.me && G.me.journal) note(t, "alert"); else msg(t, 5, "alert"); reportInjury(kmh); return; }
       q.chat = null; q.talk = 0; q.greet = null; q.state = "down"; q.st = HURT_SECONDS; q.hurt = true;
       if (near) msg(`🚑 Accident : ${who} est ${ident(q).woman ? "blessée" : "blessé"} par une voiture (${kmh} km/h). Les secours arrivent.`, 5, "alert");
       if (mine) msg("🚓 Tu as blessé un piéton : la police note ta plaque.", 4, "alert");
@@ -925,6 +925,25 @@
     if (me) { G.energy = Math.max(0, G.energy - 3); msg("😬 Bousculade : une voiture a frôlé ton personnage, plus de peur que de mal.", 3); return; }
     if (q.state !== "down") { q.state = "cower"; q.st = 1.5; }
     if (near) msg(`😬 Bousculade : ${who} a été légèrement ${ident(q).woman ? "poussée" : "poussé"} par une voiture.`, 3);
+  }
+  // la blessure compte aussi dans la santé du personnage (serveur, ou données de démo de « Ma vie ») : soins payants obligatoires
+  function reportInjury(kmh) {
+    const API = (window.TWO_LIFE_API || "").replace(/\/$/, "");
+    if (API) {
+      let t = null; try { t = JSON.parse(localStorage.getItem("twolife_token")); } catch (e) { }
+      if (t) fetch(API + "/api/accident", { method: "POST", headers: { "Content-Type": "application/json", Authorization: "Bearer " + t }, body: JSON.stringify({ kmh }) }).catch(() => { });
+      return;
+    }
+    // démo : mêmes règles que le serveur (santé -25, au plus une fois par 10 min, bloque le travail jusqu'aux soins)
+    try {
+      const d = JSON.parse(localStorage.getItem("twolife_demo") || "null"), c = d && d.perso; if (!c) return;
+      if (d.blessure && d.blessure.le > Date.now() - 10 * 6e4) return;
+      const f = c.sex === "F", e = f ? "e" : "";
+      c.health = Math.max(5, (c.health ?? 100) - 25); c.happiness = Math.max(0, (c.happiness ?? 80) - 8);
+      d.blessure = { le: Date.now(), vitesse: kmh };
+      d.mouvements = [{ icone: "🚑", texte: `Accident : ${c.firstName} a été renversé${e} par une voiture à ${kmh} km/h. Blessé${e}, ${f ? "elle" : "il"} doit se soigner au centre de santé avant de reprendre le travail.`, par_consigne: 0, le: Date.now() }, ...(d.mouvements || [])].slice(0, 100);
+      localStorage.setItem("twolife_demo", JSON.stringify(d));
+    } catch (e) { }
   }
   // piétons et personnage : contre les obstacles fixes, les voitures et entre eux
   function resolveBodies(cars) {

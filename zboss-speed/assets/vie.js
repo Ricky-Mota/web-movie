@@ -2,7 +2,7 @@
 // simule la même vie dans le navigateur (mode démo).
 import {
   ageYears, stageOf, STAGES, realMsUntil, TALENTS, ACTIVITIES, rng, drawTalents, doActivity, needsAt, newIdentity, BIRTH_GIFT,
-  SHOP, cannotBuy, OFFERS, USD_TO_MAKUTA, USD_UNITS, fmtMakuta, WITHDRAW_FEE, walletInfo, birthShiftMs, shopView, familyOf, JOBS, payFor, cannotWork, workView, SHIFT_ENERGY, cannotApply, FORMATIONS, cannotEnroll, attendCourse, schoolView, STUDY_ENERGY, SUPPORT_PER_DAY, HOST_MIN_AGE, canSignupBeforeLaunch, COMPANY_TYPES, cannotOpenCompany, companyName, companyView, companyAccrue, companyJob, EMPLOYEE_YIELD, RESELL_RATE, TAXI_FARE, TAXI_ENERGY, KINSHASA_QUARTIERS, OTHER_CITIES, TAX, POSTS, PUBLIC_JOBS, BANKS, bankAccrue, INSURERS, CARE, careCost, OPERATORS, RECHARGES, CALL, stateView, supportDue, unpaidEffect, familyShare, FIRST_NAMES,
+  SHOP, cannotBuy, OFFERS, USD_TO_MAKUTA, USD_UNITS, fmtMakuta, WITHDRAW_FEE, walletInfo, birthShiftMs, shopView, familyOf, JOBS, payFor, cannotWork, workView, SHIFT_ENERGY, cannotApply, FORMATIONS, cannotEnroll, attendCourse, schoolView, STUDY_ENERGY, SUPPORT_PER_DAY, HOST_MIN_AGE, canSignupBeforeLaunch, COMPANY_TYPES, cannotOpenCompany, companyName, companyView, companyAccrue, companyJob, EMPLOYEE_YIELD, RESELL_RATE, TAXI_FARE, TAXI_ENERGY, KINSHASA_QUARTIERS, OTHER_CITIES, TAX, POSTS, PUBLIC_JOBS, BANKS, bankAccrue, INSURERS, CARE, careCost, ACCIDENT, injuredBlocks, accidentText, OPERATORS, RECHARGES, CALL, stateView, supportDue, unpaidEffect, familyShare, FIRST_NAMES,
   describeAction, ORDER_DONE, ORDERS, ORDERS_PER_DAY, ORDERS_CHECK_MS, dayKey, ordersToRun, cannotGiveOrder,
   VOTER_MIN_AGE, NEGLECT_DANGER_DAYS, NEGLECT_DANGER_HEALTH, splitEstate, deathCause, familyShareRate, REP, REP_BAD, REP_GOOD, repLabel, repDiscount, DOT_MAKUTA, MARRY_MIN_AGE, STREET_JOBS, cannotStreetJob, RENT, rentOf, houseOf, rentDue, HOUSING_MIN_AGE, SALE_TAX, LIFE_EVENTS, EVENT_EVERY_H, drawEvent, eventMoney, lifeAlbum, CRIMES, catchChance, sentence, inPrison, PRISON_BLOCKED, BAIL, PRISON_HOURS, RECIDIVE, policeView, applySettings, food, drawEntry, classOfWealth, classLabel, MATURITY_GAIN, BIG_DECISIONS, cannotDecide, dashboard,
   PAY_METHODS, cannotDeposit, cannotWithdraw, maskPhone, withdrawUsd, COMMUNES, communeView, ROLES, drawRole, roleOf,
@@ -64,6 +64,7 @@ const demo = {
     v.etat.finances = { tresor, impotsJour: (d.tva || 0) + Math.max(0, d.tresor || 0), salairesJour: 0, arrieres: 0, societes: soeView(soldes, { "sp-mwinda": 3, "sp-mai": 2, "sp-regie": 1, "sp-voirie": 6 }), tva: 16, demo: true };
     v.salaireDu = 0; v.promo = { prix: PROMO_PRICE, maxJours: PROMO_MAX_DAYS };
     v.train = livingView(d.train || {}, d.perso.makuta, ageYears(d.perso.neLe));
+    v.blessure = d.blessure || null;
     v.campagnes = { maxJours: CAMPAIGN_MAX_DAYS, liste: (d.campagnes || []).filter(x => x.fin > Date.now()) };
     return v;
   },
@@ -439,7 +440,7 @@ const demo = {
     if (path === "/api/postuler" && (d.rep || 0) <= REP_BAD) throw new Error("L'employeur refuse : ta réputation dans le quartier est trop mauvaise (vols, prison…). Travaille ta réputation d'abord.");
     if (path === "/api/petitboulot") {
       this.settle(c);
-      const j = STREET_JOBS.find(x => x.id === body.boulot), no = cannotStreetJob(j, ageYears(c.neLe), c.energy, d.lastStreet);
+      const j = STREET_JOBS.find(x => x.id === body.boulot), no = injuredBlocks(d.blessure) || cannotStreetJob(j, ageYears(c.neLe), c.energy, d.lastStreet);
       if (no) throw new Error(no);
       const gain = j.gain[0] + Math.floor(Math.random() * (j.gain[1] - j.gain[0] + 1));
       c.makuta += gain; c.energy = Math.max(0, c.energy - j.energie); d.lastStreet = Date.now(); this.mature(d, MATURITY_GAIN.petitboulot); this.flow(d, "recu", gain);
@@ -516,10 +517,18 @@ const demo = {
       c.makuta -= a.prime; d.assureur = a.id; d.assureJusqu = from + a.jours * 864e5;
       store.set(LS_DEMO, d); return this.view(d);
     }
+    if (path === "/api/accident") {   // choc fort dans la ville 3D : blessure à soigner (au plus une fois par 10 min)
+      const kmh = Math.round(Number(body.kmh)); if (!(kmh >= ACCIDENT.minKmh && kmh <= ACCIDENT.maxKmh)) throw new Error("Vitesse du choc invalide.");
+      if (!(d.blessure && d.blessure.le > Date.now() - ACCIDENT.attenteMin * 6e4)) {
+        this.settle(c); c.health = Math.max(ACCIDENT.santeMin, c.health - ACCIDENT.sante); c.happiness = Math.max(0, c.happiness - ACCIDENT.bonheur);
+        d.blessure = { le: Date.now(), vitesse: kmh }; this.move(d, "🚑", accidentText(c.firstName, kmh, c.sex === "F"));
+      }
+      store.set(LS_DEMO, d); return this.view(d);
+    }
     if (path === "/api/soigner") {
-      this.settle(c); if (c.health >= 95) throw new Error("Tu es en bonne santé, pas besoin de soins.");
+      this.settle(c); if (c.health >= 95 && !d.blessure) throw new Error("Tu es en bonne santé, pas besoin de soins.");
       const k = careCost(d.assureJusqu, d.assureur); if (c.makuta < k.prix) throw new Error(`Les soins coûtent ${fmtMakuta(k.prix)}.`);
-      c.makuta -= k.prix; c.health = Math.min(100, c.health + CARE.sante);
+      c.makuta -= k.prix; c.health = Math.min(100, c.health + CARE.sante); d.blessure = null;
       store.set(LS_DEMO, d); return { soins: k, ...this.view(d) };
     }
     if (path === "/api/telephone/recharger") {
@@ -648,7 +657,7 @@ const demo = {
     }
     if (path === "/api/travailler") {
       this.settle(c);
-      const job = d.boss ? companyJob(d.boss) : JOBS.find(j => j.id === d.job), no = cannotWork(job, ageYears(c.neLe), c.energy, d.lastShift);
+      const job = d.boss ? companyJob(d.boss) : JOBS.find(j => j.id === d.job), no = injuredBlocks(d.blessure) || cannotWork(job, ageYears(c.neLe), c.energy, d.lastShift);
       if (no) throw new Error(no);
       const pay = payFor(job, c.talents, d.dip || []);
       pay.famille = familyShare(pay.montant, d.rancune || 0);   // 10 % pour les parents (moins s'il a été négligé enfant)
@@ -1202,7 +1211,8 @@ function renderState(v) {
       `<p style="font-size:13px;margin:6px 0 0">La Banque centrale émet l'e-makuta (1 $ = ${S.tauxUsd} e-makuta). Masse monétaire en circulation : ${mk(S.masse)}.</p>`;
   } else if (stateTab === "assurance") {
     h = `<div class="row"><span>Santé</span><span>${p.besoins.health} / 100</span></div><div class="row"><span>Assurance</span><span>${S.assurance ? `${S.assureurs.find(a => a.id === S.assurance.id).nom} jusqu'au ${new Date(S.assurance.jusqua).toLocaleDateString("fr-FR")}` : "aucune"}</span></div>
-      <button class="btn" id="b-care" type="button" ${dis(p.besoins.health >= 95, "Tu es déjà en bonne santé.")}>Se soigner au centre de santé (${mk(S.soins.prix)}${S.soins.assure ? ", assuré" : ""})</button>
+      ${v.blessure ? `<p class="err" style="margin:8px 0">🚑 Blessure d'un accident de la route (${v.blessure.vitesse} km/h) : pas de travail tant que tu n'es pas soigné·e.</p>` : ""}
+      <button class="btn" id="b-care" type="button" ${dis(p.besoins.health >= 95 && !v.blessure, "Tu es déjà en bonne santé.")}>Se soigner au centre de santé (${mk(S.soins.prix)}${S.soins.assure ? ", assuré" : ""})</button>
       <h2 style="font-size:16px;margin:16px 0 4px">Assurances santé</h2>` + S.assureurs.map(a => `<div class="item"><span class="sw">${a.icone}</span><div class="t">${a.nom} · ${mk(a.prime)} / semaine<small>${a.desc}</small></div><button class="mini fill" data-ins="${a.id}" type="button" ${dis(p.makuta < a.prime, `Il te manque ${mk(a.prime - p.makuta)}.`)}>${S.assurance && S.assurance.id === a.id ? "Prolonger" : "Souscrire"}</button></div>`).join("");
   } else if (stateTab === "telephone") {
     const hasPhone = (v.inventaire || []).some(x => (v.boutique.find(b => b.id === x.objet) || {}).type === "telephone");

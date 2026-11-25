@@ -614,7 +614,12 @@ export const INSURERS = [
   { id: "kongo-sante", nom: "Kongo Santé", icone: "🩺", prime: 1400, jours: 7, couverture: 0.8, desc: "Assurance santé : 70 e-makuta la semaine, 80 % des soins remboursés." },
   { id: "mutuelle", nom: "Mutuelle des Travailleurs", icone: "🛡️", prime: 1000, jours: 7, couverture: 0.6, desc: "Moins chère : 50 e-makuta la semaine, 60 % des soins remboursés." },
 ];
-export const CARE = { prix: 2000, sante: 40 };    // consultation et médicaments au centre de santé
+export const CARE = { prix: 2000, sante: 40 };
+// accident de la route (règle validée le 25/11) : un choc fort dans la ville 3D blesse le personnage. La blessure compte
+// dans sa santé côté serveur, et il ne peut plus travailler ni faire de petits boulots tant qu'il n'est pas soigné (soins payants).
+export const ACCIDENT = { minKmh: 25, maxKmh: 300, sante: 25, bonheur: 8, santeMin: 5, attenteMin: 10 };
+export const injuredBlocks = blessure => blessure ? "Tu es blessé (accident de la route) : va d'abord te soigner au centre de santé." : null;
+export function accidentText(prenom, kmh, fem) { const e = fem ? "e" : ""; return `Accident : ${prenom} a été renversé${e} par une voiture à ${kmh} km/h. Blessé${e}, ${fem ? "elle" : "il"} doit se soigner au centre de santé avant de reprendre le travail.`; }    // consultation et médicaments au centre de santé
 export function careCost(insuredUntil, insurerId, now = Date.now()) {
   const ins = insuredUntil && insuredUntil > now && INSURERS.find(x => x.id === insurerId);
   return { prix: Math.round(CARE.prix * (ins ? 1 - ins.couverture : 1)), assure: !!ins };
@@ -713,7 +718,7 @@ export function ordersToRun(orders, v, now = Date.now(), doneToday = []) {
   if (v.police && v.police.prisonJusqu) return out.concat(orders.includes("manger") && n.hunger < 40 ? [["manger", "/api/manger", {}]] : []);
   for (const id of orders) {
     if (id === "manger" && n.hunger < 40) out.push([id, "/api/manger", {}]);
-    if (id === "soigner" && n.health < 50) out.push([id, "/api/soigner", {}]);
+    if (id === "soigner" && (n.health < 50 || v.blessure)) out.push([id, "/api/soigner", {}]);
     if (id === "appeler" && n.happiness < 50 && v.etat && v.etat.credit >= 20) out.push([id, "/api/telephone/appeler", {}]);
     if (id === "travailler" && (v.travail.metier || v.travail.emploiEntreprise) && (!v.travail.prochainTravail || v.travail.prochainTravail <= now) && n.energy >= v.travail.fatigueTravail) out.push([id, "/api/travailler", {}]);
     if (id === "etudier" && v.ecole.enCours && (!v.ecole.enCours.prochainCours || v.ecole.enCours.prochainCours <= now) && n.energy >= v.ecole.fatigueCours) out.push([id, "/api/ecole/cours", {}]);

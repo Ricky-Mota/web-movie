@@ -389,3 +389,11 @@ CREATE TABLE IF NOT EXISTS garde (
   id INTEGER PRIMARY KEY,
   ok INTEGER NOT NULL CHECK (ok = 1)
 );
+
+-- blessure d'un accident de la route (ville 3D) : bloque le travail jusqu'aux soins payants
+CREATE TABLE IF NOT EXISTS blessures (
+  personnage_id TEXT PRIMARY KEY,
+  le INTEGER NOT NULL,
+  vitesse INTEGER NOT NULL,
+  cause TEXT NOT NULL DEFAULT 'accident'
+);

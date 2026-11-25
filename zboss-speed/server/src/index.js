@@ -2,7 +2,7 @@
 // Le serveur est l'arbitre : il décide de l'âge, des talents et de l'argent ; le téléphone ne fait qu'afficher.
 import {
   ageYears, stageOf, STAGES, realMsUntil, TALENTS, ACTIVITIES, rng, drawTalents, doActivity,
-  needsAt, newIdentity, BIRTH_GIFT, BIRTH_USD, ADMIN_FEE_USD, NEGLECT_STEAL_AGE, neglectStealChance, NEGLECT_DANGER_DAYS, NEGLECT_DANGER_HEALTH, splitEstate, deathCause, familyShareRate, REP, REP_BAD, REP_GOOD, repLabel, repDiscount, DOT_MAKUTA, cannotMarry, STREET_JOBS, cannotStreetJob, RENT, rentOf, houseOf, rentDue, HOUSING_MIN_AGE, SALE_TAX, LIFE_EVENTS, EVENT_EVERY_H, drawEntry, classOfWealth, classLabel, eduLabel, MATURITY_GAIN, BIG_DECISIONS, cannotDecide, dashboard, SETTINGS, SET, applySettings, food, drawEvent, eventMoney, lifeAlbum, SHOP, cannotBuy, OFFERS, USD_TO_MAKUTA, USD_UNITS, fmtMakuta, WITHDRAW_FEE, walletInfo, birthShiftMs, REAL_MONEY, shopView, familyOf, JOBS, payFor, cannotWork, workView, cannotApply, FORMATIONS, cannotEnroll, attendCourse, schoolView, SUPPORT_PER_DAY, HOST_MIN_AGE, MAX_CHILDREN, supportDue, unpaidEffect, familyShare, DAY, LAUNCH_RULES, launchStatus, canSignupBeforeLaunch, COMPANY_TYPES, cannotOpenCompany, companyName, companyView, companyAccrue, companyJob, EMPLOYEE_YIELD, RESELL_RATE, TAXI_FARE, TAXI_ENERGY, KINSHASA_QUARTIERS, OTHER_CITIES, STATE_ID, TAX, POSTS, PUBLIC_JOBS, BANKS, bankAccrue, INSURERS, CARE, careCost, OPERATORS, RECHARGES, CALL, stateView, ELECTION_EVERY, VOTER_MIN_AGE, electionCalendar, tally, CRIMES, catchChance, sentence, inPrison, PRISON_BLOCKED, PRISON_HOURS, BAIL, RECIDIVE, policeView,
+  needsAt, newIdentity, BIRTH_GIFT, BIRTH_USD, ADMIN_FEE_USD, NEGLECT_STEAL_AGE, neglectStealChance, NEGLECT_DANGER_DAYS, NEGLECT_DANGER_HEALTH, splitEstate, deathCause, familyShareRate, REP, REP_BAD, REP_GOOD, repLabel, repDiscount, DOT_MAKUTA, cannotMarry, STREET_JOBS, cannotStreetJob, RENT, rentOf, houseOf, rentDue, HOUSING_MIN_AGE, SALE_TAX, LIFE_EVENTS, EVENT_EVERY_H, drawEntry, classOfWealth, classLabel, eduLabel, MATURITY_GAIN, BIG_DECISIONS, cannotDecide, dashboard, SETTINGS, SET, applySettings, food, drawEvent, eventMoney, lifeAlbum, SHOP, cannotBuy, OFFERS, USD_TO_MAKUTA, USD_UNITS, fmtMakuta, WITHDRAW_FEE, walletInfo, birthShiftMs, REAL_MONEY, shopView, familyOf, JOBS, payFor, cannotWork, workView, cannotApply, FORMATIONS, cannotEnroll, attendCourse, schoolView, SUPPORT_PER_DAY, HOST_MIN_AGE, MAX_CHILDREN, supportDue, unpaidEffect, familyShare, DAY, LAUNCH_RULES, launchStatus, canSignupBeforeLaunch, COMPANY_TYPES, cannotOpenCompany, companyName, companyView, companyAccrue, companyJob, EMPLOYEE_YIELD, RESELL_RATE, TAXI_FARE, TAXI_ENERGY, KINSHASA_QUARTIERS, OTHER_CITIES, STATE_ID, TAX, POSTS, PUBLIC_JOBS, BANKS, bankAccrue, INSURERS, CARE, careCost, ACCIDENT, injuredBlocks, accidentText, OPERATORS, RECHARGES, CALL, stateView, ELECTION_EVERY, VOTER_MIN_AGE, electionCalendar, tally, CRIMES, catchChance, sentence, inPrison, PRISON_BLOCKED, PRISON_HOURS, BAIL, RECIDIVE, policeView,
   describeAction, ORDER_DONE, ORDERS, ORDERS_PER_DAY, ORDERS_CHECK_MS, dayKey, ordersToRun, cannotGiveOrder,
   PAY_METHODS, cannotDeposit, cannotWithdraw, maskPhone, withdrawUsd, COMMUNES, communeView, ROLES, drawRole, roleOf,
   streakStep, streakView, nightSummary, morningText, reminderText, kinHour,
@@ -400,6 +400,7 @@ async function loadCharacter(db, id) {
   const dus = await db.prepare(`SELECT COALESCE(SUM(montant), 0) AS n FROM arrieres WHERE personnage_id = ? AND paye_le IS NULL`).bind(id).first();
   const fin = await publicFinance(db, Date.now());
   const train = await db.prepare(`SELECT * FROM train_de_vie WHERE personnage_id = ?`).bind(id).first();
+  const blessure = await db.prepare(`SELECT le, vitesse FROM blessures WHERE personnage_id = ?`).bind(id).first();
   const { results: campagnes } = await db.prepare(`SELECT c.*, e.nom AS entreprise, e.proprietaire_id, a.prenom || ' ' || a.nom AS ambassadeur FROM campagnes c JOIN entreprises e ON e.id = c.entreprise_id JOIN personnages a ON a.id = c.ambassadeur_id
       WHERE c.fin > ? AND (e.proprietaire_id = ? OR c.ambassadeur_id = ?) ORDER BY c.debut DESC LIMIT 20`).bind(Date.now(), id, id).all();
   const pub = await publicState(db);
@@ -429,7 +430,7 @@ async function loadCharacter(db, id) {
   const conjoint = p.conjoint_id ? await db.prepare(`SELECT p.prenom, p.nom, p.sexe, c.pseudo FROM personnages p LEFT JOIN comptes c ON c.id = p.compte_id WHERE p.id = ?`).bind(p.conjoint_id).first() : null;
   const { results: dmIn } = await db.prepare(`SELECT d.id, d.le, p.prenom, p.nom, p.sexe, c.pseudo FROM demandes_mariage d JOIN personnages p ON p.id = d.de_id LEFT JOIN comptes c ON c.id = p.compte_id WHERE d.vers_id = ? AND d.statut = 'attente' ORDER BY d.le DESC`).bind(id).all();
   const { results: dmOut } = await db.prepare(`SELECT d.id, d.le, p.prenom, p.nom, c.pseudo FROM demandes_mariage d JOIN personnages p ON p.id = d.vers_id LEFT JOIN comptes c ON c.id = p.compte_id WHERE d.de_id = ? AND d.statut = 'attente' ORDER BY d.le DESC`).bind(id).all();
-  return { origine, flux, logement, lastStreet: lastStreet && lastStreet.le, annonces, reputation, couple: { conjoint, recues: dmIn, envoyees: dmOut }, p, tal, inv, dep, ret, gui, job, lastShift: last && last.le, enr, dip: dip.map(d => d.formation_id), kids, par, sibs, ent, aVendre, offres, boss, comptes, cand, pub, elec, policiers: pol.n, casier,
+  return { blessure, origine, flux, logement, lastStreet: lastStreet && lastStreet.le, annonces, reputation, couple: { conjoint, recues: dmIn, envoyees: dmOut }, p, tal, inv, dep, ret, gui, job, lastShift: last && last.le, enr, dip: dip.map(d => d.formation_id), kids, par, sibs, ent, aVendre, offres, boss, comptes, cand, pub, elec, policiers: pol.n, casier,
     consignes: { jour, liste: ord.map(o => o.ordre), journal }, mouvements: mv, notifications: notif.n, fid, motsRecus, motsEnvoyes, objectifs, mandat, dus: dus.n, fin, train, campagnes };
 }
 // ce que mesurent les objectifs de vie
@@ -579,6 +580,7 @@ function view(compte, ch, now) { const v = viewBase(compte, ch, now); v.objectif
   if (ch.fin) v.etat.finances = { tresor: ch.fin.tresor, impotsJour: ch.fin.impotsJour, salairesJour: ch.fin.salairesJour, arrieres: ch.fin.arrieres, societes: ch.fin.societes, tva: 16 };
   v.promo = { prix: PROMO_PRICE, maxJours: PROMO_MAX_DAYS };
   v.train = livingView(ch.train || {}, ch.p.makuta, ageYears(ch.p.ne_le, now));
+  v.blessure = ch.blessure ? { le: ch.blessure.le, vitesse: ch.blessure.vitesse } : null;
   v.campagnes = { maxJours: CAMPAIGN_MAX_DAYS, liste: (ch.campagnes || []).map(c => ({ entreprise: c.entreprise, entrepriseId: c.entreprise_id, ambassadeur: c.ambassadeur, moi: c.ambassadeur_id === ch.p.id, prixJour: c.prix_jour, fin: c.fin, slogan: c.slogan })) };
   if (ch.boss && ch.job && ch.job.salaire && v.travail.emploiEntreprise) v.travail.emploiEntreprise.salaire = ch.job.salaire;
   return v; }
@@ -1409,7 +1411,7 @@ const worker = {
       // ---- petits boulots de rue
       if (url.pathname === "/api/petitboulot" && req.method === "POST") {
         await settle(db, p, now);
-        const j = STREET_JOBS.find(x => x.id === body.boulot), no = cannotStreetJob(j, ageYears(p.ne_le, now), p.energie, ch.lastStreet, now);
+        const j = STREET_JOBS.find(x => x.id === body.boulot), no = injuredBlocks(ch.blessure) || cannotStreetJob(j, ageYears(p.ne_le, now), p.energie, ch.lastStreet, now);
         if (no) return fail(h, 409, no);
         const gain = j.gain[0] + Math.floor(Math.random() * (j.gain[1] - j.gain[0] + 1));
         await db.batch([
@@ -1601,7 +1603,7 @@ const worker = {
       if (url.pathname === "/api/travailler" && req.method === "POST") {
         await settle(db, p, now);
         const job = ch.boss ? { ...companyJob(ch.boss), salaire: ch.job.salaire || companyJob(ch.boss).salaire } : ch.job && JOBS.find(j => j.id === ch.job.metier_id);
-        const no = cannotWork(job, ageYears(p.ne_le, now), p.energie, ch.lastShift, now);
+        const no = injuredBlocks(ch.blessure) || cannotWork(job, ageYears(p.ne_le, now), p.energie, ch.lastShift, now);
         if (no) return fail(h, 409, no);
         const pay = payFor(job, tal.map(t => ({ talent: t.talent_id, discovered: !!t.decouvert })), ch.dip);
         // 10 % du salaire pour les parents : aux parents joueurs s'il y en a, sinon à la famille du jeu
@@ -1692,14 +1694,27 @@ const worker = {
         ]);
         return json(h, 200, view(compte, await loadCharacter(db, p.id), now));
       }
+      // ---- accident de la route dans la ville 3D : la blessure compte dans la santé (seulement contre soi-même, au plus une fois par 10 min)
+      if (url.pathname === "/api/accident" && req.method === "POST") {
+        const kmh = Math.round(Number(body.kmh));
+        if (!(kmh >= ACCIDENT.minKmh && kmh <= ACCIDENT.maxKmh)) return fail(h, 400, "Vitesse du choc invalide.");
+        if (ch.blessure && ch.blessure.le > now - ACCIDENT.attenteMin * 6e4) return json(h, 200, view(compte, ch, now));
+        await db.batch([
+          db.prepare(`UPDATE personnages SET sante = MAX(?, sante - ?), bonheur = MAX(0, bonheur - ?) WHERE id = ?`).bind(ACCIDENT.santeMin, ACCIDENT.sante, ACCIDENT.bonheur, p.id),
+          db.prepare(`INSERT INTO blessures (personnage_id, le, vitesse) VALUES (?, ?, ?) ON CONFLICT(personnage_id) DO UPDATE SET le = excluded.le, vitesse = excluded.vitesse`).bind(p.id, now, kmh),
+          db.prepare(`INSERT INTO mouvements (id, personnage_id, icone, texte, par_consigne, le) VALUES (?, ?, '🚑', ?, 0, ?)`).bind(uid(), p.id, accidentText(p.prenom, kmh, p.sexe === "F"), now),
+        ]);
+        return json(h, 200, view(compte, await loadCharacter(db, p.id), now));
+      }
       if (url.pathname === "/api/soigner" && req.method === "POST") {
         await settle(db, p, now);
-        if (p.sante >= 95) return fail(h, 409, "Tu es en bonne santé, pas besoin de soins.");
+        if (p.sante >= 95 && !ch.blessure) return fail(h, 409, "Tu es en bonne santé, pas besoin de soins.");
         const c = careCost(p.assure_jusqu, p.assureur, now);
         if (p.makuta < c.prix) return fail(h, 409, `Les soins coûtent ${fmtMakuta(c.prix)}.`);
         await db.batch([
           db.prepare(`UPDATE personnages SET makuta = makuta - ?, sante = MIN(100, sante + ?) WHERE id = ? AND makuta >= ?`).bind(c.prix, CARE.sante, p.id, c.prix), GUARD(db),
           ...(c.prix > 0 ? await payToCompany(db, "pharmacie", p.id, c.prix, "soins au centre de santé", now) : []),
+          db.prepare(`DELETE FROM blessures WHERE personnage_id = ?`).bind(p.id),   // soigné : la blessure de l'accident guérit
         ]);
         return json(h, 200, { soins: c, ...view(compte, await loadCharacter(db, p.id), now) });
       }
