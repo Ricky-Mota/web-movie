@@ -37,6 +37,15 @@ function demoItems() {
   const tresor = STATE_SEED + (d.tresor || 0) + (d.tva || 0);
   const campagnes = (d.campagnes || []).filter(c => c.fin > now);
   const foot = d.foot || [], matchs = foot.length ? foot.filter(m => m.jour === foot[0].jour) : [];
+  // aperçu sans données : quelques exemples (noms inventés) pour montrer à quoi ressemble le bandeau
+  if (!pubs.length && !communiques.length && !campagnes.length) {
+    pubs.push({ titre: "Poulet mayo à 2 pour 1", annonceur: "Maquis Ya Mado", texte: "ce vendredi soir à Kalamu (exemple)", couleur: "#ffd23f" },
+      { titre: "Votre annonce ici", annonceur: "Partenaire (exemple)", texte: "banques, opérateurs, brasseries, assurances : avec accord écrit signé", couleur: "#18e0ff" });
+    communiques.push({ auteur: "Mairie de Kinshasa", texte: "Salongo ce samedi de 7 h à 10 h : chaque commune nettoie ses rues (exemple)." },
+      { auteur: "Mwinda, électricité publique", texte: "Coupure prévue à Limete demain de 9 h à 12 h pour travaux (exemple)." });
+    campagnes.push({ entreprise: "Boutique Mama Nzazi", ambassadeur: "Gloria Tshibola", fem: true, slogan: "La qualité au prix du quartier (exemple)" });
+  }
+  if (!matchs.length) matchs.push({ dom_nom: "Simba ya Kin", buts_dom: 2, buts_ext: 1, ext_nom: "Étoile de Ndjili" }, { dom_nom: "Lemba Sporting", buts_dom: 0, buts_ext: 0, ext_nom: "Bandal Olympique" });
   return tickerItems({ pubs, communiques, tresor, impotsJour: (d.tva || 0) + Math.max(0, d.tresor || 0), salairesJour: 0, une: newspaper({}, now).une, campagnes, matchs }, now);
 }
 const label = { pub: "Annonce", communique: "Communiqué", etat: "État", journal: "Journal", sport: "Sport" };
