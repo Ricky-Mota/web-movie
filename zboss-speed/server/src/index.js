@@ -5,6 +5,7 @@ import {
   needsAt, newIdentity, BIRTH_GIFT, BIRTH_USD, ADMIN_FEE_USD, NEGLECT_STEAL_AGE, neglectStealChance, NEGLECT_DANGER_DAYS, NEGLECT_DANGER_HEALTH, splitEstate, deathCause, familyShareRate, REP, REP_BAD, REP_GOOD, repLabel, repDiscount, DOT_MAKUTA, cannotMarry, STREET_JOBS, cannotStreetJob, RENT, rentOf, houseOf, rentDue, HOUSING_MIN_AGE, SALE_TAX, LIFE_EVENTS, EVENT_EVERY_H, drawEntry, classOfWealth, classLabel, eduLabel, MATURITY_GAIN, BIG_DECISIONS, cannotDecide, dashboard, SETTINGS, SET, applySettings, food, drawEvent, eventMoney, lifeAlbum, SHOP, cannotBuy, OFFERS, USD_TO_MAKUTA, USD_UNITS, fmtMakuta, WITHDRAW_FEE, walletInfo, birthShiftMs, REAL_MONEY, shopView, familyOf, JOBS, payFor, cannotWork, workView, cannotApply, FORMATIONS, cannotEnroll, attendCourse, schoolView, SUPPORT_PER_DAY, HOST_MIN_AGE, MAX_CHILDREN, supportDue, unpaidEffect, familyShare, DAY, LAUNCH_RULES, launchStatus, canSignupBeforeLaunch, COMPANY_TYPES, cannotOpenCompany, companyName, companyView, companyAccrue, companyJob, EMPLOYEE_YIELD, RESELL_RATE, TAXI_FARE, TAXI_ENERGY, KINSHASA_QUARTIERS, OTHER_CITIES, STATE_ID, TAX, POSTS, PUBLIC_JOBS, BANKS, bankAccrue, INSURERS, CARE, careCost, OPERATORS, RECHARGES, CALL, stateView, ELECTION_EVERY, VOTER_MIN_AGE, electionCalendar, tally, CRIMES, catchChance, sentence, inPrison, PRISON_BLOCKED, PRISON_HOURS, BAIL, RECIDIVE, policeView,
   describeAction, ORDER_DONE, ORDERS, ORDERS_PER_DAY, ORDERS_CHECK_MS, dayKey, ordersToRun, cannotGiveOrder,
   PAY_METHODS, cannotDeposit, cannotWithdraw, maskPhone, withdrawUsd, COMMUNES, communeView, ROLES, drawRole, roleOf,
+  streakStep, streakView, nightSummary, morningText, reminderText, kinHour,
 } from "./life.js";
 import { sendPush, newVapidKeys } from "./webpush.js";
 import { payConfigured, startDeposit, startPayout, readNotice } from "./paiement.js";
@@ -229,6 +230,7 @@ async function loadCharacter(db, id) {
   const { results: ord } = await db.prepare(`SELECT ordre FROM consignes WHERE personnage_id = ? AND jour = ? ORDER BY donnee_le`).bind(id, jour).all();
   const { results: journal } = await db.prepare(`SELECT ordre, ok, message, le FROM consignes_journal WHERE personnage_id = ? AND jour = ? ORDER BY le DESC LIMIT 30`).bind(id, jour).all();
   const reputation = await repOf(db, id);
+  const fid = p.compte_id ? await db.prepare(`SELECT serie, meilleure, dernier_jour, resume_vu_le, makuta_vu FROM fidelite WHERE compte_id = ?`).bind(p.compte_id).first() : null;
   const origine = await db.prepare(`SELECT classe, adulte, maturite, arrive_le, caractere, role, camp FROM origines WHERE personnage_id = ?`).bind(id).first();
   const flux = await db.prepare(`SELECT SUM(CASE WHEN vers_id = ?1 THEN montant ELSE 0 END) AS recu, SUM(CASE WHEN de_id = ?1 THEN montant ELSE 0 END) AS depense,
       SUM(CASE WHEN de_id = ?1 AND (motif LIKE 'aide %' OR motif LIKE 'entretien%') THEN montant ELSE 0 END) AS famille,
@@ -243,7 +245,7 @@ async function loadCharacter(db, id) {
   const { results: dmIn } = await db.prepare(`SELECT d.id, d.le, p.prenom, p.nom, p.sexe, c.pseudo FROM demandes_mariage d JOIN personnages p ON p.id = d.de_id LEFT JOIN comptes c ON c.id = p.compte_id WHERE d.vers_id = ? AND d.statut = 'attente' ORDER BY d.le DESC`).bind(id).all();
   const { results: dmOut } = await db.prepare(`SELECT d.id, d.le, p.prenom, p.nom, c.pseudo FROM demandes_mariage d JOIN personnages p ON p.id = d.vers_id LEFT JOIN comptes c ON c.id = p.compte_id WHERE d.de_id = ? AND d.statut = 'attente' ORDER BY d.le DESC`).bind(id).all();
   return { origine, flux, logement, lastStreet: lastStreet && lastStreet.le, annonces, reputation, couple: { conjoint, recues: dmIn, envoyees: dmOut }, p, tal, inv, dep, ret, gui, job, lastShift: last && last.le, enr, dip: dip.map(d => d.formation_id), kids, par, sibs, ent, aVendre, offres, boss, comptes, cand, pub, elec, policiers: pol.n, casier,
-    consignes: { jour, liste: ord.map(o => o.ordre), journal }, mouvements: mv, notifications: notif.n };
+    consignes: { jour, liste: ord.map(o => o.ordre), journal }, mouvements: mv, notifications: notif.n, fid };
 }
 
 // ---------------------------------------------------------------- notifications sur le téléphone
@@ -265,6 +267,42 @@ async function notify(env, db, compteId, message) {
   for (const sub of results) {
     try { if (await sendPush(keys, sub, message) === "expire") await db.prepare(`DELETE FROM abonnements_push WHERE endpoint = ?`).bind(sub.endpoint).run(); }
     catch (e) { console.error(e); }
+  }
+}
+
+// ---- fidélité : la série avance d'un jour à la première consigne du jour ; bonus aux paliers
+async function streakAdvance(db, compteId, pid, fid, jour, now) {
+  const sk = streakStep(fid, jour);
+  if (!sk.nouveau) return sk;
+  const st = [db.prepare(`INSERT INTO fidelite (compte_id, serie, meilleure, dernier_jour) VALUES (?, ?, ?, ?) ON CONFLICT(compte_id) DO UPDATE SET serie = excluded.serie, meilleure = excluded.meilleure, dernier_jour = excluded.dernier_jour`).bind(compteId, sk.serie, sk.meilleure, jour)];
+  if (sk.bonus) st.push(db.prepare(`UPDATE personnages SET makuta = makuta + ? WHERE id = ?`).bind(sk.bonus, pid),
+    db.prepare(`INSERT INTO transactions (id, de_id, vers_id, montant, motif, le) VALUES (?, NULL, ?, ?, ?, ?)`).bind(uid(), pid, sk.bonus, `bonus de série : ${sk.serie} jours`, now));
+  await db.batch(st);
+  return sk;
+}
+// 5 h à Kinshasa : « ton personnage s'est réveillé » ; 9 h : rappel si la série va se perdre (une fois par jour et par compte)
+async function morningPush(env, now) {
+  const h = kinHour(now); if (h !== 5 && h !== 9) return;
+  const db = env.DB, jour = dayKey(now), type = h === 5 ? "matin" : "rappel_serie";
+  const { results } = await db.prepare(`SELECT c.id AS compte_id, p.id AS pid, p.prenom, p.sexe, p.makuta, p.faim, p.energie, p.bonheur, p.sante, p.maj_le,
+      f.serie, f.meilleure, f.dernier_jour, f.resume_vu_le, f.makuta_vu
+      FROM comptes c JOIN personnages p ON p.id = c.vie_id LEFT JOIN fidelite f ON f.compte_id = c.id
+      WHERE p.mort_le IS NULL AND EXISTS (SELECT 1 FROM abonnements_push a WHERE a.compte_id = c.id) LIMIT 1000`).all();
+  for (const r of results) {
+    try {
+      const S = streakView(r, now);
+      if (type === "rappel_serie" && !(S.enDanger && S.serie >= 2)) continue;
+      const ins = await db.prepare(`INSERT OR IGNORE INTO alertes (personnage_id, compte_id, type, jour) VALUES (?, ?, ?, ?)`).bind(r.pid, r.compte_id, type, jour).run();
+      if (!(ins.meta && ins.meta.changes)) continue;
+      let texte;
+      if (type === "matin") {
+        const { results: mv } = await db.prepare(`SELECT icone, texte, le FROM mouvements WHERE personnage_id = ? AND le > ? ORDER BY le DESC LIMIT 100`).bind(r.pid, Math.max(r.resume_vu_le || 0, now - 36 * 36e5)).all();
+        const n = needsAt({ hunger: r.faim, energy: r.energie, happiness: r.bonheur, health: r.sante, updatedAt: r.maj_le }, now);
+        const R = nightSummary({ prenom: r.prenom, fem: r.sexe === "F", mouvements: mv, vuLe: r.resume_vu_le, makutaVu: r.makuta_vu, makuta: r.makuta, besoins: n, now });
+        texte = morningText(r.prenom, R, S, r.sexe === "F") + (R.alertes.length ? " " + R.alertes[0] : "");
+      } else texte = reminderText(r.prenom, S);
+      await notify(env, db, r.compte_id, { titre: "2 Life", texte, url: type === "matin" ? "vie.html#nuit" : "vie.html#orders" });
+    } catch (e) { console.error(e); }
   }
 }
 
@@ -323,7 +361,7 @@ async function applyOrders(env, db, compte, ch, now, force) {
   return true;
 }
 
-function view(compte, { origine = null, flux = {}, logement = null, lastStreet = null, annonces = [], reputation = 0, couple = { conjoint: null, recues: [], envoyees: [] }, p, tal, inv = [], dep = [], ret = [], gui = [], job = null, lastShift = null, enr = null, dip = [], kids = [], par = [], sibs = [], ent = [], aVendre = [], offres = [], boss = null, comptes = [], cand = null, pub = {}, elec = null, policiers = 0, casier = [], consignes = { jour: dayKey(now), liste: [], journal: [] }, mouvements = [], notifications = 0 }, now) {
+function view(compte, { origine = null, flux = {}, logement = null, lastStreet = null, annonces = [], reputation = 0, couple = { conjoint: null, recues: [], envoyees: [] }, p, tal, inv = [], dep = [], ret = [], gui = [], job = null, lastShift = null, enr = null, dip = [], kids = [], par = [], sibs = [], ent = [], aVendre = [], offres = [], boss = null, comptes = [], cand = null, pub = {}, elec = null, policiers = 0, casier = [], consignes = { jour: dayKey(now), liste: [], journal: [] }, mouvements = [], notifications = 0, fid = null }, now) {
   const age = ageYears(p.ne_le, now);
   const st = stageOf(age);
   const next = STAGES[STAGES.indexOf(st) + 1];
@@ -364,6 +402,8 @@ function view(compte, { origine = null, flux = {}, logement = null, lastStreet =
     voyage: { quartiers: KINSHASA_QUARTIERS, communes: COMMUNES.map(c => communeView(c.nom)), prix: TAXI_FARE, fatigue: TAXI_ENERGY, villes: OTHER_CITIES },
     mouvements,
     notifications: { actives: notifications > 0 },
+    fidelite: streakView(fid, now),
+    resume: nightSummary({ prenom: p.prenom, fem: p.sexe === "F", mouvements, vuLe: fid && fid.resume_vu_le, makutaVu: fid && fid.makuta_vu, makuta: p.makuta, besoins: needs, now }),
     consignes: { ...consignes, max: ORDERS_PER_DAY, catalogue: ORDERS, verifieToutesLesMinutes: ORDERS_CHECK_MS / 60e3 },
   };
 }
@@ -616,6 +656,7 @@ const worker = {
   async scheduled(event, env, ctx) {
     const db = env.DB, now = Date.now();
     try { await kidAlerts(env, now); } catch (e) { console.error(e); }
+    try { await morningPush(env, now); } catch (e) { console.error(e); }
     // les joueurs absents peuvent aussi mourir (faim, maladie)
     try {
       const { results: alive } = await db.prepare(`SELECT id FROM personnages WHERE mort_le IS NULL AND compte_id IS NOT NULL ORDER BY maj_le LIMIT 300`).all();
@@ -847,9 +888,14 @@ const worker = {
         const no = cannotGiveOrder(body.ordre, ch.consignes.liste);
         if (no) return fail(h, 409, no);
         await db.prepare(`INSERT INTO consignes (personnage_id, jour, ordre, donnee_le) VALUES (?, ?, ?, ?)`).bind(p.id, ch.consignes.jour, body.ordre, now).run();
+        const sk = await streakAdvance(db, compte.id, p.id, ch.fid, ch.consignes.jour, now);
         const c2 = await loadCharacter(db, p.id);
         await applyOrders(env, db, compte, c2, now, true);   // la consigne s'applique tout de suite si possible
-        return json(h, 200, view(compte, await loadCharacter(db, p.id), Date.now()));
+        return json(h, 200, { ...view(compte, await loadCharacter(db, p.id), Date.now()), serieBonus: sk.bonus ? { jours: sk.serie, makuta: sk.bonus } : null });
+      }
+      if (url.pathname === "/api/resume/vu" && req.method === "POST") {
+        await db.prepare(`INSERT INTO fidelite (compte_id, resume_vu_le, makuta_vu) VALUES (?, ?, ?) ON CONFLICT(compte_id) DO UPDATE SET resume_vu_le = excluded.resume_vu_le, makuta_vu = excluded.makuta_vu`).bind(compte.id, now, p.makuta).run();
+        return json(h, 200, view(compte, await loadCharacter(db, p.id), now));
       }
       if (inPrison(p.prison_jusqu, now) && PRISON_BLOCKED.includes(url.pathname))
         return fail(h, 423, `Tu es en prison jusqu'au ${new Date(p.prison_jusqu).toLocaleString("fr-FR", { timeZone: "Africa/Kinshasa" })}. Paie la caution pour sortir plus tôt.`);

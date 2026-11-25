@@ -108,6 +108,9 @@
     .quick { display: flex; gap: 8px; overflow-x: auto; margin: 0 0 14px; padding-bottom: 4px; scrollbar-width: none; }
     .quick::-webkit-scrollbar { display: none; }
     .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+    .streak { border: 1px solid var(--line); border-radius: 14px; padding: 10px 12px; margin: 0 0 12px; background: rgba(255, 150, 40, .08); }
+    .streak.danger { border-color: #e8902a; background: rgba(232, 144, 42, .16); }
+    .card.nuit { border-color: #e8b02a; }
     .chip { flex: none; border: 1px solid var(--line); background: var(--panel-2); color: var(--text); border-radius: 99px; padding: 8px 13px; font-size: 13px; }
     .chip:disabled { color: var(--muted); opacity: .6; }
     .tips-card { border-color: var(--accent); background: linear-gradient(180deg, #2a1d12, var(--panel)); }
@@ -164,8 +167,13 @@
       </div>
 
       <nav class="quick" aria-label="Aller à">
-        <button class="chip" data-to="dash" type="button">📊 Tableau de bord</button><button class="chip" data-to="orders" type="button">📋 Consignes</button><button class="chip" data-to="moves" type="button">👣 Mouvements</button><button class="chip" data-to="needs" type="button">🍲 Manger</button><button class="chip" data-to="work" type="button">💼 Travail</button><button class="chip" data-to="school" type="button">🎓 École</button><button class="chip" data-to="companies" type="button">🏪 Entreprises</button><button class="chip" data-to="shop" type="button">🛍️ Magasin</button><button class="chip" data-to="inv" type="button">🏷️ Vendre</button><button class="chip" data-to="travel" type="button">🚕 Voyager</button><button class="chip" data-to="couple" type="button">💍 Couple</button><button class="chip" data-to="street" type="button">🧹 Petits boulots</button><button class="chip" data-to="home" type="button">🏠 Logement</button><button class="chip" data-to="market" type="button">🤝 Annonces</button><button class="chip" data-to="wallet" type="button">💰 Argent</button><button class="chip" data-to="state" type="button">🏛️ État et banques</button>
+        <button class="chip" data-to="dash" type="button">📊 Tableau de bord</button><button class="chip" data-to="nuit" type="button">☀️ Ma nuit</button><button class="chip" data-to="orders" type="button">📋 Consignes</button><button class="chip" data-to="moves" type="button">👣 Mouvements</button><button class="chip" data-to="needs" type="button">🍲 Manger</button><button class="chip" data-to="work" type="button">💼 Travail</button><button class="chip" data-to="school" type="button">🎓 École</button><button class="chip" data-to="companies" type="button">🏪 Entreprises</button><button class="chip" data-to="shop" type="button">🛍️ Magasin</button><button class="chip" data-to="inv" type="button">🏷️ Vendre</button><button class="chip" data-to="travel" type="button">🚕 Voyager</button><button class="chip" data-to="couple" type="button">💍 Couple</button><button class="chip" data-to="street" type="button">🧹 Petits boulots</button><button class="chip" data-to="home" type="button">🏠 Logement</button><button class="chip" data-to="market" type="button">🤝 Annonces</button><button class="chip" data-to="wallet" type="button">💰 Argent</button><button class="chip" data-to="state" type="button">🏛️ État et banques</button>
       </nav>
+
+      <div class="card nuit" id="nuit-card" hidden>
+        <h2>☀️ Pendant ton absence</h2>
+        <div id="nuit"></div>
+      </div>
 
       <div class="card" id="dash-card">
         <h2>Tableau de bord</h2>

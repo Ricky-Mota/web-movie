@@ -6,6 +6,7 @@ import {
   describeAction, ORDER_DONE, ORDERS, ORDERS_PER_DAY, ORDERS_CHECK_MS, dayKey, ordersToRun, cannotGiveOrder,
   VOTER_MIN_AGE, NEGLECT_DANGER_DAYS, NEGLECT_DANGER_HEALTH, splitEstate, deathCause, familyShareRate, REP, REP_BAD, REP_GOOD, repLabel, repDiscount, DOT_MAKUTA, MARRY_MIN_AGE, STREET_JOBS, cannotStreetJob, RENT, rentOf, houseOf, rentDue, HOUSING_MIN_AGE, SALE_TAX, LIFE_EVENTS, EVENT_EVERY_H, drawEvent, eventMoney, lifeAlbum, CRIMES, catchChance, sentence, inPrison, PRISON_BLOCKED, BAIL, PRISON_HOURS, RECIDIVE, policeView, applySettings, food, drawEntry, classOfWealth, classLabel, MATURITY_GAIN, BIG_DECISIONS, cannotDecide, dashboard,
   PAY_METHODS, cannotDeposit, cannotWithdraw, maskPhone, withdrawUsd, COMMUNES, communeView, ROLES, drawRole, roleOf,
+  streakStep, streakView, nightSummary, prevDayKey,
 } from "../server/src/life.js";
 import { launchDemo } from "./lancement-demo.js";
 
@@ -67,6 +68,8 @@ const demo = {
       elections: launchDemo.elections(this.me(d)),
       mouvements: d.mouvements || [],
       notifications: { actives: !!d.notif },
+      fidelite: streakView(d.fid, now),
+      resume: nightSummary({ prenom: c.firstName, fem: c.sex === "F", mouvements: d.mouvements || [], vuLe: d.fid && d.fid.resume_vu_le, makutaVu: d.fid && d.fid.makuta_vu, makuta: c.makuta, besoins: n, now }),
       consignes: { ...this.orders(d), max: ORDERS_PER_DAY, catalogue: ORDERS, verifieToutesLesMinutes: DEMO_ORDERS_MS / 60e3 },
       police: policeView({ policiers: 0, prisonJusqu: d.prison, casier: d.casier || [] }, now),
       etat: stateView({ comptes: d.comptes || [], assureur: d.assureur, assureJusqu: d.assureJusqu, operateur: d.operateur, credit: d.credit || 0, candidature: d.candidature },
@@ -244,8 +247,17 @@ const demo = {
     if (path === "/api/moi") { await this.applyOrders(d); return this.view(store.get(LS_DEMO)); }
     if (path === "/api/consigne") {
       const C = this.orders(d), no = cannotGiveOrder(body.ordre, C.liste); if (no) throw new Error(no);
-      C.liste.push(body.ordre); store.set(LS_DEMO, d);
-      await this.applyOrders(d, true); return this.view(store.get(LS_DEMO));
+      C.liste.push(body.ordre);
+      const sk = streakStep(d.fid, C.jour); let serieBonus = null;
+      if (sk.nouveau) { d.fid = { ...(d.fid || {}), serie: sk.serie, meilleure: sk.meilleure, dernier_jour: sk.dernier_jour }; if (sk.bonus) { c.makuta += sk.bonus; serieBonus = { jours: sk.serie, makuta: sk.bonus }; } }
+      store.set(LS_DEMO, d);
+      await this.applyOrders(d, true); return { ...this.view(store.get(LS_DEMO)), serieBonus };
+    }
+    if (path === "/api/resume/vu") { d.fid = { ...(d.fid || {}), resume_vu_le: Date.now(), makuta_vu: c.makuta }; store.set(LS_DEMO, d); return this.view(d); }
+    if (path === "/api/demo/lendemain") {   // démo seulement : on fait comme si la journée était passée
+      const C = this.orders(d), y = prevDayKey(C.jour);
+      if (d.fid && d.fid.dernier_jour === C.jour) d.fid.dernier_jour = y;
+      d.consignes = { jour: C.jour, liste: [], journal: [] }; store.set(LS_DEMO, d); return this.view(d);
     }
     if (BIG_DECISIONS.includes(path) || (path === "/api/mariage/repondre" && body.accepte)) { const no = cannotDecide(d.origine, c.firstName); if (no) throw new Error(no); }
     if (inPrison(d.prison) && PRISON_BLOCKED.includes(path)) throw new Error(`Tu es en prison jusqu'au ${new Date(d.prison).toLocaleString("fr-FR")}. Paie la caution pour sortir plus tôt.`);
@@ -644,9 +656,9 @@ function render(v) {
   ] : []).concat([["Joueur", v.compte.pseudo], ["Né le", new Date(p.neLe).toLocaleDateString("fr-FR")]])
     .map(([a, b]) => `<div class="row"><span>${a}</span><span style="text-align:right">${b}</span></div>`).join("")
     + (v.demo ? `<button class="mini" id="b-demo-die" type="button" style="margin-top:12px">💀 Simuler la mort (démo)</button>` : "");
-  renderDash(v); renderCouple(v); renderCity(v);
+  renderNight(v); renderDash(v); renderCouple(v); renderCity(v);
   renderShop(v); renderWallet(v); renderWork(v); renderSchool(v); renderKids(v); renderCompanies(v); renderTravel(v); renderState(v); renderTips(v); renderOrders(v); renderMoves(v);
-  if (!render.hashDone && location.hash === "#moves") { render.hashDone = true; setTimeout(() => goTo("moves"), 300); }
+  if (!render.hashDone && ["#moves", "#nuit", "#orders"].includes(location.hash)) { render.hashDone = true; setTimeout(() => goTo(location.hash.slice(1)), 300); }
   portrait(p);
   dress(v);
 }
@@ -991,21 +1003,52 @@ function tips(v) {
 }
 const SECTIONS = { moves: "moves", orders: "orders", state: "state", needs: "needs", work: "work", school: "school", companies: "companies", inv: "inv", travel: "travel", shop: "shop-tabs", wallet: "wallet", kids: "kids-card" };
 function goTo(id) { const el = $(id); if (el) (el.closest(".card") || el).scrollIntoView({ behavior: "smooth", block: "start" }); }
+// ---- pendant ton absence : ce que le personnage a fait depuis la dernière visite
+function renderNight(v) {
+  const R = v.resume, box = $("nuit-card");
+  if (!R || !R.nouveau) { box.hidden = true; return; }
+  box.hidden = false;
+  const p = v.perso, depuis = new Date(R.depuis).toLocaleString("fr-FR", { weekday: "long", hour: "2-digit", minute: "2-digit" });
+  $("nuit").innerHTML = `<p style="font-size:14px;margin:0 0 8px">${R.premiereVisite ? `Les dernières heures de ${esc(p.prenom)} :` : `Depuis ta dernière visite (${depuis}) :`}</p>` +
+    (R.nb ? `<div class="row"><span>👣 Actions</span><b>${R.nb}</b></div>` : "") +
+    (R.gain ? `<div class="row"><span>💰 Argent</span><b style="color:${R.gain > 0 ? "var(--ok)" : "var(--bad, #e2574c)"}">${R.gain > 0 ? "+" : "−"}${fmtMakuta(Math.abs(R.gain))}</b></div>` : "") +
+    R.liste.map(m => `<div class="row"><span>${m.icone} ${esc(m.texte)}</span><span>${new Date(m.le).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}</span></div>`).join("") +
+    (R.alertes.length ? `<div class="g-note" style="margin-top:8px">${R.alertes.map(esc).join("<br>")}</div>` : "") +
+    `<div class="chips" style="margin-top:10px"><button class="mini fill" id="b-nuit-vu" type="button">✅ C'est noté</button><button class="mini" data-to="orders" type="button">📋 Donner ses consignes</button></div>`;
+}
+$("nuit-card").addEventListener("click", e => {
+  if (e.target.id === "b-nuit-vu") { e.target.disabled = true; act("/api/resume/vu", {}, () => "À demain matin ☀️"); }
+  const t = e.target.closest("[data-to]"); if (t) goTo(t.dataset.to);
+});
+// ---- série de jours : une consigne par jour garde la flamme allumée
+function streakHtml(v) {
+  const S = v.fidelite; if (!S) return "";
+  const p = v.perso, B = S.prochainBonus;
+  const head = S.serie ? `🔥 Série : <b>${S.serie} jour${S.serie > 1 ? "s" : ""}</b>` : "🔥 Série : <b>0 jour</b>";
+  const line = S.aujourdhui ? `Bravo, la journée compte. Reviens demain matin pour continuer.`
+    : S.enDanger ? `Donne au moins une consigne à ${esc(p.prenom)} aujourd'hui pour garder ta série.`
+    : S.perdue ? `Ta série de ${S.perdue} jours s'est arrêtée. Recommence aujourd'hui !` : `Donne une consigne chaque jour : ta série grandit et rapporte des bonus.`;
+  const dots = S.paliers.map(x => `<span class="chip" style="cursor:default;${S.serie >= x.jours ? "border-color:var(--ok);color:var(--ok)" : ""}">${S.serie >= x.jours ? "✅" : "🎁"} ${x.jours} j · +${fmtMakuta(x.makuta)}</span>`).join("");
+  return `<div class="streak${S.enDanger ? " danger" : ""}"><div class="row" style="border:0;padding:0 0 4px"><span>${head}</span><span>Record : ${Math.max(S.meilleure, S.serie)} j</span></div>
+    <div style="font-size:13px">${line} Prochain bonus : <b>+${fmtMakuta(B.makuta)}</b> au jour ${B.jours} (dans ${B.dans} jour${B.dans > 1 ? "s" : ""}).</div>
+    <div class="chips" style="margin-top:8px">${dots}</div>${v.demo ? `<button class="mini" id="b-demo-day" type="button" style="margin-top:8px">⏩ Démo : passer au lendemain</button>` : ""}</div>`;
+}
 function renderOrders(v) {
   const C = v.consignes, left = C.max - C.liste.length, name = id => (C.catalogue.find(o => o.id === id) || {});
   const N = v.notifications || {};
-  $("orders").innerHTML = `<button class="mini ${N.actives ? "" : "fill"}" id="b-notif" type="button" style="float:right;margin:0 0 6px 8px">${N.actives ? "🔕 Couper les notifications" : "🔔 Me prévenir"}</button><p style="font-size:14px;margin:0 0 8px">Dis à ${esc(v.perso.prenom)} quoi faire aujourd'hui. ${esc(v.perso.prenom)} suit tes consignes toute la journée, même quand tu n'es pas connecté (vérification toutes les ${C.verifieToutesLesMinutes} minutes). <b>${C.max} consignes par jour</b>, et une consigne donnée ne se retire pas avant demain.</p>` +
+  $("orders").innerHTML = streakHtml(v) + `<button class="mini ${N.actives ? "" : "fill"}" id="b-notif" type="button" style="float:right;margin:0 0 6px 8px">${N.actives ? "🔕 Couper les notifications" : "🔔 Réveil du matin"}</button><p style="font-size:14px;margin:0 0 8px">Dis à ${esc(v.perso.prenom)} quoi faire aujourd'hui. ${esc(v.perso.prenom)} suit tes consignes toute la journée, même quand tu n'es pas connecté (vérification toutes les ${C.verifieToutesLesMinutes} minutes). <b>${C.max} consignes par jour</b>, et une consigne donnée ne se retire pas avant demain.</p>` +
     (C.liste.length ? C.liste.map(id => `<div class="item"><span class="sw">${name(id).icone}</span><div class="t">${name(id).nom}<small>${name(id).desc}</small></div><span class="mini" style="border-color:var(--ok);color:var(--ok)">Active</span></div>`).join("") : "") +
     (left > 0 ? `<h2 style="font-size:16px;margin:12px 0 6px">Donner une consigne (encore ${left})</h2><div class="chips">${C.catalogue.filter(o => !C.liste.includes(o.id)).map(o => `<button class="chip" data-order="${o.id}" type="button">${o.icone} ${o.nom}</button>`).join("")}</div>`
       : `<p style="font-size:13px;margin:10px 0 0">Tu as donné tes ${C.max} consignes du jour. Nouvelles consignes demain à minuit (heure de Kinshasa).</p>`) +
     (C.journal.length ? `<h2 style="font-size:16px;margin:14px 0 4px">Fait aujourd'hui</h2>` + C.journal.slice(0, 8).map(j => `<div class="row"><span>${new Date(j.le).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })} · ${esc(j.message)}</span><span>${j.ok ? "✅" : "⏳"}</span></div>`).join("") : "");
 }
 $("orders").addEventListener("click", async e => {
+  if (e.target.id === "b-demo-day") return act("/api/demo/lendemain", {}, () => "Démo : une nouvelle journée commence. Donne une consigne pour continuer ta série.");
   if (e.target.id !== "b-notif") return;
   const on = !(state.notifications || {}).actives;
-  try { render(await (on ? notifOn() : notifOff())); toast(on ? "Tu recevras une notification sur ce téléphone à chaque consigne faite." : "Notifications coupées."); } catch (err) { toast(err.message); }
+  try { render(await (on ? notifOn() : notifOff())); toast(on ? "Chaque matin à 5 h, tu recevras le réveil de ton personnage, et une notification à chaque consigne faite." : "Notifications coupées."); } catch (err) { toast(err.message); }
 });
-$("orders").onclick = e => { const b = e.target.closest("[data-order]"); if (b) { b.disabled = true; act("/api/consigne", { ordre: b.dataset.order }, v => { const j = v.consignes.journal[0]; return "Consigne donnée." + (j && j.ordre === b.dataset.order && Date.now() - j.le < 60e3 ? " " + j.message : ""); }); } };
+$("orders").onclick = e => { const b = e.target.closest("[data-order]"); if (b) { b.disabled = true; act("/api/consigne", { ordre: b.dataset.order }, v => { const j = v.consignes.journal[0]; return (v.serieBonus ? `🔥 Série de ${v.serieBonus.jours} jours : +${fmtMakuta(v.serieBonus.makuta)} ! ` : "") + "Consigne donnée." + (j && j.ordre === b.dataset.order && Date.now() - j.le < 60e3 ? " " + j.message : ""); }); } };
 let movesTab = "tout", movesAll = false;
 function renderMoves(v) {
   const M = (v.mouvements || []).filter(m => movesTab === "tout" || (movesTab === "consignes") === !!m.par_consigne);

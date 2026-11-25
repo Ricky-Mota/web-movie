@@ -255,3 +255,13 @@ CREATE TABLE IF NOT EXISTS origines (personnage_id TEXT PRIMARY KEY, classe TEXT
 -- guichet : dépôts et retraits avec moyen de paiement (numéro masqué, jamais complet). simule = 1 tant que l'argent réel n'est pas autorisé.
 -- statut : simule, en_attente (passerelle), traitement, paye, echoue.
 CREATE TABLE IF NOT EXISTS guichet (id TEXT PRIMARY KEY, compte_id TEXT NOT NULL, personnage_id TEXT, ref_partenaire TEXT, sens TEXT NOT NULL, moyen TEXT NOT NULL, numero TEXT, usd REAL NOT NULL, makuta INTEGER NOT NULL, statut TEXT NOT NULL DEFAULT 'simule', simule INTEGER NOT NULL DEFAULT 1, le INTEGER NOT NULL);
+
+-- fidélité : série de jours de consignes, dernière visite (résumé de la nuit)
+CREATE TABLE IF NOT EXISTS fidelite (
+  compte_id TEXT PRIMARY KEY,
+  serie INTEGER NOT NULL DEFAULT 0,
+  meilleure INTEGER NOT NULL DEFAULT 0,
+  dernier_jour TEXT,
+  resume_vu_le INTEGER,
+  makuta_vu INTEGER
+);

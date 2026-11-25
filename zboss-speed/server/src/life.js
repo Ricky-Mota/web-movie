@@ -981,3 +981,52 @@ export function roleOf(o, seed) {
   const c = CARACTERES.find(x => x.id === d.caractere) || CARACTERES[0], R = ROLES.find(x => x.id === d.role) || ROLES[0];
   return { camp: d.camp, caractere: c.id, caractereNom: c.nom, role: R.id, roleNom: R.nom, roleDesc: R.desc };
 }
+
+// ---------------------------------------------------------------- fidélité : série de jours, résumé de la nuit, réveil du matin
+// Une journée compte dans la série quand le joueur donne au moins une consigne (heure de Kinshasa).
+export const STREAK_BONUS = [{ jours: 3, makuta: 2 * 20 }, { jours: 7, makuta: 10 * 20 }, { jours: 14, makuta: 15 * 20 }, { jours: 30, makuta: 50 * 20 }];
+export const STREAK_EVERY = 7, STREAK_EVERY_MAKUTA = 10 * 20;   // après 30 jours : +10 e-makuta chaque semaine
+export function streakBonusFor(n) {
+  const b = STREAK_BONUS.find(x => x.jours === n); if (b) return b.makuta;
+  return n > 30 && n % STREAK_EVERY === 0 ? STREAK_EVERY_MAKUTA : 0;
+}
+export const prevDayKey = jour => new Date(Date.parse(jour + "T00:00:00Z") - 864e5).toISOString().slice(0, 10);
+export const kinHour = (now = Date.now()) => new Date(now + 36e5).getUTCHours();
+// une consigne donnée aujourd'hui : la série continue (hier) ou recommence à 1
+export function streakStep(f, jour) {
+  f = f || {};
+  if (f.dernier_jour === jour) return { serie: f.serie || 0, meilleure: f.meilleure || 0, dernier_jour: jour, bonus: 0, nouveau: false };
+  const serie = f.dernier_jour === prevDayKey(jour) ? (f.serie || 0) + 1 : 1;
+  return { serie, meilleure: Math.max(f.meilleure || 0, serie), dernier_jour: jour, bonus: streakBonusFor(serie), nouveau: true };
+}
+export function streakView(f, now = Date.now()) {
+  f = f || {};
+  const jour = dayKey(now), fait = f.dernier_jour === jour, vivante = fait || f.dernier_jour === prevDayKey(jour);
+  const serie = vivante ? (f.serie || 0) : 0;
+  let n = serie + 1; while (!streakBonusFor(n)) n++;
+  return { serie, meilleure: f.meilleure || 0, aujourdhui: fait, enDanger: !fait && serie > 0, perdue: !vivante && (f.serie || 0) > 1 ? f.serie : 0,
+    prochainBonus: { jours: n, dans: n - serie, makuta: streakBonusFor(n) }, paliers: STREAK_BONUS };
+}
+// ce qui s'est passé depuis la dernière visite du joueur (au plus 36 h en arrière)
+export const SUMMARY_MAX_MS = 36 * 36e5;
+export function nightSummary({ prenom, fem = false, mouvements = [], vuLe = null, makutaVu = null, makuta = 0, besoins = {}, now = Date.now() }) {
+  const depuis = Math.max(vuLe || 0, now - SUMMARY_MAX_MS);
+  const M = mouvements.filter(m => m.le > depuis).sort((a, b) => b.le - a.le);
+  const gain = vuLe && makutaVu != null ? makuta - makutaVu : null;
+  const alertes = [];
+  if (besoins.hunger !== undefined && besoins.hunger < 30) alertes.push(`🍲 ${prenom} a très faim.`);
+  if (besoins.health !== undefined && besoins.health < 40) alertes.push(`🏥 ${prenom} est malade : soigne-le.`);
+  if (besoins.energy !== undefined && besoins.energy < 20) alertes.push(`😴 ${prenom} est épuisé${fem ? "e" : ""}.`);
+  if (besoins.happiness !== undefined && besoins.happiness < 25) alertes.push(`😟 ${prenom} n'a pas le moral.`);
+  return { depuis, premiereVisite: !vuLe, nb: M.length, liste: M.slice(0, 6), gain, alertes,
+    nouveau: M.length > 0 || (gain !== null && gain !== 0) };
+}
+export function morningText(prenom, R, S, fem = false) {
+  const bits = [];
+  if (R && R.nb) bits.push(`${R.nb} action${R.nb > 1 ? "s" : ""} depuis ta dernière visite`);
+  if (R && R.gain) bits.push(`${R.gain > 0 ? "+" : "−"}${fmtMakuta(Math.abs(R.gain))}`);
+  return `☀️ ${prenom} s'est réveillé${fem ? "e" : ""}${bits.length ? " (" + bits.join(", ") + ")" : ""}. Donne-lui ses consignes avant 10 h.` + (S && S.serie > 1 ? ` 🔥 Série : ${S.serie} jours.` : "");
+}
+export function reminderText(prenom, S) {
+  return `⏳ Plus qu'une heure pour donner ses consignes à ${prenom} et garder ta série de ${S.serie} jour${S.serie > 1 ? "s" : ""} 🔥.`;
+}
