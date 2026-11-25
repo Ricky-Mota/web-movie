@@ -56,6 +56,7 @@
     .row:last-child { border-bottom: 0; } .row span:first-child { color: var(--muted); }
     .talents { display: flex; flex-wrap: wrap; gap: 8px; }
     .tal { border-radius: 99px; padding: 6px 12px; font-size: 13px; border: 1px solid var(--line); background: var(--panel-2); }
+    button.tal { color: var(--text); font: inherit; font-size: 13px; cursor: pointer; } button.tal:disabled, button.tal[aria-disabled="true"] { opacity: .45; }
     .tal.on { border-color: var(--accent); color: var(--accent); }
     .hint { font-size: 13px; color: #e9d9c9; margin-top: 10px; padding-left: 10px; border-left: 2px solid var(--accent); }
     .acts { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
@@ -178,7 +179,7 @@
       </div>
 
       <nav class="quick" aria-label="Aller à">
-        <button class="chip" data-to="dash" type="button">📊 Tableau de bord</button><button class="chip" data-to="nuit" type="button">☀️ Ma nuit</button><button class="chip" data-to="journal" type="button">📰 Journal</button><button class="chip" data-to="voisins" type="button">🏘️ Voisins</button><button class="chip" data-to="orders" type="button">📋 Consignes</button><button class="chip" data-to="moves" type="button">👣 Mouvements</button><button class="chip" data-to="needs" type="button">🍲 Manger</button><button class="chip" data-to="work" type="button">💼 Travail</button><button class="chip" data-to="school" type="button">🎓 École</button><button class="chip" data-to="companies" type="button">🏪 Entreprises</button><button class="chip" data-to="shop" type="button">🛍️ Magasin</button><button class="chip" data-to="inv" type="button">🏷️ Vendre</button><button class="chip" data-to="travel" type="button">🚕 Voyager</button><button class="chip" data-to="couple" type="button">💍 Couple</button><button class="chip" data-to="street" type="button">🧹 Petits boulots</button><button class="chip" data-to="home" type="button">🏠 Logement</button><button class="chip" data-to="market" type="button">🤝 Annonces</button><button class="chip" data-to="wallet" type="button">💰 Argent</button><button class="chip" data-to="state" type="button">🏛️ État et banques</button>
+        <button class="chip" data-to="dash" type="button">📊 Tableau de bord</button><button class="chip" data-to="nuit" type="button">☀️ Ma nuit</button><button class="chip" data-to="stars" type="button">⭐ Stars</button><button class="chip" data-to="goals" type="button">🎯 Objectifs</button><button class="chip" data-to="journal" type="button">📰 Journal</button><button class="chip" data-to="voisins" type="button">🏘️ Voisins</button><button class="chip" data-to="orders" type="button">📋 Consignes</button><button class="chip" data-to="moves" type="button">👣 Mouvements</button><button class="chip" data-to="needs" type="button">🍲 Manger</button><button class="chip" data-to="work" type="button">💼 Travail</button><button class="chip" data-to="school" type="button">🎓 École</button><button class="chip" data-to="companies" type="button">🏪 Entreprises</button><button class="chip" data-to="shop" type="button">🛍️ Magasin</button><button class="chip" data-to="inv" type="button">🏷️ Vendre</button><button class="chip" data-to="travel" type="button">🚕 Voyager</button><button class="chip" data-to="couple" type="button">💍 Couple</button><button class="chip" data-to="street" type="button">🧹 Petits boulots</button><button class="chip" data-to="home" type="button">🏠 Logement</button><button class="chip" data-to="market" type="button">🤝 Annonces</button><button class="chip" data-to="wallet" type="button">💰 Argent</button><button class="chip" data-to="state" type="button">🏛️ État et banques</button>
       </nav>
 
       <div class="card nuit" id="nuit-card" hidden>
@@ -194,6 +195,16 @@
       <div class="card tips-card">
         <h2>Que faire maintenant ?</h2>
         <div id="tips"></div>
+      </div>
+
+      <div class="card">
+        <h2>⭐ Regarder une star</h2>
+        <div id="stars"></div>
+      </div>
+
+      <div class="card">
+        <h2>🎯 Mes objectifs de vie</h2>
+        <div id="goals"></div>
       </div>
 
       <div class="card">
@@ -321,6 +332,7 @@
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/libs/meshopt_decoder.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/utils/SkeletonUtils.js"></script>
   <script type="module" src="assets/vie.js"></script>
+  <script type="module" src="assets/bandeau.js"></script>
   <script>if ("serviceWorker" in navigator) addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch(() => {}));</script>
 </body>
 </html>

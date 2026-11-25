@@ -752,7 +752,9 @@ export function describeAction(path, body = {}, r = {}) {
     "/api/porter": () => ["👕", "A changé de tenue : " + nm(SHOP, body.objet)],
     "/api/revendre": () => ["🏷️", `A revendu ${r.vendu || "un objet"}${r.gain ? " pour " + fmtMakuta(r.gain) : ""}`],
     "/api/postuler": () => ["💼", body.entreprise ? "Embauché dans une entreprise" : "Nouveau métier : " + nm(JOBS, body.metier)],
-    "/api/travailler": () => ["🛠️", `Journée de travail${pay ? " : +" + pay : ""}`],
+    "/api/travailler": () => r.paie && r.paie.arriere ? ["⏳", `Journée de travail : salaire de ${fmtMakuta(r.paie.arriere)} dû par l'État (caisse vide)`] : ["🛠️", `Journée de travail${pay ? " : +" + pay : ""}`],
+    "/api/promouvoir": () => ["📣", "Promotion lancée pour son entreprise"],
+    "/api/objectif": () => body.action === "abandonner" ? null : ["🎯", "Nouvel objectif de vie : " + nm(GOALS, body.id)],
     "/api/ecole/inscription": () => ["🎓", "Inscrit à l'école : " + nm(FORMATIONS, body.formation)],
     "/api/ecole/cours": () => ["📚", "A suivi un cours"],
     "/api/entreprise/ouvrir": () => ["🏪", "A ouvert l'entreprise " + (r.ouverte || "")],
@@ -787,7 +789,8 @@ export function describeAction(path, body = {}, r = {}) {
     "/api/annonce/acheter": () => ["🤝", "A acheté à un joueur : " + (r.achete || "un objet")],
   };
   const f = D[path]; if (!f) return null;
-  const [icone, texte] = f(); return { icone, texte };
+  const o = f(); if (!o) return null;
+  const [icone, texte] = o; return { icone, texte };
 }
 
 // ---------------------------------------------------------------- réglages en direct (page admin)
@@ -801,11 +804,11 @@ export const SETTINGS = [
   { id: "destin", label: "Fréquence des événements", aide: "Paludisme, pluie, cadeaux… 0 = aucun.", min: 0, max: 3 },
 ];
 export const SET = Object.fromEntries(SETTINGS.map(s => [s.id, 1]));
-const BASE = { shop: SHOP.map(x => x.prix), jobs: JOBS.map(j => j.salaire) };
+const BASE = { shop: SHOP.map(x => x.prix) };
 export function applySettings(o = {}) {
   for (const s of SETTINGS) { const v = Number(o[s.id]); SET[s.id] = Number.isFinite(v) ? Math.min(s.max, Math.max(s.min, v)) : 1; }
   SHOP.forEach((x, i) => { x.prix = Math.max(1, Math.round(BASE.shop[i] * SET.prix)); });
-  JOBS.forEach((j, i) => { j.salaire = Math.max(1, Math.round(BASE.jobs[i] * SET.salaires)); });
+  JOBS.forEach(j => { if (j.base == null) j.base = j.salaire; j.salaire = Math.max(1, Math.round(j.base * SET.salaires)); });   // base gardée sur chaque métier (des métiers sont ajoutés plus bas)
   return { ...SET };
 }
 export const FOOD_BASE = { prix: 25, faim: 45 };
@@ -1097,8 +1100,12 @@ export function neighborView(n, now = Date.now()) {
 export const AD_SPOTS = [
   { id: "journal", nom: "Journal de Kinshasa", prixJourUsd: 2 },
   { id: "panneau", nom: "Panneaux LED de la ville 3D", prixJourUsd: 3 },
-  { id: "tous", nom: "Journal + panneaux LED", prixJourUsd: 4 },
+  { id: "bandeau", nom: "Bandeau défilant en bas de l'écran", prixJourUsd: 1 },
+  { id: "tous", nom: "Journal + panneaux LED + bandeau", prixJourUsd: 5 },
 ];
+// où chaque emplacement est montré
+export const AD_SHOWN = { journal: ["journal", "tous"], panneau: ["panneau", "tous"], bandeau: ["bandeau", "tous"] };
+export const adShownIn = (a, support) => (AD_SHOWN[support] || []).includes(a.emplacement);
 export const AD_COLORS = ["#ffd23f", "#18e0ff", "#ff5a1f", "#7dff8a", "#ff2bd6", "#3fa9ff"];
 export function adPrice(emplacement, jours) { const s = AD_SPOTS.find(x => x.id === emplacement); return s ? s.prixJourUsd * Math.max(1, Math.round(jours || 1)) : 0; }
 export function cannotCreateAd(a = {}) {
@@ -1114,3 +1121,139 @@ export function cannotCreateAd(a = {}) {
 }
 export const adActive = (a, now = Date.now()) => !!a.actif && a.debut <= now && a.fin > now;
 export function adView(a) { return { id: a.id, annonceur: a.annonceur, titre: a.titre, texte: a.texte || "", commune: a.commune || null, emplacement: a.emplacement, couleur: a.couleur || AD_COLORS[0], fin: a.fin }; }
+
+// ---------------------------------------------------------------- sociétés publiques
+// Entreprises de l'État (noms inventés, inspirés des secteurs publics du Congo). Elles encaissent des recettes,
+// embauchent des personnages et paient leurs agents ; au-delà de leur réserve, le surplus va au Trésor.
+export const PUBLIC_COMPANIES = [
+  { id: "sp-mwinda", nom: "Mwinda, électricité publique", icone: "💡", tutelle: "Ministère de l'Énergie", recette: "Factures d'électricité des logements (1 e-makuta par jour)" },
+  { id: "sp-mai", nom: "Mai ya Kin, eau potable", icone: "🚰", tutelle: "Ministère des Ressources hydrauliques", recette: "Factures d'eau des logements (0,5 e-makuta par jour)" },
+  { id: "sp-regie", nom: "Régie publicitaire de Kinshasa", icone: "📣", tutelle: "Ministère de la Communication", recette: "Promotions achetées par les entreprises du jeu" },
+  { id: "sp-voirie", nom: "Office de la voirie et de la propreté", icone: "🚧", tutelle: "Ministère des Infrastructures", recette: "Budget de l'État (routes, propreté des marchés)" },
+];
+export const BILLS = { "sp-mwinda": 20, "sp-mai": 10 };    // makuta par jour et par logement
+export const SOE_RESERVE = 100000;                          // 5 000 e-makuta gardés en caisse, le reste va au Trésor
+export const STATE_SEED = 400000;                           // budget de départ de l'État (20 000 e-makuta, une seule fois)
+export const VAT = 0.16;                                    // TVA (DGI), comprise dans les prix des magasins et des maquis
+export const vatOf = prix => Math.round(prix * VAT / (1 + VAT));
+const SOE_JOBS = [
+  { id: "electricien", nom: "Électricien (Mwinda)", talent: "technique", salaire: 210, minAge: 18, societe: "sp-mwinda" },
+  { id: "agent-eau", nom: "Agent d'eau potable (Mai ya Kin)", talent: "technique", salaire: 190, minAge: 18, societe: "sp-mai" },
+  { id: "commercial-regie", nom: "Commercial de la Régie publicitaire", talent: "parole", salaire: 230, minAge: 20, societe: "sp-regie" },
+  { id: "cantonnier", nom: "Cantonnier (Office de la voirie)", talent: "sport", salaire: 160, minAge: 18, societe: "sp-voirie" },
+];
+PUBLIC_JOBS.push(...SOE_JOBS); JOBS.push(...SOE_JOBS);
+// qui paie un agent public : sa société publique (si elle a l'argent), sinon le Trésor ; sinon le salaire est dû (arriéré)
+export function publicPayer(job, soldes = {}) {
+  const amount = job.salaire, soe = job.societe;
+  if (soe && (soldes[soe] || 0) >= amount) return { payeur: soe, ok: true };
+  if ((soldes[STATE_ID] || 0) >= amount) return { payeur: STATE_ID, ok: true, subvention: !!soe };
+  return { payeur: soe || STATE_ID, ok: false };
+}
+export function billsFor(makuta) {           // factures du jour : on paie ce qu'on peut, l'électricité d'abord
+  let left = makuta; const out = [];
+  for (const [id, m] of Object.entries(BILLS)) { const paid = Math.max(0, Math.min(left, m)); left -= paid; out.push({ societe: id, du: m, paye: paid }); }
+  return out;
+}
+export function soeView(soldes = {}, agents = {}) {
+  return PUBLIC_COMPANIES.map(c => ({ ...c, solde: soldes[c.id] || 0, agents: agents[c.id] || 0, metiers: SOE_JOBS.filter(j => j.societe === c.id) }));
+}
+
+// ---------------------------------------------------------------- promotion des entreprises du jeu (payée en e-makuta)
+export const PROMO_PRICE = { bandeau: 400, journal: 600, panneau: 800, tous: 1400 };   // makuta par jour
+export const PROMO_MAX_DAYS = 7;
+export function promoPrice(emplacement, jours) { return (PROMO_PRICE[emplacement] || 0) * Math.max(1, Math.round(jours || 1)); }
+export function cannotPromote(a = {}, makuta = 0, owns = false, active = false) {
+  if (!owns) return "Seul le propriétaire peut promouvoir son entreprise.";
+  if (active) return "Cette entreprise a déjà une promotion en cours.";
+  const t = k => String(a[k] ?? "").trim();
+  if (t("titre").length < 2 || t("titre").length > 24) return "Titre : 2 à 24 caractères.";
+  if (t("texte").length > 90) return "Texte : 90 caractères au plus.";
+  if (/https?:|www\.|\d{8,}/i.test(t("titre") + " " + t("texte"))) return "Pas de lien ni de numéro de téléphone dans une promotion.";
+  if (!PROMO_PRICE[a.emplacement]) return "Choisis où passer la promotion.";
+  const j = Number(a.jours); if (!Number.isInteger(j) || j < 1 || j > PROMO_MAX_DAYS) return `Durée : 1 à ${PROMO_MAX_DAYS} jours.`;
+  if (makuta < promoPrice(a.emplacement, j)) return `Il faut ${fmtMakuta(promoPrice(a.emplacement, j))} pour cette promotion.`;
+  return null;
+}
+
+// ---------------------------------------------------------------- bandeau défilant (bas de l'écran)
+export function tickerItems({ pubs = [], tresor = 0, impotsJour = 0, salairesJour = 0, arrieres = 0, elec = null, une = null, communiques = [] } = {}, now = Date.now()) {
+  const out = [];
+  pubs.forEach(a => out.push({ type: "pub", icone: "📣", texte: `${a.titre} · ${a.annonceur}${a.texte ? " : " + a.texte : ""}`, couleur: a.couleur }));
+  communiques.forEach(c => out.push({ type: "communique", icone: "📢", texte: `${c.auteur} : ${c.texte}` }));
+  out.push({ type: "etat", icone: "🏛️", texte: `Trésor public : ${fmtMakuta(tresor)} · impôts et taxes du jour : ${fmtMakuta(impotsJour)} · salaires publics payés : ${fmtMakuta(salairesJour)}` });
+  if (arrieres > 0) out.push({ type: "etat", icone: "⚠️", texte: `${arrieres} agent${arrieres > 1 ? "s" : ""} de l'État attend${arrieres > 1 ? "ent" : ""} leur salaire : le Trésor manque d'impôts.` });
+  out.push({ type: "etat", icone: "🧾", texte: `Décision de l'État : TVA de 16 % comprise dans les prix, 5 % d'IPR sur les salaires, 10 % sur les recettes des entreprises. Ces impôts paient les agents publics.` });
+  if (elec && elec.prochaine) {
+    const d = Math.ceil((elec.prochaine - now) / 864e5);
+    out.push({ type: "etat", icone: "🗳️", texte: elec.voteOuvert ? "Le vote est ouvert : chaque habitant de 18 ans et plus choisit ses élus." : `Prochaine élection dans ${d} jour${d > 1 ? "s" : ""}. Les candidatures sont ouvertes.` });
+  }
+  if (une) out.push({ type: "journal", icone: une.icone || "📰", texte: `À la une : ${une.titre}. ${une.texte || ""}`.trim() });
+  return out.slice(0, 30);
+}
+export const COMMUNIQUE_MAX = 140;
+export function cannotCreateCommunique(c = {}) {
+  const t = k => String(c[k] ?? "").trim();
+  if (t("auteur").length < 2 || t("auteur").length > 40) return "Auteur : 2 à 40 caractères.";
+  if (t("texte").length < 5 || t("texte").length > COMMUNIQUE_MAX) return `Texte : 5 à ${COMMUNIQUE_MAX} caractères.`;
+  const j = Number(c.jours); if (!Number.isInteger(j) || j < 1 || j > 60) return "Durée : 1 à 60 jours.";
+  const inst = INSTITUTIONS.some(i => i.nom === t("auteur")) || PUBLIC_COMPANIES.some(i => i.nom === t("auteur")) || t("auteur") === "Mairie de Kinshasa";
+  if (!inst && !c.accord) return "Un partenaire réel (banque, opérateur, brasserie…) n'apparaît qu'avec un accord écrit signé : coche la case.";
+  return null;
+}
+
+// ---------------------------------------------------------------- objectifs de vie
+export const GOALS = [
+  { id: "entrepreneur", nom: "Fonder une entreprise", icone: "🏪", prog: f => Math.min(1, f.entreprises) },
+  { id: "proprietaire", nom: "Acheter sa maison", icone: "🏠", prog: f => (f.proprio ? 1 : 0) },
+  { id: "mariage", nom: "Se marier", icone: "💍", prog: f => (f.marie ? 1 : 0) },
+  { id: "parent", nom: "Avoir un enfant", icone: "👶", prog: f => Math.min(1, f.enfants) },
+  { id: "fortune", nom: "Réunir 5 000 e-makuta", icone: "💰", prog: f => Math.min(1, f.fortune / 100000) },
+  { id: "diplome", nom: "Obtenir un diplôme", icone: "🎓", prog: f => Math.min(1, f.diplomes) },
+  { id: "talents", nom: "Découvrir 3 talents", icone: "✨", prog: f => Math.min(1, f.talents / 3) },
+  { id: "service", nom: "Servir l'État (emploi public)", icone: "🏛️", prog: f => (f.public ? 1 : 0) },
+  { id: "elu", nom: "Être élu par les habitants", icone: "🗳️", prog: f => (f.elu ? 1 : 0) },
+  { id: "star", nom: "Devenir une star (réputation 60)", icone: "⭐", prog: f => Math.max(0, Math.min(1, f.rep / 60)) },
+];
+export const GOALS_MAX = 3, GOAL_REP = 15;
+export function goalsView(rows = [], f = {}) {
+  const mine = rows.map(r => { const g = GOALS.find(x => x.id === r.objectif_id); if (!g) return null; const pr = g.prog(f); return { id: g.id, nom: g.nom, icone: g.icone, progres: Math.round(pr * 100), atteint: r.atteint_le || null, choisi: r.choisi_le }; }).filter(Boolean);
+  return { mes: mine, catalogue: GOALS.map(g => ({ id: g.id, nom: g.nom, icone: g.icone, choisi: mine.some(m => m.id === g.id) })), max: GOALS_MAX, recompense: GOAL_REP };
+}
+export function newlyReached(rows = [], f = {}) { return rows.filter(r => !r.atteint_le && (GOALS.find(g => g.id === r.objectif_id) || { prog: () => 0 }).prog(f) >= 1).map(r => r.objectif_id); }
+export function cannotChooseGoal(id, rows = []) {
+  if (!GOALS.some(g => g.id === id)) return "Objectif inconnu.";
+  if (rows.some(r => r.objectif_id === id)) return "Cet objectif est déjà choisi.";
+  if (rows.filter(r => !r.atteint_le).length >= GOALS_MAX) return `${GOALS_MAX} objectifs en cours au plus : abandonne-en un d'abord.`;
+  return null;
+}
+
+// ---------------------------------------------------------------- les stars de la ville (choisies par le serveur chaque jour)
+export const STAR_DOMAINS = [
+  { id: "sport", nom: "Sport", icone: "⚽", talent: "sport", titres: [["Footballeur", "Footballeuse"], ["Basketteur", "Basketteuse"], ["Boxeur", "Boxeuse"]] },
+  { id: "musique", nom: "Musique", icone: "🎤", talent: "art", titres: [["Chanteur de rumba", "Chanteuse de rumba"], ["Guitariste", "Guitariste"], ["Danseur", "Danseuse"]] },
+  { id: "affaires", nom: "Affaires", icone: "💼", titres: [["Entrepreneur", "Entrepreneuse"], ["Commerçant", "Commerçante"], ["Patron", "Patronne"]] },
+  { id: "politique", nom: "Politique", icone: "🏛️", titres: [["Homme politique", "Femme politique"], ["Candidat", "Candidate"]] },
+  { id: "cuisine", nom: "Cuisine", icone: "🍲", talent: "cuisine", titres: [["Chef de maquis", "Cheffe de maquis"], ["Cuisinier", "Cuisinière"]] },
+];
+const STAR_NEWS = {
+  sport: ["a gagné son dernier match devant tout le quartier", "s'entraîne chaque matin au terrain de la Gombe", "a signé avec un nouveau club du jeu", "a offert des ballons aux enfants du quartier"],
+  musique: ["a rempli la salle de concert hier soir", "prépare un nouvel album de rumba", "a chanté au mariage d'un habitant", "tourne un clip au bord du fleuve"],
+  affaires: ["ouvre une nouvelle boutique", "a embauché trois habitants cette semaine", "investit dans les transports", "a payé ses impôts en avance"],
+  politique: ["a visité le marché pour écouter les commerçants", "défend une loi sur les salaires publics", "a inauguré une route réparée par la voirie", "fait campagne dans sa commune"],
+  cuisine: ["sert le meilleur liboke de la ville", "a gagné le concours de cuisine du quartier", "ouvre son maquis jusqu'à minuit", "apprend la cuisine aux jeunes"],
+};
+// choisit une star par domaine parmi les meilleurs candidats ; le choix change chaque jour
+export function pickStars(cands = {}, now = Date.now(), seedNames = null) {
+  const day = dayKey(now), used = new Set();
+  return STAR_DOMAINS.map(d => {
+    const list = (cands[d.id] || []).slice(0, 3);
+    const h = hashStr(day + d.id);
+    let s = list.length ? list[h % list.length] : null;
+    if (!s && seedNames) { let n = seedNames(h, d.id), k = 1; while (used.has(n.prenom) && k < 6) n = seedNames(h + k++ * 7919, d.id); used.add(n.prenom); s = { id: "pnj-" + d.id + "-" + day, prenom: n.prenom, nom: n.nom, sexe: n.sexe, quartier: n.quartier, age: 22 + h % 20, pnj: true }; }
+    if (!s) return null;
+    const news = STAR_NEWS[d.id], titre = d.titres[(h >>> 3) % d.titres.length][s.sexe === "F" ? 1 : 0];
+    return { ...s, domaine: d.id, domaineNom: d.nom, icone: d.icone, titre: s.titre || titre,
+      actualites: s.actualites && s.actualites.length ? s.actualites : [0, 1, 2].map(i => ({ icone: d.icone, texte: `${s.prenom} ${news[(h + i * 7) % news.length]}.` })) };
+  }).filter(Boolean);
+}

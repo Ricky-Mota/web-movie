@@ -200,8 +200,25 @@
       </div>
 
       <div class="card">
+        <h2>Bandeau : communiqués et décisions publiques <span class="pill" id="n-com">0</span></h2>
+        <p style="font-size:14px">Messages qui défilent en bas de l'écran (Ma vie et ville 3D) : décisions de l'État, annonces de la mairie, messages d'un partenaire. Une institution du jeu publie librement ; une vraie entreprise (banque, opérateur, brasserie, assurance…) seulement avec un <b>accord écrit signé</b>.</p>
+        <form id="f-com" novalidate>
+          <label for="c-auteur">Auteur</label><input id="c-auteur" maxlength="40" list="c-auteurs" placeholder="Mairie de Kinshasa">
+          <datalist id="c-auteurs"></datalist>
+          <label for="c-texte">Message (140 caractères)</label><input id="c-texte" maxlength="140" placeholder="La voirie embauche des cantonniers cette semaine.">
+          <div class="two">
+            <div><label for="c-jours">Durée (jours)</label><input id="c-jours" type="number" min="1" max="60" value="7"></div>
+            <div><label style="display:flex;gap:8px;align-items:center;margin-top:34px"><input id="c-accord" type="checkbox" style="width:auto"> Accord écrit signé</label></div>
+          </div>
+          <button class="btn" type="submit">Publier dans le bandeau</button>
+          <div class="err" id="com-err" role="alert"></div>
+        </form>
+        <div class="list" id="coms" style="margin-top:12px"></div>
+      </div>
+
+      <div class="card">
         <h2>Annonces partenaires <span class="pill" id="n-pubs">0</span></h2>
-        <p style="font-size:14px">Les commerçants paient leur annonce (hors jeu pour l'instant : contrat, puis M-Pesa ou espèces). Elle paraît dans le Journal de Kinshasa et/ou sur les panneaux LED de la ville 3D. Un vrai nom de commerce seulement avec un <b>accord écrit signé</b>.</p>
+        <p style="font-size:14px">Les commerçants paient leur annonce (hors jeu pour l'instant : contrat, puis M-Pesa ou espèces). Elle paraît dans le Journal de Kinshasa, sur les panneaux LED de la ville 3D et/ou dans le bandeau défilant. Un vrai nom de commerce seulement avec un <b>accord écrit signé</b>.</p>
         <form id="f-pub" novalidate>
           <div class="two">
             <div><label for="a-annonceur">Commerçant</label><input id="a-annonceur" maxlength="40" placeholder="Maquis Chez Mama Nzuzi"></div>

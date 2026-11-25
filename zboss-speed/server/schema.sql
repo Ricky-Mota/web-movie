@@ -296,3 +296,36 @@ CREATE TABLE IF NOT EXISTS pubs (
   actif INTEGER NOT NULL DEFAULT 1,
   cree_le INTEGER NOT NULL
 );
+
+-- salaires publics dus quand la caisse de l'État (ou de la société publique) était vide
+CREATE TABLE IF NOT EXISTS arrieres (
+  id TEXT PRIMARY KEY,
+  personnage_id TEXT NOT NULL,
+  payeur_id TEXT NOT NULL,
+  montant INTEGER NOT NULL,
+  motif TEXT NOT NULL,
+  le INTEGER NOT NULL,
+  paye_le INTEGER
+);
+CREATE INDEX IF NOT EXISTS arrieres_dus ON arrieres (paye_le, le);
+
+-- objectifs de vie choisis par le joueur (3 en cours au plus)
+CREATE TABLE IF NOT EXISTS objectifs (
+  personnage_id TEXT NOT NULL,
+  objectif_id TEXT NOT NULL,
+  choisi_le INTEGER NOT NULL,
+  atteint_le INTEGER,
+  PRIMARY KEY (personnage_id, objectif_id)
+);
+
+-- communiqués du bandeau défilant : décisions publiques et messages des partenaires (accord écrit obligatoire)
+CREATE TABLE IF NOT EXISTS communiques (
+  id TEXT PRIMARY KEY,
+  auteur TEXT NOT NULL,
+  texte TEXT NOT NULL,
+  debut INTEGER NOT NULL,
+  fin INTEGER NOT NULL,
+  accord INTEGER NOT NULL DEFAULT 0,
+  actif INTEGER NOT NULL DEFAULT 1,
+  cree_le INTEGER NOT NULL
+);

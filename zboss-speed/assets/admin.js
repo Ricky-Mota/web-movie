@@ -1,6 +1,6 @@
 // 2 Life : espace administrateur (conditions de démarrage, parents fondateurs, investisseurs).
 import { launchDemo } from "./lancement-demo.js";
-import { OFFERS, COMPANY_TYPES, SETTINGS, AD_SPOTS, adPrice, cannotCreateAd, COMMUNES, AD_COLORS } from "../server/src/life.js";
+import { OFFERS, COMPANY_TYPES, SETTINGS, AD_SPOTS, adPrice, cannotCreateAd, COMMUNES, AD_COLORS, cannotCreateCommunique, INSTITUTIONS, PUBLIC_COMPANIES } from "../server/src/life.js";
 
 const API = (window.TWO_LIFE_API || "").replace(/\/$/, "");
 const $ = id => document.getElementById(id);
@@ -131,6 +131,33 @@ $("a-place").innerHTML = AD_SPOTS.map(s => `<option value="${s.id}">${esc(s.nom)
 $("a-commune").innerHTML += COMMUNES.map(c => `<option>${esc(c.nom)}</option>`).join("");
 const adPriceShow = () => { $("a-prix").textContent = adPrice($("a-place").value, Number($("a-jours").value) || 1) + " $"; };
 $("a-place").onchange = adPriceShow; $("a-jours").oninput = adPriceShow; adPriceShow();
+// ---- communiqués du bandeau défilant
+const demoComs = { get() { try { return JSON.parse(localStorage.getItem("twolife_demo_communiques") || "[]"); } catch (e) { return []; } }, set(v) { try { localStorage.setItem("twolife_demo_communiques", JSON.stringify(v)); } catch (e) { } } };
+$("c-auteurs").innerHTML = ["Mairie de Kinshasa", ...INSTITUTIONS.map(i => i.nom), ...PUBLIC_COMPANIES.map(c => c.nom)].map(n => `<option value="${esc(n)}">`).join("");
+async function loadComs() {
+  const now = Date.now(), rows = API ? (await call("/api/admin/communiques")).communiques : demoComs.get().map(c => ({ ...c, enCours: !!c.actif && c.debut <= now && c.fin > now }));
+  $("n-com").textContent = rows.filter(c => c.enCours).length;
+  $("coms").innerHTML = rows.length ? rows.map(c => `<div class="item"><span class="sw">📢</span><div class="t">${esc(c.auteur)}<small>${esc(c.texte)}</small><small>jusqu'au ${day(c.fin)} · ${c.enCours ? "en ligne" : "arrêté"}${c.accord ? " · accord signé" : ""}</small></div>
+    <button class="btn ghost" style="width:auto;padding:6px 12px;font-size:13px;margin:0 0 0 auto" type="button" data-com="${esc(c.id)}" data-on="${c.actif ? 0 : 1}">${c.actif ? "Arrêter" : "Relancer"}</button></div>`).join("") : `<p>Aucun communiqué pour l'instant.</p>`;
+}
+$("f-com").onsubmit = async ev => {
+  ev.preventDefault(); $("com-err").textContent = "";
+  const c = { auteur: $("c-auteur").value.trim(), texte: $("c-texte").value.trim(), jours: Number($("c-jours").value), accord: $("c-accord").checked };
+  const no = cannotCreateCommunique(c); if (no) { $("com-err").textContent = no; return; }
+  try {
+    if (API) await call("/api/admin/communique", c);
+    else { const L = demoComs.get(), now = Date.now(); L.unshift({ ...c, id: "com" + now, debut: now, fin: now + c.jours * 864e5, actif: 1, cree_le: now }); demoComs.set(L); }
+    $("f-com").reset(); toast("Communiqué publié dans le bandeau."); loadComs();
+  } catch (err) { $("com-err").textContent = err.message; }
+};
+$("coms").addEventListener("click", async e => {
+  const b = e.target.closest("[data-com]"); if (!b) return;
+  try {
+    if (API) await call("/api/admin/communique/statut", { id: b.dataset.com, actif: b.dataset.on === "1" });
+    else { const L = demoComs.get(), r = L.find(x => x.id === b.dataset.com); if (r) r.actif = b.dataset.on === "1" ? 1 : 0; demoComs.set(L); }
+    loadComs();
+  } catch (err) { toast(err.message); }
+});
 async function loadPubs() {
   const rows = API ? (await call("/api/admin/pubs")).pubs : demoPubs.get().map(a => ({ ...a, enCours: !!a.actif && a.debut <= Date.now() && a.fin > Date.now() }));
   $("n-pubs").textContent = rows.filter(a => a.enCours).length;
@@ -158,7 +185,7 @@ $("pubs").addEventListener("click", async e => {
     loadPubs();
   } catch (err) { toast(err.message); }
 });
-const load = async () => { try { const e = await call("/api/admin/etat"); render(e); renderBeta(API ? e.beta : demoBeta()); renderSupport(API ? e.support : demoSup.get()); show(true); loadPubs().catch(() => {}); } catch (err) { show(false); } };
+const load = async () => { try { const e = await call("/api/admin/etat"); render(e); renderBeta(API ? e.beta : demoBeta()); renderSupport(API ? e.support : demoSup.get()); show(true); loadPubs().catch(() => {}); loadComs().catch(() => {}); } catch (err) { show(false); } };
 
 $("f-login").onsubmit = async ev => {
   ev.preventDefault(); $("login-err").textContent = "";

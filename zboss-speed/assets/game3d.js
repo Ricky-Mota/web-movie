@@ -674,7 +674,7 @@
     try {
       const API = (window.TWO_LIFE_API || "").replace(/\/$/, "");
       if (API) pubs = (await (await fetch(API + "/api/pubs")).json()).pubs || [];
-      else { const n = Date.now(); pubs = JSON.parse(localStorage.getItem("twolife_demo_pubs") || "[]").filter(a => a.actif && a.debut <= n && a.fin > n && a.emplacement !== "journal"); }
+      else { const n = Date.now(); pubs = JSON.parse(localStorage.getItem("twolife_demo_pubs") || "[]").filter(a => a.actif && a.debut <= n && a.fin > n && ["panneau", "tous"].includes(a.emplacement)); }
     } catch (e) { pubs = []; }
     // une annonce payée prend la place de « VOTRE PUB ICI », puis s'ajoute à la rotation
     pubs.slice(0, 12).forEach((a, i) => { const m = adMaterial(a); if (i === 0) ADS[3] = m; else ADS.push(m); });
