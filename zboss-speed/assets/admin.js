@@ -1,6 +1,6 @@
 // 2 Life : espace administrateur (conditions de démarrage, parents fondateurs, investisseurs).
 import { launchDemo } from "./lancement-demo.js";
-import { OFFERS, COMPANY_TYPES, SETTINGS } from "../server/src/life.js";
+import { OFFERS, COMPANY_TYPES, SETTINGS, AD_SPOTS, adPrice, cannotCreateAd, COMMUNES, AD_COLORS } from "../server/src/life.js";
 
 const API = (window.TWO_LIFE_API || "").replace(/\/$/, "");
 const $ = id => document.getElementById(id);
@@ -125,7 +125,40 @@ $("support").addEventListener("click", async e => {
   if (API) { try { await call("/api/admin/support", { id: b.dataset.sup, statut: b.dataset.st }); load(); } catch (err) { toast(err.message); } }
   else { const L = demoSup.get(); const r = L.find(x => x.id === b.dataset.sup); if (r) { r.statut = b.dataset.st; demoSup.set(L); } renderSupport(L); }
 });
-const load = async () => { try { const e = await call("/api/admin/etat"); render(e); renderBeta(API ? e.beta : demoBeta()); renderSupport(API ? e.support : demoSup.get()); show(true); } catch (err) { show(false); } };
+// annonces des commerçants partenaires (en démo : gardées dans ce navigateur, visibles dans la démo du jeu)
+const demoPubs = { get() { try { return JSON.parse(localStorage.getItem("twolife_demo_pubs") || "[]"); } catch (e) { return []; } }, set(v) { try { localStorage.setItem("twolife_demo_pubs", JSON.stringify(v)); } catch (e) { } } };
+$("a-place").innerHTML = AD_SPOTS.map(s => `<option value="${s.id}">${esc(s.nom)} · ${s.prixJourUsd} $/jour</option>`).join("");
+$("a-commune").innerHTML += COMMUNES.map(c => `<option>${esc(c.nom)}</option>`).join("");
+const adPriceShow = () => { $("a-prix").textContent = adPrice($("a-place").value, Number($("a-jours").value) || 1) + " $"; };
+$("a-place").onchange = adPriceShow; $("a-jours").oninput = adPriceShow; adPriceShow();
+async function loadPubs() {
+  const rows = API ? (await call("/api/admin/pubs")).pubs : demoPubs.get().map(a => ({ ...a, enCours: !!a.actif && a.debut <= Date.now() && a.fin > Date.now() }));
+  $("n-pubs").textContent = rows.filter(a => a.enCours).length;
+  $("pubs").innerHTML = rows.length ? rows.map(a => `<div class="item"><span class="sw" style="color:${esc(a.couleur || "#ffd23f")}">📣</span><div class="t">${esc(a.titre)} · ${esc(a.annonceur)}<small>${esc(a.texte || "")}${a.commune ? " · " + esc(a.commune) : ""}</small><small>${esc((AD_SPOTS.find(s => s.id === a.emplacement) || {}).nom || a.emplacement)} · ${day(a.debut)} → ${day(a.fin)} · ${a.prix_usd} $ ${a.paye ? "payé" : "à encaisser"} · ${a.enCours ? "en ligne" : a.actif ? "programmée ou terminée" : "arrêtée"}</small></div>
+    <div style="display:flex;flex-direction:column;gap:4px;margin-left:auto">${a.paye ? "" : `<button class="btn ghost" style="width:auto;padding:6px 12px;font-size:13px;margin:0" type="button" data-pay="${esc(a.id)}">Marquer payé</button>`}<button class="btn ghost" style="width:auto;padding:6px 12px;font-size:13px;margin:0" type="button" data-toggle="${esc(a.id)}" data-on="${a.actif ? 0 : 1}">${a.actif ? "Arrêter" : "Relancer"}</button></div></div>`).join("")
+    : `<p>Aucune annonce pour l'instant.</p>`;
+}
+$("f-pub").onsubmit = async ev => {
+  ev.preventDefault(); $("pub-err").textContent = "";
+  const a = { annonceur: $("a-annonceur").value.trim(), titre: $("a-titre").value.trim(), texte: $("a-texte").value.trim(), emplacement: $("a-place").value, jours: Number($("a-jours").value), commune: $("a-commune").value, paye: $("a-paye").checked, accord: $("a-accord").checked };
+  const no = cannotCreateAd(a); if (no) { $("pub-err").textContent = no; return; }
+  try {
+    if (API) await call("/api/admin/pub", a);
+    else { const L = demoPubs.get(), now = Date.now(); L.unshift({ ...a, id: "pub" + now, couleur: AD_COLORS[L.length % AD_COLORS.length], debut: now, fin: now + a.jours * 864e5, prix_usd: adPrice(a.emplacement, a.jours), paye: a.paye ? 1 : 0, actif: 1, cree_le: now }); demoPubs.set(L); }
+    $("f-pub").reset(); adPriceShow(); toast("Annonce publiée."); loadPubs();
+  } catch (err) { $("pub-err").textContent = err.message; }
+};
+$("pubs").addEventListener("click", async e => {
+  const t = e.target.closest("[data-toggle],[data-pay]"); if (!t) return;
+  const id = t.dataset.toggle || t.dataset.pay, body = t.dataset.pay ? { id, actif: 1, paye: true } : { id, actif: t.dataset.on === "1" };
+  if (t.dataset.pay) { const r = (API ? null : demoPubs.get().find(x => x.id === id)); if (r) body.actif = r.actif; }
+  try {
+    if (API) { if (t.dataset.pay) { const cur = (await call("/api/admin/pubs")).pubs.find(x => x.id === id); body.actif = cur ? !!cur.actif : true; } await call("/api/admin/pub/statut", body); }
+    else { const L = demoPubs.get(), r = L.find(x => x.id === id); if (r) { r.actif = body.actif ? 1 : 0; if (body.paye) r.paye = 1; } demoPubs.set(L); }
+    loadPubs();
+  } catch (err) { toast(err.message); }
+});
+const load = async () => { try { const e = await call("/api/admin/etat"); render(e); renderBeta(API ? e.beta : demoBeta()); renderSupport(API ? e.support : demoSup.get()); show(true); loadPubs().catch(() => {}); } catch (err) { show(false); } };
 
 $("f-login").onsubmit = async ev => {
   ev.preventDefault(); $("login-err").textContent = "";

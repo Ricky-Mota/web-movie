@@ -278,3 +278,21 @@ CREATE TABLE IF NOT EXISTS mots (
 );
 CREATE INDEX IF NOT EXISTS idx_mots_vers ON mots (vers_id, le);
 CREATE INDEX IF NOT EXISTS idx_mots_de ON mots (de_id, le);
+
+-- annonces payantes des commerçants partenaires (journal, panneaux LED) ; accord = contrat écrit signé
+CREATE TABLE IF NOT EXISTS pubs (
+  id TEXT PRIMARY KEY,
+  annonceur TEXT NOT NULL,
+  titre TEXT NOT NULL,
+  texte TEXT,
+  commune TEXT,
+  emplacement TEXT NOT NULL,
+  couleur TEXT,
+  debut INTEGER NOT NULL,
+  fin INTEGER NOT NULL,
+  prix_usd REAL NOT NULL DEFAULT 0,
+  paye INTEGER NOT NULL DEFAULT 0,
+  accord INTEGER NOT NULL DEFAULT 0,
+  actif INTEGER NOT NULL DEFAULT 1,
+  cree_le INTEGER NOT NULL
+);

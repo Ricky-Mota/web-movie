@@ -276,6 +276,7 @@ const demo = {
         deces: rr() < .35 ? [{ prenom: V[8].prenom, nom: V[8].nom, quartier: V[8].quartier, age: 71, cause: "vieillesse", le: at(5) }] : [],
         arrestations: [{ quartier: V[6].quartier, n: 1 + Math.floor(rr() * 3) }],
         chiffres: { joueurs: V.length },
+        pubs: (() => { try { const n = Date.now(); return JSON.parse(localStorage.getItem("twolife_demo_pubs") || "[]").filter(a => a.actif && a.debut <= n && a.fin > n && a.emplacement !== "panneau"); } catch (e) { return []; } })(),
       };
       return newspaper(facts, Date.now(), c.quartier);
     }
@@ -1063,9 +1064,10 @@ function renderJournal() {
   const J = journalData, box = $("journal");
   if (!J) { box.innerHTML = `<p style="font-size:14px;margin:0 0 10px">Chaque matin, le journal raconte ce qui s'est passé dans la ville : naissances, mariages, nouvelles entreprises, décès, élections… et la vie de ta commune.</p><button class="mini fill" id="b-journal" type="button">📰 Lire le journal du jour</button>`; return; }
   const R = J.rubriques.find(x => x.id === journalTab) || J.rubriques[0];
-  const it = x => `<div class="news"><span class="ic">${x.icone}</span><div><b>${esc(x.titre)}</b><p>${esc(x.texte)}</p></div></div>`;
+  const it = x => `<div class="news"><span class="ic">${x.icone}</span><div>${x.annonce ? `<small style="opacity:.7;display:block">Annonce</small>` : ""}<b>${esc(x.titre)}</b><p>${esc(x.texte)}</p></div></div>`;
   box.innerHTML = `<div class="paper-head"><b>${esc(J.titre)}</b><span>N° ${J.numero} · ${new Date(J.date + "T12:00:00Z").toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" })}${J.chiffres && J.chiffres.joueurs ? ` · ${J.chiffres.joueurs} habitants joueurs` : ""}</span></div>
     <div class="une"><span class="ic">${J.une.icone}</span><div><small>À la une</small><b>${esc(J.une.titre)}</b><p>${esc(J.une.texte)}</p></div></div>
+    ${J.sponsor ? `<div class="news ad" style="border-left:3px solid ${esc(J.sponsor.couleur || "#ffd23f")};padding-left:8px"><span class="ic">📣</span><div><small style="opacity:.7;display:block">Annonce</small><b>${esc(J.sponsor.titre)}</b><p>${esc(J.sponsor.texte)}</p></div></div>` : ""}
     <div class="tabs" style="margin:10px 0 6px">${J.rubriques.map(x => `<button class="tab ${x.id === R.id ? "on" : ""}" data-jtab="${x.id}" type="button">${esc(x.titre)}</button>`).join("")}</div>
     ${R.items.length ? R.items.map(it).join("") : `<p style="font-size:13px">${esc(R.vide)}</p>`}`;
 }

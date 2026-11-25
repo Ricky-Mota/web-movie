@@ -7,6 +7,7 @@ import {
   PAY_METHODS, cannotDeposit, cannotWithdraw, maskPhone, withdrawUsd, COMMUNES, communeView, ROLES, drawRole, roleOf,
   streakStep, streakView, nightSummary, morningText, reminderText, kinHour,
   newspaper, cannotSendWord, neighborView, GREETINGS, WORD_MAX,
+  AD_SPOTS, AD_COLORS, adPrice, cannotCreateAd, adView,
 } from "./life.js";
 import { sendPush, newVapidKeys } from "./webpush.js";
 import { payConfigured, startDeposit, startPayout, readNotice } from "./paiement.js";
@@ -273,6 +274,10 @@ async function notify(env, db, compteId, message) {
   }
 }
 
+async function activeAds(db, now) {
+  const { results } = await db.prepare(`SELECT * FROM pubs WHERE actif = 1 AND debut <= ? AND fin > ? ORDER BY cree_le DESC LIMIT 30`).bind(now, now).all();
+  return results.map(adView);
+}
 // ---- journal : les vrais faits des dernières 24 heures
 async function newsFacts(db, now) {
   const since = now - 864e5;
@@ -286,7 +291,8 @@ async function newsFacts(db, now) {
     q(`SELECT p.quartier, COUNT(*) AS n FROM infractions i JOIN personnages p ON p.id = i.personnage_id WHERE i.le > ? AND p.quartier IS NOT NULL GROUP BY p.quartier ORDER BY n DESC LIMIT 5`, since),
     q(`SELECT COUNT(*) AS n FROM personnages p JOIN comptes c ON c.vie_id = p.id WHERE p.mort_le IS NULL`),
   ]);
-  return { naissances, deces: deces.map(d => ({ ...d, age: Math.floor(ageYears(d.ne_le, d.le)) })), mariages, entreprises, elus, arrestations,
+  const pubs = (await activeAds(db, now)).filter(a => a.emplacement !== "panneau");
+  return { pubs, naissances, deces: deces.map(d => ({ ...d, age: Math.floor(ageYears(d.ne_le, d.le)) })), mariages, entreprises, elus, arrestations,
     chiffres: { joueurs: vivants[0].n, naissances: naissances.length, deces: deces.length, entreprises: entreprises.length } };
 }
 
@@ -740,6 +746,7 @@ const worker = {
       if (url.pathname === "/config.js") return new Response(`// 2 Life : configuration générée par le serveur\nwindow.ZBOSS_CONFIG = { SUPABASE_URL: "", SUPABASE_ANON_KEY: "" };\nwindow.TWO_LIFE_API = ${JSON.stringify(url.origin)};\n`,
         { headers: { "Content-Type": "application/javascript; charset=utf-8", "Cache-Control": "no-cache" } });
       if (url.pathname === "/api/lancement" && req.method === "GET") return json(h, 200, await launch(db));
+      if (url.pathname === "/api/pubs" && req.method === "GET") return json(h, 200, { pubs: (await activeAds(db, now)).filter(a => a.emplacement !== "journal") });
 
       // liste d'attente bêta : formulaire public de l'accueil (pas de compte nécessaire)
       if (url.pathname === "/api/beta" && req.method === "POST") {
@@ -829,6 +836,22 @@ const worker = {
           if (st.length) await db.batch(st);
           await loadSettings(db, now, true);
           return json(h, 200, { ok: true, reglages: { defs: SETTINGS, valeurs: { ...SET } } });
+        }
+        if (url.pathname === "/api/admin/pubs" && req.method === "GET") {
+          const { results } = await db.prepare(`SELECT * FROM pubs ORDER BY cree_le DESC LIMIT 200`).all();
+          return json(h, 200, { pubs: results.map(a => ({ ...a, enCours: !!a.actif && a.debut <= now && a.fin > now })), emplacements: AD_SPOTS });
+        }
+        if (url.pathname === "/api/admin/pub" && req.method === "POST") {
+          const no = cannotCreateAd(body); if (no) return fail(h, 400, no);
+          const t = k => String(body[k] ?? "").trim(), jours = Number(body.jours), debut = Number(body.debut) || now;
+          const couleur = AD_COLORS.includes(body.couleur) ? body.couleur : AD_COLORS[Math.floor(Math.random() * AD_COLORS.length)];
+          await db.prepare(`INSERT INTO pubs (id, annonceur, titre, texte, commune, emplacement, couleur, debut, fin, prix_usd, paye, accord, actif, cree_le) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 1, ?)`)
+            .bind(uid(), t("annonceur"), t("titre"), t("texte") || null, t("commune") || null, body.emplacement, couleur, debut, debut + jours * 864e5, adPrice(body.emplacement, jours), body.paye ? 1 : 0, now).run();
+          return json(h, 201, { ok: true });
+        }
+        if (url.pathname === "/api/admin/pub/statut" && req.method === "POST") {
+          await db.prepare(`UPDATE pubs SET actif = ?, paye = COALESCE(?, paye) WHERE id = ?`).bind(body.actif ? 1 : 0, body.paye === undefined ? null : body.paye ? 1 : 0, String(body.id || "")).run();
+          return json(h, 200, { ok: true });
         }
         if (url.pathname === "/api/admin/support" && req.method === "POST") {
           const st = body.statut === "resolu" ? "resolu" : "ouvert";

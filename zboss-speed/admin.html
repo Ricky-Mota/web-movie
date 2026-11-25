@@ -200,6 +200,31 @@
       </div>
 
       <div class="card">
+        <h2>Annonces partenaires <span class="pill" id="n-pubs">0</span></h2>
+        <p style="font-size:14px">Les commerçants paient leur annonce (hors jeu pour l'instant : contrat, puis M-Pesa ou espèces). Elle paraît dans le Journal de Kinshasa et/ou sur les panneaux LED de la ville 3D. Un vrai nom de commerce seulement avec un <b>accord écrit signé</b>.</p>
+        <form id="f-pub" novalidate>
+          <div class="two">
+            <div><label for="a-annonceur">Commerçant</label><input id="a-annonceur" maxlength="40" placeholder="Maquis Chez Mama Nzuzi"></div>
+            <div><label for="a-titre">Titre (panneau, 24 car.)</label><input id="a-titre" maxlength="24" placeholder="POULET MAYO"></div>
+          </div>
+          <label for="a-texte">Texte (90 caractères)</label><input id="a-texte" maxlength="90" placeholder="Le meilleur poulet de Bandal, ouvert jusqu'à minuit">
+          <div class="two">
+            <div><label for="a-place">Emplacement</label><select id="a-place"></select></div>
+            <div><label for="a-jours">Durée (jours)</label><input id="a-jours" type="number" min="1" max="365" value="7"></div>
+          </div>
+          <div class="two">
+            <div><label for="a-commune">Commune ciblée (facultatif)</label><select id="a-commune"><option value="">Toute la ville</option></select></div>
+            <div><label>Prix</label><p id="a-prix" style="margin:6px 0;font-weight:600"></p></div>
+          </div>
+          <label style="display:flex;gap:8px;align-items:center"><input id="a-paye" type="checkbox" style="width:auto"> Déjà payé</label>
+          <label style="display:flex;gap:8px;align-items:center"><input id="a-accord" type="checkbox" style="width:auto"> Accord écrit signé avec le commerçant</label>
+          <button class="btn" type="submit">Publier l'annonce</button>
+          <div class="err" id="pub-err" role="alert"></div>
+        </form>
+        <div class="list" id="pubs" style="margin-top:12px"></div>
+      </div>
+
+      <div class="card">
         <h2>Bureau Zboss Sarlu <span class="pill" id="n-sup">0</span></h2>
         <p style="font-size:14px">Les problèmes signalés par les joueurs au guichet d'aide du centre-ville (dans le jeu 3D).</p>
         <div class="list" id="support"></div>

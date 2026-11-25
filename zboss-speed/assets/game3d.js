@@ -657,6 +657,28 @@
     x.shadowBlur = 0; x.fillStyle = "#fff"; x.font = "600 40px Inter, Arial, sans-serif"; x.fillText(b, w / 2, h * .74, w * .9);
     x.fillStyle = "rgba(255,255,255,.06)"; for (let y = 0; y < h; y += 4) x.fillRect(0, y, w, 1);   // trame LED
   }) }));
+  // annonces payantes des commerçants partenaires : elles s'ajoutent aux panneaux LED (serveur, ou espace admin de la démo)
+  function adMaterial(a) {
+    const c = a.couleur || "#ffd23f";
+    return new THREE.MeshBasicMaterial({ map: canvasTex(768, 384, (x, w, h) => {
+      const gr = x.createLinearGradient(0, 0, w, h); gr.addColorStop(0, "#111"); gr.addColorStop(1, "#000"); x.fillStyle = gr; x.fillRect(0, 0, w, h);
+      x.strokeStyle = c; x.lineWidth = 10; x.strokeRect(14, 14, w - 28, h - 28);
+      x.textAlign = "center"; x.textBaseline = "middle"; x.shadowColor = c; x.shadowBlur = 24; x.fillStyle = c; x.font = "900 92px 'Chakra Petch', Impact, sans-serif"; x.fillText(String(a.titre).toUpperCase(), w / 2, h * .38, w * .9);
+      x.shadowBlur = 0; x.fillStyle = "#fff"; x.font = "600 34px Inter, Arial, sans-serif"; x.fillText(String(a.texte || a.annonceur).slice(0, 48), w / 2, h * .66, w * .9);
+      x.fillStyle = "rgba(255,255,255,.55)"; x.font = "500 24px Inter, Arial, sans-serif"; x.fillText("Annonce · " + a.annonceur + (a.commune ? " · " + a.commune : ""), w / 2, h * .86, w * .9);
+      x.fillStyle = "rgba(255,255,255,.06)"; for (let y = 0; y < h; y += 4) x.fillRect(0, y, w, 1);
+    }) });
+  }
+  (async () => {
+    let pubs = [];
+    try {
+      const API = (window.TWO_LIFE_API || "").replace(/\/$/, "");
+      if (API) pubs = (await (await fetch(API + "/api/pubs")).json()).pubs || [];
+      else { const n = Date.now(); pubs = JSON.parse(localStorage.getItem("twolife_demo_pubs") || "[]").filter(a => a.actif && a.debut <= n && a.fin > n && a.emplacement !== "journal"); }
+    } catch (e) { pubs = []; }
+    // une annonce payée prend la place de « VOTRE PUB ICI », puis s'ajoute à la rotation
+    pubs.slice(0, 12).forEach((a, i) => { const m = adMaterial(a); if (i === 0) ADS[3] = m; else ADS.push(m); });
+  })();
   const ledBoards = BOARDS3.map(b => {
     const g = new THREE.Group(); g.position.set(b.x * S, 0, b.y * S); g.rotation.y = -b.a;
     pbox(g, .45, 6, .45, 0, 3, 0, PL.metal, true);

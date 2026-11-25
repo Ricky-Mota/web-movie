@@ -1061,11 +1061,14 @@ export function newspaper(facts = {}, now = Date.now(), quartier = null) {
   const une = reel[0] || { ...vie[0], reel: false };
   const ma = quartier ? reel.filter(x => x.commune === quartier) : [];
   const numero = Math.max(1, Math.round((Date.parse(jour) - Date.parse(JOURNAL_START)) / 864e5) + 1);
-  return { titre: "Le Journal de Kinshasa", date: jour, numero, une,
+  const pubs = (facts.pubs || []).slice().sort((a, b) => (b.commune === quartier) - (a.commune === quartier));
+  const annonces = pubs.map(a => ({ icone: "📣", titre: `${a.titre} · ${a.annonceur}`, texte: [a.texte, a.commune && `(${a.commune})`].filter(Boolean).join(" "), annonce: true, couleur: a.couleur }));
+  return { titre: "Le Journal de Kinshasa", date: jour, numero, une, sponsor: annonces[0] || null,
     rubriques: [
       { id: "commune", titre: quartier ? `Dans ta commune · ${quartier}` : "Dans ta commune", items: ma.slice(0, 12), vide: "Rien de neuf dans ta commune aujourd'hui. Et si ton personnage faisait parler de lui ?" },
       { id: "ville", titre: "Kinshasa", items: reel.slice(0, 20), vide: "La ville se réveille : les premières nouvelles arrivent avec les premiers joueurs." },
       { id: "vie", titre: "La vie à Kin", items: vie, vide: "" },
+      { id: "annonces", titre: "Annonces", items: annonces, vide: "Commerçant ? Ton annonce ici : écris au bureau Zboss Sarlu (rubrique Publicité)." },
     ],
     chiffres: facts.chiffres || null };
 }
@@ -1087,3 +1090,27 @@ export function neighborView(n, now = Date.now()) {
   return { id: n.id, prenom: n.prenom, nom: n.nom, sexe: n.sexe, pseudo: n.pseudo || null, quartier: n.quartier, age: Math.floor(age), etape: stageOf(age).label,
     metier: n.metier ? (JOBS.find(j => j.id === n.metier) || {}).nom || n.metier : null, reputation: repLabel(n.reputation || 0), memeCommune: !!n.memeCommune };
 }
+
+// ---------------------------------------------------------------- annonces payantes des commerçants partenaires
+// Comme dans la vraie vie : le commerçant paie (hors jeu pour l'instant), l'administrateur publie l'annonce.
+// Nom réel d'un commerce seulement avec un accord écrit signé (case obligatoire).
+export const AD_SPOTS = [
+  { id: "journal", nom: "Journal de Kinshasa", prixJourUsd: 2 },
+  { id: "panneau", nom: "Panneaux LED de la ville 3D", prixJourUsd: 3 },
+  { id: "tous", nom: "Journal + panneaux LED", prixJourUsd: 4 },
+];
+export const AD_COLORS = ["#ffd23f", "#18e0ff", "#ff5a1f", "#7dff8a", "#ff2bd6", "#3fa9ff"];
+export function adPrice(emplacement, jours) { const s = AD_SPOTS.find(x => x.id === emplacement); return s ? s.prixJourUsd * Math.max(1, Math.round(jours || 1)) : 0; }
+export function cannotCreateAd(a = {}) {
+  const t = k => String(a[k] ?? "").trim();
+  if (t("annonceur").length < 2 || t("annonceur").length > 40) return "Nom du commerçant : 2 à 40 caractères.";
+  if (t("titre").length < 2 || t("titre").length > 24) return "Titre (panneau) : 2 à 24 caractères.";
+  if (t("texte").length > 90) return "Texte : 90 caractères au plus.";
+  if (!AD_SPOTS.some(s => s.id === a.emplacement)) return "Choisis un emplacement.";
+  const j = Number(a.jours); if (!Number.isInteger(j) || j < 1 || j > 365) return "Durée : 1 à 365 jours.";
+  if (t("commune") && !COMMUNES.some(c => c.nom === t("commune"))) return "Commune inconnue.";
+  if (!a.accord) return "Coche « Accord écrit signé » : pas de nom de commerce réel sans contrat.";
+  return null;
+}
+export const adActive = (a, now = Date.now()) => !!a.actif && a.debut <= now && a.fin > now;
+export function adView(a) { return { id: a.id, annonceur: a.annonceur, titre: a.titre, texte: a.texte || "", commune: a.commune || null, emplacement: a.emplacement, couleur: a.couleur || AD_COLORS[0], fin: a.fin }; }
