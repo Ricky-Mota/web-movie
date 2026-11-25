@@ -9,7 +9,7 @@ import {
   newspaper, cannotSendWord, neighborView, GREETINGS, WORD_MAX,
   AD_SPOTS, AD_COLORS, adPrice, cannotCreateAd, adView, adShownIn, PUBLIC_COMPANIES, BILLS, SOE_RESERVE, STATE_SEED, vatOf, publicPayer, billsFor, soeView, promoPrice, cannotPromote, PROMO_PRICE, PROMO_MAX_DAYS, tickerItems, cannotCreateCommunique, goalsView, newlyReached, cannotChooseGoal, GOAL_REP, pickStars, STAR_DOMAINS,
   BUDGET_POSTS, LIFESTYLES, LIFESTYLE_MIN_AGE, lifestyleCost, lifestyleFor, lifestyleStep, lifeExpectancy, OLD_AGE_HEALTH, tenueBlocks, livingView, CHILD_REAL_DAYS,
-  CAMPAIGN_MAX_DAYS, ambassadorFee, cannotHireAmbassador, LEAGUE_NAME, NPC_CLUBS, CLUB_MIN_AGE, CLUB_MAX_AGE, MATCH_GATE, clubStrength, playMatch, pairClubs, standings, seasonKey, scorersText, cannotRecruit, CLUB_CONTRACT_DAYS,
+  CAMPAIGN_MAX_DAYS, ambassadorFee, cannotHireAmbassador, LEAGUE_NAME, NPC_CLUBS, CLUB_MIN_AGE, CLUB_MAX_AGE, MATCH_GATE, clubStrength, playMatch, pairClubs, standings, seasonKey, scorersText, cannotRecruit, CLUB_CONTRACT_DAYS, cannotAddLogo, LOGOS_MAX_SHOWN,
 } from "./life.js";
 import { sendPush, newVapidKeys } from "./webpush.js";
 import { payConfigured, startDeposit, startPayout, readNotice } from "./paiement.js";
@@ -968,6 +968,8 @@ const worker = {
           const { results: matchs } = lastDay && lastDay.j ? await db.prepare(`SELECT dom_nom, ext_nom, buts_dom, buts_ext FROM matchs WHERE jour = ? LIMIT 12`).bind(lastDay.j).all() : { results: [] };
           TICKER.data = { items: tickerItems({ pubs, communiques, tresor: fin.tresor, impotsJour: fin.impotsJour, salairesJour: fin.salairesJour, arrieres: fin.arrieres, elec: cal, une,
             campagnes: campagnes.map(c => ({ ...c, fem: c.sexe === "F" })), matchs }, now) }; TICKER.at = now;
+          const { results: logos } = await db.prepare(`SELECT nom, logo FROM partenaires_logos WHERE actif = 1 AND accord = 1 AND debut <= ? AND fin > ? ORDER BY cree_le DESC LIMIT ?`).bind(now, now, LOGOS_MAX_SHOWN).all();
+          TICKER.data.logos = logos;
         }
         return new Response(JSON.stringify(TICKER.data), { status: 200, headers: { ...h, "Content-Type": "application/json; charset=utf-8", "Cache-Control": "public, max-age=60" } });
       }
@@ -1083,6 +1085,20 @@ const worker = {
           await db.prepare(`INSERT INTO communiques (id, auteur, texte, debut, fin, accord, actif, cree_le) VALUES (?, ?, ?, ?, ?, ?, 1, ?)`)
             .bind(uid(), String(body.auteur).trim(), String(body.texte).trim(), now, now + Number(body.jours) * 864e5, body.accord ? 1 : 0, now).run();
           TICKER.at = 0; return json(h, 201, { ok: true });
+        }
+        if (url.pathname === "/api/admin/logos" && req.method === "GET") {
+          const { results } = await db.prepare(`SELECT id, nom, logo, debut, fin, accord, actif, cree_le FROM partenaires_logos ORDER BY cree_le DESC LIMIT 50`).all();
+          return json(h, 200, { logos: results.map(l => ({ ...l, enCours: !!l.actif && l.debut <= now && l.fin > now })) });
+        }
+        if (url.pathname === "/api/admin/logo" && req.method === "POST") {
+          const no = cannotAddLogo(body); if (no) return fail(h, 400, no);
+          await db.prepare(`INSERT INTO partenaires_logos (id, nom, logo, debut, fin, accord, actif, cree_le) VALUES (?, ?, ?, ?, ?, 1, 1, ?)`)
+            .bind(uid(), String(body.nom).trim(), body.logo, now, now + Number(body.jours) * 864e5, now).run();
+          TICKER.at = 0; return json(h, 201, { ok: true });
+        }
+        if (url.pathname === "/api/admin/logo/statut" && req.method === "POST") {
+          await db.prepare(`UPDATE partenaires_logos SET actif = ? WHERE id = ?`).bind(body.actif ? 1 : 0, String(body.id || "")).run();
+          TICKER.at = 0; return json(h, 200, { ok: true });
         }
         if (url.pathname === "/api/admin/communique/statut" && req.method === "POST") {
           await db.prepare(`UPDATE communiques SET actif = ? WHERE id = ?`).bind(body.actif ? 1 : 0, String(body.id || "")).run();

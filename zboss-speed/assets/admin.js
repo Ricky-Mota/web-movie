@@ -1,6 +1,6 @@
 // 2 Life : espace administrateur (conditions de démarrage, parents fondateurs, investisseurs).
 import { launchDemo } from "./lancement-demo.js";
-import { OFFERS, COMPANY_TYPES, SETTINGS, AD_SPOTS, adPrice, cannotCreateAd, COMMUNES, AD_COLORS, cannotCreateCommunique, INSTITUTIONS, PUBLIC_COMPANIES } from "../server/src/life.js";
+import { OFFERS, COMPANY_TYPES, SETTINGS, AD_SPOTS, adPrice, cannotCreateAd, COMMUNES, AD_COLORS, cannotCreateCommunique, INSTITUTIONS, PUBLIC_COMPANIES, cannotAddLogo } from "../server/src/life.js";
 
 const API = (window.TWO_LIFE_API || "").replace(/\/$/, "");
 const $ = id => document.getElementById(id);
@@ -158,6 +158,48 @@ $("coms").addEventListener("click", async e => {
     loadComs();
   } catch (err) { toast(err.message); }
 });
+// ---- logos des partenaires (onglet défilant du bandeau)
+const demoLogos = { get() { try { return JSON.parse(localStorage.getItem("twolife_demo_logos") || "[]"); } catch (e) { return []; } }, set(v) { try { localStorage.setItem("twolife_demo_logos", JSON.stringify(v)); } catch (e) { toast("Mémoire du navigateur pleine."); } } };
+let logoData = "";
+// réduit l'image à 160 × 80 au plus (WebP, sinon PNG) pour qu'elle reste légère
+$("l-file").onchange = () => {
+  const f = $("l-file").files[0]; logoData = ""; $("l-preview").innerHTML = ""; if (!f) return;
+  const img = new Image(), url = URL.createObjectURL(f);
+  img.onload = () => {
+    const k = Math.min(1, 160 / img.width, 80 / img.height), c = document.createElement("canvas");
+    c.width = Math.max(1, Math.round(img.width * k)); c.height = Math.max(1, Math.round(img.height * k));
+    c.getContext("2d").drawImage(img, 0, 0, c.width, c.height); URL.revokeObjectURL(url);
+    logoData = c.toDataURL("image/webp", .85); if (!logoData.startsWith("data:image/webp")) logoData = c.toDataURL("image/png");
+    $("l-preview").innerHTML = `<span style="display:inline-flex;align-items:center;justify-content:center;width:150px;height:48px;background:#fff;border-radius:8px;padding:4px"><img src="${logoData}" alt="aperçu" style="max-width:100%;max-height:100%"></span> <small>Aperçu dans le bandeau</small>`;
+  };
+  img.onerror = () => { $("logo-err").textContent = "Image illisible."; };
+  img.src = url;
+};
+async function loadLogos() {
+  const now = Date.now(), rows = API ? (await call("/api/admin/logos")).logos : demoLogos.get().map(l => ({ ...l, enCours: !!l.actif && l.debut <= now && l.fin > now }));
+  $("n-logo").textContent = rows.filter(l => l.enCours).length;
+  $("logos").innerHTML = rows.length ? rows.map(l => `<div class="item"><span class="sw" style="width:64px;background:#fff;border-radius:6px;display:flex;align-items:center;justify-content:center"><img src="${esc(l.logo)}" alt="" style="max-width:60px;max-height:28px"></span><div class="t">${esc(l.nom)}<small>jusqu'au ${day(l.fin)} · ${l.enCours ? "en ligne" : "arrêté"} · accord signé</small></div>
+    <button class="btn ghost" style="width:auto;padding:6px 12px;font-size:13px;margin:0 0 0 auto" type="button" data-logo="${esc(l.id)}" data-on="${l.actif ? 0 : 1}">${l.actif ? "Arrêter" : "Relancer"}</button></div>`).join("") : `<p>Aucun logo pour l'instant : le bandeau affiche « Votre logo ici ».</p>`;
+}
+$("f-logo").onsubmit = async ev => {
+  ev.preventDefault(); $("logo-err").textContent = "";
+  const l = { nom: $("l-nom").value.trim(), logo: logoData, jours: Number($("l-jours").value), accord: $("l-accord").checked };
+  const no = cannotAddLogo(l); if (no) { $("logo-err").textContent = no; return; }
+  try {
+    if (API) await call("/api/admin/logo", l);
+    else { const L = demoLogos.get(), now = Date.now(); L.unshift({ id: "logo" + now, nom: l.nom, logo: l.logo, debut: now, fin: now + l.jours * 864e5, accord: 1, actif: 1, cree_le: now }); demoLogos.set(L.slice(0, 20)); }
+    $("f-logo").reset(); logoData = ""; $("l-preview").innerHTML = ""; toast("Logo ajouté : il défile maintenant dans le bandeau."); loadLogos();
+    if (window.TWO_LIFE_BANDEAU) window.TWO_LIFE_BANDEAU.reload();
+  } catch (err) { $("logo-err").textContent = err.message; }
+};
+$("logos").addEventListener("click", async e => {
+  const b = e.target.closest("[data-logo]"); if (!b) return;
+  try {
+    if (API) await call("/api/admin/logo/statut", { id: b.dataset.logo, actif: b.dataset.on === "1" });
+    else { const L = demoLogos.get(), r = L.find(x => x.id === b.dataset.logo); if (r) r.actif = b.dataset.on === "1" ? 1 : 0; demoLogos.set(L); }
+    loadLogos();
+  } catch (err) { toast(err.message); }
+});
 async function loadPubs() {
   const rows = API ? (await call("/api/admin/pubs")).pubs : demoPubs.get().map(a => ({ ...a, enCours: !!a.actif && a.debut <= Date.now() && a.fin > Date.now() }));
   $("n-pubs").textContent = rows.filter(a => a.enCours).length;
@@ -185,7 +227,7 @@ $("pubs").addEventListener("click", async e => {
     loadPubs();
   } catch (err) { toast(err.message); }
 });
-const load = async () => { try { const e = await call("/api/admin/etat"); render(e); renderBeta(API ? e.beta : demoBeta()); renderSupport(API ? e.support : demoSup.get()); show(true); loadPubs().catch(() => {}); loadComs().catch(() => {}); } catch (err) { show(false); } };
+const load = async () => { try { const e = await call("/api/admin/etat"); render(e); renderBeta(API ? e.beta : demoBeta()); renderSupport(API ? e.support : demoSup.get()); show(true); loadPubs().catch(() => {}); loadComs().catch(() => {}); loadLogos().catch(() => {}); } catch (err) { show(false); } };
 
 $("f-login").onsubmit = async ev => {
   ev.preventDefault(); $("login-err").textContent = "";

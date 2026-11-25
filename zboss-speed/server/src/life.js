@@ -1412,3 +1412,18 @@ export function cannotRecruit({ owns, isClub, self, age, prix, current = 0, plac
   if (Number(prix) > 2000) return "Salaire trop élevé : 100 e-makuta par journée au plus.";
   return null;
 }
+
+// ---------------------------------------------------------------- logos des partenaires (onglet défilant du bandeau)
+// Un logo est la marque d'un vrai partenaire : il n'apparaît qu'avec un accord écrit signé. Image réduite par la page
+// admin (160 × 80 au plus) et gardée en base sous forme de data URL.
+export const LOGO_MAX_CHARS = 60000, LOGOS_MAX_SHOWN = 12;
+export function cannotAddLogo(l = {}) {
+  const nom = String(l.nom ?? "").trim();
+  if (nom.length < 2 || nom.length > 40) return "Nom du partenaire : 2 à 40 caractères.";
+  const s = String(l.logo || "");
+  if (!/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(s)) return "Choisis une image (PNG, JPEG ou WebP).";
+  if (s.length > LOGO_MAX_CHARS) return "Image trop lourde : choisis un logo plus simple.";
+  const j = Number(l.jours); if (!Number.isInteger(j) || j < 1 || j > 365) return "Durée : 1 à 365 jours.";
+  if (!l.accord) return "Le logo d'un partenaire n'apparaît qu'avec un accord écrit signé : coche la case.";
+  return null;
+}

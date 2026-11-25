@@ -370,3 +370,15 @@ CREATE TABLE IF NOT EXISTS matchs (
   le INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS matchs_saison ON matchs (saison, jour);
+
+-- logos des partenaires qui défilent à côté de « EN DIRECT » (accord écrit signé obligatoire)
+CREATE TABLE IF NOT EXISTS partenaires_logos (
+  id TEXT PRIMARY KEY,
+  nom TEXT NOT NULL,
+  logo TEXT NOT NULL,
+  debut INTEGER NOT NULL,
+  fin INTEGER NOT NULL,
+  accord INTEGER NOT NULL DEFAULT 1,
+  actif INTEGER NOT NULL DEFAULT 1,
+  cree_le INTEGER NOT NULL
+);

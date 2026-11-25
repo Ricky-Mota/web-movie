@@ -200,6 +200,23 @@
       </div>
 
       <div class="card">
+        <h2>Bandeau : logos des partenaires <span class="pill" id="n-logo">0</span></h2>
+        <p style="font-size:14px">Les logos défilent à côté de « EN DIRECT », en bas de l'écran (accueil, Ma vie, ville 3D). Un logo est la marque d'un vrai partenaire (banque, opérateur, brasserie, assurance…) : il n'apparaît qu'avec un <b>accord écrit signé</b>. L'image est réduite automatiquement.</p>
+        <form id="f-logo" novalidate>
+          <label for="l-nom">Partenaire</label><input id="l-nom" maxlength="40" placeholder="Nom du partenaire">
+          <label for="l-file">Logo (PNG, JPEG ou WebP, fond clair de préférence)</label><input id="l-file" type="file" accept="image/png,image/jpeg,image/webp">
+          <div id="l-preview" style="margin-top:8px"></div>
+          <div class="two">
+            <div><label for="l-jours">Durée (jours)</label><input id="l-jours" type="number" min="1" max="365" value="30"></div>
+            <div><label style="display:flex;gap:8px;align-items:center;margin-top:34px"><input id="l-accord" type="checkbox" style="width:auto"> Accord écrit signé</label></div>
+          </div>
+          <button class="btn" type="submit">Ajouter le logo au bandeau</button>
+          <div class="err" id="logo-err" role="alert"></div>
+        </form>
+        <div class="list" id="logos" style="margin-top:12px"></div>
+      </div>
+
+      <div class="card">
         <h2>Bandeau : communiqués et décisions publiques <span class="pill" id="n-com">0</span></h2>
         <p style="font-size:14px">Messages qui défilent en bas de l'écran (Ma vie et ville 3D) : décisions de l'État, annonces de la mairie, messages d'un partenaire. Une institution du jeu publie librement ; une vraie entreprise (banque, opérateur, brasserie, assurance…) seulement avec un <b>accord écrit signé</b>.</p>
         <form id="f-com" novalidate>

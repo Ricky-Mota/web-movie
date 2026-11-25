@@ -8,27 +8,59 @@ const read = k => { try { return JSON.parse(localStorage.getItem(k) || "null"); 
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const still = matchMedia("(prefers-reduced-motion: reduce)").matches;
 
+const H = 60;   // hauteur du bandeau (px), 52 sur petit écran
 const css = document.createElement("style");
 css.textContent = `
-  .bandeau { position: fixed; left: 0; right: 0; bottom: 0; z-index: 60; display: flex; align-items: center; gap: 10px; height: calc(34px + env(safe-area-inset-bottom)); padding: 0 0 env(safe-area-inset-bottom);
-    background: #0b0806; border-top: 1px solid #f2a33a; color: #f7efe7; font: 500 13px/1 Inter, system-ui, sans-serif; }
-  .bandeau .live { flex: none; margin-left: 10px; padding: 4px 8px; border-radius: 6px; background: #e0603a; color: #1b120b; font-weight: 700; font-size: 11px; letter-spacing: .4px; }
-  .bandeau .track { flex: 1; min-width: 0; overflow: hidden; height: 34px; display: flex; align-items: center; }
-  .bandeau .run { display: inline-flex; gap: 34px; white-space: nowrap; padding-left: 100%; animation: bandeau-run var(--d, 60s) linear infinite; }
+  .bandeau { --bh: ${H}px; position: fixed; left: 0; right: 0; bottom: 0; z-index: 60; display: flex; align-items: center; gap: 10px; height: calc(var(--bh) + env(safe-area-inset-bottom)); padding: 0 0 env(safe-area-inset-bottom);
+    background: #0b0806; border-top: 2px solid #f2a33a; color: #f7efe7; font: 500 17px/1.2 Inter, system-ui, sans-serif; box-shadow: 0 -6px 18px rgba(0,0,0,.35); }
+  .bandeau .live { flex: none; margin-left: 10px; padding: 6px 10px; border-radius: 7px; background: #e0603a; color: #1b120b; font-weight: 800; font-size: 13px; letter-spacing: .5px; display: flex; align-items: center; gap: 6px; }
+  .bandeau .live::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: #1b120b; animation: bandeau-blink 1.2s ease-in-out infinite; }
+  .bandeau .logos { flex: none; position: relative; width: 150px; height: calc(var(--bh) - 12px); border-radius: 8px; background: #fff; overflow: hidden; box-shadow: inset 0 0 0 1px rgba(242,163,58,.6); }
+  .bandeau .logos .lg { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: 4px 6px; transform: translateY(100%); opacity: 0; transition: transform .6s ease, opacity .6s ease; }
+  .bandeau .logos .lg.on { transform: none; opacity: 1; } .bandeau .logos .lg.out { transform: translateY(-100%); opacity: 0; }
+  .bandeau .logos img { max-width: 100%; max-height: 100%; object-fit: contain; display: block; }
+  .bandeau .logos .txt { color: #1b120b; font: 800 12px/1.1 Inter, system-ui, sans-serif; text-align: center; }
+  .bandeau .track { flex: 1; min-width: 0; overflow: hidden; height: var(--bh); display: flex; align-items: center; }
+  .bandeau .run { display: inline-flex; gap: 48px; white-space: nowrap; padding-left: 100%; animation: bandeau-run var(--d, 60s) linear infinite; }
   .bandeau:hover .run, .bandeau:focus-within .run { animation-play-state: paused; }
-  .bandeau .it b { font-weight: 700; } .bandeau .it.pub b { color: var(--c, #ffd23f); } .bandeau .it .bd-tag { opacity: .6; font-size: 11px; margin-right: 4px; }
+  .bandeau .it b { font-weight: 800; } .bandeau .it.pub b { color: var(--c, #ffd23f); } .bandeau .it .bd-tag { opacity: .65; font-size: 12px; margin-right: 6px; text-transform: uppercase; letter-spacing: .4px; }
   .bandeau .one { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 10px; }
   @keyframes bandeau-run { to { transform: translateX(-100%); } }
-  body.has-bandeau:not(.walk) { padding-bottom: calc(34px + env(safe-area-inset-bottom)); }
-  body.has-bandeau .p-car, body.has-bandeau .p-speed, body.has-bandeau .prompt, body.has-bandeau .touch, body.has-bandeau .toast { margin-bottom: 36px; }
+  @keyframes bandeau-blink { 50% { opacity: .25; } }
+  @media (max-width: 520px) { .bandeau { --bh: 52px; font-size: 15px; gap: 8px; } .bandeau .live { margin-left: 6px; padding: 5px 7px; font-size: 11px; } .bandeau .logos { width: 92px; } }
+  body.has-bandeau:not(.walk) { padding-bottom: calc(${H}px + env(safe-area-inset-bottom)); }
+  body.has-bandeau .p-car, body.has-bandeau .p-speed, body.has-bandeau .prompt, body.has-bandeau .touch, body.has-bandeau .toast { margin-bottom: ${H + 4}px; }
 `;
 document.head.appendChild(css);
 
 const bar = document.createElement("div");
-bar.className = "bandeau"; bar.setAttribute("role", "region"); bar.setAttribute("aria-label", "Annonces et décisions publiques");
-bar.innerHTML = `<span class="live">EN DIRECT</span><div class="track" tabindex="0"></div>`;
+bar.className = "bandeau"; bar.setAttribute("role", "region"); bar.setAttribute("aria-label", "Annonces, partenaires et décisions publiques");
+bar.innerHTML = `<span class="live">EN DIRECT</span><div class="logos" aria-label="Logos des partenaires"></div><div class="track" tabindex="0"></div>`;
 document.body.appendChild(bar); document.body.classList.add("has-bandeau");
-const track = bar.querySelector(".track");
+const track = bar.querySelector(".track"), logoBox = bar.querySelector(".logos");
+
+// logos d'exemple (noms inventés) pour l'aperçu sans partenaire signé
+const badge = (t1, t2, bg, fg) => "data:image/svg+xml," + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="200" height="80" viewBox="0 0 200 80"><rect width="200" height="80" rx="10" fill="${bg}"/><text x="100" y="36" font-family="Arial,Helvetica,sans-serif" font-weight="800" font-size="24" fill="${fg}" text-anchor="middle">${t1}</text><text x="100" y="62" font-family="Arial,Helvetica,sans-serif" font-weight="600" font-size="15" fill="${fg}" text-anchor="middle" opacity=".85">${t2}</text></svg>`);
+const DEMO_LOGOS = [
+  { nom: "Maquis Ya Mado (exemple)", logo: badge("YA MADO", "maquis · Kalamu", "#ffd23f", "#1b120b") },
+  { nom: "Boutique Mama Nzazi (exemple)", logo: badge("NZAZI", "boutique · Matonge", "#1f8a4c", "#ffffff") },
+  { nom: "Mwinda, électricité publique", logo: badge("MWINDA", "électricité publique", "#18324f", "#ffd23f") },
+  { nom: "Votre logo ici", logo: badge("VOTRE LOGO", "partenaire 2 Life", "#e0603a", "#1b120b") },
+];
+let logos = [], lgTimer = null, lgAt = 0;
+function drawLogos() {
+  clearInterval(lgTimer);
+  const L = logos.length ? logos : [{ nom: "Votre logo ici", txt: "VOTRE LOGO ICI" }];
+  logoBox.innerHTML = L.map((l, i) => `<div class="lg${i === 0 ? " on" : ""}" title="${esc(l.nom)}">${l.logo ? `<img src="${esc(l.logo)}" alt="${esc(l.nom)}">` : `<span class="txt">${esc(l.txt || l.nom)}</span>`}</div>`).join("");
+  lgAt = 0; if (L.length < 2) return;
+  const els = [...logoBox.children];
+  lgTimer = setInterval(() => {
+    const cur = els[lgAt % els.length], nxt = els[(lgAt + 1) % els.length]; lgAt++;
+    cur.classList.remove("on"); cur.classList.add("out");
+    nxt.classList.remove("out"); nxt.style.transition = "none"; nxt.style.transform = "translateY(100%)"; void nxt.offsetWidth; nxt.style.transition = ""; nxt.style.transform = ""; nxt.classList.add("on");
+    setTimeout(() => cur.classList.remove("out"), 700);
+  }, still ? 6000 : 3000);
+}
 
 function demoItems() {
   const now = Date.now(), d = read("twolife_demo") || {};
@@ -60,14 +92,14 @@ function draw() {
     show(); rotTimer = setInterval(show, 7000); return;
   }
   const chars = items.reduce((t, it) => t + it.texte.length, 0);
-  track.innerHTML = `<div class="run" style="--d:${Math.max(30, Math.round(chars / 7))}s">${items.map(html).join("")}</div>`;
+  track.innerHTML = `<div class="run" style="--d:${Math.max(35, Math.round(chars / 5.5))}s">${items.map(html).join("")}</div>`;
 }
 async function load() {
   try {
-    if (API) { const r = await fetch(API + "/api/bandeau"); items = r.ok ? ((await r.json()).items || []) : items; }
-    else items = demoItems();
+    if (API) { const r = await fetch(API + "/api/bandeau"); if (r.ok) { const j = await r.json(); items = j.items || []; logos = j.logos || []; } }
+    else { items = demoItems(); const L = (read("twolife_demo_logos") || []).filter(l => l.actif && l.fin > Date.now()); logos = L.length ? L : DEMO_LOGOS; }
   } catch (e) { }
-  draw();
+  draw(); const sig = logos.map(l => l.nom + (l.logo || "").length).join("|"); if (sig !== drawLogos.sig) { drawLogos.sig = sig; drawLogos(); }
 }
 load(); setInterval(load, 5 * 60e3);
 addEventListener("storage", e => { if (!API && e.key && e.key.startsWith("twolife_demo")) load(); });
