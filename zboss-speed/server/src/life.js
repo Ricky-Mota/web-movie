@@ -1102,16 +1102,22 @@ export function neighborView(n, now = Date.now()) {
 // Comme dans la vraie vie : le commerçant paie (hors jeu pour l'instant), l'administrateur publie l'annonce.
 // Nom réel d'un commerce seulement avec un accord écrit signé (case obligatoire).
 export const AD_SPOTS = [
-  { id: "journal", nom: "Journal de Kinshasa", prixJourUsd: 2 },
-  { id: "panneau", nom: "Panneaux LED de la ville 3D", prixJourUsd: 3 },
-  { id: "bandeau", nom: "Bandeau défilant en bas de l'écran", prixJourUsd: 1 },
-  { id: "tous", nom: "Journal + panneaux LED + bandeau", prixJourUsd: 5 },
+  { id: "journal", nom: "Journal de Kinshasa", prixJourUsd: 2, prixMoisUsd: 50 },
+  { id: "panneau", nom: "Panneaux LED de la ville 3D", prixJourUsd: 3, prixMoisUsd: 75 },
+  { id: "bandeau", nom: "Bandeau défilant en bas de l'écran", prixJourUsd: 1, prixMoisUsd: 25 },
+  { id: "tous", nom: "Journal + panneaux LED + bandeau", prixJourUsd: 5, prixMoisUsd: 95 },
 ];
+// onglet des logos à côté de « EN DIRECT » : vendu à part. Avec « tous », cela fait le Pack Partenaire (6 $/jour, 120 $/mois),
+// les mêmes tarifs que la lettre de proposition envoyée aux entreprises.
+export const LOGO_SPOT = { id: "logo", nom: "Onglet des logos (à côté de « EN DIRECT »)", prixJourUsd: 1, prixMoisUsd: 25 };
 // où chaque emplacement est montré
 export const AD_SHOWN = { journal: ["journal", "tous"], panneau: ["panneau", "tous"], bandeau: ["bandeau", "tous"] };
 export const adShownIn = (a, support) => (AD_SHOWN[support] || []).includes(a.emplacement);
+// prix : chaque bloc de 30 jours au tarif mensuel (moins cher), les jours restants au tarif du jour, jamais plus que le mois suivant
+const spotPrice = (s, jours) => { const j = Math.max(1, Math.round(jours || 1)), mois = Math.floor(j / 30); return mois * s.prixMoisUsd + Math.min((j % 30) * s.prixJourUsd, s.prixMoisUsd); };
+export function adPrice(emplacement, jours) { const s = AD_SPOTS.find(x => x.id === emplacement); return s ? spotPrice(s, jours) : 0; }
+export const logoPrice = jours => spotPrice(LOGO_SPOT, jours);
 export const AD_COLORS = ["#ffd23f", "#18e0ff", "#ff5a1f", "#7dff8a", "#ff2bd6", "#3fa9ff"];
-export function adPrice(emplacement, jours) { const s = AD_SPOTS.find(x => x.id === emplacement); return s ? s.prixJourUsd * Math.max(1, Math.round(jours || 1)) : 0; }
 export function cannotCreateAd(a = {}) {
   const t = k => String(a[k] ?? "").trim();
   if (t("annonceur").length < 2 || t("annonceur").length > 40) return "Nom du commerçant : 2 à 40 caractères.";

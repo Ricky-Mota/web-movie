@@ -382,3 +382,10 @@ CREATE TABLE IF NOT EXISTS partenaires_logos (
   actif INTEGER NOT NULL DEFAULT 1,
   cree_le INTEGER NOT NULL
 );
+
+-- garde-fou des paiements : dans un lot (transaction), « INSERT OR REPLACE INTO garde VALUES (1, changes()) » juste après
+-- un débit « ... AND makuta >= ? » annule tout le lot si le débit n'a pas eu lieu (solde insuffisant, double clic)
+CREATE TABLE IF NOT EXISTS garde (
+  id INTEGER PRIMARY KEY,
+  ok INTEGER NOT NULL CHECK (ok = 1)
+);

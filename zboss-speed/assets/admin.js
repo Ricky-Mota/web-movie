@@ -1,6 +1,6 @@
 // 2 Life : espace administrateur (conditions de démarrage, parents fondateurs, investisseurs).
 import { launchDemo } from "./lancement-demo.js";
-import { OFFERS, COMPANY_TYPES, SETTINGS, AD_SPOTS, adPrice, cannotCreateAd, COMMUNES, AD_COLORS, cannotCreateCommunique, INSTITUTIONS, PUBLIC_COMPANIES, cannotAddLogo } from "../server/src/life.js";
+import { OFFERS, COMPANY_TYPES, SETTINGS, AD_SPOTS, adPrice, cannotCreateAd, COMMUNES, AD_COLORS, cannotCreateCommunique, INSTITUTIONS, PUBLIC_COMPANIES, cannotAddLogo, logoPrice } from "../server/src/life.js";
 
 const API = (window.TWO_LIFE_API || "").replace(/\/$/, "");
 const $ = id => document.getElementById(id);
@@ -127,10 +127,12 @@ $("support").addEventListener("click", async e => {
 });
 // annonces des commerçants partenaires (en démo : gardées dans ce navigateur, visibles dans la démo du jeu)
 const demoPubs = { get() { try { return JSON.parse(localStorage.getItem("twolife_demo_pubs") || "[]"); } catch (e) { return []; } }, set(v) { try { localStorage.setItem("twolife_demo_pubs", JSON.stringify(v)); } catch (e) { } } };
-$("a-place").innerHTML = AD_SPOTS.map(s => `<option value="${s.id}">${esc(s.nom)} · ${s.prixJourUsd} $/jour</option>`).join("");
+$("a-place").innerHTML = AD_SPOTS.map(s => `<option value="${s.id}">${esc(s.nom)} · ${s.prixJourUsd} $/jour, ${s.prixMoisUsd} $/mois</option>`).join("");
 $("a-commune").innerHTML += COMMUNES.map(c => `<option>${esc(c.nom)}</option>`).join("");
 const adPriceShow = () => { $("a-prix").textContent = adPrice($("a-place").value, Number($("a-jours").value) || 1) + " $"; };
 $("a-place").onchange = adPriceShow; $("a-jours").oninput = adPriceShow; adPriceShow();
+const logoPriceShow = () => { $("l-prix").textContent = logoPrice(Number($("l-jours").value) || 1) + " $"; };
+$("l-jours").oninput = logoPriceShow; logoPriceShow();
 // ---- communiqués du bandeau défilant
 const demoComs = { get() { try { return JSON.parse(localStorage.getItem("twolife_demo_communiques") || "[]"); } catch (e) { return []; } }, set(v) { try { localStorage.setItem("twolife_demo_communiques", JSON.stringify(v)); } catch (e) { } } };
 $("c-auteurs").innerHTML = ["Mairie de Kinshasa", ...INSTITUTIONS.map(i => i.nom), ...PUBLIC_COMPANIES.map(c => c.nom)].map(n => `<option value="${esc(n)}">`).join("");
@@ -188,7 +190,7 @@ $("f-logo").onsubmit = async ev => {
   try {
     if (API) await call("/api/admin/logo", l);
     else { const L = demoLogos.get(), now = Date.now(); L.unshift({ id: "logo" + now, nom: l.nom, logo: l.logo, debut: now, fin: now + l.jours * 864e5, accord: 1, actif: 1, cree_le: now }); demoLogos.set(L.slice(0, 20)); }
-    $("f-logo").reset(); logoData = ""; $("l-preview").innerHTML = ""; toast("Logo ajouté : il défile maintenant dans le bandeau."); loadLogos();
+    $("f-logo").reset(); logoPriceShow(); logoData = ""; $("l-preview").innerHTML = ""; toast("Logo ajouté : il défile maintenant dans le bandeau."); loadLogos();
     if (window.TWO_LIFE_BANDEAU) window.TWO_LIFE_BANDEAU.reload();
   } catch (err) { $("logo-err").textContent = err.message; }
 };

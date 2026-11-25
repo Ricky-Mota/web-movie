@@ -167,7 +167,7 @@ async function dailyLiving(db, pid, now) {
   const M = (ic, t) => db.prepare(`INSERT INTO mouvements (id, personnage_id, icone, texte, par_consigne, le) VALUES (?, ?, ?, ?, 0, ?)`).bind(uid(), pid, ic, t, now);
   const stmts = [
     db.prepare(`UPDATE personnages SET makuta = makuta - ?, faim = MIN(100, faim + ?), sante = MAX(0, MIN(100, sante + ?)), bonheur = MAX(0, MIN(100, bonheur + ?)) WHERE id = ? AND makuta >= ?`)
-      .bind(cost, e.faim, e.sante - (vieux ? OLD_AGE_HEALTH : 0), e.bonheur, pid, cost),
+      .bind(cost, e.faim, e.sante - (vieux ? OLD_AGE_HEALTH : 0), e.bonheur, pid, cost), GUARD(db),
     db.prepare(`UPDATE train_de_vie SET tenue = ?, vitalite = ?, dernier_niveau = ?, depense_jour = ?, maj_le = ? WHERE personnage_id = ?`).bind(nx.tenue, nx.vitalite, l ? l.id : null, cost, now, pid),
   ];
   if (l) for (const [post, amount] of Object.entries(l.postes)) {
@@ -253,6 +253,10 @@ async function ledger(db, ids) {
   return out;
 }
 const PUBLIC_IDS = [STATE_ID, ...PUBLIC_COMPANIES.map(c => c.id)];
+// garde-fou : placé juste après un débit conditionnel dans un db.batch, il annule tout le lot si ce débit n'a rien changé
+// (solde insuffisant, ou deux clics en même temps). Le lot étant une transaction, rien n'est payé ni livré à moitié.
+const GUARD = db => db.prepare(`INSERT OR REPLACE INTO garde (id, ok) VALUES (1, changes())`);
+const guardFailed = e => /CHECK constraint failed/i.test(String(e && e.message || e));
 const tx = (db, de, vers, montant, motif, now) => db.prepare(`INSERT INTO transactions (id, de_id, vers_id, montant, motif, le) VALUES (?, ?, ?, ?, ?, ?)`).bind(uid(), de, vers, montant, motif, now);
 // salaires dus aux agents publics quand la caisse était vide : payés dès que l'argent rentre
 async function payArrears(db, now, pid = null) {
@@ -285,9 +289,9 @@ async function dailyPublic(db, now) {
   for (const hme of homes) {
     const bills = billsFor(hme.makuta), paid = bills.reduce((t, b) => t + b.paye, 0), unpaid = bills.filter(b => b.paye < b.du);
     const st = bills.filter(b => b.paye > 0).map(b => tx(db, hme.id, b.societe, b.paye, "facture du jour : " + PUBLIC_COMPANIES.find(c => c.id === b.societe).nom, now));
-    if (paid) st.unshift(db.prepare(`UPDATE personnages SET makuta = makuta - ? WHERE id = ? AND makuta >= ?`).bind(paid, hme.id, paid));
+    if (paid) st.unshift(db.prepare(`UPDATE personnages SET makuta = makuta - ? WHERE id = ? AND makuta >= ?`).bind(paid, hme.id, paid), GUARD(db));
     if (unpaid.length) st.push(db.prepare(`INSERT INTO mouvements (id, personnage_id, icone, texte, par_consigne, le) VALUES (?, ?, '🕯️', ?, 0, ?)`).bind(uid(), hme.id, "Facture impayée : " + unpaid.map(b => PUBLIC_COMPANIES.find(c => c.id === b.societe).nom).join(", ") + ". La maison reste dans le noir ce soir.", now));
-    if (st.length) await db.batch(st);
+    if (st.length) try { await db.batch(st); } catch (e) { if (!guardFailed(e)) throw e; }   // solde changé entre-temps : facture reportée
   }
   const sol = await ledger(db, PUBLIC_IDS);
   const st = PUBLIC_COMPANIES.filter(c => sol[c.id] > SOE_RESERVE).map(c => tx(db, c.id, STATE_ID, sol[c.id] - SOE_RESERVE, "versement au Trésor : " + c.nom, now));
@@ -666,7 +670,7 @@ async function supportFamily(db, pid, now, env = null) {
       db.prepare(`INSERT INTO mouvements (id, personnage_id, icone, texte, par_consigne, le) VALUES (?, ?, ?, ?, 0, ?)`).bind(uid(), k.id, danger ? "🆘" : "😢",
         danger ? `${k.prenom} est ${k.sexe === "F" ? "négligée" : "négligé"} depuis ${neg} jours : ${k.sexe === "F" ? "elle" : "il"} est en danger de mort, et s'en souviendra.` : `Entretien de ${k.prenom} impayé (${neg} jour${neg > 1 ? "s" : ""} de négligence au total).`, now));
     if (pay > 0) st.push(
-      db.prepare(`UPDATE personnages SET makuta = makuta - ? WHERE id = ? AND makuta >= ?`).bind(pay, par, pay),
+      db.prepare(`UPDATE personnages SET makuta = makuta - ? WHERE id = ? AND makuta >= ?`).bind(pay, par, pay), GUARD(db),
       db.prepare(`UPDATE personnages SET makuta = makuta + ? WHERE id = ?`).bind(pay, k.id),
       db.prepare(`INSERT INTO transactions (id, de_id, vers_id, montant, motif, le) VALUES (?, ?, ?, ?, ?, ?)`).bind(uid(), par, k.id, pay, `entretien de l'enfant (${days} j)`, now));
     // enfant négligé : il peut voler pour survivre (le joueur responsable doit veiller à ce qu'il ne manque de rien)
@@ -678,7 +682,7 @@ async function supportFamily(db, pid, now, env = null) {
         st.push(db.prepare(`INSERT INTO infractions (id, personnage_id, type, amende, prison_heures, le) VALUES (?, ?, ?, ?, 0, ?)`).bind(uid(), k.id, cr.id, fine, now),
           db.prepare(`INSERT INTO mouvements (id, personnage_id, icone, texte, par_consigne, le) VALUES (?, ?, ?, ?, 0, ?)`).bind(uid(), k.id, "🚓", `${k.prenom}, sans entretien et le ventre vide, a volé au marché et s'est fait attraper. Amende payée par les parents : ${fmtMakuta(fine)}.`, now));
         if (fine > 0) st.push(db.prepare(`UPDATE personnages SET makuta = makuta - ? WHERE id = ? AND makuta >= ?`).bind(fine, par, fine),
-          db.prepare(`INSERT INTO transactions (id, de_id, vers_id, montant, motif, le) VALUES (?, ?, ?, ?, ?, ?)`).bind(uid(), par, STATE_ID, fine, `amende : vol de l'enfant ${k.prenom}`, now));
+          db.prepare(`INSERT INTO transactions (id, de_id, vers_id, montant, motif, le) SELECT ?, ?, ?, ?, ?, ? WHERE changes() = 1`).bind(uid(), par, STATE_ID, fine, `amende : vol de l'enfant ${k.prenom}`, now));
       } else {
         const gain = cr.gain[0] + Math.floor(Math.random() * (cr.gain[1] - cr.gain[0]));
         st.push(db.prepare(`UPDATE personnages SET makuta = makuta + ? WHERE id = ?`).bind(gain, k.id),
@@ -699,7 +703,7 @@ async function collectRent(db, pid, now) {
   const p = await db.prepare(`SELECT makuta, prenom FROM personnages WHERE id = ?`).bind(pid).first(), due = weeks * L.loyer;
   const M = (ic, t) => db.prepare(`INSERT INTO mouvements (id, personnage_id, icone, texte, par_consigne, le) VALUES (?, ?, ?, ?, 0, ?)`).bind(uid(), pid, ic, t, now);
   if (p.makuta >= due) await db.batch([
-    db.prepare(`UPDATE personnages SET makuta = makuta - ? WHERE id = ? AND makuta >= ?`).bind(due, pid, due),
+    db.prepare(`UPDATE personnages SET makuta = makuta - ? WHERE id = ? AND makuta >= ?`).bind(due, pid, due), GUARD(db),
     db.prepare(`UPDATE logements SET paye_jusqu = ? WHERE personnage_id = ?`).bind(L.paye_jusqu + weeks * 7 * DAY, pid),
     db.prepare(`INSERT INTO transactions (id, de_id, vers_id, montant, motif, le) VALUES (?, ?, NULL, ?, ?, ?)`).bind(uid(), pid, due, `loyer (${weeks} semaine${weeks > 1 ? "s" : ""}) à ${L.quartier}`, now),
     M("🏠", `Loyer payé : ${fmtMakuta(due)} (${L.quartier}).`)]);
@@ -1143,7 +1147,7 @@ const worker = {
         return fail(h, 404, "Route inconnue.");
       }
 
-      await supportFamily(db, compte.vie_id, now, env);
+      try { await supportFamily(db, compte.vie_id, now, env); } catch (e) { if (!guardFailed(e)) throw e; }
       await checkDeath(env, db, compte.vie_id, now);
       try { await collectRent(db, compte.vie_id, now); } catch (e) { console.error(e); }
       try { await dailyEvent(db, compte.vie_id, now); } catch (e) { console.error(e); }
@@ -1220,7 +1224,7 @@ const worker = {
         const no = cannotPromote(body, p.makuta, !!e, !!active); if (no) return fail(h, 409, no);
         const t = k => String(body[k] ?? "").trim(), jours = Number(body.jours), prix = promoPrice(body.emplacement, jours);
         await db.batch([
-          db.prepare(`UPDATE personnages SET makuta = makuta - ? WHERE id = ? AND makuta >= ?`).bind(prix, p.id, prix),
+          db.prepare(`UPDATE personnages SET makuta = makuta - ? WHERE id = ? AND makuta >= ?`).bind(prix, p.id, prix), GUARD(db),
           tx(db, p.id, "sp-regie", prix, `promotion de ${e.nom} (${jours} j)`, now),
           db.prepare(`INSERT INTO pubs (id, annonceur, titre, texte, commune, emplacement, couleur, debut, fin, prix_usd, paye, accord, actif, cree_le) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 1, 1, 1, ?)`)
             .bind(uid(), e.nom, t("titre"), t("texte") || null, COMMUNES.some(c => c.nom === p.quartier) ? p.quartier : null, body.emplacement, AD_COLORS[hashCode(e.id) % AD_COLORS.length], now, now + jours * 864e5, now),
@@ -1257,7 +1261,7 @@ const worker = {
         const no = cannotHireAmbassador({ owns: !!e, active: !!active, self: a.id === p.id, age: ageYears(a.ne_le, now), rep: a.rep, tenue: a.tenue, star, prix, jours, makuta: p.makuta, slogan });
         if (no) return fail(h, 409, no);
         const total = prix * jours, imp = Math.round(total * TAX.salaire);
-        const [upd] = await db.batch([db.prepare(`UPDATE personnages SET makuta = makuta - ? WHERE id = ? AND makuta >= ?`).bind(total, p.id, total)]);
+        const [upd] = await db.batch([db.prepare(`UPDATE personnages SET makuta = makuta - ? WHERE id = ? AND makuta >= ?`).bind(total, p.id, total), GUARD(db)]);
         if (!upd.meta.changes) return fail(h, 409, "Pas assez d'e-makuta.");
         await db.batch([
           db.prepare(`UPDATE personnages SET makuta = makuta + ? WHERE id = ?`).bind(total - imp, a.id),
@@ -1377,7 +1381,7 @@ const worker = {
         if (!inPrison(p.prison_jusqu, now)) return fail(h, 409, "Tu n'es pas en prison.");
         if (p.makuta < BAIL) return fail(h, 409, `La caution coûte ${fmtMakuta(BAIL)}.`);
         await db.batch([
-          db.prepare(`UPDATE personnages SET makuta = makuta - ?, prison_jusqu = ? WHERE id = ? AND makuta >= ?`).bind(BAIL, now, p.id, BAIL),
+          db.prepare(`UPDATE personnages SET makuta = makuta - ?, prison_jusqu = ? WHERE id = ? AND makuta >= ?`).bind(BAIL, now, p.id, BAIL), GUARD(db),
           ...taxTo(db, p.id, BAIL, "caution", now),
         ]);
         return json(h, 200, view(compte, await loadCharacter(db, p.id), now));
@@ -1425,7 +1429,7 @@ const worker = {
         const cost = buy ? houseOf(q) : rentOf(q);
         if (p.makuta < cost) return fail(h, 409, `Il faut ${fmtMakuta(cost)}.`);
         await db.batch([
-          db.prepare(`UPDATE personnages SET makuta = makuta - ?, bonheur = MIN(100, bonheur + 10), quartier = ? WHERE id = ? AND makuta >= ?`).bind(cost, q, p.id, cost),
+          db.prepare(`UPDATE personnages SET makuta = makuta - ?, bonheur = MIN(100, bonheur + 10), quartier = ? WHERE id = ? AND makuta >= ?`).bind(cost, q, p.id, cost), GUARD(db),
           db.prepare(`INSERT INTO logements (personnage_id, statut, quartier, loyer, paye_jusqu, depuis) VALUES (?, ?, ?, ?, ?, ?)
               ON CONFLICT(personnage_id) DO UPDATE SET statut = excluded.statut, quartier = excluded.quartier, loyer = excluded.loyer, paye_jusqu = excluded.paye_jusqu, depuis = excluded.depuis`)
             .bind(p.id, buy ? "proprio" : "loue", q, buy ? 0 : cost, buy ? null : now + 7 * DAY, now),
@@ -1458,10 +1462,10 @@ const worker = {
         if (a.vendeur_id === p.id) return fail(h, 409, "C'est ton annonce.");
         if (p.makuta < a.prix) return fail(h, 409, "Pas assez d'e-makuta.");
         const tax = Math.round(a.prix * SALE_TAX), nom = (SHOP.find(x => x.id === a.objet_id) || { nom: a.objet_id }).nom;
-        const r = await db.prepare(`UPDATE annonces SET statut = 'vendue' WHERE id = ? AND statut = 'ouverte'`).bind(a.id).run();
-        if (!r.meta || !r.meta.changes) return fail(h, 409, "Quelqu'un l'a acheté avant toi.");
+        // tout se fait dans un seul lot : si l'annonce vient d'être vendue ou si le paiement échoue, rien ne change
         await db.batch([
-          db.prepare(`UPDATE personnages SET makuta = makuta - ? WHERE id = ? AND makuta >= ?`).bind(a.prix, p.id, a.prix),
+          db.prepare(`UPDATE annonces SET statut = 'vendue' WHERE id = ? AND statut = 'ouverte'`).bind(a.id), GUARD(db),
+          db.prepare(`UPDATE personnages SET makuta = makuta - ? WHERE id = ? AND makuta >= ?`).bind(a.prix, p.id, a.prix), GUARD(db),
           db.prepare(`UPDATE personnages SET makuta = makuta + ? WHERE id = ?`).bind(a.prix - tax, a.vendeur_id),
           db.prepare(`UPDATE possessions SET proprietaire_id = ?, porte = 0, acquis_le = ? WHERE id = ?`).bind(p.id, now, a.possession_id),
           db.prepare(`INSERT INTO transactions (id, de_id, vers_id, montant, motif, le) VALUES (?, ?, ?, ?, ?, ?)`).bind(uid(), p.id, a.vendeur_id, a.prix - tax, "achat entre joueurs : " + nom, now),
@@ -1496,7 +1500,7 @@ const worker = {
         const takers = bp.length ? bp.map(x => x.id) : [bride.id], each = Math.floor(DOT_MAKUTA / takers.length);
         const M = (id, t) => db.prepare(`INSERT INTO mouvements (id, personnage_id, icone, texte, par_consigne, le) VALUES (?, ?, ?, ?, 0, ?)`).bind(uid(), id, "💒", t, now);
         await db.batch([
-          db.prepare(`UPDATE personnages SET makuta = makuta - ? WHERE id = ? AND makuta >= ?`).bind(each * takers.length, payer.id, each * takers.length),
+          db.prepare(`UPDATE personnages SET makuta = makuta - ? WHERE id = ? AND makuta >= ?`).bind(each * takers.length, payer.id, each * takers.length), GUARD(db),
           ...takers.flatMap(id => [db.prepare(`UPDATE personnages SET makuta = makuta + ? WHERE id = ?`).bind(each, id),
             db.prepare(`INSERT INTO transactions (id, de_id, vers_id, montant, motif, le) VALUES (?, ?, ?, ?, ?, ?)`).bind(uid(), payer.id, id, each, `dot : mariage de ${groom.prenom} et ${bride.prenom}`, now)]),
           db.prepare(`UPDATE personnages SET conjoint_id = ? WHERE id = ?`).bind(bride.id, groom.id),
@@ -1522,7 +1526,7 @@ const worker = {
         const prix = Math.round(FOOD.prix * repDiscount(ch.reputation));   // prix d'ami pour les gens respectés
         if (p.makuta < prix) return fail(h, 409, "Pas assez d'e-makuta pour un repas.");
         await db.batch([
-          db.prepare(`UPDATE personnages SET makuta = makuta - ?, faim = MIN(100, faim + ?) WHERE id = ? AND makuta >= ?`).bind(prix, FOOD.faim, p.id, prix),
+          db.prepare(`UPDATE personnages SET makuta = makuta - ?, faim = MIN(100, faim + ?) WHERE id = ? AND makuta >= ?`).bind(prix, FOOD.faim, p.id, prix), GUARD(db),
           ...await payToCompany(db, "maquis", p.id, prix, "repas au maquis", now),
         ]);
         const again = await loadCharacter(db, p.id);
@@ -1537,7 +1541,7 @@ const worker = {
         const e = item.effet || {};
         const st = [
           db.prepare(`UPDATE personnages SET makuta = makuta - ?, faim = MIN(100, faim + ?), bonheur = MIN(100, bonheur + ?), energie = MIN(100, energie + ?) WHERE id = ? AND makuta >= ?`)
-            .bind(item.prix, e.faim || 0, e.bonheur || 0, e.energie || 0, p.id, item.prix),
+            .bind(item.prix, e.faim || 0, e.bonheur || 0, e.energie || 0, p.id, item.prix), GUARD(db),
           ...(item.type === "telephone"
             ? [db.prepare(`INSERT INTO transactions (id, de_id, vers_id, montant, motif, le) VALUES (?, ?, NULL, ?, ?, ?)`).bind(uid(), p.id, item.prix - Math.round(item.prix * TAX.douane), "achat : " + item.nom, now),
                ...taxTo(db, p.id, Math.round(item.prix * TAX.douane), "droits de douane 10 % (DGDA) : " + item.nom, now)]
@@ -1645,7 +1649,7 @@ const worker = {
         if (no) return fail(h, 409, no);
         const nom = companyName(t, p.nom, body.nom), eid = uid();
         const [upd] = await db.batch([
-          db.prepare(`UPDATE personnages SET makuta = makuta - ? WHERE id = ? AND makuta >= ?`).bind(t.prix, p.id, t.prix),
+          db.prepare(`UPDATE personnages SET makuta = makuta - ? WHERE id = ? AND makuta >= ?`).bind(t.prix, p.id, t.prix), GUARD(db),
           db.prepare(`INSERT INTO entreprises (id, nom, type, proprietaire_id, ville_id, local, capital, cree_le) SELECT ?, ?, ?, ?, 'kinshasa', ?, ?, ? WHERE changes() = 1`).bind(eid, nom, t.id, p.id, p.quartier, t.prix, now),
           db.prepare(`INSERT INTO transactions (id, de_id, vers_id, montant, motif, le) SELECT ?, ?, NULL, ?, ?, ? WHERE EXISTS (SELECT 1 FROM entreprises WHERE id = ?)`).bind(uid(), p.id, t.prix, "ouverture : " + nom, now, eid),
         ]);
@@ -1665,8 +1669,11 @@ const worker = {
         if (!dep && solde < m) return fail(h, 409, "Solde insuffisant.");
         const nv = dep ? solde + m : solde - m;
         await db.batch([
-          db.prepare(`INSERT INTO comptes_banque (personnage_id, banque_id, solde, maj_le) VALUES (?, ?, ?, ?) ON CONFLICT(personnage_id, banque_id) DO UPDATE SET solde = excluded.solde, maj_le = excluded.maj_le`).bind(p.id, b.id, nv, now),
-          db.prepare(`UPDATE personnages SET makuta = makuta + ? WHERE id = ?`).bind(dep ? -m : m, p.id),
+          // le compte n'est modifié que s'il n'a pas bougé depuis la lecture (deux retraits en même temps ne paient qu'une fois)
+          acc ? db.prepare(`UPDATE comptes_banque SET solde = ?, maj_le = ? WHERE personnage_id = ? AND banque_id = ? AND solde = ? AND maj_le = ?`).bind(nv, now, p.id, b.id, acc.solde, acc.maj_le)
+            : db.prepare(`INSERT INTO comptes_banque (personnage_id, banque_id, solde, maj_le) VALUES (?, ?, ?, ?) ON CONFLICT(personnage_id, banque_id) DO NOTHING`).bind(p.id, b.id, nv, now),
+          GUARD(db),
+          db.prepare(`UPDATE personnages SET makuta = makuta + ? WHERE id = ? AND makuta >= ?`).bind(dep ? -m : m, p.id, dep ? m : 0), GUARD(db),
           ...(solde - (acc ? acc.solde : 0) > 0 ? [db.prepare(`INSERT INTO transactions (id, de_id, vers_id, montant, motif, le) VALUES (?, ?, ?, ?, ?, ?)`).bind(uid(), "banque:" + b.id, p.id, solde - acc.solde, "intérêts : " + b.nom, now)] : []),
           db.prepare(`INSERT INTO transactions (id, de_id, vers_id, montant, motif, le) VALUES (?, ?, ?, ?, ?, ?)`).bind(uid(), dep ? p.id : "banque:" + b.id, dep ? "banque:" + b.id : p.id, m, (dep ? "dépôt : " : "retrait : ") + b.nom, now),
         ]);
@@ -1680,7 +1687,7 @@ const worker = {
         if (p.makuta < a.prime) return fail(h, 409, `La prime coûte ${fmtMakuta(a.prime)}.`);
         const from = p.assure_jusqu && p.assure_jusqu > now && p.assureur === a.id ? p.assure_jusqu : now;
         await db.batch([
-          db.prepare(`UPDATE personnages SET makuta = makuta - ?, assureur = ?, assure_jusqu = ? WHERE id = ? AND makuta >= ?`).bind(a.prime, a.id, from + a.jours * 864e5, p.id, a.prime),
+          db.prepare(`UPDATE personnages SET makuta = makuta - ?, assureur = ?, assure_jusqu = ? WHERE id = ? AND makuta >= ?`).bind(a.prime, a.id, from + a.jours * 864e5, p.id, a.prime), GUARD(db),
           db.prepare(`INSERT INTO transactions (id, de_id, vers_id, montant, motif, le) VALUES (?, ?, ?, ?, ?, ?)`).bind(uid(), p.id, "assurance:" + a.id, a.prime, "prime d'assurance : " + a.nom, now),
         ]);
         return json(h, 200, view(compte, await loadCharacter(db, p.id), now));
@@ -1691,7 +1698,7 @@ const worker = {
         const c = careCost(p.assure_jusqu, p.assureur, now);
         if (p.makuta < c.prix) return fail(h, 409, `Les soins coûtent ${fmtMakuta(c.prix)}.`);
         await db.batch([
-          db.prepare(`UPDATE personnages SET makuta = makuta - ?, sante = MIN(100, sante + ?) WHERE id = ? AND makuta >= ?`).bind(c.prix, CARE.sante, p.id, c.prix),
+          db.prepare(`UPDATE personnages SET makuta = makuta - ?, sante = MIN(100, sante + ?) WHERE id = ? AND makuta >= ?`).bind(c.prix, CARE.sante, p.id, c.prix), GUARD(db),
           ...(c.prix > 0 ? await payToCompany(db, "pharmacie", p.id, c.prix, "soins au centre de santé", now) : []),
         ]);
         return json(h, 200, { soins: c, ...view(compte, await loadCharacter(db, p.id), now) });
@@ -1703,7 +1710,7 @@ const worker = {
         if (!o || !RECHARGES.includes(m)) return fail(h, 400, "Recharge invalide.");
         if (p.makuta < m) return fail(h, 409, "Pas assez d'e-makuta.");
         await db.batch([
-          db.prepare(`UPDATE personnages SET makuta = makuta - ?, credit = credit + ?, operateur = ? WHERE id = ? AND makuta >= ?`).bind(m, m, o.id, p.id, m),
+          db.prepare(`UPDATE personnages SET makuta = makuta - ?, credit = credit + ?, operateur = ? WHERE id = ? AND makuta >= ?`).bind(m, m, o.id, p.id, m), GUARD(db),
           db.prepare(`INSERT INTO transactions (id, de_id, vers_id, montant, motif, le) VALUES (?, ?, ?, ?, ?, ?)`).bind(uid(), p.id, "operateur:" + o.id, m, "crédit téléphone : " + o.nom, now),
         ]);
         return json(h, 200, view(compte, await loadCharacter(db, p.id), now));
@@ -1757,7 +1764,7 @@ const worker = {
         if (p.makuta < e.en_vente) return fail(h, 409, `Il te faut ${fmtMakuta(e.en_vente)}.`);
         const c = companyAccrue(e, now).caisse; // l'ancien patron garde les recettes déjà gagnées
         const [pay] = await db.batch([
-          db.prepare(`UPDATE personnages SET makuta = makuta - ? WHERE id = ? AND makuta >= ?`).bind(e.en_vente, p.id, e.en_vente),
+          db.prepare(`UPDATE personnages SET makuta = makuta - ? WHERE id = ? AND makuta >= ?`).bind(e.en_vente, p.id, e.en_vente), GUARD(db),
           db.prepare(`UPDATE personnages SET makuta = makuta + ? WHERE id = ? AND changes() = 1`).bind(e.en_vente + c, e.proprietaire_id),
           db.prepare(`UPDATE entreprises SET proprietaire_id = ?, en_vente = NULL, caisse = 0, maj_le = ?, capital = ? WHERE id = ? AND en_vente = ? AND changes() = 1`).bind(p.id, now, e.en_vente, e.id, e.en_vente),
           db.prepare(`INSERT INTO transactions (id, de_id, vers_id, montant, motif, le) SELECT ?, ?, ?, ?, ?, ? WHERE changes() = 1`).bind(uid(), p.id, e.proprietaire_id, e.en_vente, "rachat : " + e.nom, now),
@@ -1789,7 +1796,7 @@ const worker = {
         if (p.makuta < TAXI_FARE) return fail(h, 409, `La course coûte ${fmtMakuta(TAXI_FARE)}.`);
         if (p.energie < TAXI_ENERGY) return fail(h, 409, "Trop fatigué pour sortir : repose-toi ou mange.");
         const [r] = await db.batch([
-          db.prepare(`UPDATE personnages SET makuta = makuta - ?, energie = MAX(0, energie - ?), quartier = ? WHERE id = ? AND makuta >= ?`).bind(TAXI_FARE, TAXI_ENERGY, q, p.id, TAXI_FARE),
+          db.prepare(`UPDATE personnages SET makuta = makuta - ?, energie = MAX(0, energie - ?), quartier = ? WHERE id = ? AND makuta >= ?`).bind(TAXI_FARE, TAXI_ENERGY, q, p.id, TAXI_FARE), GUARD(db),
           ...await payToCompany(db, "taxi", p.id, TAXI_FARE, "course en taxi vers " + q, now),
         ]);
         return json(h, 200, { arrive: q, ...view(compte, await loadCharacter(db, p.id), now) });
@@ -1809,7 +1816,7 @@ const worker = {
         const f = FORMATIONS.find(x => x.id === ch.enr.formation);
         const res = attendCourse(f, ch.enr, tal.map(t => ({ talent: t.talent_id, discovered: !!t.decouvert })), p.makuta, p.energie, now, rng(seedOf()));
         if (res.error) return fail(h, 409, res.error);
-        const st = [db.prepare(`UPDATE personnages SET energie = MAX(0, energie - ?), makuta = makuta - ? WHERE id = ?`).bind(15, res.fee, p.id), matSt(db, p.id, MATURITY_GAIN.cours)];
+        const st = [db.prepare(`UPDATE personnages SET energie = MAX(0, energie - ?), makuta = makuta - ? WHERE id = ? AND makuta >= ?`).bind(15, res.fee, p.id, res.fee), GUARD(db), matSt(db, p.id, MATURITY_GAIN.cours)];
         if (res.fee) st.push(db.prepare(`INSERT INTO transactions (id, de_id, vers_id, montant, motif, le) VALUES (?, ?, NULL, ?, ?, ?)`).bind(uid(), p.id, res.fee, "frais de cours : " + f.nom, now));
         if (res.fin) st.push(
           db.prepare(`INSERT OR IGNORE INTO diplomes_obtenus (personnage_id, formation_id, obtenu_le, note) VALUES (?, ?, ?, ?)`).bind(p.id, f.id, now, res.fin.note),
@@ -1831,7 +1838,7 @@ const worker = {
         if (p.makuta < item.prix) return fail(h, 409, "Pas assez d'e-makuta.");
         const n = needsAt({ hunger: k.faim, energy: k.energie, happiness: k.bonheur, health: k.sante, updatedAt: k.maj_le }, now), e = item.effet || {};
         await db.batch([
-          db.prepare(`UPDATE personnages SET makuta = makuta - ? WHERE id = ? AND makuta >= ?`).bind(item.prix, p.id, item.prix),
+          db.prepare(`UPDATE personnages SET makuta = makuta - ? WHERE id = ? AND makuta >= ?`).bind(item.prix, p.id, item.prix), GUARD(db),
           db.prepare(`UPDATE personnages SET faim = ?, energie = ?, bonheur = ?, sante = ?, maj_le = ? WHERE id = ?`)
             .bind(Math.min(100, n.hunger + (e.faim || 0)), n.energy, Math.min(100, n.happiness + (e.bonheur || 0) + 3), n.health, now, k.id),
           db.prepare(`INSERT INTO transactions (id, de_id, vers_id, montant, motif, le) VALUES (?, ?, NULL, ?, ?, ?)`).bind(uid(), p.id, item.prix, `repas pour ${k.prenom} : ${item.nom}`, now),
@@ -1890,7 +1897,7 @@ const worker = {
         const usd = withdrawUsd(mk), ref = uid();
         await db.batch([
           db.prepare(`INSERT INTO guichet (id, compte_id, personnage_id, sens, moyen, numero, usd, makuta, statut, simule, le) VALUES (?, ?, ?, 'retrait', ?, ?, ?, ?, ?, ?, ?)`).bind(ref, compte.id, p.id, body.moyen, maskPhone(body.telephone), usd, mk, REAL_MONEY ? "en_attente" : "simule", REAL_MONEY ? 0 : 1, now),
-          db.prepare(`UPDATE personnages SET makuta = makuta - ? WHERE id = ? AND makuta >= ?`).bind(mk, p.id, mk),
+          db.prepare(`UPDATE personnages SET makuta = makuta - ? WHERE id = ? AND makuta >= ?`).bind(mk, p.id, mk), GUARD(db),
           db.prepare(`INSERT INTO retraits (id, compte_id, makuta, usd, simule, le) VALUES (?, ?, ?, ?, ?, ?)`).bind(uid(), compte.id, mk, usd, REAL_MONEY ? 0 : 1, now),
           db.prepare(`INSERT INTO transactions (id, de_id, vers_id, montant, motif, le) VALUES (?, ?, NULL, ?, ?, ?)`).bind(uid(), p.id, mk, "retrait vers l'argent réel" + (REAL_MONEY ? "" : " (simulé)"), now),
         ]);
@@ -1905,6 +1912,7 @@ const worker = {
 
       return fail(h, 404, "Route inconnue.");
     } catch (e) {
+      if (guardFailed(e)) return fail(h, 409, "Opération annulée : pas assez d'e-makuta, ou elle vient déjà d'être faite. Rien n'a été payé.");
       console.error(e);
       return fail(h, 500, "Erreur du serveur.");
     }
