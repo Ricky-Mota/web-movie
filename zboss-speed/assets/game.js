@@ -2380,6 +2380,7 @@
     const PCOL = { foot: "#3fbf5a", jeux: "#3fbf5a", basket: "#3fbf5a", club: "#c04bff", alim: "#ffb21f", magasin: "#ffb21f", partenaire: "#2fa8ff", etat: "#f2f2f2", bureau: "#ff5a1f" };
     PLACES.forEach(o => { const x = X(o.x), y = Y(o.y); if (x < -4 || y < -4 || x > MM + 4 || y > MM + 4) return; mctx.fillStyle = PCOL[o.type] || "#fff"; mctx.beginPath(); mctx.arc(x, y, o.bureau ? 5.2 : 3.4, 0, 6.283); mctx.fill(); mctx.strokeStyle = "rgba(0,0,0,.6)"; mctx.lineWidth = 1; mctx.stroke(); });
     if (G.foot) { mctx.fillStyle = "#7ff0a8"; mctx.beginPath(); mctx.arc(X(G.foot.x), Y(G.foot.y), 3, 0, 6.283); mctx.fill(); }
+    (G.others || []).forEach(o => { if (o.x === undefined) return; const x = X(o.x), y = Y(o.y); if (x < -4 || y < -4 || x > MM + 4 || y > MM + 4) return; mctx.fillStyle = "#18e0ff"; mctx.strokeStyle = "#04161c"; mctx.lineWidth = 1.5; mctx.beginPath(); mctx.arc(x, y, 3.6, 0, 6.283); mctx.fill(); mctx.stroke(); });
     G.cops.forEach(c => { if (!c.alive || c.mode === "leave") return; mctx.fillStyle = c.mode === "patrol" ? "#8a93a8" : (Math.floor(G.t * 4) % 2 ? "#ff2d4a" : "#2d7bff"); const x = Math.max(4, Math.min(MM - 4, X(c.x))), y = Math.max(4, Math.min(MM - 4, Y(c.y))); mctx.beginPath(); mctx.arc(x, y, 3.2, 0, 6.283); mctx.fill(); });
     if (G.heli) { mctx.strokeStyle = "rgba(220,235,255,.8)"; mctx.beginPath(); mctx.arc(X(G.heli.x), Y(G.heli.y), 170 * s + 2, 0, 6.283); mctx.stroke(); }
     mctx.save(); mctx.translate(MM / 2, MM / 2); mctx.rotate(p.a); mctx.fillStyle = "#ffb21f"; mctx.beginPath(); mctx.moveTo(7, 0); mctx.lineTo(-5, -5); mctx.lineTo(-5, 5); mctx.closePath(); mctx.fill(); mctx.restore();
@@ -2436,9 +2437,72 @@
       acc += dt;
       while (acc >= STEP) { if (!G.over || G.t < 1e9) update(STEP); acc -= STEP; if (G.over) { acc = 0; break; } }
       UI.hud(dt);
+      liveStep(dt);
     }
     if (window.ZBOSS_3D && window.ZBOSS_3D.ok) window.ZBOSS_3D.render(G, dt); else render();
     requestAnimationFrame(loop);
+  }
+  // ---------------------------------------------------------------- Ville en direct
+  // les vrais joueurs connectés apparaissent dans la ville 3D (prénom au-dessus de la tête).
+  // Mode réel : WebSocket vers le serveur, position envoyée toutes les 2 s. Démo : quelques habitants simulés.
+  const LIVE = { ws: null, sendAt: 0, retry: 0, retryAt: 0, map: new Map(), online: 0, told: false };
+  const LIVE_DEMO = [["Grâce", true], ["Patrick", false], ["Bénédicte", true], ["Junior", false], ["Merveille", true]];
+  function livePos() {
+    const f = G.foot, b = f && f.inBus, o = b || f || G.player;
+    return { x: o.x, y: o.y, a: o.a, m: b ? "bus" : f ? "pied" : "auto" };
+  }
+  function liveConnect(API) {
+    let tok = null; try { tok = JSON.parse(localStorage.getItem("twolife_token")); } catch (e) { }
+    if (!tok || typeof WebSocket === "undefined") { LIVE.retryAt = performance.now() + 30000; return; }
+    let ws; try { ws = new WebSocket(API.replace(/^http/, "ws") + "/api/ville/direct", ["twolife", tok]); } catch (e) { LIVE.retryAt = performance.now() + 30000; return; }
+    LIVE.ws = ws;
+    ws.onopen = () => { LIVE.retry = 0; LIVE.sendAt = 0; };
+    ws.onmessage = e => { let d; try { d = JSON.parse(e.data); } catch (er) { return; } if (d && Array.isArray(d.joueurs)) liveSnapshot(d); };
+    ws.onclose = e => { LIVE.ws = null; LIVE.retryAt = performance.now() + (e.code === 4000 ? 6e5 : Math.min(60000, 3000 * 2 ** LIVE.retry++)); LIVE.map.clear(); };
+  }
+  function liveSnapshot(d) {
+    const now = performance.now(), seen = new Set();
+    d.joueurs.forEach(j => {
+      let o = LIVE.map.get(j.id);
+      if (!o) { o = { id: j.id, nom: j.nom, fem: !!j.fem, x: j.x, y: j.y, a: j.a, v: 0, look: (parseInt(String(j.id).slice(0, 6), 16) || 7) % 997, other: true }; LIVE.map.set(j.id, o); }
+      o.tx = j.x; o.ty = j.y; o.ta = j.a; o.m = j.m; o.seen = now; seen.add(j.id);
+    });
+    for (const id of [...LIVE.map.keys()]) if (!seen.has(id)) LIVE.map.delete(id);
+    LIVE.online = d.en_ligne || seen.size + 1;
+    if (!LIVE.told && seen.size) { LIVE.told = true; msg(`👥 Ville en direct : ${seen.size} autre${seen.size > 1 ? "s" : ""} joueur${seen.size > 1 ? "s" : ""} près de toi. Leur prénom flotte au-dessus d'eux.`, 5); }
+  }
+  function liveStep(dt) {
+    if (!WALK || !G) return;
+    const API = (window.TWO_LIFE_API || "").replace(/\/$/, ""), now = performance.now();
+    if (!API) return liveDemo();
+    if (!LIVE.ws) { if (now > LIVE.retryAt) liveConnect(API); }
+    else if (LIVE.ws.readyState === 1 && now > LIVE.sendAt) { LIVE.sendAt = now + 2000; try { LIVE.ws.send(JSON.stringify(livePos())); } catch (e) { } }
+    // glisse doucement vers la dernière position reçue
+    const k = Math.min(1, dt * 1.6);
+    for (const o of LIVE.map.values()) {
+      if (Math.hypot(o.tx - o.x, o.ty - o.y) > 600) { o.x = o.tx; o.y = o.ty; }
+      const nx = o.x + (o.tx - o.x) * k, ny = o.y + (o.ty - o.y) * k;
+      o.v = dt > 0 ? Math.hypot(nx - o.x, ny - o.y) / dt : 0; o.x = nx; o.y = ny;
+      let da = o.ta - o.a; da = Math.atan2(Math.sin(da), Math.cos(da)); o.a += da * k;
+      o.state = o.v > 4 ? "walk" : "idle";
+    }
+    G.others = [...LIVE.map.values()];
+  }
+  // démo : quelques passants deviennent des « joueurs » simulés pour montrer à quoi ressemble la ville en direct
+  function liveDemo() {
+    const me = livePos(); G.others = G.others || [];
+    LIVE_DEMO.forEach(([nom, fem], i) => {
+      let o = G.others[i];
+      if (!o) o = G.others[i] = { id: "demo" + i, nom, fem, demo: true, other: true };
+      const q = o.ped;
+      if (!q || !G.peds.includes(q) || Math.hypot(q.x - me.x, q.y - me.y) > 1800) {
+        const free = G.peds.filter(p => !p.joueur && !p.kit && !p.cop && !p.vendor && !p.bus && Math.hypot(p.x - me.x, p.y - me.y) < 700);
+        if (q) q.joueur = null;
+        o.ped = free.length ? free[(Math.random() * free.length) | 0] : null; if (o.ped) o.ped.joueur = o;
+      }
+      if (o.ped) { o.x = o.ped.x; o.y = o.ped.y; o.a = o.ped.a; o.m = "pied"; }
+    });
+    if (!LIVE.told && G.others.some(o => o.ped)) { LIVE.told = true; msg("👥 Démo : les prénoms au-dessus de certains passants montrent les vrais joueurs. En ligne, ce seront les autres inscrits.", 5); }
   }
   function start(car) {
     Audio.init(); Audio.resume(); resize(); newGame(car); show(null);
@@ -2510,5 +2574,5 @@
 
   // Accès pour les tests automatisés
   window.ZBOSS_WORLD = { busNet, addObst, OBST, W, H, C, MW, MH, mask, MAP, ROADS, FILL, walkBlocked, SHOPS, PLACES, BILLBOARDS, BENCHES, LIGHTS, lightState, isOpen, SHOP_W, SHOP_D, SHOP_DOOR, nodes, nodesNear, nearestNode, solidAt, groundAt, angDiff, rand };
-  window.__zboss = { get state() { return G; }, start: () => start(chosen), spawnCop, keys, touch, act: () => { actPressed = true; }, sortie: m => autoToggle(true, m), auto: m => autoToggle(true, m, true), sorties: openSorties, plan: openPlan, me: showMe, setHour: h => { G.hour = h; }, step: (n, dt) => { for (let i = 0; i < n && G && !G.paused; i++) update(dt || 1 / 30); } };
+  window.__zboss = { get state() { return G; }, start: () => start(chosen), spawnCop, keys, touch, act: () => { actPressed = true; }, sortie: m => autoToggle(true, m), auto: m => autoToggle(true, m, true), sorties: openSorties, plan: openPlan, me: showMe, setHour: h => { G.hour = h; }, live: () => ({ others: (G && G.others || []).map(o => ({ nom: o.nom, x: Math.round(o.x), y: Math.round(o.y), m: o.m, ped: !!o.ped })), ws: LIVE.ws ? LIVE.ws.readyState : -1, online: LIVE.online }), liveStep: dt => liveStep(dt || 1 / 30), step: (n, dt) => { for (let i = 0; i < n && G && !G.paused; i++) update(dt || 1 / 30); } };
 })();

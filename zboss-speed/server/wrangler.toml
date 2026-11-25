@@ -28,6 +28,15 @@ binding = "DB"
 database_name = "two-life"
 database_id = "1d1ae2a3-c8e7-467d-917a-80e4da9d7c55"
 
+# ville en direct : position des vrais joueurs dans la ville 3D (en mémoire, rien dans la base)
+[[durable_objects.bindings]]
+name = "CITY"
+class_name = "CityRoom"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["CityRoom"]
+
 # consignes du jour : appliquées toutes les 15 minutes, même quand le joueur n'est pas connecté
 [triggers]
 crons = ["*/15 * * * *"]

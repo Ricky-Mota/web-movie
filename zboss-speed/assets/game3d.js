@@ -989,6 +989,28 @@
     }
     for (let k = n; k < TLP.length; k++) TLP[k].visible = false;
   }
+  // prénom des vrais joueurs au-dessus de leur tête (ou de leur voiture)
+  const TAGS = new Map();
+  function tagSprite(o) {
+    const tex = canvasTex(256, 64, (c, w, h) => {
+      c.font = "700 30px Inter, Arial, sans-serif"; const nm = String(o.nom || "Habitant").slice(0, 16), tw = Math.min(w - 8, c.measureText(nm).width + 52);
+      const x0 = (w - tw) / 2; c.fillStyle = "rgba(4,22,28,.82)"; c.strokeStyle = "#18e0ff"; c.lineWidth = 3;
+      c.beginPath(); c.moveTo(x0 + 16, 6); c.lineTo(x0 + tw - 16, 6); c.quadraticCurveTo(x0 + tw - 2, 6, x0 + tw - 2, 32); c.quadraticCurveTo(x0 + tw - 2, 58, x0 + tw - 16, 58); c.lineTo(x0 + 16, 58); c.quadraticCurveTo(x0 + 2, 58, x0 + 2, 32); c.quadraticCurveTo(x0 + 2, 6, x0 + 16, 6); c.closePath(); c.fill(); c.stroke();
+      c.fillStyle = "#18e0ff"; c.beginPath(); c.arc(x0 + 22, 32, 7, 0, 6.3); c.fill();
+      c.fillStyle = "#fff"; c.textAlign = "left"; c.textBaseline = "middle"; c.fillText(nm, x0 + 36, 33);
+    });
+    const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false })); sp.scale.set(2.3, .58, 1); sp.renderOrder = 10; scene.add(sp); return sp;
+  }
+  function updateTags(G, camX, camZ) {
+    const live = new Set();
+    for (const o of G.others || []) {
+      const q = o.ped || o; if (q.x === undefined || o.m === "bus") continue;
+      const d = Math.hypot(q.x * S - camX, q.y * S - camZ); if (d > 90) continue;
+      let t = TAGS.get(o.id); if (!t) { t = tagSprite(o); TAGS.set(o.id, t); }
+      t.visible = true; t.position.set(q.x * S, o.m === "auto" ? 2.6 : 2.35, q.y * S); live.add(o.id);
+    }
+    for (const [id, t] of TAGS) if (!live.has(id)) { if ((G.others || []).some(o => o.id === id)) t.visible = false; else { scene.remove(t); t.material.map.dispose(); t.material.dispose(); TAGS.delete(id); } }
+  }
   function updateBubbles(G) {
     const f = G.foot || G.player; let n = 0;
     for (const q of G.peds) {
@@ -1004,6 +1026,12 @@
     if (G.foot && G.foot.inBus) { for (const [q, h] of HUM.byPed) if (q.player) { h.ped = null; scene.remove(h.obj); HUM.byPed.delete(q); } }
     else if (G.foot) list.push(Object.assign(G.foot, { player: true, state: G.foot.sit ? "sit" : Math.abs(G.foot.v) > 4 ? "walk" : "idle", look: 0, v: G.foot.v }));
     else for (const [q, h] of HUM.byPed) if (q.player) { h.ped = null; scene.remove(h.obj); HUM.byPed.delete(q); }
+    // vrais joueurs à pied (ville en direct) : silhouette homme / femme selon leur personnage
+    for (const o of G.others || []) {
+      if (o.ped || o.m !== "pied" || o.x === undefined || Math.abs(o.x * S - camX) > 140 || Math.abs(o.y * S - camZ) > 140) continue;
+      if (!o.lookC) { pedLook(o); o.lookC.woman = !!o.fem; }
+      list.push(o);
+    }
     const real = updateHumans(list, camX, camZ, dt || 1 / 60);
     if (real.size) list = list.filter(q => !real.has(q));
     let n = 0;
@@ -1316,7 +1344,9 @@
     animateWorld(dt);
     const p = G.player;
     const fc = G.foot || p;
-    const all = [p, ...G.cops, ...G.traffic, ...(G.buses || [])];
+    // voiture des vrais joueurs qui roulent (ville en direct)
+    const otherCars = (G.others || []).filter(o => o.m === "auto" && !o.ped && o.x !== undefined).map(o => Object.assign(o.car || (o.car = { kind: "other", tIdx: o.look || 0, alive: true, vx: 0, vy: 0 }), { x: o.x, y: o.y, a: o.a }));
+    const all = [p, ...G.cops, ...G.traffic, ...(G.buses || []), ...otherCars];
     for (const c of all) { if (c !== p && (Math.abs(c.x - fc.x) > 2200 || Math.abs(c.y - fc.y) > 2200)) continue; const m = modelFor(c); placeCar(c, m, G.t); if (c.bus) animDoor(c, m); }
     buildStops();
     if (G.parked) for (const c of G.parked) { if (Math.abs(c.x - fc.x) > 1100 || Math.abs(c.y - fc.y) > 1100) continue; placeCar(c, modelFor(c), G.t); }
@@ -1343,6 +1373,7 @@
     updateCamera(G, dt);
     updatePeds(G, camera.position.x, camera.position.z, dt);
     updateBubbles(G);
+    updateTags(G, camera.position.x, camera.position.z);
     updateLights(G);
     updateShops(G);
     updatePlaces(G);
@@ -1363,7 +1394,7 @@
   requestAnimationFrame(idle);
 
   window.ZBOSS_3D = {
-    ok: true, render, hum: () => ({ ready: HUM.ready, n: HUM.byPed.size }),
+    ok: true, render, hum: () => ({ ready: HUM.ready, n: HUM.byPed.size }), tags: () => [...TAGS].map(([id, t]) => ({ id, v: t.visible, x: +t.position.x.toFixed(1), z: +t.position.z.toFixed(1) })), cam: () => [camera.position.x, camera.position.z],
     camLabel: () => CAM_NAMES[camMode],
     cycleCam() { camMode = CAMS[(CAMS.indexOf(camMode) + 1) % CAMS.length]; tvSpot = null; try { localStorage.setItem("zboss_cam3d", camMode); } catch (e) { } },
   };

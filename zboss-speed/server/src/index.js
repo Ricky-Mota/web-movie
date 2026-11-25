@@ -746,6 +746,18 @@ const worker = {
       if (url.pathname === "/config.js") return new Response(`// 2 Life : configuration générée par le serveur\nwindow.ZBOSS_CONFIG = { SUPABASE_URL: "", SUPABASE_ANON_KEY: "" };\nwindow.TWO_LIFE_API = ${JSON.stringify(url.origin)};\n`,
         { headers: { "Content-Type": "application/javascript; charset=utf-8", "Cache-Control": "no-cache" } });
       if (url.pathname === "/api/lancement" && req.method === "GET") return json(h, 200, await launch(db));
+      // ville en direct : WebSocket vers l'objet de la ville (le jeton de session voyage dans le sous-protocole)
+      if (url.pathname === "/api/ville/direct") {
+        if (req.headers.get("Upgrade") !== "websocket") return fail(h, 426, "WebSocket attendu.");
+        if (!env.CITY) return fail(h, 503, "La ville en direct n'est pas encore ouverte.");
+        const tok = (req.headers.get("Sec-WebSocket-Protocol") || "").split(",").map(x => x.trim()).find(x => /^[a-f0-9-]{36}$/.test(x));
+        const c = tok && await db.prepare(`SELECT c.id, c.vie_id FROM sessions s JOIN comptes c ON c.id = s.compte_id WHERE s.token = ? AND s.expire_le > ?`).bind(tok, now).first();
+        if (!c) return fail(h, 401, "Connecte-toi pour continuer.");
+        const p = await db.prepare(`SELECT id, prenom, sexe, mort_le FROM personnages WHERE id = ?`).bind(c.vie_id).first();
+        if (!p || p.mort_le) return fail(h, 403, "Ton personnage n'est plus dans la ville.");
+        const room = env.CITY.get(env.CITY.idFromName("kinshasa"));
+        return room.fetch("https://ville/direct", { headers: { Upgrade: "websocket", "X-Joueur": p.id, "X-Nom": encodeURIComponent(p.prenom), "X-Fem": p.sexe === "F" ? "1" : "0" } });
+      }
       if (url.pathname === "/api/pubs" && req.method === "GET") return json(h, 200, { pubs: (await activeAds(db, now)).filter(a => a.emplacement !== "journal") });
 
       // liste d'attente bêta : formulaire public de l'accueil (pas de compte nécessaire)
@@ -1537,3 +1549,4 @@ const worker = {
   },
 };
 export default worker;
+export { CityRoom } from "./city.js";
