@@ -717,8 +717,9 @@ export function resultLine(r, posteNom) { const e = r.sexe === "F" ? "e" : ""; r
 
 // ---------------------------------------------------------------- pouvoirs des élus et Parlement (validé le 25/11)
 // Comme dans la vraie vie : le Président fixe la TVA par décret (dans des limites, au plus une fois par mois) et son
-// gouvernement dépose le budget ; les députés (et les sénateurs) le votent. Un élu doit siéger : chaque journée de travail
-// d'un député ou d'un sénateur est une séance au Parlement. Absent plus d'une séance sur quatre : il perd son mandat.
+// gouvernement dépose le budget ; les députés (et les sénateurs) le votent. Les élus proposent aussi des lois (amendes,
+// salaires publics). Un élu doit siéger : chaque journée de travail d'un député ou d'un sénateur est une séance au Parlement.
+// Règle assouplie (25/11) : alerte à 30 % d'absences, mandat perdu au-delà de la moitié des séances, après 14 jours de mandat.
 export const VAT_LIMITS = { min: 10, max: 20, delaiJours: 30 };
 export function cannotSetVat({ president, taux, actuel, dernier, now = Date.now() } = {}) {
   if (!president) return "Seul le Président de la République fixe la TVA.";
@@ -730,7 +731,6 @@ export function cannotSetVat({ president, taux, actuel, dernier, now = Date.now(
 export const BUDGET_LINES = [
   { id: "sante", nom: "Santé publique", icone: "🏥", desc: "Part du prix des soins payée par l'État", unite: "%", min: 0, max: 50, pas: 10 },
   { id: "ecole", nom: "Éducation", icone: "📚", desc: "Part des frais de cours payée par l'État", unite: "%", min: 0, max: 50, pas: 10 },
-  { id: "primes", nom: "Fonction publique", icone: "🎖️", desc: "Prime sur le salaire des agents publics (pas des élus)", unite: "%", min: 0, max: 20, pas: 5 },
   { id: "voirie", nom: "Routes et propreté", icone: "🚧", desc: "Versé chaque jour à l'Office de la voirie", unite: "makuta", min: 0, max: 4000, pas: 500 },
 ];
 export const stateShare = (prix, pct) => Math.min(prix, Math.round(prix * Math.max(0, pct || 0) / 100));
@@ -745,11 +745,32 @@ export function cleanBudget(b = {}) {
 }
 export const budgetLine = (l, v) => l.unite === "%" ? `${v} %` : `${fmtMakuta(v)} par jour`;
 export const budgetText = b => BUDGET_LINES.map(l => `${l.nom.toLowerCase()} ${budgetLine(l, b[l.id] || 0)}`).join(", ");
-export const PARLIAMENT = { voteJours: 2, quorum: 0.5, absenceMax: 0.25, alerte: 0.15, fenetreJours: 28, graceJours: 7, repDechu: 20, repSeance: 1 };
+export const PARLIAMENT = { voteJours: 2, quorum: 0.5, absenceMax: 0.5, alerte: 0.3, fenetreJours: 28, graceJours: 14, repDechu: 20 };
+// lois que l'on peut voter : le budget (déposé par le gouvernement) et des lois simples (proposées par le Président ou un élu)
+export const LAW_TYPES = [
+  { id: "budget", titre: "La loi de finances", nom: "Budget de l'État", icone: "💰", auteurs: ["president"] },
+  { id: "amendes", titre: "La loi sur les amendes", nom: "Niveau des amendes", icone: "🚓", desc: "Toutes les amendes de la police et de la route", unite: "%", min: 50, max: 200, pas: 25, defaut: 100, auteurs: ["president", "depute", "senateur"] },
+  { id: "salaires", titre: "La loi sur les salaires publics", nom: "Salaires des agents publics", icone: "🎖️", desc: "Policiers, agents de l'État et des sociétés publiques (pas les élus)", unite: "%", min: 80, max: 150, pas: 10, defaut: 100, auteurs: ["president", "depute", "senateur"] },
+];
+export function cleanLaw(type, c = {}) {
+  const t = LAW_TYPES.find(x => x.id === type); if (!t) return { erreur: "Type de loi inconnu." };
+  if (t.id === "budget") { const b = cleanBudget(c); return b.erreur ? b : { contenu: b.budget }; }
+  const v = Number(c.niveau);
+  if (!Number.isFinite(v) || v < t.min || v > t.max || (v - t.min) % t.pas) return { erreur: `${t.nom} : entre ${t.min} et ${t.max} %, par pas de ${t.pas}.` };
+  if (v === LAWS[t.id]) return { erreur: `${t.nom} : c'est déjà ${v} %.` };
+  return { contenu: { niveau: v } };
+}
+export const lawText = (type, c) => type === "budget" ? budgetText(c) : `${(LAW_TYPES.find(x => x.id === type) || {}).nom.toLowerCase()} à ${c.niveau} % (aujourd'hui ${LAWS[type]} %)`;
+export const lawTitle = type => (LAW_TYPES.find(x => x.id === type) || {}).titre || "La loi";
+// pour la démo : ce que « coûte » une loi aux yeux des élus simulés (0 = facile à voter)
+export const lawCost = (type, c) => type === "budget" ? c.sante / 50 + c.ecole / 50 + c.voirie / 4000 : type === "salaires" ? (c.niveau - 80) / 35 : Math.abs(c.niveau - 100) / 50;
+// une amende est multipliée par le niveau voté par le Parlement
+export const fineOf = base => Math.round(base * (LAWS.amendes || 100) / 100);
 export const PARLIAMENT_SEATS = ["depute", "senateur"];
-export function cannotProposeBudget({ president, enCours } = {}) {
-  if (!president) return "Seul le gouvernement du Président dépose le projet de budget.";
-  if (enCours) return "Un projet de loi est déjà en cours de vote au Parlement.";
+export function cannotProposeLaw({ type, poste, enCours } = {}) {
+  const t = LAW_TYPES.find(x => x.id === type); if (!t) return "Type de loi inconnu.";
+  if (!t.auteurs.includes(poste)) return t.id === "budget" ? "Seul le gouvernement du Président dépose le projet de budget." : "Seuls le Président, les députés et les sénateurs proposent des lois.";
+  if (enCours) return "Un projet de loi est déjà en cours de vote au Parlement : attends la fin du vote.";
   return null;
 }
 export function cannotVoteBill({ siege, loi, deja, now = Date.now() } = {}) {
@@ -777,7 +798,7 @@ export function attendance(debut, joursPresents = [], now = Date.now()) {
   const taux = seances ? absences / seances : 0, actif = now - debut >= PARLIAMENT.graceJours * 864e5;
   return { seances, presences, absences, taux: Math.round(taux * 100), alerte: actif && taux > PARLIAMENT.alerte, dechu: actif && taux > PARLIAMENT.absenceMax };
 }
-export const dechuText = (nom, poste, a) => `Le bureau du Parlement constate la déchéance de ${nom} (${poste.toLowerCase()}) : ${a.absences} absences sur ${a.seances} séances, plus d'une sur quatre.`;
+export const dechuText = (nom, poste, a) => `Le bureau du Parlement constate la déchéance de ${nom} (${poste.toLowerCase()}) : ${a.absences} absences sur ${a.seances} séances, plus de la moitié.`;
 
 // ---------------------------------------------------------------- police, amendes et prison
 export const CRIMES = [
@@ -1274,7 +1295,7 @@ export const SOE_RESERVE = 100000;                          // 5 000 e-makuta ga
 export const STATE_SEED = 400000;                           // budget de départ de l'État (20 000 e-makuta, une seule fois)
 export const VAT = 0.16;                                    // TVA de départ (DGI), comprise dans les prix des magasins et des maquis
 // lois en vigueur (TVA fixée par le Président, budget voté par le Parlement) : chargées par le serveur ou la démo
-export const LAWS = { tva: 16, budget: { sante: 0, ecole: 0, primes: 0, voirie: 0 } };
+export const LAWS = { tva: 16, budget: { sante: 0, ecole: 0, voirie: 0 }, amendes: 100, salaires: 100 };
 export const vatOf = (prix, taux = LAWS.tva) => Math.round(prix * taux / (100 + taux));
 const SOE_JOBS = [
   { id: "electricien", nom: "Électricien (Mwinda)", talent: "technique", salaire: 210, minAge: 18, societe: "sp-mwinda" },
@@ -1563,3 +1584,6 @@ export function cannotAddLogo(l = {}) {
   if (!l.accord) return "Le logo d'un partenaire n'apparaît qu'avec un accord écrit signé : coche la case.";
   return null;
 }
+
+// les amendes suivent la loi votée par le Parlement (niveau en %, 100 = montant de base)
+for (const c of [...CRIMES, ...ROAD_FAULTS]) { const base = c.amende; Object.defineProperty(c, "amende", { get: () => fineOf(base), enumerable: true }); }

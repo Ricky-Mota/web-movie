@@ -9,7 +9,7 @@ import {
   newspaper, cannotSendWord, neighborView, GREETINGS, WORD_MAX,
   AD_SPOTS, AD_COLORS, adPrice, cannotCreateAd, adView, adShownIn, PUBLIC_COMPANIES, BILLS, SOE_RESERVE, STATE_SEED, vatOf, publicPayer, billsFor, soeView, promoPrice, cannotPromote, PROMO_PRICE, PROMO_MAX_DAYS, tickerItems, cannotCreateCommunique, goalsView, newlyReached, cannotChooseGoal, GOAL_REP, pickStars, STAR_DOMAINS,
   BUDGET_POSTS, LIFESTYLES, LIFESTYLE_MIN_AGE, lifestyleCost, lifestyleFor, lifestyleStep, lifeExpectancy, OLD_AGE_HEALTH, tenueBlocks, livingView, CHILD_REAL_DAYS,
-  LAWS, VAT_LIMITS, cannotSetVat, BUDGET_LINES, cleanBudget, budgetText, PARLIAMENT, PARLIAMENT_SEATS, cannotProposeBudget, cannotVoteBill, billOutcome, attendance, dechuText,
+  LAWS, VAT_LIMITS, cannotSetVat, BUDGET_LINES, cleanBudget, budgetText, PARLIAMENT, PARLIAMENT_SEATS, cannotProposeLaw, LAW_TYPES, cleanLaw, lawText, lawTitle, cannotVoteBill, billOutcome, attendance, dechuText,
   CAMPAIGN_MAX_DAYS, ambassadorFee, cannotHireAmbassador, LEAGUE_NAME, NPC_CLUBS, CLUB_MIN_AGE, CLUB_MAX_AGE, MATCH_GATE, clubStrength, playMatch, pairClubs, standings, seasonKey, scorersText, cannotRecruit, CLUB_CONTRACT_DAYS, cannotAddLogo, LOGOS_MAX_SHOWN,
 } from "./life.js";
 import { sendPush, newVapidKeys } from "./webpush.js";
@@ -28,11 +28,12 @@ async function loadSettings(db, now, force) {
 }
 // lois en vigueur : TVA fixée par décret du Président, budget voté par le Parlement (table jeu)
 async function loadLaws(db) {
-  const { results } = await db.prepare(`SELECT cle, valeur FROM jeu WHERE cle IN ('tva', 'tva_le', 'budget', 'budget_le')`).all();
+  const { results } = await db.prepare(`SELECT cle, valeur FROM jeu WHERE cle IN ('tva', 'tva_le', 'budget', 'budget_le', 'loi_amendes', 'loi_salaires')`).all();
   const kv = Object.fromEntries(results.map(r => [r.cle, r.valeur]));
   let b = {}; try { b = kv.budget ? JSON.parse(kv.budget) : {}; } catch (e) { }
   LAWS.tva = Number(kv.tva) || 16; LAWS.tvaLe = Number(kv.tva_le) || null; LAWS.budgetLe = Number(kv.budget_le) || null;
   LAWS.budget = { ...Object.fromEntries(BUDGET_LINES.map(l => [l.id, 0])), ...b };
+  LAWS.amendes = Number(kv.loi_amendes) || 100; LAWS.salaires = Number(kv.loi_salaires) || 100;
 }
 
 // ---------------------------------------------------------------- utilitaires
@@ -344,16 +345,16 @@ async function parlement(db, now) {
   const { results: due } = await db.prepare(`SELECT * FROM lois WHERE statut = 'vote' AND fin_vote <= ?`).bind(now).all();
   for (const l of due) {
     const { results: votes } = await db.prepare(`SELECT chambre, choix FROM votes_lois WHERE loi_id = ?`).bind(l.id).all();
-    const r = billOutcome(votes, await seats(db)), contenu = JSON.parse(l.contenu);
+    const r = billOutcome(votes, await seats(db)), contenu = JSON.parse(l.contenu), budget = l.type === "budget";
     const st = [db.prepare(`UPDATE lois SET statut = ?, resultat = ? WHERE id = ? AND statut = 'vote'`).bind(r.adoptee ? "adoptee" : "rejetee", JSON.stringify(r), l.id), GUARD(db)];
-    if (r.adoptee) st.push(
-      db.prepare(`INSERT INTO jeu (cle, valeur) VALUES ('budget', ?) ON CONFLICT(cle) DO UPDATE SET valeur = excluded.valeur`).bind(l.contenu),
-      db.prepare(`INSERT INTO jeu (cle, valeur) VALUES ('budget_le', ?) ON CONFLICT(cle) DO UPDATE SET valeur = excluded.valeur`).bind(String(now)));
-    const texte = `${l.titre} : ${r.raison}. ` + (r.adoptee ? `En vigueur : ${budgetText(contenu)}.` : "L'ancien budget reste en vigueur.");
+    const kv = (k, v) => db.prepare(`INSERT INTO jeu (cle, valeur) VALUES (?, ?) ON CONFLICT(cle) DO UPDATE SET valeur = excluded.valeur`).bind(k, String(v));
+    if (r.adoptee) st.push(...(budget ? [kv("budget", l.contenu), kv("budget_le", now)] : [kv("loi_" + l.type, contenu.niveau)]));
+    const texte = `${l.titre} : ${r.raison}. ` + (r.adoptee ? `En vigueur : ${budget ? budgetText(contenu) : lawText(l.type, contenu).replace(/ \(aujourd'hui.*\)/, "")}.` : "La loi actuelle reste en vigueur.");
     st.push(communiqueSt(db, "Parlement", texte, now),
       db.prepare(`INSERT INTO mouvements (id, personnage_id, icone, texte, par_consigne, le) VALUES (?, ?, '📜', ?, 0, ?)`).bind(uid(), l.auteur_id, "Ton projet : " + texte, now));
     try { await db.batch(st); } catch (e) { if (!guardFailed(e)) throw e; continue; }   // déjà clôturée ailleurs
-    if (r.adoptee) { LAWS.budget = { ...LAWS.budget, ...contenu }; LAWS.budgetLe = now; }
+    if (r.adoptee && budget) { LAWS.budget = { ...LAWS.budget, ...contenu }; LAWS.budgetLe = now; }
+    if (r.adoptee && !budget) LAWS[l.type] = contenu.niveau;
     TICKER.at = 0;
   }
 }
@@ -365,15 +366,15 @@ async function parliamentView(db, me, poste, now) {
     const { results: v } = await db.prepare(`SELECT chambre, choix, COUNT(*) AS n FROM votes_lois WHERE loi_id = ? GROUP BY chambre, choix`).bind(cur.id).all();
     const mine = await db.prepare(`SELECT choix FROM votes_lois WHERE loi_id = ? AND personnage_id = ?`).bind(cur.id, me).first();
     const n = (c, k) => (v.find(x => x.chambre === c && x.choix === k) || {}).n || 0;
-    loi = { id: cur.id, titre: cur.titre, auteur: cur.auteur, contenu: JSON.parse(cur.contenu), depot: cur.depot, finVote: cur.fin_vote, monVote: mine ? mine.choix : null,
+    loi = { id: cur.id, type: cur.type, titre: cur.titre, auteur: cur.auteur, contenu: JSON.parse(cur.contenu), depot: cur.depot, finVote: cur.fin_vote, monVote: mine ? mine.choix : null,
       assemblee: { oui: n("depute", "oui"), non: n("depute", "non") }, senat: { oui: n("senateur", "oui"), non: n("senateur", "non") } };
   }
   const sieges = await seats(db);
   const mandat = poste ? await db.prepare(`SELECT debut FROM mandats WHERE personnage_id = ? AND poste = ? AND fin IS NULL`).bind(me, poste).first() : null;
   const siege = mandat && PARLIAMENT_SEATS.includes(poste) ? attendance(mandat.debut, await sittingDays(db, me, poste, now), now) : null;
   return { tva: LAWS.tva, tvaLe: LAWS.tvaLe, prochainTva: LAWS.tvaLe ? LAWS.tvaLe + VAT_LIMITS.delaiJours * 864e5 : null, limites: VAT_LIMITS, budget: LAWS.budget, budgetLe: LAWS.budgetLe, lignes: BUDGET_LINES, regles: PARLIAMENT,
-    sieges, quorum: Math.max(1, Math.ceil((sieges.depute || 0) * PARLIAMENT.quorum)), monPoste: poste || null, siege, loi,
-    lois: lois.filter(l => l.statut !== "vote").map(l => ({ titre: l.titre, auteur: l.auteur, statut: l.statut, depot: l.depot, contenu: JSON.parse(l.contenu), raison: l.resultat ? JSON.parse(l.resultat).raison : "" })) };
+    types: LAW_TYPES, amendes: LAWS.amendes, salaires: LAWS.salaires, sieges, quorum: Math.max(1, Math.ceil((sieges.depute || 0) * PARLIAMENT.quorum)), monPoste: poste || null, siege, loi,
+    lois: lois.filter(l => l.statut !== "vote").map(l => ({ type: l.type, titre: l.titre, auteur: l.auteur, statut: l.statut, depot: l.depot, contenu: JSON.parse(l.contenu), raison: l.resultat ? JSON.parse(l.resultat).raison : "" })) };
 }
 async function publicFinance(db, now) {
   const since = now - 864e5, sol = await ledger(db, PUBLIC_IDS);
@@ -1715,8 +1716,8 @@ const worker = {
         if (grudge > 0) pay.rancune = Math.round(familyShareRate(grudge) * 100);
         pay.impot = Math.round(pay.montant * TAX.salaire);   // IPR prélevé par la DGI
         const fromState = PUBLIC_JOBS.some(j => j.id === job.id) || !!job.elu;
-        if (fromState && !ch.boss && !job.elu && LAWS.budget.primes > 0) {   // prime votée au budget pour les agents publics (les élus ne se l'accordent pas)
-          pay.prime = Math.round(pay.montant * LAWS.budget.primes / 100); pay.montant += pay.prime;
+        if (fromState && !ch.boss && !job.elu && LAWS.salaires !== 100) {   // loi sur les salaires publics (les élus ne se l'appliquent pas)
+          pay.prime = Math.round(pay.montant * (LAWS.salaires - 100) / 100); pay.montant += pay.prime;
           pay.famille = familyShare(pay.montant, grudge); pay.impot = Math.round(pay.montant * TAX.salaire);
         }
         if (fromState && !ch.boss) {
@@ -1922,19 +1923,20 @@ const worker = {
         return json(h, 200, view(compte, await loadCharacter(db, p.id), now));
       }
       if (url.pathname === "/api/parlement/projet" && req.method === "POST") {
-        const c = cleanBudget(body.budget || {});
+        await loadLaws(db);
+        const type = body.type || "budget", c = cleanLaw(type, type === "budget" ? body.budget || {} : body);
         if (c.erreur) return fail(h, 400, c.erreur);
         const en = await db.prepare(`SELECT 1 FROM lois WHERE statut = 'vote'`).first();
-        const no = cannotProposeBudget({ president: ch.mandat && ch.mandat.poste === "president", enCours: !!en });
+        const no = cannotProposeLaw({ type, poste: ch.mandat && ch.mandat.poste, enCours: !!en });
         if (no) return fail(h, 409, no);
-        const fin = now + PARLIAMENT.voteJours * 864e5;
+        const fin = now + PARLIAMENT.voteJours * 864e5, auteur = ch.mandat.poste === "president" ? "Gouvernement" : "Parlement", txt = lawText(type, c.contenu);
         try {
           await db.batch([
-            db.prepare(`INSERT INTO lois (id, type, titre, contenu, auteur_id, statut, depot, fin_vote) VALUES (?, 'budget', 'La loi de finances', ?, ?, 'vote', ?, ?)`).bind(uid(), JSON.stringify(c.budget), p.id, now, fin),
-            communiqueSt(db, "Gouvernement", `Projet de budget déposé au Parlement : ${budgetText(c.budget)}. Vote des députés et des sénateurs pendant ${PARLIAMENT.voteJours} jours.`, now, PARLIAMENT.voteJours),
-            db.prepare(`INSERT INTO mouvements (id, personnage_id, icone, texte, par_consigne, le) VALUES (?, ?, '📜', ?, 0, ?)`).bind(uid(), p.id, `Projet de budget déposé au Parlement : ${budgetText(c.budget)}.`, now),
+            db.prepare(`INSERT INTO lois (id, type, titre, contenu, auteur_id, statut, depot, fin_vote) VALUES (?, ?, ?, ?, ?, 'vote', ?, ?)`).bind(uid(), type, lawTitle(type), JSON.stringify(c.contenu), p.id, now, fin),
+            communiqueSt(db, auteur, `${type === "budget" ? "Projet de loi déposé" : "Proposition de loi déposée"} au Parlement par ${p.prenom} ${p.nom} : ${txt}. Vote des députés et des sénateurs pendant ${PARLIAMENT.voteJours} jours.`, now, PARLIAMENT.voteJours),
+            db.prepare(`INSERT INTO mouvements (id, personnage_id, icone, texte, par_consigne, le) VALUES (?, ?, '📜', ?, 0, ?)`).bind(uid(), p.id, `Loi déposée au Parlement : ${txt}.`, now),
           ]);
-        } catch (e) { if (/UNIQUE/i.test(String(e && e.message))) return fail(h, 409, "Un projet de loi est déjà en cours de vote au Parlement."); throw e; }
+        } catch (e) { if (/UNIQUE/i.test(String(e && e.message))) return fail(h, 409, "Un projet de loi est déjà en cours de vote au Parlement : attends la fin du vote."); throw e; }
         TICKER.at = 0;
         return json(h, 200, view(compte, await loadCharacter(db, p.id), now));
       }
