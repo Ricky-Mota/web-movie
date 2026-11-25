@@ -1587,3 +1587,99 @@ export function cannotAddLogo(l = {}) {
 
 // les amendes suivent la loi votée par le Parlement (niveau en %, 100 = montant de base)
 for (const c of [...CRIMES, ...ROAD_FAULTS]) { const base = c.amende; Object.defineProperty(c, "amende", { get: () => fineOf(base), enumerable: true }); }
+
+// ---------------------------------------------------------------- célébrités (25/11) : les personnalités publiques du jeu
+// Le serveur choisit chaque jour les célébrités (vrais joueurs d'abord, sinon des personnages du jeu) et raconte
+// leur parcours et leurs difficultés. Les noms des personnages du jeu sont inventés.
+export const CELEB_DOMAINS = [
+  { id: "politique", nom: "Politique", icone: "🏛️", couleur: "#e0603a", titres: [["Député national", "Députée nationale"], ["Sénateur", "Sénatrice"], ["Bourgmestre", "Bourgmestre"], ["Ministre", "Ministre"]],
+    chiffres: [["voix aux élections", 800, 9000], ["lois votées", 3, 40], ["meetings", 20, 150]] },
+  { id: "sport", nom: "Sport", icone: "⚽", couleur: "#4fc58a", titres: [["Footballeur", "Footballeuse"], ["Basketteur", "Basketteuse"], ["Boxeur", "Boxeuse"], ["Athlète", "Athlète"]],
+    chiffres: [["matchs joués", 40, 300], ["buts ou victoires", 10, 120], ["trophées", 1, 9]] },
+  { id: "musique", nom: "Musique", icone: "🎤", couleur: "#c084fc", titres: [["Chanteur de rumba", "Chanteuse de rumba"], ["Guitariste solo", "Guitariste solo"], ["Atalaku", "Atalaku"], ["Danseur", "Danseuse"]],
+    chiffres: [["concerts", 30, 400], ["albums", 1, 8], ["musiciens dans l'orchestre", 4, 25]] },
+  { id: "religion", nom: "Religion", icone: "⛪", couleur: "#f2c94c", titres: [["Pasteur", "Pasteure"], ["Prêtre", "Religieuse"], ["Chef de chorale", "Cheffe de chorale"], ["Imam", "Prédicatrice"]],
+    chiffres: [["fidèles chaque dimanche", 80, 3000], ["années de service", 3, 35], ["familles aidées", 20, 600]] },
+  { id: "academique", nom: "Académique", icone: "🎓", couleur: "#2d7bff", titres: [["Professeur d'université", "Professeure d'université"], ["Médecin chercheur", "Médecin chercheuse"], ["Doyen de faculté", "Doyenne de faculté"], ["Préfet des études", "Préfète des études"]],
+    chiffres: [["étudiants formés", 200, 6000], ["livres et articles", 2, 60], ["années d'études", 12, 24]] },
+  { id: "autres", nom: "Affaires et autres", icone: "💼", couleur: "#f2a33a", titres: [["Entrepreneur", "Entrepreneuse"], ["Chef de maquis réputé", "Cheffe de maquis réputée"], ["Couturier", "Couturière"], ["Animateur radio", "Animatrice radio"]],
+    chiffres: [["employés", 3, 80], ["années d'activité", 2, 30], ["clients par jour", 30, 900]] },
+];
+const g = (sexe, m, f) => sexe === "F" ? f : m;
+// étapes du parcours, par domaine : [âge relatif (0 = naissance, 1 = aujourd'hui), texte]
+const CELEB_PATH = {
+  politique: [[.15, "fait ses premiers discours au comité des élèves de son école"], [.35, "milite dans une association de jeunes de {q}"], [.5, "perd sa première élection de quelques voix, puis reprend la route des marchés"], [.7, "est {e} après une campagne de porte-à-porte dans toutes les rues"], [.9, "défend au Parlement l'eau potable et les routes de sa commune"]],
+  sport: [[.2, "joue pieds nus sur le terrain de sable de {q}"], [.35, "est {r} par un entraîneur lors d'un tournoi de quartier"], [.5, "signe son premier contrat dans un club de la ville"], [.7, "marque le but de la victoire en finale du championnat"], [.9, "entraîne gratuitement les enfants du quartier le samedi"]],
+  musique: [[.15, "chante à la chorale de l'église chaque dimanche"], [.35, "apprend la guitare sur un instrument prêté par un voisin"], [.5, "donne son premier concert dans un bar de Matonge, devant 30 personnes"], [.7, "voit son titre passer en boucle dans les taxis de Kinshasa"], [.9, "remplit la grande salle de la Gombe pour la première fois"]],
+  religion: [[.2, "sert la messe et chante à la chorale dès l'enfance"], [.4, "étudie les textes sacrés le soir, après les cours"], [.55, "ouvre une petite communauté dans une salle de classe louée"], [.75, "organise des repas pour les familles sinistrées des inondations"], [.9, "réunit des milliers de fidèles pour une veillée de prière"]],
+  academique: [[.15, "lit à la lumière d'une bougie pendant les délestages"], [.35, "décroche son Diplôme d'État avec mention"], [.5, "obtient une bourse et part étudier loin de sa famille"], [.7, "revient enseigner à l'université de Kinshasa"], [.9, "publie un livre étudié dans toutes les écoles du pays"]],
+  autres: [[.2, "vend des beignets devant l'école pour aider sa mère"], [.4, "économise chaque franc dans une likelemba de quartier"], [.55, "ouvre un petit commerce dans un conteneur à {q}"], [.75, "embauche ses premiers employés, tous du quartier"], [.9, "devient un nom connu de toute la ville"]],
+};
+// difficultés : ce que la célébrité a traversé (vie réelle à Kinshasa)
+const CELEB_HARD = {
+  commun: [["💡", "Les délestages", "Des années à travailler sans électricité, avec une lampe torche et un groupe électrogène emprunté."], ["🌧️", "L'inondation", "Une nuit de pluie a emporté la maison familiale : il a fallu tout recommencer chez un oncle."], ["💸", "Le manque d'argent", "Les frais scolaires impayés ont failli tout arrêter. Un voisin a payé une année entière."], ["🚕", "Les embouteillages", "Trois heures de route chaque jour pour aller travailler, en taxi-bus ou à pied."], ["🩺", "La maladie", "Un paludisme grave l'a cloué au lit pendant des semaines, loin de ses projets."]],
+  politique: [["📢", "La rue en colère", "Une loi impopulaire a fait descendre les habitants dans la rue : il a fallu écouter et corriger."], ["🗳️", "La défaite", "Après une défaite à sa première élection, il a fallu un an pour reconstruire sa réputation."], ["📰", "Les rumeurs", "Des accusations sans preuve dans les journaux ont fait douter ses propres électeurs."]],
+  sport: [["🦵", "La blessure", "Une blessure au genou : toute une saison loin des terrains, à se soigner sans salaire."], ["👟", "Le matériel", "Pas de chaussures de sport pendant des années : il jouait pieds nus ou avec des chaussures trop grandes."], ["🧳", "L'exil", "Un club étranger a promis beaucoup puis n'a rien payé : retour à Kinshasa sans argent."]],
+  musique: [["🎸", "Les producteurs", "Un producteur est parti avec l'argent du premier album. Tout a été réenregistré."], ["🔇", "Le piratage", "Ses chansons ont circulé partout sans qu'il ne touche un franc."], ["🎤", "La concurrence", "Des mois à chanter dans des salles vides avant que le public ne vienne."]],
+  religion: [["🏚️", "Le lieu de culte", "Expulsée trois fois de salles louées, la communauté a prié sous une bâche."], ["🤲", "La confiance", "Il a fallu prouver chaque jour que l'argent des dons allait vraiment aux familles."]],
+  academique: [["📚", "Les livres", "Pas de bibliothèque près de chez lui : il recopiait les livres des autres à la main."], ["✈️", "Le départ", "Partir étudier loin, c'était laisser sa famille sans aide pendant des années."], ["🧾", "Les salaires", "Des mois de salaire en retard à l'université, comme beaucoup d'enseignants."]],
+  autres: [["🏪", "La faillite", "Un premier commerce a fermé au bout d'un an : trop de crédits jamais remboursés."], ["🧾", "Les taxes", "Les tracasseries et les taxes ont failli étouffer l'entreprise naissante."], ["🔥", "L'incendie", "Un incendie au marché a détruit tout le stock en une nuit."]],
+};
+const CELEB_QUOTES = ["« Kinshasa ne donne rien, mais elle n'oublie jamais ceux qui se battent. »", "« Je suis parti de rien, alors je n'ai jamais eu peur de tout perdre. »", "« Le talent ouvre la porte, le travail fait entrer. »", "« Chaque délestage m'a appris la patience. »", "« Ma mère disait : le fleuve ne remonte jamais, avance. »", "« On ne réussit jamais seul : tout le quartier était derrière moi. »"];
+export function celebStory(c, seed = 1) {
+  let h = seed >>> 0 || 1; const r = () => ((h = (h * 1103515245 + 12345) >>> 0) / 4294967296);
+  const d = c.domaine, age = Math.max(18, c.age || 30), sx = c.sexe;
+  const fill = t => t.replace("{q}", c.quartier || "Kinshasa").replace("{e}", g(sx, "élu", "élue")).replace("{r}", g(sx, "repéré", "repérée"));
+  const parcours = [{ age: 0, icone: "👶", texte: `Naît à ${c.quartier || "Kinshasa"}, dans une famille de ${2 + Math.floor(r() * 6)} enfants.` }]
+    .concat((CELEB_PATH[d] || CELEB_PATH.autres).map(([k, t]) => ({ age: Math.round(age * k), icone: (CELEB_DOMAINS.find(x => x.id === d) || {}).icone || "⭐", texte: `${c.prenom} ${fill(t)}.` })));
+  const pool = [...(CELEB_HARD[d] || []), ...CELEB_HARD.commun], difficultes = [];
+  while (difficultes.length < 3 && pool.length) { const [icone, titre, texte] = pool.splice(Math.floor(r() * pool.length), 1)[0]; difficultes.push({ icone, titre, texte: texte.replace(/\bil\b(?! a fallu| fallait)/g, g(sx, "il", "elle")).replace(/\blui\b/g, g(sx, "lui", "elle")).replace("cloué", g(sx, "cloué", "clouée")) }); }
+  const D = CELEB_DOMAINS.find(x => x.id === d) || CELEB_DOMAINS[5];
+  const chiffres = D.chiffres.map(([label, a, b]) => ({ label, valeur: Math.round(a + r() * (b - a)) }));
+  return { parcours, difficultes, chiffres, citation: CELEB_QUOTES[Math.floor(r() * CELEB_QUOTES.length)] };
+}
+// mouvements d'un vrai joueur : ce qui le grandit, et ce qui l'a mis à l'épreuve
+const HARD_ICONS = ["🚑", "🚔", "⚖️", "🔒", "😢", "🕯️", "🚪", "⚠️", "📢", "🆘", "💔"];
+const PROUD_ICONS = ["🎖️", "🏆", "🎓", "💼", "⚽", "📜", "🏛️", "📣", "🌟", "🏠", "💍"];
+export const celebClean = (t, argent = false) => String(t).replace(argent ? /$^/ : /\d[\d\s.,]*\s*e-makuta/g, "de l'argent").replace(/^Ton projet : /, "").replace(/\s*\((réputation|popularité)[^)]*\)/g, "")
+  .replace(/ (Ta|Ton|Tes|Tu|Félicitations)\b[^.!]*[.!]/g, "").replace(/(?<!\p{L})ta(?!\p{L})/gu, "sa").replace(/(?<!\p{L})ton(?!\p{L})/gu, "son").replace(/(?<!\p{L})tes(?!\p{L})/gu, "ses").trim();   // texte public : pas de montants privés ni de « tu »
+export function celebFromMoves(c, moves = [], now = Date.now()) {
+  const clean = (t, ic) => celebClean(t, ["📜", "🏛️", "🎖️", "🗳️"].includes(ic));   // les décisions publiques gardent leurs montants
+  const base = celebStory(c, hashStr(c.id || c.prenom));
+  const proud = moves.filter(m => PROUD_ICONS.includes(m.icone)).slice(0, 5).map(m => ({ age: c.age != null ? Math.max(0, c.age - Math.floor((now - m.le) / (365.25 * 864e5))) : null, icone: m.icone, texte: clean(m.texte, m.icone), le: m.le }));
+  const hard = moves.filter(m => HARD_ICONS.includes(m.icone)).slice(0, 4).map(m => ({ icone: m.icone, titre: new Date(m.le).toLocaleDateString("fr-FR"), texte: clean(m.texte, m.icone), date: true }));
+  return { ...base, parcours: [{ age: 0, icone: "👶", texte: `Naît à ${c.quartier || "Kinshasa"}.` }, ...proud.reverse()], difficultes: hard, vraieVie: true };
+}
+// liste du jour : 3 célébrités par domaine au plus ; les joueurs d'abord, complétés par des personnages du jeu
+export function pickCelebrities(cands = {}, now = Date.now(), nameOf = null) {
+  const day = dayKey(now), out = [];
+  for (const D of CELEB_DOMAINS) {
+    const list = (cands[D.id] || []).slice(0, 3).map(x => ({ ...x, domaine: D.id, joueur: true }));
+    for (let i = list.length; i < 3; i++) {
+      let h = hashStr(day.slice(0, 7) + D.id + i); const r = () => ((h = (h * 1103515245 + 12345) >>> 0) / 4294967296);
+      const sx = r() < .5 ? "F" : "M", n = nameOf ? nameOf(r, sx) : newIdentity(r, sx);
+      list.push({ id: `pnj-${D.id}-${i}`, prenom: n.firstName, nom: n.lastName, sexe: sx, quartier: n.quartier, age: 28 + Math.floor(r() * 40), domaine: D.id, pnj: true, rep: 20 + Math.floor(r() * 70) });
+    }
+    list.forEach((x, i) => { x.titre = x.titre || D.titres[(hashStr(x.id) + i) % D.titres.length][x.sexe === "F" ? 1 : 0]; x.icone = D.icone; x.domaineNom = D.nom; x.couleur = D.couleur; });
+    out.push(...list);
+  }
+  const players = out.filter(x => x.joueur), pool = players.length ? players : out;
+  return { domaines: CELEB_DOMAINS.map(({ id, nom, icone, couleur }) => ({ id, nom, icone, couleur })), celebrites: out, aLaUne: pool[hashStr(day) % pool.length].id, jour: day };
+}
+
+// ---------------------------------------------------------------- réactions de la rue (le serveur décide des scénarios)
+// Une décision impopulaire peut faire descendre les habitants dans la rue : l'auteur perd de la réputation.
+export function protestChance(type, valeur) {
+  if (type === "tva") return valeur >= 18 ? Math.min(.9, (valeur - 16) * .15) : 0;
+  if (type === "amendes") return valeur >= 150 ? (valeur - 100) / 250 : 0;
+  if (type === "salaires") return valeur < 100 ? (100 - valeur) / 40 : 0;
+  if (type === "budget") return (valeur.sante || 0) + (valeur.ecole || 0) === 0 ? .25 : 0;
+  return 0;
+}
+const PROTEST_PLACES = ["au rond-point Victoire", "devant le Palais du peuple", "au marché de la Gombe", "sur le boulevard du 30 Juin", "au rond-point Ngaba", "devant la maison communale de Kalamu"];
+export function protestText(type, valeur, seed = 1) {
+  const lieu = PROTEST_PLACES[seed % PROTEST_PLACES.length];
+  const why = { tva: `contre la TVA à ${valeur} % : « tout est devenu trop cher »`, amendes: `contre des amendes à ${valeur} % : « la police nous ruine »`, salaires: `des agents publics contre la baisse de leurs salaires (${valeur} %)`, budget: "contre un budget sans argent pour la santé ni l'école" }[type];
+  return `Manifestation ${lieu} ${why}.`;
+}
+export const PROTEST_REP = 5;

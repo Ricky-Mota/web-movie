@@ -10,6 +10,7 @@ import {
   AD_SPOTS, AD_COLORS, adPrice, cannotCreateAd, adView, adShownIn, PUBLIC_COMPANIES, BILLS, SOE_RESERVE, STATE_SEED, vatOf, publicPayer, billsFor, soeView, promoPrice, cannotPromote, PROMO_PRICE, PROMO_MAX_DAYS, tickerItems, cannotCreateCommunique, goalsView, newlyReached, cannotChooseGoal, GOAL_REP, pickStars, STAR_DOMAINS,
   BUDGET_POSTS, LIFESTYLES, LIFESTYLE_MIN_AGE, lifestyleCost, lifestyleFor, lifestyleStep, lifeExpectancy, OLD_AGE_HEALTH, tenueBlocks, livingView, CHILD_REAL_DAYS,
   LAWS, VAT_LIMITS, cannotSetVat, BUDGET_LINES, cleanBudget, budgetText, PARLIAMENT, PARLIAMENT_SEATS, cannotProposeLaw, LAW_TYPES, cleanLaw, lawText, lawTitle, cannotVoteBill, billOutcome, attendance, dechuText,
+  CELEB_DOMAINS, celebStory, celebFromMoves, celebClean, pickCelebrities, protestChance, protestText, PROTEST_REP,
   CAMPAIGN_MAX_DAYS, ambassadorFee, cannotHireAmbassador, LEAGUE_NAME, NPC_CLUBS, CLUB_MIN_AGE, CLUB_MAX_AGE, MATCH_GATE, clubStrength, playMatch, pairClubs, standings, seasonKey, scorersText, cannotRecruit, CLUB_CONTRACT_DAYS, cannotAddLogo, LOGOS_MAX_SHOWN,
 } from "./life.js";
 import { sendPush, newVapidKeys } from "./webpush.js";
@@ -234,6 +235,42 @@ async function footView(db, now, mine = []) {
 // ---- stars de la ville : les meilleurs personnages de chaque domaine, choisis par le serveur chaque jour
 const TICKER = { at: 0, data: null };
 const hashCode = s => { let h = 0; for (const c of String(s)) h = (h * 31 + c.charCodeAt(0)) | 0; return Math.abs(h); };
+// ---- célébrités : vrais joueurs d'abord (nom de famille abrégé), complétés par des personnages du jeu ; cache 10 minutes
+const CELEBS = { at: 0, data: null };
+async function celebrities(db, now) {
+  if (CELEBS.data && now - CELEBS.at < 10 * 60e3) return CELEBS.data;
+  const q = async (sql, ...b) => (await db.prepare(sql).bind(...b).all()).results;
+  const base = `p.id, p.prenom, p.nom, p.sexe, p.quartier, p.ne_le, COALESCE(r.points, 0) AS rep`, rj = `LEFT JOIN reputations r ON r.personnage_id = p.id`, alive = `p.mort_le IS NULL AND p.compte_id IS NOT NULL`;
+  const byTalent = t => q(`SELECT ${base} FROM talents_personnage t JOIN personnages p ON p.id = t.personnage_id ${rj} WHERE t.talent_id = ? AND t.decouvert = 1 AND ${alive} ORDER BY t.niveau DESC, rep DESC LIMIT 3`, t);
+  const POSTE = { president: ["Président de la République", "Présidente de la République"], senateur: ["Sénateur", "Sénatrice"], depute: ["Député national", "Députée nationale"] };
+  const cands = {
+    politique: await q(`SELECT ${base}, m.poste FROM mandats m JOIN personnages p ON p.id = m.personnage_id ${rj} WHERE m.fin IS NULL AND ${alive} ORDER BY m.voix DESC LIMIT 3`),
+    sport: await byTalent("sport"), musique: await byTalent("art"), religion: [],
+    academique: await q(`SELECT ${base} FROM diplomes_obtenus d JOIN personnages p ON p.id = d.personnage_id ${rj} WHERE ${alive} GROUP BY p.id HAVING COUNT(*) >= 2 ORDER BY COUNT(*) DESC, rep DESC LIMIT 3`),
+    autres: await q(`SELECT ${base} FROM entreprises e JOIN personnages p ON p.id = e.proprietaire_id ${rj} WHERE ${alive} GROUP BY p.id ORDER BY SUM(e.capital) DESC LIMIT 3`),
+  };
+  const seen = new Set();
+  for (const k in cands) cands[k] = cands[k].filter(x => !seen.has(x.id) && seen.add(x.id)).map(x => ({ id: x.id, prenom: x.prenom, nom: x.nom.charAt(0) + ".", sexe: x.sexe, quartier: x.quartier, rep: x.rep,
+    age: Math.floor(ageYears(x.ne_le, now)), titre: x.poste ? POSTE[x.poste][x.sexe === "F" ? 1 : 0] : undefined }));
+  const L = pickCelebrities(cands, now);
+  for (const c of L.celebrites) {
+    if (c.pnj) { Object.assign(c, celebStory(c, hashCode(c.id + L.jour.slice(0, 7)))); continue; }
+    const mv = await q(`SELECT icone, texte, le FROM mouvements WHERE personnage_id = ? AND texte NOT LIKE '%guichet%' AND texte NOT LIKE '%retrait%' AND texte NOT LIKE '%dépôt%' ORDER BY le DESC LIMIT 60`, c.id);
+    Object.assign(c, celebFromMoves(c, mv, now), { actualites: mv.slice(0, 4).map(m => ({ icone: m.icone, texte: celebClean(m.texte, ["📜", "🏛️", "🎖️", "🗳️"].includes(m.icone)) })) });
+    c.id = "j-" + hashCode(c.id);   // l'identifiant interne du joueur n'est pas exposé
+  }
+  if (!L.celebrites.some(c => c.id === L.aLaUne)) L.aLaUne = L.celebrites[0].id;
+  CELEBS.at = now; CELEBS.data = L;
+  return L;
+}
+// réactions de la rue : le serveur décide s'il y a une manifestation contre une décision impopulaire
+function protestSt(db, type, valeur, auteurId, now) {
+  const ch = protestChance(type, valeur), roll = (hashCode(String(now) + type) % 1000) / 1000;
+  if (roll >= ch) return [];
+  const texte = protestText(type, typeof valeur === "object" ? 0 : valeur, hashCode(String(now)));
+  return [communiqueSt(db, "Kinshasa", texte, now, 3), repSt(db, auteurId, -PROTEST_REP, now),
+    db.prepare(`INSERT INTO mouvements (id, personnage_id, icone, texte, par_consigne, le) VALUES (?, ?, '📢', ?, 0, ?)`).bind(uid(), auteurId, texte + ` Ta popularité baisse (réputation −${PROTEST_REP}).`, now)];
+}
 async function cityStars(db, now) {
   const q = async (sql, ...b) => (await db.prepare(sql).bind(...b).all()).results;
   const base = `p.id, p.prenom, p.nom, p.sexe, p.quartier, p.ne_le, p.compte_id`;
@@ -352,6 +389,7 @@ async function parlement(db, now) {
     const texte = `${l.titre} : ${r.raison}. ` + (r.adoptee ? `En vigueur : ${budget ? budgetText(contenu) : lawText(l.type, contenu).replace(/ \(aujourd'hui.*\)/, "")}.` : "La loi actuelle reste en vigueur.");
     st.push(communiqueSt(db, "Parlement", texte, now),
       db.prepare(`INSERT INTO mouvements (id, personnage_id, icone, texte, par_consigne, le) VALUES (?, ?, '📜', ?, 0, ?)`).bind(uid(), l.auteur_id, "Ton projet : " + texte, now));
+    if (r.adoptee) st.push(...protestSt(db, l.type, budget ? contenu : contenu.niveau, l.auteur_id, now + 1));
     try { await db.batch(st); } catch (e) { if (!guardFailed(e)) throw e; continue; }   // déjà clôturée ailleurs
     if (r.adoptee && budget) { LAWS.budget = { ...LAWS.budget, ...contenu }; LAWS.budgetLe = now; }
     if (r.adoptee && !budget) LAWS[l.type] = contenu.niveau;
@@ -1068,6 +1106,7 @@ const worker = {
         const room = env.CITY.get(env.CITY.idFromName("kinshasa"));
         return room.fetch("https://ville/direct", { headers: { Upgrade: "websocket", "X-Joueur": p.id, "X-Nom": encodeURIComponent(p.prenom), "X-Fem": p.sexe === "F" ? "1" : "0" } });
       }
+      if (url.pathname === "/api/celebrites" && req.method === "GET") return json(h, 200, await celebrities(db, now));
       if (url.pathname === "/api/bandeau" && req.method === "GET") {
         if (!TICKER.at || now - TICKER.at > 60e3) {
           const pubs = (await activeAds(db, now)).filter(a => adShownIn(a, "bandeau"));
@@ -1918,6 +1957,7 @@ const worker = {
           db.prepare(`INSERT INTO jeu (cle, valeur) VALUES ('tva_le', ?) ON CONFLICT(cle) DO UPDATE SET valeur = excluded.valeur`).bind(String(now)),
           communiqueSt(db, "Présidence", texte, now),
           db.prepare(`INSERT INTO mouvements (id, personnage_id, icone, texte, par_consigne, le) VALUES (?, ?, '🏛️', ?, 0, ?)`).bind(uid(), p.id, texte, now),
+          ...protestSt(db, "tva", taux, p.id, now + 1),
         ]);
         LAWS.tva = taux; LAWS.tvaLe = now; TICKER.at = 0;
         return json(h, 200, view(compte, await loadCharacter(db, p.id), now));

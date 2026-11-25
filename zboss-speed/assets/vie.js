@@ -11,6 +11,7 @@ import {
   PUBLIC_COMPANIES, STATE_SEED, soeView, promoPrice, cannotPromote, PROMO_PRICE, PROMO_MAX_DAYS, goalsView, newlyReached, cannotChooseGoal, GOAL_REP, pickStars, vatOf, AD_COLORS,
   LIFESTYLES, LIFESTYLE_MIN_AGE, lifestyleCost, lifestyleFor, lifestyleStep, lifeExpectancy, OLD_AGE_HEALTH, tenueBlocks, livingView, BILLS,
   LAWS, VAT_LIMITS, cannotSetVat, BUDGET_LINES, cleanBudget, budgetText, PARLIAMENT, PARLIAMENT_SEATS, cannotProposeLaw, LAW_TYPES, cleanLaw, lawText, lawTitle, lawCost, cannotVoteBill, billOutcome, attendance, dechuText,
+  protestChance, protestText, PROTEST_REP,
   CAMPAIGN_MAX_DAYS, ambassadorFee, cannotHireAmbassador, LEAGUE_NAME, NPC_CLUBS, CLUB_MIN_AGE, CLUB_MAX_AGE, MATCH_GATE, clubStrength, playMatch, pairClubs, standings, scorersText, cannotRecruit, CLUB_CONTRACT_DAYS,
 } from "../server/src/life.js";
 import { launchDemo } from "./lancement-demo.js";
@@ -150,6 +151,10 @@ const demo = {
     const votes = this.demoElus(d).filter(x => PARLIAMENT_SEATS.includes(x.poste)).map((x, i) => ({ chambre: x.poste, choix: cout <= 1 + (i % 3) ? "oui" : "non" }));
     L.loi = { id: "loi-" + now, type, titre: lawTitle(type), auteur, contenu, depot: now, finVote: now + PARLIAMENT.voteJours * 864e5, votes, monVote: null, moi };
   },
+  protest(d, type, valeur) {   // la rue réagit (le jeu décide) : manifestation et popularité en baisse
+    const now = Date.now(); if ((now % 1000) / 1000 >= protestChance(type, valeur)) return;
+    this.addRep(d, -PROTEST_REP); this.move(d, "📢", protestText(type, typeof valeur === "object" ? 0 : valeur, now) + ` Ta popularité baisse (réputation −${PROTEST_REP}).`);
+  },
   parliament(d) {
     const L = this.laws(d), now = Date.now(), poste = this.poste(d);
     if (L.loi && L.loi.finVote <= now) {   // clôture du vote
@@ -159,6 +164,7 @@ const demo = {
       const texte = `${o.titre} : ${r.raison}. ` + (r.adoptee ? `En vigueur : ${t === "budget" ? budgetText(o.contenu) : lawText(t, o.contenu).replace(/ \(aujourd'hui.*\)/, "")}.` : "La loi actuelle reste en vigueur.");
       if (r.adoptee && t === "budget") { L.budget = { ...o.contenu }; L.budgetLe = now; }
       if (r.adoptee && t !== "budget") L[t] = o.contenu.niveau;
+      if (r.adoptee && o.moi && !again) this.protest(d, t, t === "budget" ? o.contenu : o.contenu.niveau);
       if (!again) {
         L.lois.unshift({ type: t, titre: L.loi.titre, auteur: L.loi.auteur, statut: r.adoptee ? "adoptee" : "rejetee", depot: L.loi.depot, contenu: L.loi.contenu, raison: r.raison }); L.lois = L.lois.slice(0, 5);
         if (L.loi.moi || L.loi.monVote) this.move(d, "📜", (L.loi.moi ? "Ton projet : " : "") + texte); }
@@ -613,7 +619,7 @@ const demo = {
     if (path === "/api/presidence/tva") {
       const L = this.laws(d), taux = Math.round(Number(body.taux)), no = cannotSetVat({ president: this.poste(d) === "president", taux, actuel: L.tva, dernier: L.tvaLe });
       if (no) throw new Error(no);
-      this.move(d, "🏛️", `Décret présidentiel : la TVA passe de ${L.tva} % à ${taux} % dès aujourd'hui, comprise dans tous les prix.`); L.tva = taux; L.tvaLe = Date.now();
+      this.move(d, "🏛️", `Décret présidentiel : la TVA passe de ${L.tva} % à ${taux} % dès aujourd'hui, comprise dans tous les prix.`); L.tva = taux; L.tvaLe = Date.now(); this.protest(d, "tva", taux);
       store.set(LS_DEMO, d); return this.view(d);
     }
     if (path === "/api/parlement/projet") {
@@ -1487,7 +1493,7 @@ $("goals").onclick = e => {
 let starsData = null, starOpen = null;
 function renderStars() {
   const box = $("stars");
-  if (!starsData) { box.innerHTML = `<p style="font-size:14px;margin:0 0 10px">Tu regardes ${state ? esc(state.perso.prenom) : "ton personnage"}. Chaque jour, le serveur choisit aussi des stars de la ville (sport, musique, affaires, politique, cuisine) : tu peux suivre leur vie.</p><button class="mini fill" id="b-stars" type="button">⭐ Voir les stars du jour</button>`; return; }
+  if (!starsData) { box.innerHTML = `<p style="font-size:14px;margin:0 0 10px">Tu regardes ${state ? esc(state.perso.prenom) : "ton personnage"}. Chaque jour, le serveur choisit aussi des stars de la ville (sport, musique, affaires, politique, cuisine) : tu peux suivre leur vie.</p><button class="mini fill" id="b-stars" type="button">⭐ Voir les stars du jour</button> <a class="mini" href="celebrites.html" style="text-decoration:none;display:inline-block">Les célébrités et leur histoire →</a>`; return; }
   const S = starsData.find(x => x.id === starOpen);
   if (S) {
     box.innerHTML = `<div class="paper-head"><b>${S.icone} ${esc(S.prenom)} ${esc(S.nom)}</b><span>${esc(S.titre)} · ${S.age ? S.age + " ans · " : ""}${esc(S.quartier || "Kinshasa")}${S.joueur ? " · joueur" : ""}</span></div>` +
