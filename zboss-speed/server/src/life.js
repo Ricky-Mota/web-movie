@@ -682,6 +682,17 @@ export function sentence(crime, makuta, recentOffences) {
   const prison = recentOffences + 1 >= RECIDIVE.fois || makuta < crime.amende;
   return { amende: Math.min(makuta, crime.amende), prison, heures: prison ? PRISON_HOURS : 0 };
 }
+// fautes de conduite dans la ville 3D (règle validée le 25/11 : « tout ce qui est logique dans la vraie vie »).
+// Piéton blessé : amende au Trésor + frais médicaux de la victime + casier (compte pour la prison après 3 infractions en 30 jours).
+// Piéton bousculé : pas d'amende, mais les gens le voient (réputation).
+export const ROAD_FAULTS = [
+  { id: "accident-pieton", nom: "Piéton blessé en conduisant", amende: 3000, soins: 2000, rep: -10, casier: true },
+  { id: "bousculade-pieton", nom: "Piéton bousculé en conduisant", amende: 0, soins: 0, rep: -2, casier: false },
+];
+export function roadFaultText(f, kmh, r) {
+  if (!f.casier) return `Bousculade : un piéton a été poussé par ta voiture (${kmh} km/h). Les passants n'ont pas aimé (réputation ${f.rep}).`;
+  return `Accident : tu as blessé un piéton en conduisant à ${kmh} km/h. Amende ${fmtMakuta(r.amende)} et frais médicaux de la victime ${fmtMakuta(r.soins)}` + (r.prison ? `. Récidive ou impayé : ${PRISON_HOURS} h de prison.` : ".");
+}
 export function inPrison(until, now = Date.now()) { return !!until && until > now; }
 // en prison : pas de travail, d'école, de voyage, de magasin (sauf manger), ni d'affaires
 export const PRISON_BLOCKED = ["/api/travailler", "/api/ecole/cours", "/api/ecole/inscription", "/api/voyager", "/api/entreprise/ouvrir", "/api/entreprise/acheter", "/api/postuler", "/api/crime", "/api/telephone/appeler"];

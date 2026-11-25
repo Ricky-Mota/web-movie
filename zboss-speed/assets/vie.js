@@ -2,7 +2,7 @@
 // simule la même vie dans le navigateur (mode démo).
 import {
   ageYears, stageOf, STAGES, realMsUntil, TALENTS, ACTIVITIES, rng, drawTalents, doActivity, needsAt, newIdentity, BIRTH_GIFT,
-  SHOP, cannotBuy, OFFERS, USD_TO_MAKUTA, USD_UNITS, fmtMakuta, WITHDRAW_FEE, walletInfo, birthShiftMs, shopView, familyOf, JOBS, payFor, cannotWork, workView, SHIFT_ENERGY, cannotApply, FORMATIONS, cannotEnroll, attendCourse, schoolView, STUDY_ENERGY, SUPPORT_PER_DAY, HOST_MIN_AGE, canSignupBeforeLaunch, COMPANY_TYPES, cannotOpenCompany, companyName, companyView, companyAccrue, companyJob, EMPLOYEE_YIELD, RESELL_RATE, TAXI_FARE, TAXI_ENERGY, KINSHASA_QUARTIERS, OTHER_CITIES, TAX, POSTS, PUBLIC_JOBS, BANKS, bankAccrue, INSURERS, CARE, careCost, ACCIDENT, injuredBlocks, accidentText, OPERATORS, RECHARGES, CALL, stateView, supportDue, unpaidEffect, familyShare, FIRST_NAMES,
+  SHOP, cannotBuy, OFFERS, USD_TO_MAKUTA, USD_UNITS, fmtMakuta, WITHDRAW_FEE, walletInfo, birthShiftMs, shopView, familyOf, JOBS, payFor, cannotWork, workView, SHIFT_ENERGY, cannotApply, FORMATIONS, cannotEnroll, attendCourse, schoolView, STUDY_ENERGY, SUPPORT_PER_DAY, HOST_MIN_AGE, canSignupBeforeLaunch, COMPANY_TYPES, cannotOpenCompany, companyName, companyView, companyAccrue, companyJob, EMPLOYEE_YIELD, RESELL_RATE, TAXI_FARE, TAXI_ENERGY, KINSHASA_QUARTIERS, OTHER_CITIES, TAX, POSTS, PUBLIC_JOBS, BANKS, bankAccrue, INSURERS, CARE, careCost, ACCIDENT, injuredBlocks, accidentText, ROAD_FAULTS, roadFaultText, OPERATORS, RECHARGES, CALL, stateView, supportDue, unpaidEffect, familyShare, FIRST_NAMES,
   describeAction, ORDER_DONE, ORDERS, ORDERS_PER_DAY, ORDERS_CHECK_MS, dayKey, ordersToRun, cannotGiveOrder,
   VOTER_MIN_AGE, NEGLECT_DANGER_DAYS, NEGLECT_DANGER_HEALTH, splitEstate, deathCause, familyShareRate, REP, REP_BAD, REP_GOOD, repLabel, repDiscount, DOT_MAKUTA, MARRY_MIN_AGE, STREET_JOBS, cannotStreetJob, RENT, rentOf, houseOf, rentDue, HOUSING_MIN_AGE, SALE_TAX, LIFE_EVENTS, EVENT_EVERY_H, drawEvent, eventMoney, lifeAlbum, CRIMES, catchChance, sentence, inPrison, PRISON_BLOCKED, BAIL, PRISON_HOURS, RECIDIVE, policeView, applySettings, food, drawEntry, classOfWealth, classLabel, MATURITY_GAIN, BIG_DECISIONS, cannotDecide, dashboard,
   PAY_METHODS, cannotDeposit, cannotWithdraw, maskPhone, withdrawUsd, COMMUNES, communeView, ROLES, drawRole, roleOf,
@@ -241,6 +241,9 @@ const demo = {
   deadView(d) { return { compte: { pseudo: d.pseudo, reputation: 0 }, mort: d.mort, report: d.report || 0, renaissance: OFFERS.find(o => o.id === "bebe"), demo: true }; },
   // chaque action réussie est inscrite dans les mouvements (même règle que le serveur)
   async call(path, body, parConsigne) {
+    // événements de la ville 3D (démo) : accident subi, faute de conduite. Ils s'appliquent avec les mêmes règles que le serveur.
+    if (!this.draining) { let q = []; try { q = JSON.parse(localStorage.getItem("twolife_demo_ville") || "[]"); } catch (e) { }
+      if (q.length) { localStorage.removeItem("twolife_demo_ville"); this.draining = true; for (const e of q) { try { await this.run(e.path, e.body); } catch (er) { } } this.draining = false; } }
     const r = await this.run(path, body);
     if (body && !["/api/inscription", "/api/connexion"].includes(path) && !path.startsWith("/api/admin/")) {
       const m = describeAction(path, body, r), d = store.get(LS_DEMO);
@@ -516,6 +519,20 @@ const demo = {
       const from = d.assureJusqu > Date.now() && d.assureur === a.id ? d.assureJusqu : Date.now();
       c.makuta -= a.prime; d.assureur = a.id; d.assureJusqu = from + a.jours * 864e5;
       store.set(LS_DEMO, d); return this.view(d);
+    }
+    if (path === "/api/conduite/faute") {   // le conducteur qui blesse ou bouscule un piéton est puni
+      const f = ROAD_FAULTS.find(x => x.id === body.faute), kmh = Math.round(Number(body.kmh)), now = Date.now();
+      if (!f || !(kmh >= 3 && kmh <= ACCIDENT.maxKmh) || (f.casier ? kmh < ACCIDENT.minKmh : kmh >= ACCIDENT.minKmh)) throw new Error("Faute de conduite invalide.");
+      if ((d.derniereFaute || 0) > now - 60e3) return this.view(d); d.derniereFaute = now;
+      this.settle(c); this.addRep(d, f.rep);
+      if (!f.casier) { this.move(d, "🚔", roadFaultText(f, kmh)); store.set(LS_DEMO, d); return this.view(d); }
+      d.casier = d.casier || [];
+      const recent = d.casier.filter(x => x.le > now - RECIDIVE.jours * 864e5).length, amende = Math.min(c.makuta, f.amende), soins = Math.min(c.makuta - amende, f.soins);
+      const prison = recent + 1 >= RECIDIVE.fois || amende + soins < f.amende + f.soins;
+      c.makuta -= amende + soins; c.happiness = Math.max(0, c.happiness - 10); d.tresor = (d.tresor || 0) + amende;
+      if (prison) { d.prison = now + PRISON_HOURS * 36e5; this.addRep(d, REP.prison); }
+      d.casier.unshift({ type: f.id, nom: f.nom, amende, prison_heures: prison ? PRISON_HOURS : 0, le: now }); d.casier = d.casier.slice(0, 20);
+      this.move(d, "🚔", roadFaultText(f, kmh, { amende, soins, prison })); store.set(LS_DEMO, d); return this.view(d);
     }
     if (path === "/api/accident") {   // choc fort dans la ville 3D : blessure à soigner (au plus une fois par 10 min)
       const kmh = Math.round(Number(body.kmh)); if (!(kmh >= ACCIDENT.minKmh && kmh <= ACCIDENT.maxKmh)) throw new Error("Vitesse du choc invalide.");

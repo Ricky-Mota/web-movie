@@ -917,7 +917,7 @@
       if (me) { G.energy = Math.max(0, G.energy - 35); const t = `🚑 Accident : ton personnage a été renversé par une voiture à ${kmh} km/h. Blessé, il doit aller se soigner au centre de santé.`; if (G.me && G.me.journal) note(t, "alert"); else msg(t, 5, "alert"); reportInjury(kmh); return; }
       q.chat = null; q.talk = 0; q.greet = null; q.state = "down"; q.st = HURT_SECONDS; q.hurt = true;
       if (near) msg(`🚑 Accident : ${who} est ${ident(q).woman ? "blessée" : "blessé"} par une voiture (${kmh} km/h). Les secours arrivent.`, 5, "alert");
-      if (mine) msg("🚓 Tu as blessé un piéton : la police note ta plaque.", 4, "alert");
+      if (mine) { msg("🚓 Tu as blessé un piéton : amende, frais médicaux de la victime et casier judiciaire.", 5, "alert"); if (WALK) reportFault("accident-pieton", kmh); }
       return;
     }
     // bousculade : le piéton est poussé, a peur un instant, puis repart
@@ -925,6 +925,7 @@
     if (me) { G.energy = Math.max(0, G.energy - 3); msg("😬 Bousculade : une voiture a frôlé ton personnage, plus de peur que de mal.", 3); return; }
     if (q.state !== "down") { q.state = "cower"; q.st = 1.5; }
     if (near) msg(`😬 Bousculade : ${who} a été légèrement ${ident(q).woman ? "poussée" : "poussé"} par une voiture.`, 3);
+    if (mine && WALK && kmh >= 3) { msg("😠 Les passants te regardent de travers : ta réputation baisse un peu.", 3); reportFault("bousculade-pieton", kmh); }
   }
   // la blessure compte aussi dans la santé du personnage (serveur, ou données de démo de « Ma vie ») : soins payants obligatoires
   function reportInjury(kmh) {
@@ -934,16 +935,18 @@
       if (t) fetch(API + "/api/accident", { method: "POST", headers: { "Content-Type": "application/json", Authorization: "Bearer " + t }, body: JSON.stringify({ kmh }) }).catch(() => { });
       return;
     }
-    // démo : mêmes règles que le serveur (santé -25, au plus une fois par 10 min, bloque le travail jusqu'aux soins)
-    try {
-      const d = JSON.parse(localStorage.getItem("twolife_demo") || "null"), c = d && d.perso; if (!c) return;
-      if (d.blessure && d.blessure.le > Date.now() - 10 * 6e4) return;
-      const f = c.sex === "F", e = f ? "e" : "";
-      c.health = Math.max(5, (c.health ?? 100) - 25); c.happiness = Math.max(0, (c.happiness ?? 80) - 8);
-      d.blessure = { le: Date.now(), vitesse: kmh };
-      d.mouvements = [{ icone: "🚑", texte: `Accident : ${c.firstName} a été renversé${e} par une voiture à ${kmh} km/h. Blessé${e}, ${f ? "elle" : "il"} doit se soigner au centre de santé avant de reprendre le travail.`, par_consigne: 0, le: Date.now() }, ...(d.mouvements || [])].slice(0, 100);
-      localStorage.setItem("twolife_demo", JSON.stringify(d));
-    } catch (e) { }
+    demoEvent("/api/accident", { kmh });
+  }
+  // démo : l'événement attend dans ce navigateur, « Ma vie » l'applique avec les mêmes règles que le serveur
+  function demoEvent(path, body) {
+    try { const q = JSON.parse(localStorage.getItem("twolife_demo_ville") || "[]"); q.push({ path, body, le: Date.now() }); localStorage.setItem("twolife_demo_ville", JSON.stringify(q.slice(-20))); } catch (e) { }
+  }
+  // faute de conduite : le joueur au volant qui blesse ou bouscule un piéton est puni (amende, casier, réputation)
+  function reportFault(faute, kmh) {
+    const API = (window.TWO_LIFE_API || "").replace(/\/$/, "");
+    if (!API) return demoEvent("/api/conduite/faute", { faute, kmh });
+    let t = null; try { t = JSON.parse(localStorage.getItem("twolife_token")); } catch (e) { }
+    if (t) fetch(API + "/api/conduite/faute", { method: "POST", headers: { "Content-Type": "application/json", Authorization: "Bearer " + t }, body: JSON.stringify({ faute, kmh }) }).catch(() => { });
   }
   // piétons et personnage : contre les obstacles fixes, les voitures et entre eux
   function resolveBodies(cars) {

@@ -2,7 +2,7 @@
 // Le serveur est l'arbitre : il décide de l'âge, des talents et de l'argent ; le téléphone ne fait qu'afficher.
 import {
   ageYears, stageOf, STAGES, realMsUntil, TALENTS, ACTIVITIES, rng, drawTalents, doActivity,
-  needsAt, newIdentity, BIRTH_GIFT, BIRTH_USD, ADMIN_FEE_USD, NEGLECT_STEAL_AGE, neglectStealChance, NEGLECT_DANGER_DAYS, NEGLECT_DANGER_HEALTH, splitEstate, deathCause, familyShareRate, REP, REP_BAD, REP_GOOD, repLabel, repDiscount, DOT_MAKUTA, cannotMarry, STREET_JOBS, cannotStreetJob, RENT, rentOf, houseOf, rentDue, HOUSING_MIN_AGE, SALE_TAX, LIFE_EVENTS, EVENT_EVERY_H, drawEntry, classOfWealth, classLabel, eduLabel, MATURITY_GAIN, BIG_DECISIONS, cannotDecide, dashboard, SETTINGS, SET, applySettings, food, drawEvent, eventMoney, lifeAlbum, SHOP, cannotBuy, OFFERS, USD_TO_MAKUTA, USD_UNITS, fmtMakuta, WITHDRAW_FEE, walletInfo, birthShiftMs, REAL_MONEY, shopView, familyOf, JOBS, payFor, cannotWork, workView, cannotApply, FORMATIONS, cannotEnroll, attendCourse, schoolView, SUPPORT_PER_DAY, HOST_MIN_AGE, MAX_CHILDREN, supportDue, unpaidEffect, familyShare, DAY, LAUNCH_RULES, launchStatus, canSignupBeforeLaunch, COMPANY_TYPES, cannotOpenCompany, companyName, companyView, companyAccrue, companyJob, EMPLOYEE_YIELD, RESELL_RATE, TAXI_FARE, TAXI_ENERGY, KINSHASA_QUARTIERS, OTHER_CITIES, STATE_ID, TAX, POSTS, PUBLIC_JOBS, BANKS, bankAccrue, INSURERS, CARE, careCost, ACCIDENT, injuredBlocks, accidentText, OPERATORS, RECHARGES, CALL, stateView, ELECTION_EVERY, VOTER_MIN_AGE, electionCalendar, tally, CRIMES, catchChance, sentence, inPrison, PRISON_BLOCKED, PRISON_HOURS, BAIL, RECIDIVE, policeView,
+  needsAt, newIdentity, BIRTH_GIFT, BIRTH_USD, ADMIN_FEE_USD, NEGLECT_STEAL_AGE, neglectStealChance, NEGLECT_DANGER_DAYS, NEGLECT_DANGER_HEALTH, splitEstate, deathCause, familyShareRate, REP, REP_BAD, REP_GOOD, repLabel, repDiscount, DOT_MAKUTA, cannotMarry, STREET_JOBS, cannotStreetJob, RENT, rentOf, houseOf, rentDue, HOUSING_MIN_AGE, SALE_TAX, LIFE_EVENTS, EVENT_EVERY_H, drawEntry, classOfWealth, classLabel, eduLabel, MATURITY_GAIN, BIG_DECISIONS, cannotDecide, dashboard, SETTINGS, SET, applySettings, food, drawEvent, eventMoney, lifeAlbum, SHOP, cannotBuy, OFFERS, USD_TO_MAKUTA, USD_UNITS, fmtMakuta, WITHDRAW_FEE, walletInfo, birthShiftMs, REAL_MONEY, shopView, familyOf, JOBS, payFor, cannotWork, workView, cannotApply, FORMATIONS, cannotEnroll, attendCourse, schoolView, SUPPORT_PER_DAY, HOST_MIN_AGE, MAX_CHILDREN, supportDue, unpaidEffect, familyShare, DAY, LAUNCH_RULES, launchStatus, canSignupBeforeLaunch, COMPANY_TYPES, cannotOpenCompany, companyName, companyView, companyAccrue, companyJob, EMPLOYEE_YIELD, RESELL_RATE, TAXI_FARE, TAXI_ENERGY, KINSHASA_QUARTIERS, OTHER_CITIES, STATE_ID, TAX, POSTS, PUBLIC_JOBS, BANKS, bankAccrue, INSURERS, CARE, careCost, ACCIDENT, injuredBlocks, accidentText, ROAD_FAULTS, roadFaultText, OPERATORS, RECHARGES, CALL, stateView, ELECTION_EVERY, VOTER_MIN_AGE, electionCalendar, tally, CRIMES, catchChance, sentence, inPrison, PRISON_BLOCKED, PRISON_HOURS, BAIL, RECIDIVE, policeView,
   describeAction, ORDER_DONE, ORDERS, ORDERS_PER_DAY, ORDERS_CHECK_MS, dayKey, ordersToRun, cannotGiveOrder,
   PAY_METHODS, cannotDeposit, cannotWithdraw, maskPhone, withdrawUsd, COMMUNES, communeView, ROLES, drawRole, roleOf,
   streakStep, streakView, nightSummary, morningText, reminderText, kinHour,
@@ -621,7 +621,7 @@ function viewBase(compte, { origine = null, flux = {}, logement = null, lastStre
     entreprises: companyView(ent, { aVendre, offres }, now),
     etat: stateView({ comptes, assureur: p.assureur, assureJusqu: p.assure_jusqu, operateur: p.operateur, credit: p.credit, candidature: cand && cand.poste }, pub, now),
     elections: elec,
-    police: policeView({ policiers, prisonJusqu: p.prison_jusqu, casier: casier.map(c => ({ ...c, nom: (CRIMES.find(x => x.id === c.type) || {}).nom || c.type })) }, now),
+    police: policeView({ policiers, prisonJusqu: p.prison_jusqu, casier: casier.map(c => ({ ...c, nom: ([...CRIMES, ...ROAD_FAULTS].find(x => x.id === c.type) || {}).nom || c.type })) }, now),
     voyage: { quartiers: KINSHASA_QUARTIERS, communes: COMMUNES.map(c => communeView(c.nom)), prix: TAXI_FARE, fatigue: TAXI_ENERGY, villes: OTHER_CITIES },
     mouvements,
     notifications: { actives: notifications > 0 },
@@ -1703,6 +1703,29 @@ const worker = {
           db.prepare(`UPDATE personnages SET sante = MAX(?, sante - ?), bonheur = MAX(0, bonheur - ?) WHERE id = ?`).bind(ACCIDENT.santeMin, ACCIDENT.sante, ACCIDENT.bonheur, p.id),
           db.prepare(`INSERT INTO blessures (personnage_id, le, vitesse) VALUES (?, ?, ?) ON CONFLICT(personnage_id) DO UPDATE SET le = excluded.le, vitesse = excluded.vitesse`).bind(p.id, now, kmh),
           db.prepare(`INSERT INTO mouvements (id, personnage_id, icone, texte, par_consigne, le) VALUES (?, ?, '🚑', ?, 0, ?)`).bind(uid(), p.id, accidentText(p.prenom, kmh, p.sexe === "F"), now),
+        ]);
+        return json(h, 200, view(compte, await loadCharacter(db, p.id), now));
+      }
+      // ---- faute de conduite dans la ville 3D : le conducteur qui blesse ou bouscule un piéton est puni, comme dans la vraie vie
+      if (url.pathname === "/api/conduite/faute" && req.method === "POST") {
+        const f = ROAD_FAULTS.find(x => x.id === body.faute), kmh = Math.round(Number(body.kmh));
+        if (!f || !(kmh >= 3 && kmh <= ACCIDENT.maxKmh) || (f.casier ? kmh < ACCIDENT.minKmh : kmh >= ACCIDENT.minKmh)) return fail(h, 400, "Faute de conduite invalide.");
+        const last = await db.prepare(`SELECT MAX(le) AS le FROM mouvements WHERE personnage_id = ? AND icone = '🚔'`).bind(p.id).first();
+        if (last && last.le > now - 60e3) return json(h, 200, view(compte, ch, now));   // un seul choc compté par minute
+        if (!f.casier) {
+          await db.batch([repSt(db, p.id, f.rep, now), db.prepare(`INSERT INTO mouvements (id, personnage_id, icone, texte, par_consigne, le) VALUES (?, ?, '🚔', ?, 0, ?)`).bind(uid(), p.id, roadFaultText(f, kmh), now)]);
+          return json(h, 200, view(compte, await loadCharacter(db, p.id), now));
+        }
+        const recent = ch.casier.filter(x => x.le > now - RECIDIVE.jours * 864e5).length;
+        const amende = Math.min(p.makuta, f.amende), soins = Math.min(p.makuta - amende, f.soins);
+        const prison = recent + 1 >= RECIDIVE.fois || amende + soins < f.amende + f.soins, until = prison ? now + PRISON_HOURS * 36e5 : null;
+        await db.batch([
+          db.prepare(`UPDATE personnages SET makuta = makuta - ?, bonheur = MAX(0, bonheur - 10), prison_jusqu = COALESCE(?, prison_jusqu) WHERE id = ? AND makuta >= ?`).bind(amende + soins, until, p.id, amende + soins), GUARD(db),
+          ...taxTo(db, p.id, amende, "amende (police routière) : piéton blessé", now),
+          ...(soins > 0 ? await payToCompany(db, "pharmacie", p.id, soins, "frais médicaux du piéton blessé", now) : []),
+          db.prepare(`INSERT INTO infractions (id, personnage_id, type, amende, prison_heures, le) VALUES (?, ?, ?, ?, ?, ?)`).bind(uid(), p.id, f.id, amende, prison ? PRISON_HOURS : 0, now),
+          repSt(db, p.id, f.rep + (prison ? REP.prison : 0), now),
+          db.prepare(`INSERT INTO mouvements (id, personnage_id, icone, texte, par_consigne, le) VALUES (?, ?, '🚔', ?, 0, ?)`).bind(uid(), p.id, roadFaultText(f, kmh, { amende, soins, prison }), now),
         ]);
         return json(h, 200, view(compte, await loadCharacter(db, p.id), now));
       }
