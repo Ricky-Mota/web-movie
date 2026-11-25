@@ -397,3 +397,28 @@ CREATE TABLE IF NOT EXISTS blessures (
   vitesse INTEGER NOT NULL,
   cause TEXT NOT NULL DEFAULT 'accident'
 );
+
+-- campagne électorale : programme, soutien gagné aux meetings, caution versée à la CENI
+CREATE TABLE IF NOT EXISTS campagnes_elec (
+  personnage_id TEXT PRIMARY KEY,
+  poste TEXT NOT NULL,
+  programme TEXT NOT NULL,
+  soutien INTEGER NOT NULL DEFAULT 0,
+  dernier_jour TEXT,
+  depense INTEGER NOT NULL DEFAULT 0,
+  caution INTEGER NOT NULL DEFAULT 0,
+  le INTEGER NOT NULL
+);
+-- résultats publiés de chaque élection (voix des joueurs + voix des habitants)
+CREATE TABLE IF NOT EXISTS resultats_elections (
+  cycle INTEGER NOT NULL,
+  poste TEXT NOT NULL,
+  personnage_id TEXT NOT NULL,
+  nom TEXT NOT NULL,
+  voix INTEGER NOT NULL,
+  voix_joueurs INTEGER NOT NULL,
+  pct REAL NOT NULL,
+  elu INTEGER NOT NULL,
+  le INTEGER NOT NULL,
+  PRIMARY KEY (cycle, poste, personnage_id)
+);

@@ -2,7 +2,7 @@
 // simule la même vie dans le navigateur (mode démo).
 import {
   ageYears, stageOf, STAGES, realMsUntil, TALENTS, ACTIVITIES, rng, drawTalents, doActivity, needsAt, newIdentity, BIRTH_GIFT,
-  SHOP, cannotBuy, OFFERS, USD_TO_MAKUTA, USD_UNITS, fmtMakuta, WITHDRAW_FEE, walletInfo, birthShiftMs, shopView, familyOf, JOBS, payFor, cannotWork, workView, SHIFT_ENERGY, cannotApply, FORMATIONS, cannotEnroll, attendCourse, schoolView, STUDY_ENERGY, SUPPORT_PER_DAY, HOST_MIN_AGE, canSignupBeforeLaunch, COMPANY_TYPES, cannotOpenCompany, companyName, companyView, companyAccrue, companyJob, EMPLOYEE_YIELD, RESELL_RATE, TAXI_FARE, TAXI_ENERGY, KINSHASA_QUARTIERS, OTHER_CITIES, TAX, POSTS, PUBLIC_JOBS, BANKS, bankAccrue, INSURERS, CARE, careCost, ACCIDENT, injuredBlocks, accidentText, ROAD_FAULTS, roadFaultText, OPERATORS, RECHARGES, CALL, stateView, supportDue, unpaidEffect, familyShare, FIRST_NAMES,
+  SHOP, cannotBuy, OFFERS, USD_TO_MAKUTA, USD_UNITS, fmtMakuta, WITHDRAW_FEE, walletInfo, birthShiftMs, shopView, familyOf, JOBS, payFor, cannotWork, workView, SHIFT_ENERGY, cannotApply, FORMATIONS, cannotEnroll, attendCourse, schoolView, STUDY_ENERGY, SUPPORT_PER_DAY, HOST_MIN_AGE, canSignupBeforeLaunch, COMPANY_TYPES, cannotOpenCompany, companyName, companyView, companyAccrue, companyJob, EMPLOYEE_YIELD, RESELL_RATE, TAXI_FARE, TAXI_ENERGY, KINSHASA_QUARTIERS, OTHER_CITIES, TAX, POSTS, PUBLIC_JOBS, BANKS, bankAccrue, INSURERS, CARE, careCost, ACCIDENT, injuredBlocks, accidentText, ROAD_FAULTS, roadFaultText, ELECTION_FEE, cannotRun, ELECTION_CAMPAIGN, cannotCampaignElec, resultLine, OPERATORS, RECHARGES, CALL, stateView, supportDue, unpaidEffect, familyShare, FIRST_NAMES,
   describeAction, ORDER_DONE, ORDERS, ORDERS_PER_DAY, ORDERS_CHECK_MS, dayKey, ordersToRun, cannotGiveOrder,
   VOTER_MIN_AGE, NEGLECT_DANGER_DAYS, NEGLECT_DANGER_HEALTH, splitEstate, deathCause, familyShareRate, REP, REP_BAD, REP_GOOD, repLabel, repDiscount, DOT_MAKUTA, MARRY_MIN_AGE, STREET_JOBS, cannotStreetJob, RENT, rentOf, houseOf, rentDue, HOUSING_MIN_AGE, SALE_TAX, LIFE_EVENTS, EVENT_EVERY_H, drawEvent, eventMoney, lifeAlbum, CRIMES, catchChance, sentence, inPrison, PRISON_BLOCKED, BAIL, PRISON_HOURS, RECIDIVE, policeView, applySettings, food, drawEntry, classOfWealth, classLabel, MATURITY_GAIN, BIG_DECISIONS, cannotDecide, dashboard,
   PAY_METHODS, cannotDeposit, cannotWithdraw, maskPhone, withdrawUsd, COMMUNES, communeView, ROLES, drawRole, roleOf,
@@ -132,7 +132,8 @@ const demo = {
     } finally { this.busy = false; }
     if (faits.length && store.get(LS_DEMO).notif) demoNotify(`2 Life · ${d.perso.firstName}`, faits.join(" · "));
   },
-  me(d) { return { candidature: d.candidature, nom: `${d.perso.firstName} ${d.perso.lastName}`, quartier: d.perso.quartier }; },
+  me(d) { const k = d.campagneElec || {}; return { candidature: d.candidature, nom: `${d.perso.firstName} ${d.perso.lastName}`, quartier: d.perso.quartier,
+    programme: k.programme, soutien: k.soutien || 0, rep: d.rep || 0, sexe: d.perso.sex, faiteAujourdhui: k.dernierJour === dayKey(Date.now()) }; },
   settle(c) { const n = needsAt(c); Object.assign(c, n, { updatedAt: Date.now() }); },
   // entretien quotidien des enfants simulés (même règle que le serveur)
   support(d) {
@@ -274,7 +275,8 @@ const demo = {
         }
       }
       const el = launchDemo.elections(this.me(d));   // dépouillement : un joueur élu prend son poste
-      if (el.depouille) { d.candidature = null; if (el.gagne) { d.job = "elu-" + el.gagne; d.boss = null; } }
+      if (el.depouille) { d.candidature = null; d.campagneElec = null; if (el.gagne) { d.job = "elu-" + el.gagne; d.boss = null; }
+        if (el.monResultat) this.move(d, el.monResultat.elu ? "🎖️" : "🗳️", `Résultats de l'élection n° ${el.monResultat.cycle} : ` + resultLine(el.monResultat, POSTS.find(x => x.id === el.monResultat.poste).nom) + (el.monResultat.elu ? ". Félicitations, ton mandat commence !" : ".")); }
       store.set(LS_DEMO, d);
     }
     if (path === "/api/lancement") return launchDemo.status();
@@ -561,10 +563,25 @@ const demo = {
       store.set(LS_DEMO, d); return this.view(d);
     }
     if (path === "/api/candidature") {
-      if (body.poste == null) { d.candidature = null; store.set(LS_DEMO, d); return this.view(d); }
-      const po = POSTS.find(x => x.id === body.poste); if (!po) throw new Error("Poste inconnu.");
-      if (ageYears(c.neLe) < po.minAge) throw new Error(`Il faut avoir ${po.minAge} ans pour être candidat au poste de ${po.nom.toLowerCase()}.`);
-      d.candidature = po.id; store.set(LS_DEMO, d); return this.view(d);
+      if (body.poste == null) { d.candidature = null; d.campagneElec = null; store.set(LS_DEMO, d); return this.view(d); }   // la caution n'est pas rendue
+      const now = Date.now(), programme = String(body.programme || "").trim();
+      const no = cannotRun({ poste: body.poste, age: ageYears(c.neLe), makuta: c.makuta, prison: inPrison(d.prison), dejaCandidat: !!d.candidature,
+        infractionsRecentes: (d.casier || []).filter(x => x.le > now - RECIDIVE.jours * 864e5).length, reputation: d.rep || 0, programme });
+      if (no) throw new Error(no);
+      const po = POSTS.find(x => x.id === body.poste), fee = ELECTION_FEE[po.id];
+      c.makuta -= fee; d.tresor = (d.tresor || 0) + fee;
+      d.candidature = po.id; d.campagneElec = { poste: po.id, programme, soutien: 0, dernierJour: null, caution: fee };
+      store.set(LS_DEMO, d); return this.view(d);
+    }
+    if (path === "/api/election/campagne") {   // un meeting par jour, affiches payées à la Régie
+      const k = d.campagneElec, jour = dayKey(Date.now()); this.settle(c);
+      const no = cannotCampaignElec({ candidat: !!k, energie: c.energy, makuta: c.makuta, dejaAujourdhui: k && k.dernierJour === jour, prison: inPrison(d.prison) });
+      if (no) throw new Error(no);
+      const C = ELECTION_CAMPAIGN, parole = c.talents.some(t => t.talent === "parole" && t.discovered), gain = C.soutien + (parole ? C.bonusParole : 0);
+      c.makuta -= C.cout; c.energy = Math.max(0, c.energy - C.energie); d.regie = (d.regie || 0) + C.cout;
+      k.soutien = Math.min(C.maxSoutien, k.soutien + gain); k.dernierJour = jour;
+      this.move(d, "📣", `Meeting de campagne à ${c.quartier || "Kinshasa"} : +${gain} de soutien${parole ? " (talent de parole)" : ""}.`);
+      store.set(LS_DEMO, d); return this.view(d);
     }
     if (path === "/api/entreprise/encaisser") {
       const e = (d.ent || []).find(x => x.id === body.entreprise); if (!e) throw new Error("Entreprise introuvable.");
@@ -1200,17 +1217,30 @@ function renderState(v) {
 `<h2 style="font-size:16px;margin:16px 0 4px">L'État recrute</h2>` + S.metiersPublics.map(j => `<div class="item"><span class="sw">🎖️</span><div class="t">${j.nom}<small>${mk(j.salaire)} par journée, payé par ${j.societe ? "sa société publique (ou le Trésor)" : "le Trésor"}${j.diplome ? " · diplôme : " + j.diplome : ""} · dès ${j.minAge} ans</small></div>
         ${v.travail.metier === j.id ? `<span class="mini" style="border-color:var(--ok);color:var(--ok)">Ton métier</span>` : `<button class="mini fill" data-job="${j.id}" type="button" ${dis(p.age < j.minAge || (j.formation && !v.ecole.diplomes.includes(j.formation)), p.age < j.minAge ? `Ce poste est ouvert dès ${j.minAge} ans.` : `Il faut d'abord le diplôme : ${j.diplome}.`)}>Postuler</button>`}</div>`).join("");
   } else if (stateTab === "elections") {
-    const E = v.elections || {}, nomPoste = id => (S.postes.find(x => x.id === id) || {}).nom || id;
+    const E = v.elections || {}, nomPoste = id => (S.postes.find(x => x.id === id) || {}).nom || id, K = E.maCampagne, C = S.campagneElec || {};
+    const pct = x => String(x ?? 0).replace(".", ",") + " %";
     h = (E.prochaine ? `<div class="row"><span>Élection n° ${E.cycle}</span><span>${dt(E.prochaine)}</span></div>
         <p style="font-size:13px;margin:6px 0">${E.voteOuvert ? "<b>Le vote est ouvert.</b> Choisis un candidat pour chaque poste. Les voix seront comptées à la date de l'élection." : `Le vote ouvrira le ${dt(E.ouvertureVote)} et durera 7 jours. Ensuite, une élection tous les 6 mois.`}${p.age < 18 ? " Il faut avoir 18 ans pour voter." : ""}</p>`
       : `<p style="font-size:13px;margin:0 0 6px">La première élection aura lieu 6 mois après le démarrage du jeu, puis tous les 6 mois. Tu peux déjà te porter candidat.</p>`) +
-      `<h2 style="font-size:16px;margin:12px 0 4px">Se présenter</h2>` + S.postes.map(x => `<div class="item"><span class="sw">🗳️</span><div class="t">${x.nom}<small>${x.places} ${x.places > 1 ? "sièges" : "siège"} · dès ${x.minAge} ans · ${x.candidats} candidat(s)</small></div>
-        ${S.candidature === x.id ? `<button class="mini" data-cand="" type="button">Retirer</button>` : `<button class="mini fill" data-cand="${x.id}" type="button" ${dis(p.age < x.minAge, `Candidature possible dès ${x.minAge} ans.`)}>Candidater</button>`}</div>`).join("") +
-      `<h2 style="font-size:16px;margin:16px 0 4px">Candidats</h2>` +
+      `<p style="font-size:13px;margin:0 0 6px">Les habitants de la ville votent aussi : ils suivent les meetings et la réputation des candidats. Les joueurs ajoutent leurs voix.</p>` +
+      (K ? `<h2 style="font-size:16px;margin:12px 0 4px">📣 Ma campagne : ${esc(nomPoste(K.poste))}</h2>
+        <p style="font-size:14px;margin:0 0 6px">« ${esc(K.programme || "")} »</p>
+        <div class="row"><span>Soutien gagné aux meetings</span><span>${K.soutien} / ${C.maxSoutien || 100}</span></div>
+        <div class="row"><span>Sondage du jour</span><span><b>${pct(K.sondage)}</b> pour ce poste</span></div>
+        <div class="two-btn"><button class="mini fill" id="b-meeting" type="button" ${dis(K.faiteAujourdhui || p.besoins.energy < (C.energie || 20) || p.makuta < (C.cout || 0), K.faiteAujourdhui ? "Un meeting par jour : reviens demain." : p.makuta < (C.cout || 0) ? "Pas assez d'e-makuta pour les affiches." : "Trop fatigué pour un meeting.")}>Faire un meeting (${mk(C.cout || 0)}, −${C.energie || 20} énergie)</button>
+        <button class="mini" data-cand="" type="button">Retirer ma candidature</button></div>
+        <p style="font-size:12px;margin:6px 0 0">Un retrait est définitif pour cette élection : la caution n'est pas rendue.</p>`
+      : `<h2 style="font-size:16px;margin:12px 0 4px">Se présenter</h2>
+        <p style="font-size:13px;margin:0 0 6px">La CENI demande une caution non remboursable, versée au Trésor. Il faut un casier sans infraction depuis 30 jours et une réputation correcte.</p>
+        <label for="e-prog" style="font-size:13px">Mon programme, en une phrase</label><input id="e-prog" maxlength="${S.programmeMax || 140}" placeholder="Ex. : de l'eau potable et des routes pavées dans chaque commune">` +
+        S.postes.map(x => `<div class="item"><span class="sw">🗳️</span><div class="t">${x.nom}<small>${x.places} ${x.places > 1 ? "sièges" : "siège"} · dès ${x.minAge} ans · caution ${mk(x.caution || 0)} · ${x.candidats} candidat(s)</small></div>
+        <button class="mini fill" data-cand="${x.id}" type="button" ${dis(p.age < x.minAge || p.makuta < (x.caution || 0), p.age < x.minAge ? `Candidature possible dès ${x.minAge} ans.` : "Pas assez d'e-makuta pour la caution.")}>Candidater</button></div>`).join("")) +
+      `<h2 style="font-size:16px;margin:16px 0 4px">Candidats et sondage</h2>` +
       ((E.candidats || []).length ? E.candidats.map(c => { const mine = E.mesVotes && E.mesVotes[c.poste];
-        return `<div class="item"><span class="sw">🗳️</span><div class="t">${esc(c.nom)}<small>${nomPoste(c.poste)} · ${esc(c.quartier || "")} · ${c.voix} voix</small></div>
+        return `<div class="item"><span class="sw">🗳️</span><div class="t">${esc(c.nom)}${c.moi ? " (toi)" : ""}<small>${nomPoste(c.poste)} · ${esc(c.quartier || "")} · sondage ${pct(c.sondage)} · ${c.voix} voix de joueurs${c.programme ? `<br>« ${esc(c.programme)} »` : ""}</small></div>
         ${mine === c.id ? `<span class="mini" style="border-color:var(--ok);color:var(--ok)">Ton vote</span>` : `<button class="mini fill" data-vote="${c.id}" data-poste="${c.poste}" type="button" ${dis(!E.voteOuvert || mine || p.age < 18, !E.voteOuvert ? "Le vote n'est pas encore ouvert." : mine ? "Tu as déjà voté pour ce poste." : "Il faut avoir 18 ans pour voter.")}>Voter</button>`}</div>`; }).join("")
         : `<p style="font-size:13px;margin:0">Aucun candidat pour l'instant.</p>`) +
+      ((E.historique || []).length ? `<h2 style="font-size:16px;margin:16px 0 4px">Résultats de l'élection n° ${E.historique[0].cycle}</h2>` + E.historique.map(r => `<div class="row"><span>${r.elu ? "🎖️" : "▫️"} ${esc(r.nom)} · ${esc(nomPoste(r.poste))}</span><span>${r.voix} voix (${pct(r.pct)})${r.elu ? " · <b>élu</b>" : ""}</span></div>`).join("") : "") +
       ((E.elus || []).length ? `<h2 style="font-size:16px;margin:16px 0 4px">Élus en fonction</h2>` + E.elus.map(x => `<div class="item"><span class="sw">🎖️</span><div class="t">${esc(x.nom)}<small>${nomPoste(x.poste)} · élu avec ${x.voix} voix · payé par le Trésor</small></div></div>`).join("") : "");
   } else if (stateTab === "police") {
     const P = v.police;
@@ -1257,7 +1287,8 @@ function renderState(v) {
 $("state-tabs").onclick = e => { const b = e.target.closest("[data-st]"); if (!b) return; stateTab = b.dataset.st; renderState(state); };
 $("state").onclick = e => {
   const b = e.target.closest("button"); if (!b || b.disabled) return; const d = b.dataset;
-  if (d.cand !== undefined) return act("/api/candidature", { poste: d.cand || null }, () => d.cand ? "Candidature enregistrée. Bonne campagne !" : "Candidature retirée.");
+  if (b.id === "b-meeting") return act("/api/election/campagne", {}, v => `Meeting réussi : soutien ${v.elections.maCampagne.soutien}, sondage ${String(v.elections.maCampagne.sondage).replace(".", ",")} %.`);
+  if (d.cand !== undefined) return act("/api/candidature", { poste: d.cand || null, programme: ($("e-prog") || {}).value || "" }, () => d.cand ? "Candidature enregistrée : caution versée à la CENI. Bonne campagne !" : "Candidature retirée.");
   if (d.job) return act("/api/postuler", { metier: d.job }, v => `Embauché : ${v.travail.metiers.find(j => j.id === v.travail.metier).nom}.`);
   if (d.dep) return act("/api/banque/deposer", { banque: d.dep, montant: Number(d.m) }, () => `Dépôt de ${mk(Number(d.m))} effectué.`);
   if (d.wd) return act("/api/banque/retirer", { banque: d.wd, montant: Number(d.m) }, () => `Retrait de ${mk(Number(d.m))} effectué.`);

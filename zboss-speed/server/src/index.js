@@ -2,7 +2,7 @@
 // Le serveur est l'arbitre : il décide de l'âge, des talents et de l'argent ; le téléphone ne fait qu'afficher.
 import {
   ageYears, stageOf, STAGES, realMsUntil, TALENTS, ACTIVITIES, rng, drawTalents, doActivity,
-  needsAt, newIdentity, BIRTH_GIFT, BIRTH_USD, ADMIN_FEE_USD, NEGLECT_STEAL_AGE, neglectStealChance, NEGLECT_DANGER_DAYS, NEGLECT_DANGER_HEALTH, splitEstate, deathCause, familyShareRate, REP, REP_BAD, REP_GOOD, repLabel, repDiscount, DOT_MAKUTA, cannotMarry, STREET_JOBS, cannotStreetJob, RENT, rentOf, houseOf, rentDue, HOUSING_MIN_AGE, SALE_TAX, LIFE_EVENTS, EVENT_EVERY_H, drawEntry, classOfWealth, classLabel, eduLabel, MATURITY_GAIN, BIG_DECISIONS, cannotDecide, dashboard, SETTINGS, SET, applySettings, food, drawEvent, eventMoney, lifeAlbum, SHOP, cannotBuy, OFFERS, USD_TO_MAKUTA, USD_UNITS, fmtMakuta, WITHDRAW_FEE, walletInfo, birthShiftMs, REAL_MONEY, shopView, familyOf, JOBS, payFor, cannotWork, workView, cannotApply, FORMATIONS, cannotEnroll, attendCourse, schoolView, SUPPORT_PER_DAY, HOST_MIN_AGE, MAX_CHILDREN, supportDue, unpaidEffect, familyShare, DAY, LAUNCH_RULES, launchStatus, canSignupBeforeLaunch, COMPANY_TYPES, cannotOpenCompany, companyName, companyView, companyAccrue, companyJob, EMPLOYEE_YIELD, RESELL_RATE, TAXI_FARE, TAXI_ENERGY, KINSHASA_QUARTIERS, OTHER_CITIES, STATE_ID, TAX, POSTS, PUBLIC_JOBS, BANKS, bankAccrue, INSURERS, CARE, careCost, ACCIDENT, injuredBlocks, accidentText, ROAD_FAULTS, roadFaultText, OPERATORS, RECHARGES, CALL, stateView, ELECTION_EVERY, VOTER_MIN_AGE, electionCalendar, tally, CRIMES, catchChance, sentence, inPrison, PRISON_BLOCKED, PRISON_HOURS, BAIL, RECIDIVE, policeView,
+  needsAt, newIdentity, BIRTH_GIFT, BIRTH_USD, ADMIN_FEE_USD, NEGLECT_STEAL_AGE, neglectStealChance, NEGLECT_DANGER_DAYS, NEGLECT_DANGER_HEALTH, splitEstate, deathCause, familyShareRate, REP, REP_BAD, REP_GOOD, repLabel, repDiscount, DOT_MAKUTA, cannotMarry, STREET_JOBS, cannotStreetJob, RENT, rentOf, houseOf, rentDue, HOUSING_MIN_AGE, SALE_TAX, LIFE_EVENTS, EVENT_EVERY_H, drawEntry, classOfWealth, classLabel, eduLabel, MATURITY_GAIN, BIG_DECISIONS, cannotDecide, dashboard, SETTINGS, SET, applySettings, food, drawEvent, eventMoney, lifeAlbum, SHOP, cannotBuy, OFFERS, USD_TO_MAKUTA, USD_UNITS, fmtMakuta, WITHDRAW_FEE, walletInfo, birthShiftMs, REAL_MONEY, shopView, familyOf, JOBS, payFor, cannotWork, workView, cannotApply, FORMATIONS, cannotEnroll, attendCourse, schoolView, SUPPORT_PER_DAY, HOST_MIN_AGE, MAX_CHILDREN, supportDue, unpaidEffect, familyShare, DAY, LAUNCH_RULES, launchStatus, canSignupBeforeLaunch, COMPANY_TYPES, cannotOpenCompany, companyName, companyView, companyAccrue, companyJob, EMPLOYEE_YIELD, RESELL_RATE, TAXI_FARE, TAXI_ENERGY, KINSHASA_QUARTIERS, OTHER_CITIES, STATE_ID, TAX, POSTS, PUBLIC_JOBS, BANKS, bankAccrue, INSURERS, CARE, careCost, ACCIDENT, injuredBlocks, accidentText, ROAD_FAULTS, roadFaultText, ELECTION_FEE, cannotRun, ELECTION_CAMPAIGN, cannotCampaignElec, electionScores, resultLine, OPERATORS, RECHARGES, CALL, stateView, ELECTION_EVERY, VOTER_MIN_AGE, electionCalendar, tally, CRIMES, catchChance, sentence, inPrison, PRISON_BLOCKED, PRISON_HOURS, BAIL, RECIDIVE, policeView,
   describeAction, ORDER_DONE, ORDERS, ORDERS_PER_DAY, ORDERS_CHECK_MS, dayKey, ordersToRun, cannotGiveOrder,
   PAY_METHODS, cannotDeposit, cannotWithdraw, maskPhone, withdrawUsd, COMMUNES, communeView, ROLES, drawRole, roleOf,
   streakStep, streakView, nightSummary, morningText, reminderText, kinHour,
@@ -336,29 +336,51 @@ async function elections(db, now) {
   // dépouillement d'une élection passée : les élus prennent leur mandat et leur poste
   while (now >= date) {
     const { results: votes } = await db.prepare(`SELECT poste, candidat_id FROM votes WHERE cycle = ?`).bind(cycle).all();
-    const { results: cands } = await db.prepare(`SELECT personnage_id, poste, le FROM candidatures`).all();
-    const won = Object.entries(tally(votes, cands)).flatMap(([poste, list]) => list.map(w => ({ ...w, poste })));
+    const { results: cands } = await db.prepare(`SELECT c.personnage_id, c.poste, c.le, p.sexe, p.prenom || ' ' || p.nom AS nom, COALESCE(k.soutien, 0) AS soutien, COALESCE(r.points, 0) AS rep
+        FROM candidatures c JOIN personnages p ON p.id = c.personnage_id LEFT JOIN campagnes_elec k ON k.personnage_id = c.personnage_id LEFT JOIN reputations r ON r.personnage_id = c.personnage_id
+        WHERE p.mort_le IS NULL`).all();
+    // voix des joueurs + voix des habitants du jeu (campagne, réputation) ; les résultats sont publiés
+    const scores = electionScores(votes, cands), won = scores.filter(x => x.elu);
+    const posteNom = id => (POSTS.find(x => x.id === id) || {}).nom || id;
+    const top = POSTS.map(po => scores.find(x => x.poste === po.id && x.elu)).filter(Boolean);
     await db.batch([
-      db.prepare(`UPDATE mandats SET fin = ? WHERE fin IS NULL`).bind(date),
-      db.prepare(`UPDATE emplois SET fin = ? WHERE fin IS NULL AND metier_id LIKE 'elu-%'`).bind(date),
+      // seuls les postes qui ont de nouveaux élus changent de titulaire ; sans candidat, les sortants restent en fonction
+      ...[...new Set(won.map(w => w.poste))].flatMap(po => [
+        db.prepare(`UPDATE mandats SET fin = ? WHERE fin IS NULL AND poste = ?`).bind(date, po),
+        db.prepare(`UPDATE emplois SET fin = ? WHERE fin IS NULL AND metier_id = ?`).bind(date, "elu-" + po)]),
       ...won.flatMap(w => [
         db.prepare(`INSERT INTO mandats (personnage_id, poste, cycle, voix, debut) VALUES (?, ?, ?, ?, ?)`).bind(w.personnage_id, w.poste, cycle, w.voix, date),
         db.prepare(`UPDATE emplois SET fin = ? WHERE personnage_id = ? AND fin IS NULL`).bind(date, w.personnage_id),
         db.prepare(`INSERT INTO emplois (id, personnage_id, metier_id, poste, salaire, depuis) VALUES (?, ?, ?, ?, ?, ?)`).bind(uid(), w.personnage_id, "elu-" + w.poste, w.poste, 0, date),
       ]),
+      ...scores.flatMap(r => [
+        db.prepare(`INSERT OR REPLACE INTO resultats_elections (cycle, poste, personnage_id, nom, voix, voix_joueurs, pct, elu, le) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`).bind(cycle, r.poste, r.personnage_id, r.nom, r.voix, r.voixJoueurs, r.pct, r.elu ? 1 : 0, date),
+        db.prepare(`INSERT INTO mouvements (id, personnage_id, icone, texte, par_consigne, le) VALUES (?, ?, ?, ?, 0, ?)`).bind(uid(), r.personnage_id, r.elu ? "🎖️" : "🗳️", "Résultats de l'élection n° " + cycle + " : " + resultLine(r, posteNom(r.poste)) + (r.elu ? ". Félicitations, ton mandat commence !" : "."), date),
+      ]),
+      ...(top.length ? [db.prepare(`INSERT INTO communiques (id, auteur, texte, debut, fin, accord, actif, cree_le) VALUES (?, 'CENI', ?, ?, ?, 0, 1, ?)`)
+        .bind(uid(), `Résultats de l'élection n° ${cycle} : ` + top.map(r => `${r.nom}, ${posteNom(r.poste).toLowerCase()} (${String(r.pct).replace(".", ",")} %)`).join(" · "), date, date + 7 * 864e5, date)] : []),
       db.prepare(`DELETE FROM candidatures`),
+      db.prepare(`DELETE FROM campagnes_elec`),
     ]);
+    TICKER.at = 0;
     date += ELECTION_EVERY; cycle += 1; await save();
   }
   return electionCalendar(date, cycle, now);
 }
 async function electionView(db, cal, me) {
-  const { results: cands } = await db.prepare(`SELECT c.personnage_id AS id, c.poste, p.prenom || ' ' || p.nom AS nom, p.quartier,
-      (SELECT COUNT(*) FROM votes v WHERE v.candidat_id = c.personnage_id AND v.poste = c.poste AND v.cycle = ?) AS voix
-      FROM candidatures c JOIN personnages p ON p.id = c.personnage_id ORDER BY voix DESC, c.le LIMIT 60`).bind(cal.cycle).all();
+  const { results: raw } = await db.prepare(`SELECT c.personnage_id, c.poste, c.le, p.prenom || ' ' || p.nom AS nom, p.quartier, k.programme, COALESCE(k.soutien, 0) AS soutien, COALESCE(r.points, 0) AS rep, k.dernier_jour
+      FROM candidatures c JOIN personnages p ON p.id = c.personnage_id LEFT JOIN campagnes_elec k ON k.personnage_id = c.personnage_id LEFT JOIN reputations r ON r.personnage_id = c.personnage_id
+      WHERE p.mort_le IS NULL LIMIT 200`).all();
+  const { results: allVotes } = await db.prepare(`SELECT poste, candidat_id FROM votes WHERE cycle = ?`).bind(cal.cycle).all();
+  // sondage : mêmes calculs que le dépouillement, avec les voix déjà exprimées
+  const cands = electionScores(allVotes, raw).slice(0, 60).map(c => ({ id: c.personnage_id, poste: c.poste, nom: c.nom, quartier: c.quartier, programme: c.programme, soutien: c.soutien, voix: c.voixJoueurs, sondage: c.pct }));
+  const mc = raw.find(c => c.personnage_id === me);
+  const maCampagne = mc ? { poste: mc.poste, programme: mc.programme, soutien: mc.soutien, faiteAujourdhui: mc.dernier_jour === dayKey(Date.now()), sondage: (cands.find(c => c.id === me) || {}).sondage } : null;
+  const lc = await db.prepare(`SELECT MAX(cycle) AS c FROM resultats_elections`).first();
+  const { results: historique } = lc && lc.c ? await db.prepare(`SELECT cycle, poste, nom, voix, voix_joueurs AS voixJoueurs, pct, elu FROM resultats_elections WHERE cycle = ? ORDER BY poste, voix DESC LIMIT 30`).bind(lc.c).all() : { results: [] };
   const { results: elus } = await db.prepare(`SELECT m.poste, m.voix, p.prenom || ' ' || p.nom AS nom FROM mandats m JOIN personnages p ON p.id = m.personnage_id WHERE m.fin IS NULL ORDER BY m.voix DESC LIMIT 60`).all();
   const { results: mine } = await db.prepare(`SELECT poste, candidat_id FROM votes WHERE electeur_id = ? AND cycle = ?`).bind(me, cal.cycle).all();
-  return { ...cal, candidats: cands, elus, mesVotes: Object.fromEntries(mine.map(v => [v.poste, v.candidat_id])) };
+  return { ...cal, candidats: cands, maCampagne, historique, elus, mesVotes: Object.fromEntries(mine.map(v => [v.poste, v.candidat_id])) };
 }
 
 const taxTo = (db, from, amount, motif, now) => amount > 0 ? [db.prepare(`INSERT INTO transactions (id, de_id, vers_id, montant, motif, le) VALUES (?, ?, '${STATE_ID}', ?, ?, ?)`).bind(uid(), from, amount, motif, now)] : [];
@@ -1763,11 +1785,37 @@ const worker = {
 
       // ---- élections
       if (url.pathname === "/api/candidature" && req.method === "POST") {
-        if (body.poste == null) { await db.prepare(`DELETE FROM candidatures WHERE personnage_id = ?`).bind(p.id).run(); return json(h, 200, view(compte, await loadCharacter(db, p.id), now)); }
-        const po = POSTS.find(x => x.id === body.poste);
-        if (!po) return fail(h, 404, "Poste inconnu.");
-        if (ageYears(p.ne_le, now) < po.minAge) return fail(h, 409, `Il faut avoir ${po.minAge} ans pour être candidat au poste de ${po.nom.toLowerCase()}.`);
-        await db.prepare(`INSERT INTO candidatures (personnage_id, poste, le) VALUES (?, ?, ?) ON CONFLICT(personnage_id) DO UPDATE SET poste = excluded.poste, le = excluded.le`).bind(p.id, po.id, now).run();
+        if (body.poste == null) {   // retrait : la caution n'est pas rendue
+          await db.batch([db.prepare(`DELETE FROM candidatures WHERE personnage_id = ?`).bind(p.id), db.prepare(`DELETE FROM campagnes_elec WHERE personnage_id = ?`).bind(p.id)]);
+          return json(h, 200, view(compte, await loadCharacter(db, p.id), now));
+        }
+        const po = POSTS.find(x => x.id === body.poste), programme = String(body.programme || "").trim();
+        const deja = await db.prepare(`SELECT 1 FROM candidatures WHERE personnage_id = ?`).bind(p.id).first();
+        const no = cannotRun({ poste: body.poste, age: ageYears(p.ne_le, now), makuta: p.makuta, prison: inPrison(p.prison_jusqu, now), dejaCandidat: !!deja,
+          infractionsRecentes: ch.casier.filter(x => x.le > now - RECIDIVE.jours * 864e5).length, reputation: ch.reputation, programme });
+        if (no) return fail(h, 409, no);
+        const fee = ELECTION_FEE[po.id];
+        await db.batch([
+          db.prepare(`UPDATE personnages SET makuta = makuta - ? WHERE id = ? AND makuta >= ?`).bind(fee, p.id, fee), GUARD(db),
+          ...taxTo(db, p.id, fee, `caution électorale (CENI) : ${po.nom.toLowerCase()}`, now),
+          db.prepare(`INSERT INTO candidatures (personnage_id, poste, le) VALUES (?, ?, ?)`).bind(p.id, po.id, now),
+          db.prepare(`INSERT OR REPLACE INTO campagnes_elec (personnage_id, poste, programme, soutien, depense, caution, le) VALUES (?, ?, ?, 0, 0, ?, ?)`).bind(p.id, po.id, programme, fee, now),
+        ]);
+        return json(h, 200, view(compte, await loadCharacter(db, p.id), now));
+      }
+      // ---- campagne électorale : un meeting par jour, avec affiches payées à la Régie
+      if (url.pathname === "/api/election/campagne" && req.method === "POST") {
+        const k = await db.prepare(`SELECT * FROM campagnes_elec WHERE personnage_id = ?`).bind(p.id).first(), jour = dayKey(now);
+        await settle(db, p, now);
+        const no = cannotCampaignElec({ candidat: !!k, energie: p.energie, makuta: p.makuta, dejaAujourdhui: k && k.dernier_jour === jour, prison: inPrison(p.prison_jusqu, now) });
+        if (no) return fail(h, 409, no);
+        const parole = tal.some(t => t.talent_id === "parole" && t.decouvert), gain = ELECTION_CAMPAIGN.soutien + (parole ? ELECTION_CAMPAIGN.bonusParole : 0), C = ELECTION_CAMPAIGN;
+        await db.batch([
+          db.prepare(`UPDATE personnages SET makuta = makuta - ?, energie = MAX(0, energie - ?) WHERE id = ? AND makuta >= ?`).bind(C.cout, C.energie, p.id, C.cout), GUARD(db),
+          db.prepare(`UPDATE campagnes_elec SET soutien = MIN(?, soutien + ?), dernier_jour = ?, depense = depense + ? WHERE personnage_id = ? AND (dernier_jour IS NULL OR dernier_jour != ?)`).bind(C.maxSoutien, gain, jour, C.cout, p.id, jour), GUARD(db),
+          tx(db, p.id, "sp-regie", C.cout, "campagne électorale : meeting et affiches", now),
+          db.prepare(`INSERT INTO mouvements (id, personnage_id, icone, texte, par_consigne, le) VALUES (?, ?, '📣', ?, 0, ?)`).bind(uid(), p.id, `Meeting de campagne à ${p.quartier || "Kinshasa"} : +${gain} de soutien${parole ? " (talent de parole)" : ""}.`, now),
+        ]);
         return json(h, 200, view(compte, await loadCharacter(db, p.id), now));
       }
 

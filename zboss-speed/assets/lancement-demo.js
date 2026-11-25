@@ -1,5 +1,5 @@
 // 2 Life : conditions de lancement en mode démo (sans serveur). Mêmes règles que le serveur (server/src/life.js).
-import { launchStatus, canSignupBeforeLaunch, OFFERS, rng, newIdentity, COMPANY_TYPES, POSTS, ELECTION_EVERY, electionCalendar } from "../server/src/life.js";
+import { launchStatus, canSignupBeforeLaunch, OFFERS, rng, newIdentity, COMPANY_TYPES, POSTS, ELECTION_EVERY, electionCalendar, electionScores } from "../server/src/life.js";
 
 const KEY = "twolife_launch";
 const read = () => { try { return JSON.parse(localStorage.getItem(KEY)) || null; } catch (e) { return null; } };
@@ -26,25 +26,42 @@ export const launchDemo = {
     const L = this.get(), o = OFFERS.find(x => x.id === offre);
     L.investisseurs.push({ pseudo, email, offre, usd: o.usd, le: Date.now() }); write(L);
   },
-  // élections en démo : candidats = parents fondateurs (+ le joueur), voix simulées, mêmes dates que le serveur
+  // élections en démo : candidats = parents fondateurs (+ le joueur). Voix des joueurs simulées + voix des habitants
+  // (campagne et réputation), mêmes calculs et mêmes dates que le serveur.
   elections(me) {
     const L = this.get(), now = Date.now(), S = this.status(L);
-    if (!S.demarre) return { ...electionCalendar(null, 0, now), candidats: [], elus: [], mesVotes: {} };
+    const myCamp = (sondage, cand) => me && me.candidature ? { poste: me.candidature, programme: me.programme, soutien: me.soutien || 0, faiteAujourdhui: !!me.faiteAujourdhui, sondage } : null;
+    if (!S.demarre) {   // avant le démarrage : on peut déjà être candidat et faire campagne
+      const mine = me && me.candidature ? [{ id: "moi", poste: me.candidature, nom: me.nom, quartier: me.quartier, programme: me.programme, soutien: me.soutien || 0, voix: 0, sondage: 100, moi: true }] : [];
+      return { ...electionCalendar(null, 0, now), candidats: mine, elus: [], mesVotes: {}, historique: [], maCampagne: myCamp(100) };
+    }
     const E = L.elec || (L.elec = { date: S.demarreLe + ELECTION_EVERY, cycle: 1, votes: {}, elus: [] });
-    const cands = () => {
-      const list = L.parents.slice(0, 9).map((p, i) => ({ id: "fondateur-" + i, poste: POSTS[i % POSTS.length].id, nom: `${p.prenom} ${p.nom}`, quartier: p.quartier, voix: (i * 5 + E.cycle * 3) % 4 }));
-      if (me && me.candidature) list.push({ id: "moi", poste: me.candidature, nom: me.nom, quartier: me.quartier, voix: 0, moi: true });
-      return list.map(c => ({ ...c, voix: c.voix + (E.votes[c.poste] === c.id ? 1 : 0) })).sort((a, b) => b.voix - a.voix);
+    const PROGS = ["Des routes pavées et l'eau potable dans chaque quartier.", "Du travail pour les jeunes et des prix justes au marché.", "Des écoles gratuites et des hôpitaux bien équipés.",
+      "L'électricité tous les jours, sans délestage.", "Moins d'impôts pour les petits commerçants.", "La sécurité dans les rues, de jour comme de nuit."];
+    const raw = () => {
+      const list = L.parents.slice(0, 9).map((p, i) => ({ personnage_id: "fondateur-" + i, poste: POSTS[i % POSTS.length].id, nom: `${p.prenom} ${p.nom}`, sexe: p.sexe, quartier: p.quartier,
+        programme: PROGS[i % PROGS.length], soutien: (i * 13 + E.cycle * 7) % 45, rep: (i * 7) % 20, le: i }));
+      if (me && me.candidature) list.push({ personnage_id: "moi", poste: me.candidature, nom: me.nom, sexe: me.sexe, quartier: me.quartier, programme: me.programme, soutien: me.soutien || 0, rep: me.rep || 0, le: 99, moi: true });
+      const votes = Object.entries(E.votes).map(([poste, candidat_id]) => ({ poste, candidat_id }));
+      // quelques joueurs simulés ont déjà voté pour les fondateurs
+      list.forEach((c, i) => { if (!c.moi) for (let k = 0; k < (i * 5 + E.cycle * 3) % 4; k++) votes.push({ poste: c.poste, candidat_id: c.personnage_id }); });
+      return electionScores(votes, list);
     };
-    let depouille = false, gagne = null;
-    while (now >= E.date) {   // dépouillement
-      const list = cands();
-      E.elus = POSTS.flatMap(po => list.filter(c => c.poste === po.id && c.voix > 0).slice(0, po.places).map(c => ({ poste: po.id, voix: c.voix, nom: c.nom, moi: !!c.moi })));
-      gagne = (E.elus.find(x => x.moi) || {}).poste || null; depouille = true;
+    const cands = () => raw().map(c => ({ id: c.personnage_id, poste: c.poste, nom: c.nom, quartier: c.quartier, programme: c.programme, soutien: c.soutien, voix: c.voixJoueurs, sondage: c.pct, moi: !!c.moi }));
+    let depouille = false, gagne = null, monResultat = null;
+    while (now >= E.date) {   // dépouillement : résultats publiés, les élus prennent leur poste
+      const sc = raw();
+      E.historique = sc.map(r => ({ cycle: E.cycle, poste: r.poste, nom: r.nom, voix: r.voix, voixJoueurs: r.voixJoueurs, pct: r.pct, elu: r.elu ? 1 : 0 }));
+      const won = sc.filter(r => r.elu), posts = new Set(won.map(r => r.poste));
+      E.elus = [...(E.elus || []).filter(x => !posts.has(x.poste)), ...won.map(r => ({ poste: r.poste, voix: r.voix, nom: r.nom, moi: !!r.moi }))];
+      const mine = sc.find(r => r.moi); if (mine) monResultat = { ...mine, cycle: E.cycle };
+      gagne = mine && mine.elu ? mine.poste : null; depouille = true;
       E.votes = {}; E.date += ELECTION_EVERY; E.cycle += 1; if (me) me = { ...me, candidature: null };
     }
     write(L);
-    return { ...electionCalendar(E.date, E.cycle, now), candidats: cands(), elus: E.elus, mesVotes: { ...E.votes }, depouille, gagne };
+    const mc = cands().find(c => c.moi);
+    return { ...electionCalendar(E.date, E.cycle, now), candidats: cands(), elus: E.elus, mesVotes: { ...E.votes }, historique: E.historique || [], depouille, gagne, monResultat,
+      maCampagne: myCamp(mc ? mc.sondage : 0) };
   },
   vote(poste, candidat) { const L = this.get(); if (L.elec) { L.elec.votes[poste] = candidat; write(L); } },
   addCompany(e) { const L = this.get(); L.entreprises.push(e); write(L); },

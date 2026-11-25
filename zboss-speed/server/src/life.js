@@ -634,7 +634,7 @@ export const RECHARGES = [200, 1000, 2000];         // en makuta (10, 50, 100 e-
 export const CALL = { prix: 20, bonheur: 6 };
 export function stateView(me, pub, now = Date.now()) {
   return {
-    institutions: INSTITUTIONS, postes: POSTS.map(x => ({ ...x, candidats: (pub.candidats || {})[x.id] || 0 })), impots: TAX,
+    institutions: INSTITUTIONS, postes: POSTS.map(x => ({ ...x, caution: ELECTION_FEE[x.id], candidats: (pub.candidats || {})[x.id] || 0 })), campagneElec: ELECTION_CAMPAIGN, programmeMax: PROGRAMME_MAX, impots: TAX,
     tresor: pub.tresor || 0, masse: pub.masse || 0, tauxUsd: USD_TO_MAKUTA,
     banques: BANKS.map(b => { const a = (me.comptes || []).find(x => x.banque === b.id); return { ...b, solde: a ? bankAccrue(a, now) : 0 }; }),
     assureurs: INSURERS, assurance: me.assureJusqu && me.assureJusqu > now ? { id: me.assureur, jusqua: me.assureJusqu } : null,
@@ -666,6 +666,53 @@ export function tally(votes, candidates) {
   }
   return out;
 }
+
+// ---- campagne électorale (vague « élections », 25/11) : comme dans la vraie vie
+// caution non remboursable versée à la CENI (Trésor), programme en une phrase, casier propre, réputation correcte
+export const ELECTION_FEE = { president: 100000, senateur: 40000, depute: 20000 };   // 5 000, 2 000 et 1 000 e-makuta
+export const PROGRAMME_MAX = 140;
+export function cannotRun({ poste, age, makuta, prison, infractionsRecentes, reputation, programme, dejaCandidat } = {}) {
+  const po = POSTS.find(x => x.id === poste); if (!po) return "Poste inconnu.";
+  if (dejaCandidat) return "Tu es déjà candidat : retire-toi d'abord (la caution n'est pas rendue).";
+  if (age < po.minAge) return `Il faut avoir ${po.minAge} ans pour être candidat au poste de ${po.nom.toLowerCase()}.`;
+  if (prison) return "Impossible de se présenter depuis la prison.";
+  if (infractionsRecentes > 0) return `Casier récent : il faut ${RECIDIVE.jours} jours sans infraction pour se présenter.`;
+  if (reputation <= REP_BAD) return "Ta réputation est trop mauvaise : la CENI refuse ta candidature.";
+  const t = String(programme || "").trim();
+  if (t.length < 10 || t.length > PROGRAMME_MAX) return `Écris ton programme en une phrase (10 à ${PROGRAMME_MAX} caractères).`;
+  if (/https?:|www\.|\d{6,}/i.test(t)) return "Pas de lien ni de numéro de téléphone dans le programme.";
+  if (makuta < ELECTION_FEE[po.id]) return `La caution électorale de la CENI coûte ${fmtMakuta(ELECTION_FEE[po.id])} (non remboursable).`;
+  return null;
+}
+// une fois par jour : meeting et affiches dans les quartiers (payés à la Régie). Le talent « parole » découvert aide.
+export const ELECTION_CAMPAIGN = { cout: 2000, energie: 20, soutien: 10, bonusParole: 5, maxSoutien: 100 };
+export function cannotCampaignElec({ candidat, energie, makuta, dejaAujourdhui, prison, voteFini } = {}) {
+  if (!candidat) return "Il faut d'abord être candidat.";
+  if (prison) return "Impossible de faire campagne depuis la prison.";
+  if (voteFini) return "L'élection est passée.";
+  if (dejaAujourdhui) return "Tu as déjà fait campagne aujourd'hui. Reviens demain.";
+  if (energie < ELECTION_CAMPAIGN.energie) return "Trop fatigué pour un meeting : repose-toi ou mange.";
+  if (makuta < ELECTION_CAMPAIGN.cout) return `Un meeting avec affiches coûte ${fmtMakuta(ELECTION_CAMPAIGN.cout)}.`;
+  return null;
+}
+// les habitants du jeu (non joueurs) votent aussi, selon la campagne et la réputation du candidat
+export const CITIZEN_WEIGHT = { president: 3, senateur: 2, depute: 1 };
+export const citizenVotes = (c, poste) => Math.round((4 + (c.soutien || 0) * 2 + Math.max(0, c.rep || 0)) * (CITIZEN_WEIGHT[poste] || 1));
+// résultat complet : voix des joueurs + voix des habitants, pourcentage par poste, élus
+export function electionScores(votes, candidates) {
+  const out = [];
+  for (const po of POSTS) {
+    const list = candidates.filter(x => x.poste === po.id).map(x => {
+      const vj = votes.filter(v => v.poste === po.id && v.candidat_id === x.personnage_id).length;
+      return { ...x, voixJoueurs: vj, voix: vj + citizenVotes(x, po.id) };
+    }).sort((a, b) => b.voix - a.voix || a.le - b.le);
+    const tot = list.reduce((t, x) => t + x.voix, 0) || 1;
+    list.forEach((x, i) => { x.pct = Math.round(x.voix * 1000 / tot) / 10; x.elu = i < po.places; });
+    out.push(...list);
+  }
+  return out;
+}
+export function resultLine(r, posteNom) { const e = r.sexe === "F" ? "e" : ""; return `${r.nom} ${r.elu ? "élu" + e : "battu" + e} (${posteNom.toLowerCase()}) avec ${r.voix} voix, soit ${String(r.pct).replace(".", ",")} %`; }
 
 // ---------------------------------------------------------------- police, amendes et prison
 export const CRIMES = [
@@ -1065,7 +1112,7 @@ export function newspaper(facts = {}, now = Date.now(), quartier = null) {
   for (const m of facts.mariages || []) add("💍", 80, "Mariage", `${m.a} et ${m.b} se sont dit oui. La dot a été versée, les deux familles sont en fête.`, m.quartier, m.le);
   for (const e of facts.entreprises || []) add((COMPANY_TYPES.find(t => t.id === e.type) || {}).icone || "🏪", 70, `Nouveau à ${e.quartier || "Kinshasa"} : ${e.nom}`, `${e.proprio} ouvre un${e.type === "boutique" ? "e" : ""} ${((COMPANY_TYPES.find(t => t.id === e.type) || {}).nom || "commerce").toLowerCase()}. Allez y faire un tour !`, e.quartier, e.le);
   for (const n of facts.naissances || []) add("👶", 60, `Bienvenue à ${n.prenom}`, `${n.prenom} ${n.nom} est arrivé${n.sexe === "F" ? "e" : ""} à ${n.quartier || "Kinshasa"}. Nouvelle vie, nouveau destin.`, n.quartier, n.le);
-  for (const m of facts.elus || []) add("🗳️", 85, "Résultat des élections", `${m.nom} est élu${m.sexe === "F" ? "e" : ""} ${m.poste} avec ${m.voix} voix.`, null, m.le);
+  for (const m of facts.elus || []) add("🗳️", 85, "Résultat des élections", `${m.nom} est élu${m.sexe === "F" ? "e" : ""} ${((POSTS.find(x => x.id === m.poste) || {}).nom || m.poste).toLowerCase()} avec ${m.voix} voix.`, null, m.le);
   for (const a of facts.arrestations || []) if (a.n) add("🚔", 40, `Police : ${a.n} arrestation${a.n > 1 ? "s" : ""} à ${a.quartier}`, `Les patrouilles ont été actives à ${a.quartier} ces dernières 24 heures. Restez prudents.`, a.quartier);
   // la vie de la ville
   const C = pick(COMMUNES), C2 = pick(COMMUNES);
