@@ -1300,13 +1300,13 @@
     if (k % 3) { const hm = new THREE.Mesh(new THREE.SphereGeometry(.16, 10, 8, 0, Math.PI * 2, 0, Math.PI / 1.7), mat(["#111", "#c0392b", "#f4f4f2"][k % 3], { roughness: .3 })); hm.position.set(x + .1, 1.77, 0); g.add(hm); }
   }
   function makeMoto(c) {
-    const g = new THREE.Group(), body = mat(MOTO_COL[c.tIdx % MOTO_COL.length]), tyre = mat("#141414", { roughness: .9, metalness: 0 }), ch = mat("#9aa3ab", { metalness: .8, roughness: .3 });
+    const k0 = c.tIdx || 0, g = new THREE.Group(), body = mat(MOTO_COL[k0 % MOTO_COL.length]), tyre = mat("#141414", { roughness: .9, metalness: 0 }), ch = mat("#9aa3ab", { metalness: .8, roughness: .3 });
     [.65, -.65].forEach(x => { const w = new THREE.Mesh(new THREE.TorusGeometry(.27, .07, 8, 18), tyre); w.position.set(x, .32, 0); g.add(w); const hub = new THREE.Mesh(new THREE.CylinderGeometry(.12, .12, .08, 12), ch); hub.rotation.x = Math.PI / 2; hub.position.set(x, .32, 0); g.add(hub); });
     addBox(g, 1.05, .14, .14, 0, .55, 0, ch); const fk = addBox(g, .06, .6, .06, .58, .6, 0, ch); fk.rotation.z = .35;
     addBox(g, .45, .25, .3, .2, .82, 0, body, true); addBox(g, .3, .28, .26, -.05, .5, 0, mat("#2a2a2e"));   // réservoir, moteur
     addBox(g, .7, .1, .3, -.3, .9, 0, mat("#1b1b1f")); addBox(g, .06, .06, .62, .5, 1.12, 0, mat("#1b1b1f")); addBox(g, .05, .1, .16, .62, .98, 0, headMat); addBox(g, .04, .07, .12, -.72, .82, 0, tailMat);
     addBox(g, .5, .05, .05, -.45, .4, .14, ch);   // pot d'échappement
-    rider(g, -.18, c.tIdx, c.wewa); if (c.pass) rider(g, -.55, c.tIdx + 2, false);
+    rider(g, -.18, k0, c.wewa); if (c.pass) rider(g, -.55, k0 + 2, false);
     return g;
   }
   const doorMat = new THREE.MeshPhysicalMaterial({ color: "#20303f", metalness: .6, roughness: .15, transparent: true, opacity: .85 });
@@ -1334,6 +1334,7 @@
       const wantHi = mine || (m.userData.hi ? d < LOD_NEAR + 15 : d < LOD_NEAR);
       if ((m.userData.ver !== undefined && m.userData.hi && m.userData.ver !== C3.version) || (m.userData.hi !== undefined && m.userData.hi !== wantHi)) { scene.remove(m); models.delete(c); m = null; }
     }
+    if (m && mine && !!m.userData.moto !== !!c.moto) { scene.remove(m); models.delete(c); m = null; }   // le personnage monte sur une moto-taxi, puis en descend
     if (m && c.bus && C3 && C3.has("bus") && !m.userData.glbBus) { scene.remove(m); models.delete(c); m = null; }   // le bus détaillé vient d'arriver
     if (!m) {
       if (C3) {
@@ -1352,6 +1353,7 @@
       else if (c.kind === "cop" || c.kind === "block") m = makeCarModel("police", "#f2f4f8");
       else if (c.bus) m = makeCarModel("bus");
       else m = makeCarModel("car", c.taxi ? "#f2c230" : TRAFFIC_COLS[c.tIdx % TRAFFIC_COLS.length], { taxi: c.taxi });
+      if (c.moto) m.userData.moto = true;
       if (c.bus) addBusDoor(m, c);
       scene.add(m); models.set(c, m);
     }

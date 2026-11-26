@@ -561,7 +561,7 @@
       const c = makeCar("traffic", x, y, a, { maxSpeed: WALK ? ROAD.npc() : 150 + rand() * 90, accel: 260, steerMax: 2.2, dmgMul: 1, mass: .8, grip: 9 });
       c.from = from; c.to = to; c.tIdx = (rand() * TRAFFIC_SPRITES.length) | 0; c.sprite = TRAFFIC_SPRITES[c.tIdx]; c.bus = rand() < .12; c.taxi = !c.bus && rand() < .38; if (c.bus) { c.maxSpeed *= .8; Object.assign(c, { hl: BUS_HL, hw: BUS_HW, offs: BUS_OFF, mass: 3 }); }
       // camions (benne, bâché, citerne) et motos (dont les motos-taxis « wewa ») : mêmes feux, même code de la route
-      if (WALK && !c.bus) { const k = rand(); if (k < .09) { c.taxi = false; c.truck = ["benne", "bache", "citerne"][(rand() * 3) | 0]; c.maxSpeed = ROAD.truck(); Object.assign(c, { hl: 30, hw: 11, offs: [-20, 0, 20], mass: 3.5, accel: 150 }); } else if (k < .3) { c.taxi = false; c.moto = true; c.wewa = rand() < .6; c.pass = c.wewa && rand() < .6; Object.assign(c, { hl: 10, hw: 4, offs: [0], mass: .35, accel: 300 }); } }
+      if (WALK && !c.bus) { const k = rand(); if (k < .09 && !truckBanned(x, y)) { c.taxi = false; c.truck = ["benne", "bache", "citerne"][(rand() * 3) | 0]; c.maxSpeed = ROAD.truck(); Object.assign(c, { hl: 30, hw: 11, offs: [-20, 0, 20], mass: 3.5, accel: 150 }); } else if (k < .3) { c.taxi = false; c.moto = true; c.wewa = rand() < .6; c.pass = c.wewa && rand() < .6; Object.assign(c, { hl: 10, hw: 4, offs: [0], mass: .35, accel: 300 }); } }
       const sp = c.maxSpeed * .7; c.vx = Math.cos(a) * sp; c.vy = Math.sin(a) * sp;
       G.traffic.push(c); return;
     }
@@ -1005,6 +1005,8 @@
   // En ville : 50 km/h (x 0,45 = km/h dans les unités du jeu), arrêt au feu rouge, priorité aux piétons, distance de sécurité.
   // Les voitures, taxis et bus du jeu respectent ces règles. Le joueur qui conduit lui-même est verbalisé :
   // feu rouge grillé (agent de la circulation à chaque feu), excès de vitesse vu par la police, contrôle du permis.
+  // les poids lourds sont interdits dans la Gombe de 6 h à 20 h (comme dans beaucoup de grandes villes)
+  const GOMBE_Y = H * .33, truckBanned = (x, y) => WALK && y < GOMBE_Y && G.hour >= 6 && G.hour < 20;
   const ROAD = { limitKmh: 50, limitU: 50 / .45, bus: 42 / .45, npc: () => (44 + rand() * 6) / .45, truck: () => (36 + rand() * 4) / .45 };   // poids lourds : 40 km/h en ville
   function roadRules(dt) {
     const p = G.player; if (!WALK || G.foot || G.auto || !p) return;
@@ -1495,7 +1497,10 @@
   }
   function callTaxi(forceHome, bus) {
     const A = G.auto, f = G.foot, p = G.player;
-    if (!forceHome && G.me && !pay(5, "taxi")) { A.phase = "walk"; A.path = null; A.tired = true; return; }
+    // moto-taxi « wewa » : moins chère que le taxi (2 au lieu de 5 e-makuta) mais plus risquée ; on la prend surtout quand on a peu d'argent
+    A.moto = !forceHome && !bus && WALK && (G.me && G.me.argent < 15 ? rand() < .8 : rand() < .35);
+    if (!forceHome && G.me && !pay(A.moto ? 2 : 5, A.moto ? "moto-taxi (wewa)" : "taxi")) { if (!A.moto && pay(2, "moto-taxi (wewa), le taxi est trop cher")) A.moto = true; else { A.phase = "walk"; A.path = null; A.tired = true; return; } }
+    A.crash = A.moto && rand() < .07;
     const goHome = forceHome || A.mode === "maison" || A.mode === "footing" || rand() < .5 || !PLACES.length, far = PLACES.filter(o => o.id !== "maison" && Math.hypot(o.x - f.x, o.y - f.y) > 900);
     const next = A.mode === "tourisme" && A.tour && A.tour[0];
     const o = next || (goHome ? HOME() : far[(rand() * far.length) | 0] || HOME());
@@ -1505,9 +1510,11 @@
     const n = nearestNode(f.x, f.y), N = nodes[n], m = N.nb.length ? N.nb[0] : n, pt = edgePoint(m, n, Math.min(30, N.w * .22));
     p.x = pt.x; p.y = pt.y; p.a = Math.atan2(N.y - nodes[m].y, N.x - nodes[m].x) || 0; p.vx = p.vy = 0;
     A.phase = "board"; A.wait = 1.6; A.taxiTo = o; A.home = o.id === "maison";
-    A.doing = (forceHome ? (bus ? "🚌 En bus" : "🚕 En taxi") + " vers la maison" : "Fatigué : il prend un taxi vers " + (A.home ? "la maison" : o.nom));
-    if (!forceHome) msg("😮‍💨 Ton personnage est fatigué : il appelle un taxi " + (A.home ? "pour rentrer à la maison." : "pour aller à " + o.nom + "."), 4);
+    const veh = A.moto ? "une moto-taxi" : "un taxi";
+    A.doing = (forceHome ? (bus ? "🚌 En bus" : "🚕 En taxi") + " vers la maison" : "Fatigué : il prend " + veh + " vers " + (A.home ? "la maison" : o.nom));
+    if (!forceHome) msg("😮‍💨 Ton personnage est fatigué : il hèle " + veh + (A.moto ? " (2 e-makuta, moins cher mais plus risqué) " : " ") + (A.home ? "pour rentrer à la maison." : "pour aller à " + o.nom + "."), 4);
   }
+  function motoOff(p) { if (!p.moto) return; const s0 = p.save || {}; p.moto = p.wewa = p.pass = false; p.hl = s0.hl; p.hw = s0.hw; p.offs = s0.offs; }
   function autoRide(dt) {
     const A = G.auto, p = G.player, P = A.path;
     let t;
@@ -1519,11 +1526,20 @@
     p.inp.gas = sp < (lastLeg ? Math.min(ROAD.limitU, dist * 1.2) : ROAD.limitU * .97) * (ang > .5 ? .5 : 1) ? 1 : 0;   // le taxi respecte les 50 km/h
     p.inp.brake = (ang > .8 && sp > 180) || (lastLeg && dist < 90 && sp > 60) ? 1 : 0; p.inp.hand = 0; p.inp.nitro = 0;
     if (!lastLeg && stopHere(p, P[A.i + 1])) { p.inp.gas = 0; p.inp.brake = 1; }
+    if (A.crash && A.i >= P.length / 2) {   // la moto dérape : blessure, soins payants, il finit à pied
+      A.crash = false; p.vx = p.vy = 0; motoOff(p);
+      G.foot = { x: p.x + Math.sin(p.a) * 26, y: p.y - Math.cos(p.a) * 26, a: p.a, v: 0, t: 0 }; if (walkBlocked(G.foot.x, G.foot.y)) { G.foot.x = p.x - Math.sin(p.a) * 26; G.foot.y = p.y + Math.cos(p.a) * 26; }
+      G.energy = Math.max(0, G.energy - 25); reportInjury(32);
+      if (G.me) note("💥 La moto-taxi a dérapé sur le boulevard : ton personnage est blessé. Les soins sont payants (voir « Ma vie »). Il finit le trajet à pied.", "alert");
+      const o = A.taxiTo; A.phase = "walk"; planWalk({ x: o.door.x, y: o.door.y, nom: A.home ? "la maison" : o.nom, icone: o.icone, home: A.home, place: o });
+      return;
+    }
     if (lastLeg && dist < 70 && sp < 70) { // arrivée : on descend devant le lieu
+      motoOff(p);
       p.inp.gas = 0; p.inp.brake = 1; p.vx = p.vy = 0;
       const rx = Math.sin(p.a), ry = -Math.cos(p.a); let x = p.x + rx * 26, y = p.y + ry * 26; if (walkBlocked(x, y)) { x = p.x - rx * 26; y = p.y - ry * 26; }
       G.foot = { x, y, a: p.a, v: 0, t: 0 };
-      const o = A.taxiTo; msg("🚕 Arrivé" + (A.home ? " à la maison." : " : " + o.nom + "."), 2.5, "ok");
+      const o = A.taxiTo; msg((A.moto ? "🏍️ Arrivé" : "🚕 Arrivé") + (A.home ? " à la maison." : " : " + o.nom + "."), 2.5, "ok");
       A.phase = "walk"; planWalk({ x: o.door.x, y: o.door.y, nom: A.home ? "la maison" : o.nom, icone: o.icone, home: A.home, place: o });
       return;
     }
@@ -1550,6 +1566,7 @@
         const p = G.player, o = A.taxiTo, a = nearestNode(p.x, p.y), b = nearestNode(o.door.x, o.door.y);
         const nb = nodes[b], drop = { x: nb.x + (o.door.x - nb.x) * .5, y: nb.y + (o.door.y - nb.y) * .5 };
         A.path = findPath(a, b) || [a, b]; A.i = 0; A.stuck = 0; A.dropAt = drop; G.foot = null; A.phase = "ride";
+        if (A.moto) { p.save = { hl: p.hl, hw: p.hw, offs: p.offs }; Object.assign(p, { moto: true, wewa: true, pass: true, hl: 10, hw: 4, offs: [0] }); A.doing = "🏍️ En moto-taxi vers " + (A.home ? "la maison" : o.nom); }
       }
     } else if (A.phase === "ride") autoRide(dt);
     else if (A.phase === "waitbus" || A.phase === "boardbus" || A.phase === "inbus") busRider(dt);
@@ -2878,7 +2895,7 @@
       !(c.mode === "leave" && Math.hypot(c.x - p.x, c.y - p.y) > 1500) && !(WALK && c.mode === "patrol" && Math.hypot(c.x - fcp.x, c.y - fcp.y) > 2800));
 
     // traffic renouvelé
-    G.traffic = G.traffic.filter(c => !c.dead && Math.hypot(c.x - fcar.x, c.y - fcar.y) < 2600);
+    G.traffic = G.traffic.filter(c => !c.dead && Math.hypot(c.x - fcar.x, c.y - fcar.y) < 2600 && !(c.truck && truckBanned(c.x, c.y) && Math.hypot(c.x - fcar.x, c.y - fcar.y) > 700));   // un camion entré dans la Gombe en journée fait demi-tour hors de vue
     const dn = WALK ? dens(G.hour) : 1, nTraf = Math.round(44 * (WALK ? Math.max(.3, dn) : 1));
     while (G.traffic.length < nTraf) spawnTraffic(false);
     if (G.traffic.length > nTraf + 3) { const c = G.traffic.find(c => Math.hypot(c.x - fcar.x, c.y - fcar.y) > 1500); if (c) c.dead = true; }
@@ -3289,5 +3306,5 @@
   window.ZBOSS_WORLD = { busNet, addObst, OBST, W, H, C, MW, MH, mask, MAP, ROADS, FILL, walkBlocked, SHOPS, PLACES, BILLBOARDS, BENCHES, LIGHTS, lightState, isOpen, SHOP_W, SHOP_D, SHOP_DOOR, nodes, nodesNear, nearestNode, solidAt, groundAt, angDiff, rand };
   // outil d'aperçu : réseau routier et tracé d'une ligne de bus passant devant une liste de lieux
   const lineRoute = ids => { const st = ids.map(id => PLACES.find(o => o.id === id)).filter(Boolean).map(o => nearestNode(o.door.x, o.door.y)), out = []; st.forEach((n, k) => { const P = findPath(n, st[(k + 1) % st.length]) || []; P.forEach(i => out.push([nodes[i].x, nodes[i].y])); }); return out; };
-  window.__zboss = { redAhead: c => redAhead(c), lightOf: i => LIGHTS[i], roadAudit: () => G.traffic.concat(G.buses || []).map(c => { const L = LIGHTS.find(L => Math.hypot(L.x - c.x, L.y - c.y) < L.w / 2); return { c, L: L ? LIGHTS.indexOf(L) : -1, red: L ? redFor(L, c.a, G.t) === "r" && redFor(L, c.a, G.t - 1.5) === "r" : false, to: c.to, lt: L ? L.n : -1 }; }), interior: o => openInterior(o || G.nearLife), roads: () => nodes.map(n => [n.x, n.y, n.nb]), lineRoute, line1: () => busNet().route.map(i => [nodes[i].x, nodes[i].y]), places: () => PLACES.map(o => [o.id, o.nom, o.icone, o.x, o.y]), room: (id, watch) => { const o = PLACES.find(x => x.id === id); return o ? openRoom(o, watch) : false; }, get roomState() { const R = G.room; return R && { kind: R.kind, n: R.people.length, people: R.people.map(q => ({ role: q.role || (q.player ? "moi" : "client"), s: q.state, d: q.doing || "", x: Math.round(q.x), y: Math.round(q.y) })) }; }, closeRoom: () => closeRoom(), home: q => { const o = homeOf(q || G.peds.find(p => !p.staff && !p.tourist)); return o && openRoom(o, true) && o; }, bld: (x, y, r) => bldNear(x, y, r || 90), virt: o => openRoom(o, true), talk: q => talkTo(q), get state() { return G; }, start: () => start(chosen), spawnCop, keys, touch, act: () => { actPressed = true; }, sortie: m => autoToggle(true, m), auto: m => autoToggle(true, m, true), sorties: openSorties, plan: openPlan, me: showMe, setHour: h => { G.hour = h; }, live: () => ({ others: (G && G.others || []).map(o => ({ nom: o.nom, x: Math.round(o.x), y: Math.round(o.y), m: o.m, ped: !!o.ped })), ws: LIVE.ws ? LIVE.ws.readyState : -1, online: LIVE.online }), liveStep: dt => liveStep(dt || 1 / 30), step: (n, dt) => { for (let i = 0; i < n && G && !G.paused; i++) update(dt || 1 / 30); } };
+  window.__zboss = { redAhead: c => redAhead(c), lightOf: i => LIGHTS[i], roadAudit: () => G.traffic.concat(G.buses || []).map(c => { const L = LIGHTS.find(L => Math.hypot(L.x - c.x, L.y - c.y) < L.w / 2); return { c, L: L ? LIGHTS.indexOf(L) : -1, red: L ? redFor(L, c.a, G.t) === "r" && redFor(L, c.a, G.t - 1.5) === "r" : false, to: c.to, lt: L ? L.n : -1 }; }), interior: o => openInterior(o || G.nearLife), roads: () => nodes.map(n => [n.x, n.y, n.nb]), lineRoute, line1: () => busNet().route.map(i => [nodes[i].x, nodes[i].y]), places: () => PLACES.map(o => [o.id, o.nom, o.icone, o.x, o.y]), room: (id, watch) => { const o = PLACES.find(x => x.id === id); return o ? openRoom(o, watch) : false; }, get roomState() { const R = G.room; return R && { kind: R.kind, n: R.people.length, people: R.people.map(q => ({ role: q.role || (q.player ? "moi" : "client"), s: q.state, d: q.doing || "", x: Math.round(q.x), y: Math.round(q.y) })) }; }, closeRoom: () => closeRoom(), taxi: (moto, crash) => { callTaxi(); if (G.auto) { G.auto.moto = moto; G.auto.crash = crash; } return G.auto && G.auto.phase; }, gombeY: () => GOMBE_Y, home: q => { const o = homeOf(q || G.peds.find(p => !p.staff && !p.tourist)); return o && openRoom(o, true) && o; }, bld: (x, y, r) => bldNear(x, y, r || 90), virt: o => openRoom(o, true), talk: q => talkTo(q), get state() { return G; }, start: () => start(chosen), spawnCop, keys, touch, act: () => { actPressed = true; }, sortie: m => autoToggle(true, m), auto: m => autoToggle(true, m, true), sorties: openSorties, plan: openPlan, me: showMe, setHour: h => { G.hour = h; }, live: () => ({ others: (G && G.others || []).map(o => ({ nom: o.nom, x: Math.round(o.x), y: Math.round(o.y), m: o.m, ped: !!o.ped })), ws: LIVE.ws ? LIVE.ws.readyState : -1, online: LIVE.online }), liveStep: dt => liveStep(dt || 1 / 30), step: (n, dt) => { for (let i = 0; i < n && G && !G.paused; i++) update(dt || 1 / 30); } };
 })();
