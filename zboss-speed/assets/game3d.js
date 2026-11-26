@@ -832,6 +832,10 @@
   // Les habits changent chaque jour (jour de jeu) : le corps (sexe, peau, taille) reste le même,
   // seule la tenue est retirée au sort avec le numéro du jour. Les uniformes (police, maillots) restent.
   let LOOK_DAY = 0;
+  const SUNDAY_SUIT = ["#f4f1e8", "#d8cdb4", "#9fb7d8", "#7a7f88", "#111a33", "#1b1d22", "#5b2a86"];
+  const SUNDAY_WAX = ["#e8a317", "#1f7a8c", "#c0392b", "#8e44ad", "#16a085", "#d35400", "#f1c40f", "#1e3a8a"];
+  const SAT_TOP = ["#f4f4f2", "#f59e0b", "#e11d48", "#22c55e", "#0ea5e9", "#a855f7", "#111827", "#facc15"];
+  const SAT_LOW = ["#1e3a5f", "#2b4c7e", "#d6d3d1", "#111827", "#4b3621"];
   const PLAYER_TOP = ["#ff5a1f", "#f4f4f2", "#1e3a8a", "#0f766e", "#b91c1c", "#f59e0b", "#7c3aed", "#14532d"];
   const pedLook = q => {
     if (q.lookC && q.lookDay === LOOK_DAY) return q.lookC;
@@ -854,6 +858,33 @@
     }
     if (q.lookBiz === undefined) q.lookBiz = !q.player && !q.staff && !q.vendor && ((((q.look || 0) * 7919 + Math.floor((q.x0 || q.x) * 3)) >>> 0) % 100) < (window.TWOLIFE_WALK ? 40 : 18);
     const biz = q.lookBiz;   // le métier (tenue de bureau) ne change pas d'un jour à l'autre, seule la couleur du costume
+    const fin = (L, wrap) => { const lin = c => c && c.clone().convertSRGBToLinear(); L.fb = { skin: lin(L.skin), top: lin(L.top), low: lin(L.low), wrap: wrap ? lin(L.wrap) : null, shoe: lin(L.shoe), tie: lin(L.tie) }; return L; };
+    // jour de la semaine (jour 0 du calendrier = jeudi) : 6 = samedi, 0 = dimanche
+    const wd = (((LOOK_DAY + 4) % 7) + 7) % 7, civil = !q.staff && !q.vendor;
+    if (wd === 0 && civil) { // dimanche : tenue du culte, on s'habille bien pour l'église
+      const skin = SKIN[(r() * SKIN.length) | 0], tall = .94 + r() * .12; r();
+      if (woman) { // ensemble en pagne assorti (haut, jupe et foulard du même tissu) ou robe blanche
+        const white = rd() < .25, c = white ? "#f6f3ec" : SUNDAY_WAX[(rd() * SUNDAY_WAX.length) | 0];
+        q.lookC = { woman, sunday: true, skin: new THREE.Color(skin), top: new THREE.Color(c), low: new THREE.Color(c), wrap: new THREE.Color(white ? "#f6f3ec" : c), sleeve: true, h: tall, shoe: new THREE.Color(rd() < .5 ? "#0e0e10" : "#c9a227") };
+        return fin(q.lookC, true);
+      }
+      if (q.player || rd() < .7) { // costume clair ou sombre, cravate
+        const suit = SUNDAY_SUIT[(rd() * SUNDAY_SUIT.length) | 0];
+        q.lookC = { woman, biz: true, sunday: true, skin: new THREE.Color(skin), top: new THREE.Color(suit), low: new THREE.Color(suit), wrap: null, sleeve: true, h: tall, shoe: new THREE.Color(rd() < .6 ? "#0e0e10" : "#5b3a1e"), tie: new THREE.Color(TIE[(rd() * TIE.length) | 0]), bag: false };
+        return fin(q.lookC);
+      }
+      q.lookC = { woman, sunday: true, skin: new THREE.Color(skin), top: new THREE.Color("#f6f3ec"), low: new THREE.Color(PANTS[(rd() * 3) | 0]), wrap: null, sleeve: true, h: tall, shoe: new THREE.Color("#0e0e10") };
+      return fin(q.lookC);
+    }
+    if (wd === 6 && civil) { // samedi : détente, sorties et fêtes (même les gens de bureau quittent le costume)
+      const skin = SKIN[(r() * SKIN.length) | 0], tall = .94 + r() * .12; r();
+      q.lookC = { woman, saturday: true, skin: new THREE.Color(skin),
+        top: new THREE.Color(q.player ? PLAYER_TOP[LOOK_DAY % PLAYER_TOP.length] : woman && rd() < .85 ? WAX[(rd() * WAX.length) | 0] : SAT_TOP[(rd() * SAT_TOP.length) | 0]),
+        low: new THREE.Color(woman ? WAX[(rd() * WAX.length) | 0] : SAT_LOW[(rd() * SAT_LOW.length) | 0]),
+        wrap: woman && rd() < .7 ? new THREE.Color(WAX[(rd() * WAX.length) | 0]) : null,
+        sleeve: rd() < .3, h: tall, shoe: new THREE.Color(["#f5f5f5", "#f5f5f5", "#111", "#e11d48", "#1d4ed8"][(rd() * 5) | 0]) };
+      return fin(q.lookC, true);
+    }
     if (biz) {
       const skin = SKIN[(r() * SKIN.length) | 0], tall = .94 + r() * .12, bag = r() < .55, suit = SUIT[(rd() * SUIT.length) | 0];
       q.lookC = { woman, biz: true, skin: new THREE.Color(skin), top: new THREE.Color(suit), low: new THREE.Color(woman && rd() < .5 ? SUIT[(rd() * SUIT.length) | 0] : suit), wrap: null,
@@ -862,7 +893,7 @@
       L.fb = { skin: lin(L.skin), top: lin(L.top), low: lin(L.low), wrap: null, shoe: lin(L.shoe), tie: lin(L.tie) };
       return L;
     }
-    const skin = SKIN[(r() * SKIN.length) | 0], tall = .94 + r() * .12;
+    const skin = SKIN[(r() * SKIN.length) | 0], tall = .94 + r() * .12; r();
     q.lookC = {
       woman, skin: new THREE.Color(skin),
       top: new THREE.Color(q.player ? PLAYER_TOP[LOOK_DAY % PLAYER_TOP.length] : q.staff ? "#14161c" : woman && rd() < .6 ? WAX[(rd() * WAX.length) | 0] : SHIRT[(rd() * SHIRT.length) | 0]),
@@ -971,7 +1002,7 @@
       const L = pedLook(q);
       if (!h) {
         const hash = ((q.look || 0) * 2654435761 + Math.floor((q.x0 || q.x) * 7)) >>> 0;
-        const v = q.player ? "m1" : q.kit ? (hash % 2 ? "m3" : "m1") : L.cop ? (L.woman ? "f2" : (hash % 2 ? "m2" : "m4")) : L.biz ? (L.woman ? "f2" : (hash % 3 ? "m4" : "m2")) : L.woman ? WOMEN[hash % WOMEN.length] : MEN[hash % MEN.length];
+        const v = q.player ? "m1" : q.kit ? (hash % 2 ? "m3" : "m1") : L.cop ? (L.woman ? "f2" : (hash % 2 ? "m2" : "m4")) : q.lookBiz ? (L.woman ? "f2" : (hash % 3 ? "m4" : "m2")) : L.woman ? WOMEN[hash % WOMEN.length] : MEN[hash % MEN.length];
         if (!HUM.tpl[v]) return;
         h = humInstance(v); h.ped = q; h.cur = null; h.mixer.stopAllAction(); HUM.byPed.set(q, h); scene.add(h.obj);
         const m = h.mats;
