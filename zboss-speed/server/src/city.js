@@ -23,7 +23,7 @@ export function cleanPosition(d) {
 export function visibleFrom(me, all, now) {
   return all.filter(o => o && o.id !== me.id && o.x !== null && now - o.t < STALE_MS && Math.abs(o.x - me.x) < RANGE && Math.abs(o.y - me.y) < RANGE)
     .sort((p, q) => Math.hypot(p.x - me.x, p.y - me.y) - Math.hypot(q.x - me.x, q.y - me.y))
-    .slice(0, MAX_SEEN).map(o => ({ id: o.id, nom: o.nom, fem: o.fem, x: o.x, y: o.y, a: o.a, m: o.m }));
+    .slice(0, MAX_SEEN).map(o => ({ id: o.id, nom: o.nom, fem: o.fem, pio: !!o.pio, x: o.x, y: o.y, a: o.a, m: o.m }));
 }
 
 export class CityRoom {
@@ -37,7 +37,7 @@ export class CityRoom {
     for (const old of this.ctx.getWebSockets(id)) { try { old.close(4000, "Ouvert dans un autre onglet."); } catch (e) { } }
     const pair = new WebSocketPair(), [client, server] = Object.values(pair);
     this.ctx.acceptWebSocket(server, [id]);
-    server.serializeAttachment({ id, nom: nom.slice(0, 30), fem: req.headers.get("X-Fem") === "1", x: null, y: null, a: 0, m: "pied", t: 0 });
+    server.serializeAttachment({ id, nom: nom.slice(0, 30), fem: req.headers.get("X-Fem") === "1", pio: req.headers.get("X-Pio") === "1", x: null, y: null, a: 0, m: "pied", t: 0 });
     return new Response(null, { status: 101, webSocket: client, headers: { "Sec-WebSocket-Protocol": "twolife" } });
   }
 

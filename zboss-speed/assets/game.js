@@ -2951,7 +2951,7 @@
     const now = performance.now(), seen = new Set();
     d.joueurs.forEach(j => {
       let o = LIVE.map.get(j.id);
-      if (!o) { o = { id: j.id, nom: j.nom, fem: !!j.fem, x: j.x, y: j.y, a: j.a, v: 0, look: (parseInt(String(j.id).slice(0, 6), 16) || 7) % 997, other: true }; LIVE.map.set(j.id, o); }
+      if (!o) { o = { id: j.id, nom: j.nom, fem: !!j.fem, pio: !!j.pio, x: j.x, y: j.y, a: j.a, v: 0, look: (parseInt(String(j.id).slice(0, 6), 16) || 7) % 997, other: true }; LIVE.map.set(j.id, o); }
       o.tx = j.x; o.ty = j.y; o.ta = j.a; o.m = j.m; o.seen = now; seen.add(j.id);
     });
     for (const id of [...LIVE.map.keys()]) if (!seen.has(id)) LIVE.map.delete(id);
@@ -2980,7 +2980,7 @@
     const me = livePos(); G.others = G.others || [];
     LIVE_DEMO.forEach(([nom, fem], i) => {
       let o = G.others[i];
-      if (!o) o = G.others[i] = { id: "demo" + i, nom, fem, demo: true, other: true };
+      if (!o) o = G.others[i] = { id: "demo" + i, nom, fem, pio: i < 2, demo: true, other: true };
       const q = o.ped;
       if (!q || !G.peds.includes(q) || Math.hypot(q.x - me.x, q.y - me.y) > 1800) {
         const free = G.peds.filter(p => !p.joueur && !p.kit && !p.cop && !p.vendor && !p.bus && Math.hypot(p.x - me.x, p.y - me.y) < 700);

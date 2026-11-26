@@ -1105,12 +1105,13 @@ const worker = {
         if (req.headers.get("Upgrade") !== "websocket") return fail(h, 426, "WebSocket attendu.");
         if (!env.CITY) return fail(h, 503, "La ville en direct n'est pas encore ouverte.");
         const tok = (req.headers.get("Sec-WebSocket-Protocol") || "").split(",").map(x => x.trim()).find(x => /^[a-f0-9-]{36}$/.test(x));
-        const c = tok && await db.prepare(`SELECT c.id, c.vie_id FROM sessions s JOIN comptes c ON c.id = s.compte_id WHERE s.token = ? AND s.expire_le > ?`).bind(tok, now).first();
+        const c = tok && await db.prepare(`SELECT c.id, c.vie_id, c.cree_le FROM sessions s JOIN comptes c ON c.id = s.compte_id WHERE s.token = ? AND s.expire_le > ?`).bind(tok, now).first();
         if (!c) return fail(h, 401, "Connecte-toi pour continuer.");
         const p = await db.prepare(`SELECT id, prenom, sexe, mort_le FROM personnages WHERE id = ?`).bind(c.vie_id).first();
         if (!p || p.mort_le) return fail(h, 403, "Ton personnage n'est plus dans la ville.");
+        const rg = await db.prepare(`SELECT COUNT(*) AS n FROM comptes WHERE cree_le < ? OR (cree_le = ? AND id <= ?)`).bind(c.cree_le, c.cree_le, c.id).first();
         const room = env.CITY.get(env.CITY.idFromName("kinshasa"));
-        return room.fetch("https://ville/direct", { headers: { Upgrade: "websocket", "X-Joueur": p.id, "X-Nom": encodeURIComponent(p.prenom), "X-Fem": p.sexe === "F" ? "1" : "0" } });
+        return room.fetch("https://ville/direct", { headers: { Upgrade: "websocket", "X-Joueur": p.id, "X-Nom": encodeURIComponent(p.prenom), "X-Fem": p.sexe === "F" ? "1" : "0", "X-Pio": pioneerView(rg.n).pionnier ? "1" : "0" } });
       }
       if (url.pathname === "/api/celebrites" && req.method === "GET") return json(h, 200, await celebrities(db, now));
       if (url.pathname === "/api/bandeau" && req.method === "GET") {
@@ -1461,6 +1462,7 @@ const worker = {
       if (url.pathname === "/api/journal" && req.method === "POST") return json(h, 200, newspaper(await newsFacts(db, now), now, p.quartier));
       if (url.pathname === "/api/voisins" && req.method === "POST") {
         const { results } = await db.prepare(`SELECT p.id, p.prenom, p.nom, p.sexe, p.quartier, p.ne_le, c.pseudo,
+            (SELECT COUNT(*) FROM comptes c2 WHERE c2.cree_le < c.cree_le OR (c2.cree_le = c.cree_le AND c2.id <= c.id)) AS rang,
             (SELECT metier_id FROM emplois e WHERE e.personnage_id = p.id AND e.fin IS NULL LIMIT 1) AS metier,
             (SELECT points FROM reputations r WHERE r.personnage_id = p.id) AS reputation
           FROM personnages p JOIN comptes c ON c.vie_id = p.id WHERE p.mort_le IS NULL AND p.id != ?

@@ -1073,9 +1073,9 @@
   function tagSprite(o) {
     const tex = canvasTex(256, 64, (c, w, h) => {
       c.font = "700 30px Inter, Arial, sans-serif"; const nm = String(o.nom || "Habitant").slice(0, 16), tw = Math.min(w - 8, c.measureText(nm).width + 52);
-      const x0 = (w - tw) / 2; c.fillStyle = "rgba(4,22,28,.82)"; c.strokeStyle = "#18e0ff"; c.lineWidth = 3;
+      const x0 = (w - tw) / 2, ac = o.pio ? "#ffd23f" : "#18e0ff"; c.fillStyle = o.pio ? "rgba(40,28,4,.86)" : "rgba(4,22,28,.82)"; c.strokeStyle = ac; c.lineWidth = 3;   // pionnier : étiquette dorée
       c.beginPath(); c.moveTo(x0 + 16, 6); c.lineTo(x0 + tw - 16, 6); c.quadraticCurveTo(x0 + tw - 2, 6, x0 + tw - 2, 32); c.quadraticCurveTo(x0 + tw - 2, 58, x0 + tw - 16, 58); c.lineTo(x0 + 16, 58); c.quadraticCurveTo(x0 + 2, 58, x0 + 2, 32); c.quadraticCurveTo(x0 + 2, 6, x0 + 16, 6); c.closePath(); c.fill(); c.stroke();
-      c.fillStyle = "#18e0ff"; c.beginPath(); c.arc(x0 + 22, 32, 7, 0, 6.3); c.fill();
+      c.fillStyle = ac; if (o.pio) { c.beginPath(); for (let i = 0; i < 10; i++) { const r = i % 2 ? 4.5 : 11, a = -Math.PI / 2 + i * Math.PI / 5; c.lineTo(x0 + 22 + Math.cos(a) * r, 32 + Math.sin(a) * r); } c.fill(); } else { c.beginPath(); c.arc(x0 + 22, 32, 7, 0, 6.3); c.fill(); }
       c.fillStyle = "#fff"; c.textAlign = "left"; c.textBaseline = "middle"; c.fillText(nm, x0 + 36, 33);
     });
     const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false })); sp.scale.set(2.3, .58, 1); sp.renderOrder = 10; scene.add(sp); return sp;
@@ -1226,14 +1226,14 @@
   const doorMat = new THREE.MeshPhysicalMaterial({ color: "#20303f", metalness: .6, roughness: .15, transparent: true, opacity: .85 });
   const doorFrameMat = new THREE.MeshStandardMaterial({ color: "#070a0e", roughness: .9 });
   function addBusDoor(m, c) { // porte double : deux battants qui coulissent quand le bus s'arrête
-    const L = c.hl ? c.hl * 2 * S : 7.2, Wd = 2.3, dx = L / 2 * .55, z = Wd / 2 + .03;
-    const hole = addBox(m, 1.2, 2.1, .02, dx, 1.4, z, doorFrameMat);
-    const a = addBox(m, .58, 2.0, .04, dx - .3, 1.4, z + .02, doorMat), b = addBox(m, .58, 2.0, .04, dx + .3, 1.4, z + .02, doorMat);
-    m.userData.door = { a, b, dx, z, hole };
+    const L = c.hl ? c.hl * 2 * S : 7.2, Wd = 2.3, glb = m.userData.glbBus, dx = glb ? 2.9 : L / 2 * .55, z = Wd / 2 + (glb ? -.02 : .03), lw = glb ? .23 : .3, y = glb ? 1.48 : 1.4;
+    const hole = glb ? null : addBox(m, 1.2, 2.1, .02, dx, 1.4, z, doorFrameMat);
+    const a = addBox(m, lw * 2 - .02, 2.0, .04, dx - lw, y, z + .02, doorMat), b = addBox(m, lw * 2 - .02, 2.0, .04, dx + lw, y, z + .02, doorMat);
+    m.userData.door = { a, b, dx, z, hole, lw, y };
   }
   function animDoor(c, m) {
     const D = m.userData.door; if (!D) return; const o = Math.max(0, Math.min(1, c.door || 0));
-    D.a.position.set(D.dx - .3 - o * .55, 1.4, D.z + .02 + o * .12); D.b.position.set(D.dx + .3 + o * .55, 1.4, D.z + .02 + o * .12);
+    D.a.position.set(D.dx - D.lw - o * D.lw * 1.8, D.y, D.z + .02 + o * .1); D.b.position.set(D.dx + D.lw + o * D.lw * 1.8, D.y, D.z + .02 + o * .1);
   }
   const TRAFFIC_COLS = ["#5b6476", "#9aa0ad", "#3f6e8c", "#8c6a3f", "#6b3f3f", "#4f7a59", "#d9d9d9"];
   const models = new Map();
@@ -1248,6 +1248,7 @@
       const wantHi = mine || (m.userData.hi ? d < LOD_NEAR + 15 : d < LOD_NEAR);
       if ((m.userData.ver !== undefined && m.userData.hi && m.userData.ver !== C3.version) || (m.userData.hi !== undefined && m.userData.hi !== wantHi)) { scene.remove(m); models.delete(c); m = null; }
     }
+    if (m && c.bus && C3 && C3.has("bus") && !m.userData.glbBus) { scene.remove(m); models.delete(c); m = null; }   // le bus détaillé vient d'arriver
     if (!m) {
       if (C3) {
         const hi = mine || d < LOD_NEAR, o = { lod: hi ? "high" : "low", shadow: hi && (mine || !MOBILE) };

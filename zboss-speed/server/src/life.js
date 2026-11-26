@@ -1249,7 +1249,7 @@ export function cannotSendWord(texte, sentToday, toSelf) {
 export function neighborView(n, now = Date.now()) {
   const age = ageYears(n.ne_le, now);
   return { id: n.id, prenom: n.prenom, nom: n.nom, sexe: n.sexe, pseudo: n.pseudo || null, quartier: n.quartier, age: Math.floor(age), etape: stageOf(age).label,
-    metier: n.metier ? (JOBS.find(j => j.id === n.metier) || {}).nom || n.metier : null, reputation: repLabel(n.reputation || 0), memeCommune: !!n.memeCommune };
+    metier: n.metier ? (JOBS.find(j => j.id === n.metier) || {}).nom || n.metier : null, reputation: repLabel(n.reputation || 0), memeCommune: !!n.memeCommune, pionnier: n.rang > 0 && n.rang <= PIONEERS };
 }
 
 // ---------------------------------------------------------------- annonces payantes des commerçants partenaires
