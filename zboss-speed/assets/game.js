@@ -170,6 +170,8 @@
     { id: "basket", type: "basket", nom: "Terrain de basket", icone: "🏀", w: 320, d: 210, open: true, statut: "Un match de basket est en cours." },
     { id: "club1", type: "club", nom: "Mokili Club", icone: "🪩", w: 240, d: 190, h: 70, statut: "Boîte de nuit : réservée aux joueurs de 18 ans et plus, ouvre après le lancement." },
     { id: "club2", type: "club", nom: "Kin Lumière Lounge", icone: "🪩", w: 220, d: 180, h: 60, statut: "Boîte de nuit : réservée aux joueurs de 18 ans et plus, ouvre après le lancement." },
+    { id: "concert", type: "concert", nom: "Kin Show Arena", icone: "🎤", w: 320, d: 240, h: 90, statut: "Salle de concert : un orchestre de rumba et de ndombolo joue chaque soir de 19 h à 1 h. Entrée 8 e-makuta." },
+    { id: "piscine", type: "piscine", nom: "Piscine Kin Oasis", icone: "🏊", w: 290, d: 230, h: 30, statut: "Piscine en plein air : baignade, transats, bar à cocktails et DJ. Ouverte de 9 h à 19 h. Entrée 4 e-makuta." },
     { id: "alim1", type: "alim", nom: "Alimentation Mama Kitoko", icone: "🛒", w: 220, d: 170, h: 80, statut: "Alimentation : nourriture et boissons pour ton personnage." },
     { id: "alim2", type: "alim", nom: "Super Alimentation du Boulevard", icone: "🛒", w: 260, d: 190, h: 85, statut: "Alimentation : nourriture et boissons pour ton personnage." },
     { id: "mode", type: "magasin", nom: "Galerie Mode Kin", icone: "👗", w: 260, d: 190, h: 75, statut: "Magasin de vêtements : habille ton personnage." },
@@ -206,6 +208,8 @@
     dgi: "La DGI collecte les impôts qui financent la ville.",
     jeux: "L'aire de jeux, le lieu préféré des bébés et des enfants de 2 Life.",
     club1: "Le Mokili Club, une des boîtes de nuit les plus animées de Kin.",
+    concert: "Kin Show Arena : les orchestres de rumba et de ndombolo y font danser la ville tous les soirs.",
+    piscine: "La Piscine Kin Oasis : on y nage, on bronze sur les transats et on boit un cocktail au son de la rumba.",
     eglise: "L'Église du Réveil : cultes, chorales et prières, comme dans toutes les communes de Kinshasa.",
   };
   const PLACES = [], BILLBOARDS = [], BENCHES = [], PARKED = [], LIGHTS = [], LIGHT_AT = new Map();
@@ -350,7 +354,7 @@
   function lightState(L, t) { const k = ((t + L.ph) % 24 + 24) % 24; return { a: k < 10 ? "g" : k < 12 ? "y" : "r", b: k < 12 ? "r" : k < 22 ? "g" : "y" }; }
   function redFor(L, a, t) { const s = lightState(L, t); return Math.abs(Math.cos(a - L.ax)) > .7 ? s.a : s.b; }
   // heures d'ouverture des lieux
-  const HOURS = { alim: [7, 21], magasin: [9, 19], partenaire: [8, 17], etat: [8, 16], bureau: [7, 18], club: [20, 4], marche: [6, 18], eglise: [6, 21] };
+  const HOURS = { alim: [7, 21], magasin: [9, 19], partenaire: [8, 17], etat: [8, 16], bureau: [7, 18], club: [20, 4], marche: [6, 18], eglise: [6, 21], concert: [19, 1], piscine: [9, 19] };
   // exceptions réalistes : l'hôpital et la police ne ferment jamais
   const HOURS_ID = { hopital: [0, 24], police: [0, 24] };
   const hoursOf = o => HOURS_ID[o.id] || HOURS[o.type];
@@ -472,8 +476,29 @@
       const s = ctx.createBufferSource(); s.buffer = buf; const f = ctx.createBiquadFilter(); f.type = "lowpass"; f.frequency.value = freq || 900;
       const g = ctx.createGain(); g.gain.value = vol; s.connect(f); f.connect(g); g.connect(master); s.start();
     }
+    // ---- musique congolaise composée par le jeu (aucun enregistrement d'artiste) : rumba lente ou ndombolo rapide.
+    // Batterie (grosse caisse, caisse claire, charleston « tcha-tcha »), basse, guitare solo « sebene » en arpèges rapides.
+    let mus = null, NOISE = null;
+    const PROG = [[0, 4, 7], [5, 9, 12], [7, 11, 14], [5, 9, 12]];   // I – IV – V – IV, la grille classique de la rumba
+    const STY = { ndombolo: { bpm: 132, kick: [0, 4, 8, 12], snare: [4, 12, 14], hat: 1, bass: [[0, 0], [6, 7], [8, 12], [11, 7], [14, 4]], lead: 1 }, rumba: { bpm: 104, kick: [0, 10], snare: [8], hat: 2, bass: [[0, 0], [6, 7], [10, 12], [12, 7]], lead: 2 } };
+    function tone(f, t, dur, type, vol, dest) { const o = ctx.createOscillator(), g = ctx.createGain(); o.type = type; o.frequency.value = f; g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(vol, t + .006); g.gain.exponentialRampToValueAtTime(.0005, t + dur); o.connect(g); g.connect(dest); o.start(t); o.stop(t + dur + .05); }
+    function hit(t, vol, dur, f, type, dest) { if (!NOISE) { const n = ctx.sampleRate; NOISE = ctx.createBuffer(1, n, n); const d = NOISE.getChannelData(0); for (let i = 0; i < n; i++) d[i] = Math.random() * 2 - 1; } const s = ctx.createBufferSource(); s.buffer = NOISE; const fl = ctx.createBiquadFilter(); fl.type = type; fl.frequency.value = f; const g = ctx.createGain(); g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(.0005, t + dur); s.connect(fl); fl.connect(g); g.connect(dest); s.start(t, Math.random() * .5); s.stop(t + dur + .02); }
+    function kick(t, vol, dest) { const o = ctx.createOscillator(), g = ctx.createGain(); o.frequency.setValueAtTime(140, t); o.frequency.exponentialRampToValueAtTime(42, t + .13); g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(.0005, t + .22); o.connect(g); g.connect(dest); o.start(t); o.stop(t + .25); }
+    function musStep(st, i, t) {
+      const bar = Math.floor(i / 16) % 4, k = i % 16, ch = PROG[bar], root = 196, d = mus.bus, semi = n => Math.pow(2, n / 12);
+      if (st.kick.includes(k)) kick(t, .5, d);
+      if (st.snare.includes(k)) hit(t, k === 14 ? .12 : .22, .12, 1800, "bandpass", d);
+      if (k % st.hat === 0) hit(t, (k % 4 === 2 ? .09 : .05), .045, 8000, "highpass", d);
+      const b = st.bass.find(x => x[0] === k); if (b) tone(root / 2 * semi(ch[0] + b[1]), t, .28, "triangle", .32, d);
+      if (k % st.lead === 0) {   // sebene : la guitare solo tourne sur les notes de l'accord, une octave plus haut
+        const arp = [0, 1, 2, 1, 2, 0, 1, 2], n = ch[arp[(k / st.lead) % 8]] + (k >= 8 && st.lead === 1 ? 12 : 0);
+        tone(root * 2 * semi(n), t, .14, "triangle", .07, d); tone(root * 2 * semi(n) * 1.003, t, .09, "square", .012, d);
+      }
+      if (st.lead === 2 && k === 0) ch.forEach(n => tone(root * semi(n), t, 2.2, "sine", .035, d));   // rumba : nappe douce, comme les chœurs
+    }
     return {
       init, get muted() { return muted; },
+
       toggle() { muted = !muted; if (master) master.gain.setTargetAtTime(muted ? 0 : .55, ctx.currentTime, .05); return muted; },
       update(speedRatio, throttle, sirenLevel, running) {
         if (!ctx) return; const t = ctx.currentTime;
@@ -486,6 +511,16 @@
       crash(v) { if (v > 0 && v < 1e5) noiseBurst(Math.min(.6, v / 900), .35, 700); },
       boost() { noiseBurst(.12, .5, 2500); },
       suspend() { if (ctx) ctx.suspend(); }, resume() { if (ctx) ctx.resume(); },
+      // style : "ndombolo" | "rumba" | null ; level 0–1 ; muffle : entendue de dehors (à travers les murs)
+      music(style, level, muffle) {
+        if (!ctx) return; const t = ctx.currentTime;
+        if (!style) { if (mus) { mus.out.gain.setTargetAtTime(0, t, .4); if (mus.out.gain.value < .01) { mus.out.disconnect(); mus = null; } } return; }
+        if (!mus || mus.style !== style) { if (mus) mus.out.disconnect(); const out = ctx.createGain(); out.gain.value = 0; const fl = ctx.createBiquadFilter(); fl.type = "lowpass"; fl.frequency.value = 16000; const bus = ctx.createGain(); bus.gain.value = .55; bus.connect(fl); fl.connect(out); out.connect(master); mus = { style, out, fl, bus, i: 0, next: t + .05 }; }
+        mus.out.gain.setTargetAtTime(muted ? 0 : level, t, .3); mus.fl.frequency.setTargetAtTime(muffle ? 650 : 16000, t, .3);
+        const st = STY[style], dt = 60 / st.bpm / 4;
+        if (mus.next < t - .5) mus.next = t + .02;
+        while (mus.next < t + .25) { musStep(st, mus.i++, mus.next); mus.next += dt; }
+      },
     };
   })();
 
@@ -1294,7 +1329,8 @@
     { id: "footing", ic: "🏃", nom: "Footing", txt: "Il court d'un banc à l'autre. Bon pour la santé, mais fatigant." },
     { id: "match", ic: "⚽", nom: "Voir un match", txt: "Il va au stade ou au terrain de basket et regarde le match depuis un banc." },
     { id: "courses", ic: "🛒", nom: "Courses", txt: "Alimentations et magasins : il fait le tour des boutiques." },
-    { id: "soiree", ic: "🪩", nom: "Soirée", txt: "Il sort en boîte de nuit (réservé aux 18 ans et plus)." },
+    { id: "soiree", ic: "🪩", nom: "Soirée", txt: "Il sort en boîte de nuit ou au concert (réservé aux 18 ans et plus)." },
+    { id: "piscine", ic: "🏊", nom: "Piscine", txt: "Il va nager et bronzer à la piscine (9 h – 19 h)." },
     { id: "maison", ic: "🏠", nom: "Rentrer à la maison", txt: "Il rentre chez lui et se repose." },
   ];
   const SORTIE = id => SORTIES.find(o => o.id === id) || { id, ic: id === "travail" ? "💼" : "🪑", nom: id === "travail" ? "Travail" : "Rencontres" };
@@ -1383,12 +1419,13 @@
       if (g) { A.seen.push(g.id); return toPlace(g); }
     }
     if (mode === "courses" || mode === "soiree") {
-      const types = mode === "courses" ? ["alim", "magasin", "marche"] : ["club"];
+      const types = mode === "courses" ? ["alim", "magasin", "marche"] : rand() < .45 ? ["concert"] : ["club"];
       let list = PLACES.filter(o => types.includes(o.type) && !A.seen.includes(o.id) && isOpen(o, G.hour));
       if (!list.length) { A.seen = []; list = PLACES.filter(o => types.includes(o.type) && isOpen(o, G.hour)); }
       const o = list.sort((a, b) => Math.hypot(a.x - f.x, a.y - f.y) - Math.hypot(b.x - f.x, b.y - f.y))[0];
       if (o) { A.seen.push(o.id); return toPlace(o); }
     }
+    if (mode === "piscine") { const o = nearestOpen(["piscine"]); if (o) return toPlace(o); A.mode = "promenade"; }
     if (mode === "footing") {
       const bs = BENCHES.filter(b => !b.taken && Math.hypot(b.x - f.x, b.y - f.y) > 500 && Math.hypot(b.x - f.x, b.y - f.y) < 2200);
       if (bs.length) { const b = bs[(rand() * bs.length) | 0]; return { x: b.x, y: b.y, nom: "un banc (pause footing)", bench: b }; }
@@ -1499,6 +1536,12 @@
       if (!pay(Math.min(spend, G.me.argent), "soirée au " + d.nom + " (entrée et boissons)") || G.me.argent < 0) { note("🪩 Refoulé à l'entrée du " + d.nom + " : pas assez d'argent.", "alert"); A.phase = "visit"; A.wait = 3; return; }
       if (d.flirt || rand() < .5) flirt();
       A.phase = "visit"; A.wait = 1e9; A.doing = "🪩 Il danse au " + d.nom; return;
+    }
+    if ((t === "concert" || t === "piscine") && isOpen(o, G.hour) && A.mode !== "vol") {
+      const tk = t === "concert" ? 8 : 4, drink = (rand() * 6) | 0;
+      if (!pay(tk + drink, (t === "concert" ? "billet de concert à " : "entrée à la ") + d.nom + (drink ? " et boissons" : ""))) { note((t === "concert" ? "🎤 " : "🏊 ") + "Pas assez d'argent pour entrer à " + d.nom + ".", "alert"); A.phase = "visit"; A.wait = 3; return; }
+      if (t === "concert" && rand() < .4) flirt();
+      A.phase = "visit"; A.wait = 1e9; A.doing = t === "concert" ? "🎤 Il danse au concert à " + d.nom : "🏊 Il nage et bronze à " + d.nom; return;
     }
     if (t === "marche") { msg("🧺 Au marché : il compare les prix des légumes et du poisson, puis discute avec les commerçantes.", 4.5); A.phase = "visit"; A.wait = 10 + rand() * 6; A.doing = "Courses au marché"; return; }
     if (d.guide) { msg("📸 " + d.icone + " " + d.nom + " : " + d.guide, 6, "ok"); A.phase = "visit"; A.wait = 6 + rand() * 3; A.doing = "Tourisme : " + d.nom; return; }
@@ -1778,6 +1821,7 @@
     { id: "promenade", ic: "🚶", nom: "Se promener", dur: 1.5, mode: "promenade" },
     { id: "repos", ic: "🏠", nom: "Se reposer à la maison", dur: 2, mode: "maison" },
     { id: "soiree", ic: "🪩", nom: "Sortir le soir (après 20 h)", dur: 2, mode: "soiree", soir: true },
+    { id: "piscine", ic: "🏊", nom: "Aller à la piscine", dur: 2, mode: "piscine" },
     { id: "manger", ic: "🍲", nom: "Aller manger", dur: .8, mode: "manger" },
     { id: "business", ic: "💹", nom: "Faire du business", dur: 2.5, mode: "business" },
     { id: "draguer", ic: "💘", nom: "Draguer", dur: 1.5, mode: "draguer", hidden: true },
@@ -1982,6 +2026,7 @@
     { const lv = lover(); if (lv && h >= 12) add("rendezvous", lv.epouse ? 2 : lv.fiance ? 6 : 4, lv.epouse ? "il veut passer du temps avec sa femme" : lv.fiance ? "il pense à son mariage avec " + lv.nom.split(" ")[0] : "il est amoureux de " + lv.nom.split(" ")[0]); }
     if ((me.honnete >= 60 || me.car === "généreux") && me.argent >= 30) add("aider", me.car === "généreux" ? 4 : 1.5, "il a bon cœur et un peu d'argent");
     if (h >= 20 && me.argent >= 10) { add("soiree", likes("rumba") || likes("danse") || ["drôle", "bavard", "fier"].includes(me.car) ? 6 : 1.5, likes("rumba") ? "il aime la rumba" : "c'est le soir, il a envie de sortir"); add("repos", 2, "la journée a été longue"); }
+    if (h >= 11 && h < 17 && me.argent >= 10) add("piscine", me.force >= 6 || likes("sport") ? 3 : 1.2, G.hour >= 12 && G.hour < 16 ? "il fait chaud : il va se rafraîchir à la piscine" : "il a envie de nager");
     if (h >= 7 && h < 12 && me.car === "ambitieux") add("travail", 5, "il est ambitieux : il va travailler");
     if (likes("football") || likes("basket")) add("match", 5, "il aime " + (likes("football") ? "le football" : "le basket"));
     if (["bavard", "curieux", "généreux", "drôle"].includes(me.car)) add("rencontres", 4, "il est " + me.car + " : il a envie de parler aux gens");
@@ -2278,7 +2323,10 @@
     bureau: [40, 120, .25, false, ["règle un problème au guichet", "dépose un dossier"]],
     etat: [40, 120, .3, false, ["fait la queue au guichet", "dépose un dossier", "paie une taxe"]],
     eglise: [60, 160, .35, false, ["prie", "chante avec la chorale", "écoute la prédication"]],
+    concert: [120, 300, .8, false, ["danse le ndombolo devant la scène", "filme le chanteur avec son téléphone", "chante en chœur avec l'orchestre"]],
+    piscine: [60, 200, .45, false, ["nage dans la piscine", "bronze sur un transat", "boit un cocktail au bar"]],
   };
+  const CAP = { club: 26, concert: 40, piscine: 20 };   // clients à l'intérieur en même temps (ambiance)
   const RESTO_T = [25, 60, .5, false, ["mange du poulet mayo", "mange du pondu avec de la chikwangue", "boit un jus de gingembre"]];
   const lifeT = o => o.resto ? RESTO_T : LIFE_T[o.type];
   const lifeOf = o => o.life || (o.life = { inside: [], door: 0, hold: 0, open: true, queue: [], crew: [] });
@@ -2292,7 +2340,7 @@
   }
   // l'équipe du lieu : serveuse et clients assis au maquis, videur et file d'attente à la boîte de nuit, accueil de l'église
   function crewUpdate(o, L, open) {
-    const want = open && (o.resto || o.type === "club" || o.type === "eglise");
+    const want = open && (o.resto || o.type === "club" || o.type === "eglise" || o.type === "concert" || o.type === "piscine");
     if (!want) { if (L.crew.length) { L.crew.forEach(q => { q.gone = true; }); L.crew = []; L.queue.forEach(q => { q.gone = true; }); L.queue = []; } return; }
     if (L.crew.length) { L.crew = L.crew.filter(q => !q.gone); return; }
     const add = (u, v, extra) => { const p = atPlace(o, u, v); const q = Object.assign({ x: p.x, y: p.y, a: Math.atan2(o.ny, o.nx), v: 0, t: rand() * 9, state: "idle", st: 0, look: (rand() * 7) | 0, id: ++pedSeq, staff: true, crewOf: o }, extra || {}); G.peds.push(q); L.crew.push(q); return q; };
@@ -2307,6 +2355,10 @@
       add(-26, -(o.d / 2 + 18), { bouncer: true, a: Math.atan2(-o.ny, -o.nx) });
     } else if (o.type === "eglise") {
       add(-30, -(o.d / 2 + 8), { usher: true, a: Math.atan2(-o.ny, -o.nx) });
+    } else if (o.type === "concert") {
+      add(-30, -(o.d / 2 + 14), { bouncer: true, a: Math.atan2(-o.ny, -o.nx) }); add(30, -(o.d / 2 + 14), { bouncer: true, a: Math.atan2(-o.ny, -o.nx) });
+    } else if (o.type === "piscine") {
+      add(-28, -(o.d / 2 + 8), { usher: true, a: Math.atan2(-o.ny, -o.nx) });
     }
   }
   function serveStep(q, dt) {
@@ -2342,7 +2394,7 @@
       L.door += Math.max(-dt * 1.6, Math.min(dt * 1.6, (L.hold > 0 || pin ? 1 : 0) - L.door));
       if (Math.abs(o.x - f.x) > 1500 || Math.abs(o.y - f.y) > 1500) continue;
       crewUpdate(o, L, open);
-      if (!L.init) { L.init = true; if (open) for (let k = (rand() * 4) | 0; k > 0; k--) L.inside.push({ id: ++pedSeq, look: (rand() * 7) | 0, doing: T[4][(rand() * T[4].length) | 0], until: G.t + 4 + rand() * T[1] }); }
+      if (!L.init) { L.init = true; if (open) for (let k = CAP[o.type] ? (CAP[o.type] * (.45 + rand() * .25)) | 0 : (rand() * 4) | 0; k > 0; k--) L.inside.push({ id: ++pedSeq, look: (rand() * 7) | 0, doing: T[4][(rand() * T[4].length) | 0], until: G.t + 4 + rand() * T[1] }); }
       // à la fermeture, tout le monde sort ; sinon chacun sort quand il a fini
       for (let i = 0; i < L.inside.length; i++) {
         const x = L.inside[i]; if (!open && !x.kick) x.kick = G.t + 2 + rand() * 12;
@@ -2356,7 +2408,7 @@
         L.qT = (L.qT || 0) - dt;
         if (L.queue.length && L.qT <= 0) { const q = L.queue.shift(); q.queueAt = null; q.goStage = 1; L.qT = 5 + rand() * 5; const b = L.crew.find(c => c.bouncer); if (b) { b.talk = 1.5; } }
       }
-      if (rand() < dt * T[2] && L.inside.length < 10 && (o.type !== "club" || L.queue.length < 6)) {
+      if (rand() < dt * T[2] && L.inside.length < (CAP[o.type] || 10) && (o.type !== "club" || L.queue.length < 6)) {
         let best = null, bd = 260;
         for (const q of G.peds) { if (q.staff || q.cop || q.bus || q.enter || q.chat || q.talk || q.greet || q.goIn || q.emerge || q.hail || q.vendor || q.play || q.state !== "walk") continue; const d = Math.hypot(q.x - o.door.x, q.y - o.door.y); if (d < bd) { bd = d; best = q; } }
         if (best) { best.goIn = o; best.goStage = 0; best.route = null; if (o.type === "club") { best.queueAt = atPlace(o, -40 - L.queue.length * 9, -(o.d / 2 + 22)); L.queue.push(best); } }
@@ -2412,6 +2464,17 @@
       }
     }
   }
+  // la musique de l'ambiance : à fond dans la boîte ou au concert, douce à la piscine, étouffée quand on passe devant
+  function musicFor() {
+    if (!WALK || !G || G.over || G.paused) return [null];
+    const R = G.room;
+    if (R) return R.kind === "club" || R.kind === "concert" ? ["ndombolo", R.kind === "concert" ? .95 : .8, false] : R.kind === "piscine" ? ["rumba", .55, false] : [null];
+    const f = G.foot || G.player; let best = null, bd = 420;
+    for (const o of PLACES) if ((o.type === "club" || o.type === "concert" || o.type === "piscine") && isOpen(o, G.hour)) { const d = Math.hypot(o.x - f.x, o.y - f.y); if (d < bd) { bd = d; best = o; } }
+    if (!best) return [null];
+    const inside = G.foot && G.foot.inside === best;
+    return [best.type === "piscine" ? "rumba" : "ndombolo", inside ? .6 : .45 * (1 - bd / 420), !inside];
+  }
   // le personnage du joueur entre vraiment dans le lieu (il disparaît derrière la porte), puis ressort
   function enterPlace(o) {
     const f = G.foot; if (!f || !lifeT(o) || o.id === "maison" || !isOpen(o, G.hour)) return false;
@@ -2427,8 +2490,8 @@
     const w = document.getElementById("interior"); if (w) w.hidden = true;
   }
   // écran « à l'intérieur » : qui est là, qui sert qui
-  const STAFF_T = { alim: "la caissière", magasin: "la vendeuse", club: "le DJ et le barman", bureau: "l'agent d'accueil", etat: "l'agent au guichet", eglise: "le pasteur et la chorale" };
-  const SCENE_T = { alim: "🛒", magasin: "👗", club: "🪩", bureau: "🏢", etat: "🏛️", eglise: "⛪" };
+  const STAFF_T = { concert: "l'orchestre, les danseuses et la sécurité", piscine: "le maître-nageur, le DJ et le barman", alim: "la caissière", magasin: "la vendeuse", club: "le DJ et le barman", bureau: "l'agent d'accueil", etat: "l'agent au guichet", eglise: "le pasteur et la chorale" };
+  const SCENE_T = { concert: "🎤", piscine: "🏊", alim: "🛒", magasin: "👗", club: "🪩", bureau: "🏢", etat: "🏛️", eglise: "⛪" };
   function openInterior(o) {
     o = o || (G.foot && G.foot.inside); if (!o) return;
     if (o.virt) {   // maison d'une famille ou bureaux : qui est là, ce qu'on y trouve
@@ -2629,11 +2692,47 @@
       add("dj", 0, -D / 2 + 13, 44, 12); staff("dj", 0, -D / 2 + 4, DOWN, { dance: true });
       add("speaker", -36, -D / 2 + 8, 12, 10); add("speaker", 36, -D / 2 + 8, 12, 10);
       add("dancefloor", 10, -14, 80, 66, { solid: false });
-      for (let i = 0; i < 4; i++) for (let j = 0; j < 3; j++) spots.dance.push({ x: -16 + i * 17, y: -34 + j * 19, a: UP });
+      for (let i = 0; i < 5; i++) for (let j = 0; j < 4; j++) spots.dance.push({ x: -24 + i * 17, y: -40 + j * 18, a: UP });
+      // ambiance chaude : mur LED, lasers, podiums avec danseuses, animateur (atalaku) et une piste déjà pleine
+      add("ledwall", 0, -D / 2 + 1, 90, 2, { solid: false, a: DOWN, label: o.nom.toUpperCase() }); add("lasers", 0, -D / 2 + 20, 10, 4, { solid: false });
+      [[-50, -56], [66, -58]].forEach(([x, y]) => { add("podium", x, y, 14, 14); staff("gogo", x, y, DOWN, { dance: true, z: 7, fem: true }); });
+      staff("atalaku", 0, -D / 2 + 24, DOWN, { pace: 16, preach: true });
+      for (let k = 0; k < 10; k++) { const d = spots.dance[(k * 7) % spots.dance.length]; staff("fan", d.x + (rand() - .5) * 10, d.y + (rand() - .5) * 8, UP + (rand() - .5) * 2, { dance: true, fem: rand() < .5 }); }
       add("bar", -W / 2 + 14, 4, 70, 12, { a: 0, label: "BAR" }); staff("barman", -W / 2 + 5, 4, 0, { pace: 24 });
       for (let k = 0; k < 5; k++) { add("stool", -W / 2 + 28, -24 + k * 14, 6, 6, { solid: false }); seat(-W / 2 + 28, -24 + k * 14, Math.PI, { bar: true }); }
       [-36, 16].forEach(y => { add("sofa", W / 2 - 10, y, 36, 14, { a: Math.PI }); add("lowtable", W / 2 - 28, y, 18, 12, { a: Math.PI }); [-10, 10].forEach(dy => seat(W / 2 - 14, y + dy, Math.PI, { sofa: true })); });
       staff("guard", -24, D / 2 - 12, UP);
+    } else if (kind === "concert") {   // concert : scène, orchestre, danseuses, écran géant, foule qui danse
+      W = 280; D = 240; H = 80;
+      const sy = -D / 2 + 30;
+      add("stage", 0, sy, 230, 58, { solid: true, low: true }); add("ledwall", 0, -D / 2 + 1, 170, 2, { solid: false, a: DOWN, big: true, label: o.nom.toUpperCase() });
+      add("truss", 0, sy + 22, 236, 4, { solid: false }); add("lasers", 0, sy - 10, 10, 4, { solid: false });
+      [-128, 128].forEach(x => { add("speaker", x, sy + 6, 18, 14); add("speaker", x, sy + 24, 18, 14); });
+      add("drums", 0, -D / 2 + 12, 24, 16, { solid: false }); staff("musician", 0, -D / 2 + 6, DOWN, { z: 6, dance: true });
+      add("keyboard", -70, -D / 2 + 18, 18, 8, { solid: false }); staff("musician", -70, -D / 2 + 10, DOWN, { z: 6 });
+      [[-36, -D / 2 + 26], [36, -D / 2 + 26], [72, -D / 2 + 20]].forEach(([x, y]) => { add("amp", x, y - 10, 10, 7, { solid: false }); staff("guitar", x, y, DOWN, { z: 6, pace: 6 }); });
+      add("mic", 0, sy + 18, 3, 3, { solid: false }); staff("singer", 0, sy + 16, DOWN, { z: 6, pace: 34, preach: true, biz: true });
+      staff("atalaku", -54, sy + 18, DOWN, { z: 6, pace: 16, preach: true });
+      [-96, -80, 80, 96].forEach((x, k) => staff("gogo", x, sy + 8 + (k % 2) * 8, DOWN, { z: 6, dance: true, fem: true }));
+      add("barrier", 0, sy + 36, 230, 3); [-60, 60].forEach(x => staff("guard", x, sy + 42, UP));
+      for (let i = 0; i < 8; i++) for (let j = 0; j < 5; j++) spots.dance.push({ x: -105 + i * 30, y: sy + 54 + j * 20, a: UP });
+      for (let k = 0; k < 18; k++) { const d = spots.dance[(k * 11) % spots.dance.length]; staff("fan", d.x + (rand() - .5) * 14, d.y + (rand() - .5) * 10, UP + (rand() - .5) * .9, { dance: rand() < .8, fem: rand() < .5 }); }
+      add("bar", W / 2 - 12, 60, 60, 12, { a: Math.PI, label: "BAR" }); staff("barman", W / 2 - 4, 60, Math.PI, { pace: 20 });
+      for (let k = 0; k < 4; k++) { add("stool", W / 2 - 26, 42 + k * 12, 6, 6, { solid: false }); seat(W / 2 - 26, 42 + k * 12, 0, { bar: true }); }
+      staff("guard", -30, D / 2 - 12, UP);
+    } else if (kind === "piscine") {   // piscine en plein air : bassin, nageurs, transats et parasols, bar à cocktails, DJ, maître-nageur
+      W = 270; D = 220; H = 40;
+      const px = -25, py = -22;
+      add("pool", px, py, 160, 90); 
+      for (let k = 0; k < 9; k++) { const x = px - 62 + (k * 37) % 124, y = py - 34 + ((k * 23) % 68); staff("swimmer", x, y, k % 2 ? 0 : Math.PI, { pace: 26, z: -10, fem: k % 3 === 0 }); }
+      add("lifechair", px + 92, py - 30, 8, 8); staff("lifeguard", px + 92, py - 30, Math.PI, { z: 15, sit: true });
+      for (let k = 0; k < 8; k++) { const x = -112 + k * 24; add("transat", x, 54, 8, 18, { solid: false, a: UP, color: ["#ff6b6b", "#ffd23f", "#2fb6e0", "#ffffff"][k % 4] }); seat(x, 54, UP, { transat: true }); if (k % 2) add("parasol", x + 12, 46, 4, 4, { solid: false, color: ["#ff4f9a", "#2fb6e0", "#ffd23f", "#2ecc71"][(k >> 1) % 4] }); }
+      [[-106, 36, DOWN], [-60, 36, DOWN], [-10, 36, DOWN], [40, 36, DOWN], [74, -10, Math.PI], [-114, -22, 0]].forEach(([x, y, a]) => spots.browse.push({ x, y, a }));
+      add("bar", W / 2 - 14, -50, 60, 12, { a: Math.PI, label: "BAR · COCKTAILS" }); staff("barman", W / 2 - 5, -50, Math.PI, { pace: 20 });
+      for (let k = 0; k < 4; k++) { add("stool", W / 2 - 28, -68 + k * 12, 6, 6, { solid: false }); seat(W / 2 - 28, -68 + k * 12, 0, { bar: true }); }
+      add("dj", W / 2 - 16, 30, 26, 10, { a: Math.PI }); staff("dj", W / 2 - 6, 30, Math.PI, { dance: true }); add("speaker", W / 2 - 10, 50, 10, 8, { a: Math.PI });
+      [[-W / 2 + 10, -D / 2 + 10], [W / 2 - 10, -D / 2 + 10], [-W / 2 + 10, D / 2 - 26], [W / 2 - 12, D / 2 - 26]].forEach(([x, y]) => add("palm", x, y, 10, 10));
+      staff("guard", -30, D / 2 - 12, UP);
     } else if (kind === "eglise") {
       W = 210; D = 270; H = 62;
       add("stage", 0, -D / 2 + 26, 150, 44, { solid: true, low: true }); add("cross", 0, -D / 2 + 1, 30, 2, { solid: false });
@@ -2728,7 +2827,7 @@
       if (o.type === "etat") add("flag", -W / 2 + 10, -D / 2 + 10, 6, 6, { solid: false });
       add("ticket", -W / 2 + 12, D / 2 - 22, 8, 8); staff("guard", 26, D / 2 - 12, UP);
     }
-    add("fan", 0, 0, 1, 1, { solid: false, ceil: true });
+    if (kind !== "piscine" && kind !== "concert" && kind !== "club") add("fan", 0, 0, 1, 1, { solid: false, ceil: true });
     return { o, kind, W, D, H, it, seats, spots, door: { x: 0, y: D / 2 - 6 } };
   }
   // petite grille de déplacement (1 case = 0,5 m) : on contourne les meubles
@@ -2765,7 +2864,21 @@
   function roomPlan(R, q) {
     const S2 = R.spots, pick = a => a[(rand() * a.length) | 0], freeSeat = f => { const s = R.seats.filter(x => !x.who && (!f || f(x))); return s.length ? pick(s) : null; };
     const sitAt = s => { if (q.seat) q.seat.who = null; s.who = q; q.seat = s; roomGo(q, s.x, s.y, () => { q.state = "sit"; q.a = s.a; q.wait = S2.guichet.length ? 3 + rand() * 4 : 1e9; q.doing = q.doing || "est assis"; }); };
-    if (q.seat && q.state === "sit" && R.kind !== "club" && (!S2.guichet.length || q.served)) { q.wait = 1e9; return; }
+    if (q.seat && q.state === "sit" && R.kind !== "club" && R.kind !== "piscine" && R.kind !== "concert" && (!S2.guichet.length || q.served)) { q.wait = 1e9; return; }
+    if (R.kind === "concert") {   // devant la scène : on danse, on filme, on chante ; parfois un verre au bar
+      if (q.seat) { q.seat.who = null; q.seat = null; } q.z = 0;
+      if (rand() < .8 || q.mustDance) { const d = pick(S2.dance); q.doing = pick(["danse le ndombolo devant la scène", "chante en chœur avec l'orchestre", "filme le chanteur avec son téléphone"]); roomGo(q, d.x + (rand() - .5) * 10, d.y + (rand() - .5) * 8, () => { q.state = /filme/.test(q.doing) ? "idle" : "dance"; q.a = UPA + (rand() - .5) * .8; q.wait = 25 + rand() * 30; }); return; }
+      const s = freeSeat(x => x.bar); if (s) { q.doing = "boit une bière au bar"; s.who = q; q.seat = s; roomGo(q, s.x, s.y, () => { q.state = "sit"; q.a = s.a; q.wait = 15 + rand() * 15; }); } else q.wait = 5;
+      return;
+    }
+    if (R.kind === "piscine") {   // transat au soleil, bar à cocktails, discussion au bord de l'eau
+      if (q.seat) { q.seat.who = null; q.seat = null; } q.z = 0;
+      const r = rand();
+      if (r < .5) { const s = freeSeat(x => x.transat); if (s) { q.doing = pick(["bronze sur un transat", "se repose au soleil", "lit un magazine sur son transat"]); s.who = q; q.seat = s; roomGo(q, s.x, s.y + 6, () => { q.x = s.x; q.y = s.y; q.state = "down"; q.z = 3; q.a = s.a; q.wait = 30 + rand() * 30; }); return; } }
+      if (r < .75) { const s = freeSeat(x => x.bar); if (s) { q.doing = "boit un cocktail au bar"; s.who = q; q.seat = s; roomGo(q, s.x, s.y, () => { q.state = "sit"; q.a = s.a; q.wait = 15 + rand() * 20; }); return; } }
+      const e = pick(S2.browse); q.doing = pick(["discute au bord de l'eau", "regarde les nageurs", "prend des photos au bord de la piscine"]); roomGo(q, e.x + (rand() - .5) * 10, e.y, () => { q.state = "idle"; q.a = e.a; q.wait = 12 + rand() * 15; if (rand() < .5) q.talk = 1.5; });
+      return;
+    }
     if (R.kind === "alim" || R.kind === "magasin" || R.kind === "phones") {
       if ((q.n || 0) < 2) { const b = pick(S2.browse); q.n = (q.n || 0) + 1; q.doing = R.kind === "alim" ? "choisit ses produits" : R.kind === "phones" ? "regarde les téléphones" : "essaie des vêtements"; roomGo(q, b.x, b.y, () => { q.a = b.a; q.wait = 4 + rand() * 5; q.state = "idle"; }); return; }
       const k = R.people.filter(p => p.paying).length, p = S2.pay[Math.min(k, S2.pay.length - 1)]; q.paying = true; q.doing = "fait la queue à la caisse";
@@ -2806,6 +2919,7 @@
     if (staffSpot && staffSpot.role === "prisoner") q.state = "idle";
     if (staffSpot && staffSpot.who) { const m = staffSpot.who; Object.assign(q, { id: m.id, look: m.look, fem: m.woman, kid: m.kid, doing: m.act, nom: m.nom, lookBiz: false }); }
     if (staffSpot && staffSpot.biz) q.lookBiz = true;
+    if (staffSpot && staffSpot.fem) q.fem = true;
     if (staffSpot && (staffSpot.role === "worker" || staffSpot.role === "presenter")) q.lookBiz = rand() < .6;
     R.people.push(q); return q;
   }
@@ -2816,7 +2930,7 @@
     R.spots.staff.forEach(s => roomPerson(R, null, s));
     // les clients déjà à l'intérieur sont à leur place
     lifeOf(o).inside.forEach(x => { const q = roomPerson(R, x); q.src = x; const D2 = R.door; q.x = D2.x + (rand() - .5) * R.W * .6; q.y = D2.y - 10 - rand() * R.D * .5; const [i, j] = [Math.floor((q.x + R.W / 2) / R.grid.c), Math.floor((q.y + R.D / 2) / R.grid.c)]; if (R.grid.b[j * R.grid.nx + i]) { q.x = D2.x; q.y = D2.y - 6; } roomPlan(R, q); if (q.path && q.path.length) { const e = q.path[q.path.length - 1]; q.x = e.x; q.y = e.y; q.path = [e]; } });
-    if (!watch && G.foot) { const me = roomPerson(R, { look: 0, id: "moi" }); me.player = true; if (o.mine && G.foot.shopBag) { me.shopBag = true; G.foot.shopBag = false; } me.x = R.door.x; me.y = R.door.y; R.me = me; if (R.kind === "club") me.mustDance = true; roomPlan(R, me); }
+    if (!watch && G.foot) { const me = roomPerson(R, { look: 0, id: "moi" }); me.player = true; if (o.mine && G.foot.shopBag) { me.shopBag = true; G.foot.shopBag = false; } me.x = R.door.x; me.y = R.door.y; R.me = me; if (R.kind === "club" || R.kind === "concert") me.mustDance = true; roomPlan(R, me); }
     document.body.classList.add("in-room");
     const b = document.getElementById("roombar"); if (b) { b.hidden = false; b.querySelector(".rb-t").textContent = o.icone + " " + o.nom; }
     if (o.virt) { if (!quiet) msg("🏅 Pionnier : tu regardes à l'intérieur. " + (o.virt === "openspace" ? (o.officeNow.open ? "Les employés sont à leur poste." : "Les bureaux sont fermés à cette heure : seul le gardien est là.") : (o.nowM.length ? (o.nowM.some(m => m.act === "dort") ? "Toute la famille dort." : "La famille est à la maison.") : "Personne à la maison pour l'instant.") + (o.owner && !o.nowM.some(m => m.owner) && o.virt !== "openspace" ? " " + o.owner.nom.split(" ")[0] + " est dehors." : "")), 4.5, "ok"); return true; }
@@ -3039,6 +3153,7 @@
 
     const sirenNear = G.cops.reduce((m, c) => c.alive && c.mode === "chase" ? Math.max(m, 1 - Math.hypot(c.x - p.x, c.y - p.y) / 1400) : m, 0);
     Audio.update(Math.min(1.2, sp / p.maxSpeed), p.inp.gas, Math.max(0, sirenNear), !G.over && !G.paused);
+    { const m = musicFor(); Audio.music(m[0], m[1], m[2]); }
   }
   function sparks(x, y, n) { for (let k = 0; k < n; k++) { const a = rand() * 6.28, v = 80 + rand() * 260; G.parts.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, life: .35, max: .35, kind: "spark", r: 2 }); } }
 
@@ -3154,7 +3269,7 @@
     const X = x => ox + x * s, Y = y => oy + y * s;
     G.blocks.forEach(b => { mctx.fillStyle = "#c9ccd6"; mctx.fillRect(X(b.x) - 2, Y(b.y) - 2, 4, 4); });
     SHOPS.forEach(o => { const x = Math.max(6, Math.min(MM - 6, X(o.x))), y = Math.max(6, Math.min(MM - 6, Y(o.y))); mctx.fillStyle = "#ff5a1f"; mctx.fillRect(x - 5, y - 5, 10, 10); mctx.fillStyle = "#fff"; mctx.font = "bold 8px sans-serif"; mctx.textAlign = "center"; mctx.fillText("Z", x, y + 3); });
-    const PCOL = { eglise: "#f2c94c", foot: "#3fbf5a", jeux: "#3fbf5a", basket: "#3fbf5a", club: "#c04bff", alim: "#ffb21f", magasin: "#ffb21f", partenaire: "#2fa8ff", etat: "#f2f2f2", bureau: "#ff5a1f" };
+    const PCOL = { concert: "#ff3b6b", piscine: "#2fb6e0", eglise: "#f2c94c", foot: "#3fbf5a", jeux: "#3fbf5a", basket: "#3fbf5a", club: "#c04bff", alim: "#ffb21f", magasin: "#ffb21f", partenaire: "#2fa8ff", etat: "#f2f2f2", bureau: "#ff5a1f" };
     PLACES.forEach(o => { const x = X(o.x), y = Y(o.y); if (x < -4 || y < -4 || x > MM + 4 || y > MM + 4) return; mctx.fillStyle = PCOL[o.type] || "#fff"; mctx.beginPath(); mctx.arc(x, y, o.bureau ? 5.2 : 3.4, 0, 6.283); mctx.fill(); mctx.strokeStyle = "rgba(0,0,0,.6)"; mctx.lineWidth = 1; mctx.stroke(); });
     if (G.foot) { mctx.fillStyle = "#7ff0a8"; mctx.beginPath(); mctx.arc(X(G.foot.x), Y(G.foot.y), 3, 0, 6.283); mctx.fill(); }
     (G.others || []).forEach(o => { if (o.x === undefined) return; const x = X(o.x), y = Y(o.y); if (x < -4 || y < -4 || x > MM + 4 || y > MM + 4) return; mctx.fillStyle = "#18e0ff"; mctx.strokeStyle = "#04161c"; mctx.lineWidth = 1.5; mctx.beginPath(); mctx.arc(x, y, 3.6, 0, 6.283); mctx.fill(); mctx.stroke(); });

@@ -621,7 +621,7 @@
     } else {
       // bâtiments : corps, toit, façade côté rue (z = -D2/2)
       const T = o.type;
-      const body = T === "maison" ? PL.M("#e8d8bd") : T === "bureau" ? PL.M("#1d2a3a", { roughness: .2, metalness: .6 }) : T === "club" ? PL.black : T === "alim" ? PL.M(o.id === "alim1" ? "#f4b63f" : "#3aa77a") : T === "etat" ? PL.cream : T === "partenaire" ? PL.white : T === "eglise" ? PL.M("#f3efe6") : PL.M("#e9e6e0");
+      const body = T === "maison" ? PL.M("#e8d8bd") : T === "bureau" ? PL.M("#1d2a3a", { roughness: .2, metalness: .6 }) : T === "club" || T === "concert" ? PL.black : T === "piscine" ? PL.M("#f6f1e6") : T === "alim" ? PL.M(o.id === "alim1" ? "#f4b63f" : "#3aa77a") : T === "etat" ? PL.cream : T === "partenaire" ? PL.white : T === "eglise" ? PL.M("#f3efe6") : PL.M("#e9e6e0");
       pbox(g, W2, H2, D2, 0, H2 / 2, 0, body, true);
       pbox(g, W2 + .6, .5, D2 + .6, 0, H2 + .25, 0, T === "etat" ? PL.M("#b5a37c") : PL.dark, true);
       const fz = front - .05;
@@ -661,6 +661,20 @@
         [-2.2, -1, 1, 2.2].forEach(x => pbox(g, .12, 1, .12, x, .5, fz - 1.6, PL.yellow));
         pbox(g, 4.4, .05, .05, 0, .9, fz - 1.6, PL.red);
         o.light = nc;
+      } else if (T === "concert") {   // salle de concert : grand écran LED en façade, néons rouges, sécurité à l'entrée
+        o.neonC = "#ff3b6b"; o.neon = PL.glow("#ff3b6b");
+        [H2 * .3, H2 * .62].forEach(y => pbox(g, W2 + .1, .2, D2 + .1, 0, y, 0, o.neon));
+        addDoor(g, o, 4, 3.2, fz, "slide", PL.M("#120016", { roughness: .3, metalness: .5 }));
+        const sw = Math.min(W2 * .85, 18); signBoard(g, o.nom.toUpperCase(), "Concert ce soir · rumba · ndombolo · 19 h – 1 h", sw, Math.max(H2 - sw / 8 - .6, 4 + sw / 8), fz - .06, "#0a0010", "#ff3b6b");
+        pplane(g, 6, 2.6, new THREE.MeshBasicMaterial({ map: PL.txt(900, 390, "#140020", [{ t: "LIVE", f: "900 170px 'Chakra Petch', Impact, sans-serif", c: "#ffd23f", y: .42, glow: 20 }, { t: "Orchestre · danseuses · atalaku", f: "700 44px Inter, Arial, sans-serif", c: "#ffffff", y: .8 }]) }), -W2 * .3, 3.6 + 1.3, fz - .07, Math.PI);
+        [-2.6, -1.2, 1.2, 2.6].forEach(x => pbox(g, .12, 1, .12, x, .5, fz - 1.8, PL.yellow)); pbox(g, 5.2, .05, .05, 0, .9, fz - 1.8, PL.red);
+        o.light = "#ff3b6b";
+      } else if (T === "piscine") {   // piscine : mur blanc, bandeau bleu, palmiers à l'entrée
+        pbox(g, W2 + .1, .4, D2 + .1, 0, H2 - .5, 0, PL.M("#2fb6e0"), true);
+        addDoor(g, o, 3, 2.6, fz, "slide");
+        signBoard(g, o.nom.toUpperCase(), "Baignade · transats · cocktails · 9 h – 19 h", Math.min(W2 * .7, 11), H2 + 1.4, fz - .06, "#0d5f86", "#ffffff");
+        [-1, 1].forEach(k => { const tr = new THREE.Mesh(new THREE.CylinderGeometry(.15, .25, 5, 8), PL.M("#8a6a45")); tr.position.set(k * 4, 2.5, fz - 1.5); g.add(tr); for (let i = 0; i < 6; i++) { const lf = new THREE.Mesh(new THREE.SphereGeometry(1, 8, 5), PL.M("#2f8f46")); lf.scale.set(1.7, .12, .45); lf.position.set(k * 4 + Math.cos(i) * 1, 5, fz - 1.5 + Math.sin(i) * 1); lf.rotation.y = -i; lf.rotation.z = -.35; g.add(lf); } });
+        o.light = "#bfefff";
       } else if (T === "alim" || T === "magasin" || T === "partenaire") {
         const sh = T !== "alim";
         pbox(g, W2 * .8, Math.min(3.4, H2 * .55), .15, 0, Math.min(3.4, H2 * .55) / 2 + .1, fz, PL.glass);
@@ -1463,7 +1477,7 @@
 
   // ------------------------------------------------------------ Intérieurs 3D (pionniers) : pièces meublées, construites hors de la carte
   // Mobilier dessiné ici (formes simples, couleurs de Kinshasa) : rien à télécharger, tout reste léger sur téléphone.
-  const ROOM3 = { key: null, g: null, fans: [], floorTiles: null, lights: [], plates: new Map(), proxies: new Map(), cam: "suivi", ang: 0 };
+  const ROOM3 = { key: null, g: null, fans: [], floorTiles: null, lights: [], plates: new Map(), proxies: new Map(), cam: "suivi", ang: 0, lasers: [], eq: [], water: null };
   const RM = (c, o) => PL.M(c, o);
   const RMAT = { wood: RM("#8a5a35", { roughness: .6 }), dark: RM("#3a2418", { roughness: .6 }), white: RM("#f4f2ee", { roughness: .5 }), steel: RM("#aab2bb", { roughness: .3, metalness: .7 }), black: RM("#15161a", { roughness: .5 }),
     plastic: RM("#d63031", { roughness: .45 }), plastic2: RM("#2b6cb0", { roughness: .45 }), cloth: RM("#7a1f2b", { roughness: .9 }), green: RM("#2f8f46", { roughness: .8 }), gold: RM("#d4af37", { roughness: .3, metalness: .8 }), glass: PL.glass };
@@ -1494,7 +1508,11 @@
     maison: { floor: () => tilesTex("#e8dcc6", "#dccfb6", 4, "rgba(0,0,0,.08)"), wall: "#f4e7c9", band: "#8a5a35", light: "#ffe7bf" },
     appart: { floor: () => tilesTex("#f1efe9", "#e4e0d7", 3, "rgba(0,0,0,.06)"), wall: "#eef0ea", band: "#5d5a55", light: "#fff4e2" },
     openspace: { floor: () => tilesTex("#d7dbe0", "#cdd2d8", 6, "rgba(0,0,0,.05)"), wall: "#f2f4f7", band: "#1d4ed8", light: "#f4f7ff" },
+    concert: { floor: () => tilesTex("#16161c", "#1e1e26", 6), wall: "#120a1c", band: "#ff3b6b", light: "#c04bff" },
+    piscine: { floor: () => tilesTex("#efe7d6", "#e4dac6", 3, "rgba(0,0,0,.06)"), wall: "#f7f3ea", band: "#2fb6e0", light: "#fff8ea" },
   };
+  // eau de la piscine : reflets qui bougent (texture déplacée à chaque image)
+  const WATER_T = (() => { const t = canvasTex(256, 256, (c, w, h) => { c.fillStyle = "#1fa3d6"; c.fillRect(0, 0, w, h); for (let i = 0; i < 70; i++) { c.strokeStyle = `rgba(255,255,255,${.12 + Math.random() * .25})`; c.lineWidth = 1 + Math.random() * 2.5; c.beginPath(); const x = Math.random() * w, y = Math.random() * h; c.moveTo(x, y); c.bezierCurveTo(x + 15, y - 8, x + 30, y + 8, x + 45, y); c.stroke(); } }, true); t.wrapS = t.wrapT = THREE.RepeatWrapping; return t; })();
   // un meuble : x vers la droite, z vers l'avant (le côté « client »), centré au sol
   function furn(t, m, R) {
     const g = new THREE.Group(), w = m.w * S, d = m.d * S;
@@ -1631,6 +1649,45 @@
       else for (let i = 0; i < 4; i++) B(.3, .01, .22, -w / 3 + i * w / 4.5, .8, (i % 2 ? 1 : -1) * d * .25, RMAT.white);
     } else if (t === "clim") {
       B(w, .3, .22, 0, 2.3, .11, RMAT.white); B(w * .8, .02, .02, 0, 2.18, .22, RM("#cfd6dc"));
+    } else if (t === "ledwall") {   // écran LED géant : nom du lieu + égaliseur qui bat au rythme de la musique
+      const ww = w, hh = m.big ? 3.6 : 1.7, y0 = m.big ? 1.2 + hh / 2 : 1.25 + hh / 2;
+      B(ww + .12, hh + .12, .08, 0, y0, .04, RMAT.black);
+      pplane(g, ww, hh, new THREE.MeshBasicMaterial({ map: PL.txt(1024, 420, "#09000f", [{ t: m.label || "LIVE", f: "900 120px 'Chakra Petch', Impact, sans-serif", c: "#ffffff", y: .34, glow: 18 }, { t: m.big ? "EN CONCERT CE SOIR · RUMBA · NDOMBOLO" : "NDOMBOLO · RUMBA · AFRO", f: "800 46px Inter, Arial, sans-serif", c: "#ffd23f", y: .66 }]) }), 0, y0 + hh * .18, .09, 0);
+      const nb = Math.round(ww / .25), cols = ["#ff2bd6", "#18e0ff", "#ffd23f", "#7dff8a"];
+      for (let i = 0; i < nb; i++) { const b = new THREE.Mesh(new THREE.BoxGeometry(ww / nb * .7, 1, .02), PL.glow(cols[i % 4])); b.position.set(-ww / 2 + (i + .5) * ww / nb, y0 - hh / 2 + .05, .1); b.userData.h = hh * .3; g.add(b); ROOM3.eq.push(b); }
+    } else if (t === "lasers") {   // projecteurs laser au plafond : faisceaux colorés qui balaient la salle
+      for (let k = 0; k < 6; k++) { const piv = new THREE.Group(); piv.position.set((k - 2.5) * .9, R.H * S - .3, 0); const beam = new THREE.Mesh(new THREE.CylinderGeometry(.012, .012, 14, 4), new THREE.MeshBasicMaterial({ color: ["#ff2bd6", "#18e0ff", "#7dff8a", "#ffd23f", "#ff3b3b", "#18e0ff"][k], transparent: true, opacity: .55 })); beam.position.y = -7; piv.add(beam); piv.userData.k = k; g.add(piv); ROOM3.lasers.push(piv); B(.2, .15, .2, (k - 2.5) * .9, R.H * S - .25, 0, RMAT.black); }
+    } else if (t === "podium") {
+      const c = new THREE.Mesh(new THREE.CylinderGeometry(w / 2, w / 2, .7, 20), RMAT.black); c.position.y = .35; g.add(c);
+      const r2 = new THREE.Mesh(new THREE.TorusGeometry(w / 2, .03, 6, 28), PL.glow("#ff2bd6")); r2.rotation.x = Math.PI / 2; r2.position.y = .7; g.add(r2);
+    } else if (t === "truss") {   // portique de lumières au-dessus de la scène
+      B(w, .25, .25, 0, R.H * S - .9, 0, RMAT.steel); [-1, 1].forEach(k => B(.25, R.H * S - .9, .25, k * w / 2, (R.H * S - .9) / 2, 0, RMAT.steel));
+      for (let i = 0; i < 12; i++) { const cn = new THREE.Mesh(new THREE.ConeGeometry(.9, 5, 14, 1, true), new THREE.MeshBasicMaterial({ color: ["#ff2bd6", "#18e0ff", "#ffd23f", "#ffffff"][i % 4], transparent: true, opacity: .09, side: THREE.DoubleSide, depthWrite: false })); cn.position.set(-w / 2 + (i + .5) * w / 12, R.H * S - 3.5, .3); g.add(cn); B(.25, .3, .25, -w / 2 + (i + .5) * w / 12, R.H * S - 1.1, 0, RMAT.black); }
+    } else if (t === "amp") {
+      B(w, .9, d, 0, .45 + .6, 0, RMAT.black); pplane(g, w - .1, .7, RM("#2b2b2b", { roughness: 1 }), 0, 1.05, d / 2 + .01, 0); B(w, .08, d, 0, 1.54, 0, RMAT.gold);
+    } else if (t === "mic") {
+      B(.04, 1.5, .04, 0, .6 + .75, 0, RMAT.steel); const hd = new THREE.Mesh(new THREE.SphereGeometry(.05, 10, 8), RMAT.black); hd.position.set(0, 2.12, .05); g.add(hd);
+    } else if (t === "barrier") {
+      for (let i = 0; i <= 20; i++) B(.04, 1.1, .04, -w / 2 + i * w / 20, .55, 0, RMAT.steel); B(w, .05, .05, 0, 1.08, 0, RMAT.steel); B(w, .05, .05, 0, .2, 0, RMAT.steel);
+    } else if (t === "pool") {   // bassin : margelle blanche, fond bleu, eau qui bouge, échelle
+      B(w + .6, .08, .3, 0, .04, -d / 2 - .15, RMAT.white); B(w + .6, .08, .3, 0, .04, d / 2 + .15, RMAT.white); B(.3, .08, d, -w / 2 - .15, .04, 0, RMAT.white); B(.3, .08, d, w / 2 + .15, .04, 0, RMAT.white);
+      const bottom = new THREE.Mesh(new THREE.PlaneGeometry(w, d), RM("#0b5e86", { roughness: .4 })); bottom.rotation.x = -Math.PI / 2; bottom.position.y = .02; g.add(bottom);
+      const wm = new THREE.MeshStandardMaterial({ map: WATER_T, color: "#9be3ff", transparent: true, opacity: .82, roughness: .05, metalness: .2 }); WATER_T.repeat.set(w / 3, d / 3);
+      const water = new THREE.Mesh(new THREE.PlaneGeometry(w, d), wm); water.rotation.x = -Math.PI / 2; water.position.y = .06; g.add(water); ROOM3.water = WATER_T;
+      for (let i = 0; i < 6; i++) B(.5, .02, .04, -w / 2 + 1.2 + i * 2.6, .07, -d / 2 + .02, RM("#ffffff"));   // lignes de couloir
+      [-1, 1].forEach(k => B(.04, .9, .04, w / 2 - 1 + k * .25, .45, d / 2 + .05, RMAT.steel));
+    } else if (t === "lifechair") {
+      [-1, 1].forEach(a => [-1, 1].forEach(b => B(.06, 1.5, .06, a * .3, .75, b * .3, RMAT.white))); B(.7, .06, .7, 0, 1.5, 0, RMAT.white); B(.7, .6, .06, 0, 1.8, -.32, RMAT.white);
+      const um = new THREE.Mesh(new THREE.ConeGeometry(.8, .4, 12), RM("#ff3b3b")); um.position.y = 2.9; g.add(um); B(.04, 1.2, .04, 0, 2.3, 0, RMAT.steel);
+    } else if (t === "transat") {
+      B(w, .08, d * .7, 0, .3, d * .1, RM(m.color || "#ffffff", { roughness: .8 })); [-1, 1].forEach(k => B(.05, .3, d * .7, k * (w / 2 - .03), .15, d * .1, RMAT.white));
+      const bk = new THREE.Mesh(new THREE.BoxGeometry(w, .08, d * .32), RM(m.color || "#ffffff", { roughness: .8 })); bk.position.set(0, .48, -d * .36); bk.rotation.x = .7; g.add(bk);
+      const tw = new THREE.Mesh(new THREE.BoxGeometry(w * .8, .03, .3), RM("#ffffff")); tw.position.set(0, .36, d * .35); g.add(tw);
+    } else if (t === "parasol") {
+      B(.05, 2.4, .05, 0, 1.2, 0, RMAT.white); const cn = new THREE.Mesh(new THREE.ConeGeometry(1.3, .5, 10), RM(m.color || "#ff4f9a", { roughness: .9 })); cn.position.y = 2.45; g.add(cn);
+    } else if (t === "palm") {
+      const tr = new THREE.Mesh(new THREE.CylinderGeometry(.12, .2, 4.2, 8), RM("#8a6a45", { roughness: 1 })); tr.position.y = 2.1; tr.rotation.z = .08; g.add(tr);
+      for (let k = 0; k < 7; k++) { const lf = new THREE.Mesh(new THREE.SphereGeometry(.9, 8, 5), RM("#2f8f46", { roughness: .9 })); lf.scale.set(1.6, .12, .45); lf.position.set(Math.cos(k * .9) * .9, 4.1 - (k % 2) * .2, Math.sin(k * .9) * .9); lf.rotation.y = -k * .9; lf.rotation.z = -.35; g.add(lf); }
     } else if (t === "shower") {   // douche carrelée : bac, pommeau, paroi vitrée ; seau et gobelet sans chauffe-eau
       const tile = RM("#cfe8ef", { roughness: .3 });
       B(w, .08, d, 0, .04, 0, RMAT.white); pplane(g, w, 2.2, tile, 0, 1.1, -d / 2 + .02, 0);
@@ -1679,11 +1736,11 @@
     return g;
   }
   function buildRoom(R) {
-    const g = new THREE.Group(), W = R.W * S, D = R.D * S, H = R.H * S, st = ROOM_STYLE[R.kind] || ROOM_STYLE.office;
-    g.position.set(R.ox * S, 0, R.oy * S); ROOM3.fans = []; ROOM3.floorTiles = null;
+    const g = new THREE.Group(), W = R.W * S, D = R.D * S, H = R.H * S, st = ROOM_STYLE[R.kind] || ROOM_STYLE.office, sky = R.kind === "piscine", party = R.kind === "club" || R.kind === "concert";
+    g.position.set(R.ox * S, 0, R.oy * S); ROOM3.fans = []; ROOM3.floorTiles = null; ROOM3.lasers = []; ROOM3.eq = []; ROOM3.water = null;
     const ft = st.floor(); ft.wrapS = ft.wrapT = THREE.RepeatWrapping; ft.repeat.set(W / 2, D / 2);
     const floor = new THREE.Mesh(new THREE.PlaneGeometry(W, D), new THREE.MeshStandardMaterial({ map: ft, roughness: .55 })); floor.rotation.x = -Math.PI / 2; floor.position.y = .01; g.add(floor);
-    const ceil = new THREE.Mesh(new THREE.PlaneGeometry(W, D), RM(R.kind === "club" ? "#0c0610" : "#f7f5f0", { roughness: 1 })); ceil.rotation.x = Math.PI / 2; ceil.position.y = H; g.add(ceil);
+    const ceil = new THREE.Mesh(new THREE.PlaneGeometry(W, D), RM(party ? "#0c0610" : "#f7f5f0", { roughness: 1 })); ceil.rotation.x = Math.PI / 2; ceil.position.y = H; if (!sky) g.add(ceil);   // piscine : en plein air, on voit le ciel
     const wm = RM(st.wall, { roughness: .95 }), bm = RM(st.band, { roughness: .8 });
     const wall = (w, x, z, ry) => { const m = pplane(g, w, H, wm, x, H / 2, z, ry); pplane(g, w, .22, bm, x + Math.sin(ry) * .01, .11, z + Math.cos(ry) * .01, ry); pplane(g, w, .1, bm, x + Math.sin(ry) * .01, 1.25, z + Math.cos(ry) * .01, ry); return m; };
     wall(W, 0, -D / 2, 0); wall(D, -W / 2, 0, Math.PI / 2); wall(D, W / 2, 0, -Math.PI / 2);
@@ -1697,16 +1754,16 @@
     [-1, 1].forEach(k => { const win = pplane(g, 2.2, 1.2, new THREE.MeshBasicMaterial({ map: OUT_T }), k * (W / 2 - .02), 1.9, -D * .15, -k * Math.PI / 2); win.userData.win = true; });
     // luminaires au plafond
     const nl = Math.max(2, Math.round(W / 5));
-    for (let i = 0; i < nl; i++) for (let j = 0; j < 2; j++) pbox(g, 1.2, .04, .3, -W / 2 + (i + .5) * W / nl, H - .03, -D / 4 + j * D / 2, PL.glow(R.kind === "club" ? "#3a1450" : "#fffaf0"));
+    if (!sky) for (let i = 0; i < nl; i++) for (let j = 0; j < 2; j++) pbox(g, 1.2, .04, .3, -W / 2 + (i + .5) * W / nl, H - .03, -D / 4 + j * D / 2, PL.glow(R.kind === "club" ? "#3a1450" : "#fffaf0"));
     const home = R.kind === "maison" || R.kind === "appart";
-    if (R.kind !== "club" && !home && !R.it.some(m => m.t === "poster" || m.t === "tribune" || m.t === "whiteboard")) signBoard(g, R.o.nom.toUpperCase().slice(0, 30), null, Math.min(W * .6, 6), H - .7, -D / 2 + .03, "#ffffff", st.band), g.children[g.children.length - 1].rotation.y = 0;
+    if (!party && !home && !R.it.some(m => m.t === "poster" || m.t === "tribune" || m.t === "whiteboard" || m.t === "ledwall")) signBoard(g, R.o.nom.toUpperCase().slice(0, 30), null, Math.min(W * .6, 6), H - .7, -D / 2 + .03, "#ffffff", st.band), g.children[g.children.length - 1].rotation.y = 0;
     R.it.forEach(m => { const f = furn(m.t, m, R); f.position.set(m.x * S, m.t === "fan" ? 0 : (m.t === "pulpit" || m.t === "drums" || m.t === "keyboard") ? 0 : 0, m.y * S); if (m.t === "fan") f.position.set(0, 0, 0); f.rotation.y = Math.PI / 2 - m.a; g.add(f); });
     // lumières de la pièce
     ROOM3.lights = [];
     const L1 = new THREE.PointLight(st.light, R.kind === "club" ? .5 : .55, Math.max(W, D) * 1.2, 1.6); L1.position.set(-W / 4, H - .4, 0); g.add(L1);
     const L2 = new THREE.PointLight(st.light, R.kind === "club" ? .5 : .55, Math.max(W, D) * 1.2, 1.6); L2.position.set(W / 4, H - .4, -D / 4); g.add(L2);
-    const amb = new THREE.AmbientLight(st.light, R.kind === "club" ? .12 : home ? .38 : .16); g.add(amb);
-    if (R.kind === "club") ["#ff2bd6", "#18e0ff", "#ffd23f"].forEach((c, i) => { const l = new THREE.PointLight(c, 1.6, 14, 1.4); l.position.set(0, H - .8, 0); l.userData.k = i; g.add(l); ROOM3.lights.push(l); });
+    const amb = new THREE.AmbientLight(st.light, party ? .12 : sky ? .5 : home ? .38 : .16); g.add(amb);
+    if (party) ["#ff2bd6", "#18e0ff", "#ffd23f"].concat(R.kind === "concert" ? ["#ff3b3b", "#ffffff"] : []).forEach((c, i) => { const l = new THREE.PointLight(c, 1.6, 14, 1.4); l.position.set(0, H - .8, 0); l.userData.k = i; g.add(l); ROOM3.lights.push(l); });
     g.traverse(o => { if (o.isMesh) { o.castShadow = false; o.receiveShadow = false; } });
     return g;
   }
@@ -1720,9 +1777,12 @@
       ROOM3.g = buildRoom(R); ROOM3.key = key; scene.add(ROOM3.g); ROOM3.plates.clear(); ROOM3.cam = R.me ? "suivi" : "large"; ROOM3.ang = 0; ROOM3.snap = true;
     }
     ROOM3.g.visible = true;
-    sunLight.intensity *= .3; hemi.intensity *= .55;   // sous un toit : le soleil n'éclaire que par les fenêtres
+    if (R.kind !== "piscine") { sunLight.intensity *= .3; hemi.intensity *= .55; }   // sous un toit : le soleil n'éclaire que par les fenêtres (la piscine est en plein air)
     const t = performance.now() / 1000;
     ROOM3.fans.forEach((f, i) => { f.rotation.y = t * (5 + i % 2); });
+    ROOM3.lasers.forEach(l => { const k = l.userData.k; l.rotation.z = Math.sin(t * (.9 + k * .17) + k) * .9; l.rotation.x = Math.cos(t * (.7 + k * .11) + k * 2) * .7; });
+    ROOM3.eq.forEach((b, i) => { const v = .15 + Math.abs(Math.sin(t * 7.3 + i * .9) * Math.sin(t * 2.1 + i * .37)); b.scale.y = Math.max(.05, v * b.userData.h); b.position.y = b.userData.y0 === undefined ? (b.userData.y0 = b.position.y) : b.userData.y0; b.position.y = b.userData.y0 + b.scale.y / 2; });
+    if (ROOM3.water) { ROOM3.water.offset.x = Math.sin(t * .3) * .2; ROOM3.water.offset.y = t * .03; }
     if (ROOM3.floorTiles) { const pal = ["#ff2bd6", "#18e0ff", "#ffd23f", "#7dff8a", "#3a1450"]; const ph = Math.floor(t * 2.2); ROOM3.floorTiles.forEach((tl, i) => tl.material.color.setStyle(pal[(i * 7 + ph + ((i / 6) | 0)) % pal.length])); }
     ROOM3.lights.forEach(l => { const a = t * (.8 + l.userData.k * .3) + l.userData.k * 2.1; l.position.set(Math.cos(a) * R.W * S * .3, R.H * S - .8, Math.sin(a) * R.D * S * .3); l.intensity = 1.2 + Math.sin(t * 6 + l.userData.k) * .5; });
     // assiettes posées devant les clients servis
