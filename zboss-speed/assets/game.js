@@ -2325,10 +2325,12 @@
     const f = G.foot; if (!f || !lifeT(o) || o.id === "maison" || !isOpen(o, G.hour)) return false;
     f.inside = o; f.inT = 1.2; lifeOf(o).hold = 2; const d = o.door; f.x = d.x; f.y = d.y; f.v = 0;
     const btn = document.getElementById("insidebtn"); if (btn) btn.hidden = false;
+    if (G.pionnier && openRoom(o)) { if (G.auto && G.auto.wait < 35) G.auto.wait = 35 + rand() * 20; }   // on prend le temps d'être servi
     return true;
   }
   function leavePlace() {
     const f = G.foot; if (!f || !f.inside) return; const o = f.inside; lifeOf(o).hold = 2; f.inside = null;
+    if (G.room && !G.room.watch) { if (G.room.me && G.room.me.shopBag) f.shopBag = true; closeRoom(); }
     const btn = document.getElementById("insidebtn"); if (btn) btn.hidden = true;
     const w = document.getElementById("interior"); if (w) w.hidden = true;
   }
@@ -2347,6 +2349,7 @@
       (me ? '<p class="in-me">👤 Ton personnage est à l\'intérieur : ' + (A && A.doing ? A.doing : "il est servi") + ".</p>" : "") +
       "<p>Sur place, " + staff + " accueille" + (/^(les|le DJ)/.test(staff) ? "nt" : "") + " et sert les clients.</p>" +
       (who ? "<h4>À l'intérieur en ce moment</h4><ul>" + who + "</ul>" : "<p>Personne d'autre à l'intérieur pour l'instant.</p>") +
+      (G.pionnier ? "" : '<p class="in-pio">🏅 Entrer vraiment dans la pièce en 3D est réservé aux 100 premiers inscrits (les pionniers).</p>') +
       (o.type === "club" && L.queue.length ? "<p>🧍 " + L.queue.length + " personne" + (L.queue.length > 1 ? "s font" : " fait") + " la queue dehors.</p>" : "");
     w.hidden = false;
   }
@@ -2356,6 +2359,236 @@
     if (!o && f && !f.inBus) { let bd = 160; for (const p of PLACES) { if (!lifeT(p) || p.id === "maison") continue; const d = Math.hypot(p.door.x - f.x, p.door.y - f.y); if (d < bd) { bd = d; o = p; } } }
     G.nearLife = o || null; b.hidden = !o;
     if (o) { const t = (f.inside ? "👁️ À l'intérieur : " : "👁️ Regarder dans ") + o.nom; if (b.textContent !== t) b.textContent = t; }
+  }
+  // ---------------------------------------------------------------- intérieurs 3D (pionniers : les 100 premiers inscrits)
+  // On entre vraiment dans la pièce : meubles, personnel qui accueille et sert, clients qui font leurs courses, mangent, dansent, prient…
+  // La pièce est construite hors de la carte (ROOM_O) ; la simulation tourne ici, game3d.js la dessine.
+  const ROOM_O = { x: -40000, y: -40000 }, UPA = -Math.PI / 2;
+  const roomKind = o => o.resto ? "resto" : o.id === "phones" ? "phones" : o.id === "hopital" ? "hopital" : o.id === "police" ? "police" : o.id === "justice" || o.id === "assemblee" ? "salle" : o.type === "bureau" || o.type === "etat" ? "office" : o.type;
+  function roomLayout(o) {
+    const kind = roomKind(o), it = [], seats = [], spots = { browse: [], pay: [], dance: [], guichet: [], staff: [] };
+    let W = 170, D = 130, H = 32;
+    const add = (t, x, y, w, d, ex) => { const r = Object.assign({ t, x, y, w, d, a: Math.PI / 2, solid: true }, ex || {}); it.push(r); return r; };
+    const seat = (x, y, a, ex) => { const s = Object.assign({ x, y, a, who: null }, ex || {}); seats.push(s); return s; };
+    const staff = (role, x, y, a, ex) => spots.staff.push(Object.assign({ role, x, y, a }, ex || {}));
+    const UP = -Math.PI / 2, DOWN = Math.PI / 2;   // regarder vers le fond / vers la porte
+    if (kind === "alim" || kind === "magasin" || kind === "phones") {
+      W = kind === "alim" ? 170 : 160; D = 130;
+      const cy = D / 2 - 30;
+      add("counter", 52, cy, 42, 12, { label: "CAISSE" }); staff("cashier", 58, cy - 13, DOWN);
+      for (let k = 0; k < 4; k++) spots.pay.push({ x: 48 - k * 12, y: cy + 14, a: UP });
+      if (kind === "alim") {
+        add("fridges", 0, -D / 2 + 5, 140, 9, { solid: true });
+        [-55, -18, 19].forEach(x => { add("shelf", x, -12, 11, 62); [-30, 0, 18].forEach(y => { spots.browse.push({ x: x - 13, y, a: 0 }); spots.browse.push({ x: x + 13, y, a: Math.PI }); }); });
+        [-50, -10, 30].forEach(x => spots.browse.push({ x, y: -D / 2 + 18, a: UP }));
+        add("crates", -66, cy + 6, 22, 14);
+      } else if (kind === "magasin") {
+        [-50, -10, 30].forEach(x => { add("rack", x, -18, 34, 6); spots.browse.push({ x, y: -6, a: UP }); spots.browse.push({ x, y: -30, a: DOWN }); });
+        add("mirror", -W / 2 + 2, 10, 26, 3, { a: 0 }); spots.browse.push({ x: -W / 2 + 16, y: 10, a: Math.PI });
+        add("cabin", W / 2 - 14, -D / 2 + 16, 24, 26); spots.browse.push({ x: W / 2 - 14, y: -D / 2 + 36, a: UP });
+        add("mannequin", -60, cy + 8, 8, 8); add("mannequin", -44, cy + 8, 8, 8);
+        add("shelf", 0, -D / 2 + 5, 120, 8, { shoes: true });
+      } else {
+        [-50, -5].forEach(x => { add("vitrine", x, -10, 30, 12); spots.browse.push({ x, y: 4, a: UP }); spots.browse.push({ x, y: -24, a: DOWN }); });
+        add("poster", 0, -D / 2 + 1, 70, 2, { solid: false, label: "📱 SMARTPHONES · ACCESSOIRES · RÉPARATION" });
+        add("desk", 40, -D / 2 + 22, 30, 12, { a: DOWN, pc: true }); staff("tech", 40, -D / 2 + 12, DOWN, { sit: true }); spots.browse.push({ x: 40, y: -D / 2 + 36, a: UP });
+      }
+      add("plant", -W / 2 + 8, D / 2 - 8, 8, 8);
+    } else if (kind === "resto") {
+      W = 170; D = 140;
+      add("bar", 0, -D / 2 + 14, 100, 12, { label: "CUISINE · BOISSONS" }); staff("cook", -20, -D / 2 + 5, DOWN); staff("waiter", 0, -D / 2 + 28, DOWN);
+      add("fridge", W / 2 - 10, -D / 2 + 8, 14, 10);
+      [-52, 0, 52].forEach(x => [-14, 30].forEach(y => {
+        add("table", x, y, 16, 16);
+        [[0, -13, DOWN], [0, 13, UP], [-13, 0, 0], [13, 0, Math.PI]].forEach(([dx, dy, a]) => { add("chair", x + dx, y + dy, 6, 6, { a, solid: false }); seat(x + dx, y + dy, a, { table: { x, y } }); });
+      }));
+      add("tv", -W / 2 + 1, -10, 34, 2, { a: 0, solid: false }); add("plant", W / 2 - 8, D / 2 - 8, 8, 8);
+    } else if (kind === "club") {
+      W = 190; D = 160;
+      add("dj", 0, -D / 2 + 13, 44, 12); staff("dj", 0, -D / 2 + 4, DOWN, { dance: true });
+      add("speaker", -36, -D / 2 + 8, 12, 10); add("speaker", 36, -D / 2 + 8, 12, 10);
+      add("dancefloor", 10, -14, 80, 66, { solid: false });
+      for (let i = 0; i < 4; i++) for (let j = 0; j < 3; j++) spots.dance.push({ x: -16 + i * 17, y: -34 + j * 19, a: UP });
+      add("bar", -W / 2 + 14, 4, 70, 12, { a: 0, label: "BAR" }); staff("barman", -W / 2 + 5, 4, 0, { pace: 24 });
+      for (let k = 0; k < 5; k++) { add("stool", -W / 2 + 28, -24 + k * 14, 6, 6, { solid: false }); seat(-W / 2 + 28, -24 + k * 14, Math.PI, { bar: true }); }
+      [-36, 16].forEach(y => { add("sofa", W / 2 - 10, y, 36, 14, { a: Math.PI }); add("lowtable", W / 2 - 28, y, 18, 12, { a: Math.PI }); [-10, 10].forEach(dy => seat(W / 2 - 14, y + dy, Math.PI, { sofa: true })); });
+      staff("guard", -24, D / 2 - 12, UP);
+    } else if (kind === "eglise") {
+      W = 210; D = 270; H = 62;
+      add("stage", 0, -D / 2 + 26, 150, 44, { solid: true, low: true }); add("cross", 0, -D / 2 + 1, 30, 2, { solid: false });
+      add("pulpit", 0, -D / 2 + 40, 16, 10, { solid: false }); staff("pastor", 0, -D / 2 + 30, DOWN, { pace: 26, preach: true, z: 6 });
+      [-58, -46, -34, -22].forEach((x, k) => staff("choir", x, -D / 2 + 14 + (k % 2) * 7, DOWN, { dance: true, slow: true, z: 6 }));
+      add("drums", 52, -D / 2 + 16, 18, 14, { solid: false }); add("keyboard", 30, -D / 2 + 18, 18, 8, { solid: false }); staff("musician", 30, -D / 2 + 10, DOWN, { z: 6 });
+      for (let r = 0; r < 7; r++) { const y = -D / 2 + 74 + r * 24; [-52, 52].forEach(x => { add("pew", x, y, 76, 7, { a: UP }); for (let s = -2; s <= 2; s++) seat(x + s * 14, y, UP, { pew: true }); }); }
+      staff("usher", 30, D / 2 - 14, UP);
+    } else if (kind === "hopital") {
+      W = 200; D = 160;
+      add("counter", 40, D / 2 - 34, 50, 12); staff("reception", 40, D / 2 - 47, DOWN, { sit: true });
+      for (let k = 0; k < 4; k++) spots.guichet.push({ x: 40, y: D / 2 - 20, a: UP, agent: 0 });
+      for (let k = 0; k < 4; k++) { const y = -D / 2 + 18 + k * 30; add("bed", -W / 2 + 26, y, 40, 18); add("curtain", -W / 2 + 26, y + 14, 44, 2, { solid: false }); spots.staff.push({ role: "patient", x: -W / 2 + 27, y, a: Math.PI / 2, lie: true, z: 5 }); }
+      staff("nurse", -40, 0, Math.PI, { rounds: true });
+      [0, 24].forEach(y => { for (let s = 0; s < 5; s++) { add("chair", 20 + s * 12, -20 + y, 6, 6, { a: UP, solid: false }); seat(20 + s * 12, -20 + y, UP); } });
+      add("plant", W / 2 - 8, D / 2 - 8, 8, 8); add("poster", 40, -D / 2 + 1, 60, 2, { solid: false, label: "✚ HÔPITAL GÉNÉRAL · SOINS 24 H / 24" });
+    } else if (kind === "salle") {
+      W = 210; D = 180; H = 46;
+      const ass = o.id === "assemblee";
+      add("tribune", 0, -D / 2 + 20, 90, 22, { label: ass ? "ASSEMBLÉE NATIONALE" : "PALAIS DE JUSTICE" }); staff(ass ? "president" : "judge", 0, -D / 2 + 10, DOWN, { sit: true });
+      staff("clerk", 36, -D / 2 + 12, DOWN, { sit: true }); add("flag", -W / 2 + 10, -D / 2 + 10, 6, 6, { solid: false });
+      for (let r = 0; r < 4; r++) { const y = -D / 2 + 60 + r * 26; [-55, 55].forEach(x => { if (ass) { add("desk", x, y, 70, 7, { a: DOWN }); for (let s = -2; s <= 2; s++) seat(x + s * 13, y + 8, UP); } else { add("pew", x, y, 70, 7, { a: UP }); for (let s = -2; s <= 2; s++) seat(x + s * 13, y, UP); } }); }
+      if (!ass) { add("box", -60, -D / 2 + 40, 20, 8, { solid: false, label: "PARTIE CIVILE" }); add("box", 60, -D / 2 + 40, 20, 8, { solid: false, label: "DÉFENSE" }); }
+      staff("guard", -30, D / 2 - 12, UP);
+    } else {   // bureaux, administrations, commissariat : guichets et salle d'attente
+      W = 180; D = 150;
+      const gy = -D / 2 + 32;
+      add("guichets", 0, gy, 150, 10, { label: o.id === "zboss" ? "ZBOSS SARLU · ACCUEIL" : o.id === "police" ? "POLICE NATIONALE · PLAINTES" : o.nom.toUpperCase().slice(0, 34) });
+      [-50, 0, 50].forEach((x, k) => { add("desk", x, gy - 15, 26, 10, { a: DOWN, pc: true, solid: false }); staff("agent", x, gy - 22, DOWN, { sit: true, desk: k }); spots.guichet.push({ x, y: gy + 13, a: UP, agent: k }); });
+      for (let r = 0; r < 2; r++) for (let s = 0; s < 6; s++) { const x = -45 + s * 18, y = 12 + r * 24; add("chair", x, y, 6, 6, { a: UP, solid: false }); seat(x, y, UP); }
+      if (kind === "police") { add("cell", W / 2 - 20, 20, 44, 40, { a: Math.PI }); spots.staff.push({ role: "prisoner", x: W / 2 - 12, y: 20, a: Math.PI }); }
+      else add("plant", W / 2 - 10, 20, 8, 8);
+      if (o.type === "etat") add("flag", -W / 2 + 10, -D / 2 + 10, 6, 6, { solid: false });
+      add("ticket", -W / 2 + 12, D / 2 - 22, 8, 8); staff("guard", 26, D / 2 - 12, UP);
+    }
+    add("fan", 0, 0, 1, 1, { solid: false, ceil: true });
+    return { o, kind, W, D, H, it, seats, spots, door: { x: 0, y: D / 2 - 6 } };
+  }
+  // petite grille de déplacement (1 case = 0,5 m) : on contourne les meubles
+  function roomGrid(R) {
+    const c = 5, nx = Math.ceil(R.W / c), ny = Math.ceil(R.D / c), b = new Uint8Array(nx * ny), tall = new Uint8Array(nx * ny), pad = 3, TALL = ["shelf", "fridges", "fridge", "cell", "speaker", "cabin", "rack"];
+    for (let i = 0; i < nx; i++) for (let j = 0; j < ny; j++) {
+      const x = -R.W / 2 + (i + .5) * c, y = -R.D / 2 + (j + .5) * c;
+      if (Math.abs(x) > R.W / 2 - 4 || Math.abs(y) > R.D / 2 - 4) { b[j * nx + i] = tall[j * nx + i] = 1; continue; }
+      for (const m of R.it) { if (!m.solid) continue; const hw = (m.a === 0 || m.a === Math.PI ? m.d : m.w) / 2 + pad, hd = (m.a === 0 || m.a === Math.PI ? m.w : m.d) / 2 + pad; if (Math.abs(x - m.x) < hw && Math.abs(y - m.y) < hd) { b[j * nx + i] = 1; if (TALL.includes(m.t)) tall[j * nx + i] = 1; break; } }
+    }
+    R.grid = { c, nx, ny, b, tall };
+  }
+  function roomPath(R, x0, y0, x1, y1) {
+    const g = R.grid, cell = (x, y) => [Math.max(0, Math.min(g.nx - 1, Math.floor((x + R.W / 2) / g.c))), Math.max(0, Math.min(g.ny - 1, Math.floor((y + R.D / 2) / g.c)))];
+    const free = (i, j) => i >= 0 && j >= 0 && i < g.nx && j < g.ny && !g.b[j * g.nx + i];
+    const near = (i, j) => { if (free(i, j)) return [i, j]; for (let r = 1; r < 8; r++) for (let di = -r; di <= r; di++) for (let dj = -r; dj <= r; dj++) if (free(i + di, j + dj)) return [i + di, j + dj]; return [i, j]; };
+    const [si, sj] = near(...cell(x0, y0)), [ti, tj] = near(...cell(x1, y1)), S0 = sj * g.nx + si, T = tj * g.nx + ti;
+    const prev = new Int32Array(g.nx * g.ny).fill(-1), seen = new Uint8Array(g.nx * g.ny), Q = [S0]; seen[S0] = 1;
+    for (let h = 0; h < Q.length && !seen[T]; h++) {
+      const k = Q[h], i = k % g.nx, j = (k / g.nx) | 0;
+      for (const [di, dj] of [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]]) {
+        const a = i + di, b2 = j + dj; if (!free(a, b2) || (di && dj && (!free(i + di, j) || !free(i, j + dj)))) continue;
+        const n = b2 * g.nx + a; if (seen[n]) continue; seen[n] = 1; prev[n] = k; Q.push(n);
+      }
+    }
+    const end = { x: x1, y: y1 }; if (!seen[T]) return [end];
+    const cells = []; for (let k = T; k >= 0 && k !== S0; k = prev[k]) cells.unshift(k);
+    const pts = []; let dir = null;
+    cells.forEach((k, n) => { const d = n ? k - cells[n - 1] : null; if (n && d === dir) pts[pts.length - 1] = k; else pts.push(k); dir = d; });
+    return pts.map(k => ({ x: -R.W / 2 + (k % g.nx + .5) * g.c, y: -R.D / 2 + (((k / g.nx) | 0) + .5) * g.c })).concat([end]);
+  }
+  function roomGo(q, x, y, then) { q.path = roomPath(G.room, q.x, q.y, x, y); q.then = then || null; q.state = "walk"; }
+  // ce que fait un client à l'intérieur, selon le lieu
+  function roomPlan(R, q) {
+    const S2 = R.spots, pick = a => a[(rand() * a.length) | 0], freeSeat = f => { const s = R.seats.filter(x => !x.who && (!f || f(x))); return s.length ? pick(s) : null; };
+    const sitAt = s => { if (q.seat) q.seat.who = null; s.who = q; q.seat = s; roomGo(q, s.x, s.y, () => { q.state = "sit"; q.a = s.a; q.wait = S2.guichet.length ? 3 + rand() * 4 : 1e9; q.doing = q.doing || "est assis"; }); };
+    if (q.seat && q.state === "sit" && R.kind !== "club" && (!S2.guichet.length || q.served)) { q.wait = 1e9; return; }
+    if (R.kind === "alim" || R.kind === "magasin" || R.kind === "phones") {
+      if ((q.n || 0) < 2) { const b = pick(S2.browse); q.n = (q.n || 0) + 1; q.doing = R.kind === "alim" ? "choisit ses produits" : R.kind === "phones" ? "regarde les téléphones" : "essaie des vêtements"; roomGo(q, b.x, b.y, () => { q.a = b.a; q.wait = 4 + rand() * 5; q.state = "idle"; }); return; }
+      const k = R.people.filter(p => p.paying).length, p = S2.pay[Math.min(k, S2.pay.length - 1)]; q.paying = true; q.doing = "fait la queue à la caisse";
+      roomGo(q, p.x, p.y, () => { q.a = p.a; q.state = "idle"; q.wait = 1e9; q.inQueue = true; });
+      return;
+    }
+    if (R.kind === "resto") { const s = freeSeat(); if (s) { q.doing = "attend son plat"; sitAt(s); } else { q.doing = "attend une table"; roomGo(q, R.door.x + 20, R.door.y - 8, () => { q.wait = 6; q.state = "idle"; }); } return; }
+    if (R.kind === "club") {
+      if (q.seat) { q.seat.who = null; q.seat = null; }
+      const r = rand();
+      if (r < .6 || q.mustDance) { const d = pick(S2.dance); q.doing = "danse sur la rumba"; roomGo(q, d.x + (rand() - .5) * 8, d.y + (rand() - .5) * 8, () => { q.state = "dance"; q.a = UPA + (rand() - .5) * 2; q.wait = 18 + rand() * 25; }); return; }
+      const s = freeSeat(r < .8 ? x => x.bar : x => x.sofa) || freeSeat(); if (s) { q.doing = s.bar ? "boit un verre au bar" : "discute dans le salon"; if (q.seat) q.seat.who = null; s.who = q; q.seat = s; roomGo(q, s.x, s.y, () => { q.state = "sit"; q.a = s.a; q.wait = 15 + rand() * 20; }); }
+      return;
+    }
+    if (R.kind === "eglise" || R.kind === "salle") { const s = freeSeat(x => R.kind !== "eglise" || !q.player || x.y < 0) || freeSeat(); if (s) { q.doing = R.kind === "eglise" ? "prie et écoute la prédication" : R.o.id === "assemblee" ? "suit la séance depuis la tribune" : "assiste à l'audience"; sitAt(s); } return; }
+    // guichets : on s'assoit, on attend son tour, puis on est reçu
+    if (!q.served && S2.guichet.length) {
+      const busy = new Set(R.people.filter(p => p.atG).map(p => p.atG)), g = S2.guichet.find(x => !busy.has(x));
+      const waiting = R.people.filter(p => p.seat && !p.served && p !== q && (p.since || 0) < (q.since || 0));
+      if (g && !waiting.length && q.seat) { q.seat.who = null; q.seat = null; q.atG = g; q.doing = R.kind === "hopital" ? "explique ses symptômes à l'accueil" : R.kind === "police" ? "dépose une plainte" : "est reçu au guichet"; roomGo(q, g.x, g.y, () => { q.a = g.a; q.state = "idle"; q.wait = 7 + rand() * 6; q.talk = 2; }); return; }
+      if (q.atG) { q.atG = null; q.served = true; }
+    }
+    q.wait = 3 + rand() * 3;
+    if (!q.seat) { const s = freeSeat(); q.since = q.since || G.t; q.doing = q.served ? "attend ses papiers" : "attend son tour"; if (s) sitAt(s); else roomGo(q, R.door.x - 20, R.door.y - 10, () => { q.wait = 5; q.state = "idle"; }); }
+  }
+  function roomMove(q, dt) {
+    if (!q.path || !q.path.length) return true;
+    const p = q.path[0], dx = p.x - q.x, dy = p.y - q.y, d = Math.hypot(dx, dy), sp = q.player ? 13 : q.staff ? 10 : 11;
+    if (d < 1.5) { q.path.shift(); if (!q.path.length) { q.state = "idle"; const f = q.then; q.then = null; if (f) f(); return true; } return false; }
+    q.state = "walk"; q.v = sp; q.a += angDiff(q.a, Math.atan2(dy, dx)) * Math.min(1, dt * 8); const v = Math.min(d, sp * dt); q.x += dx / d * v; q.y += dy / d * v; q.t += dt;
+    return false;
+  }
+  function roomPerson(R, x, staffSpot) {
+    const q = { x: R.door.x + (rand() - .5) * 8, y: R.door.y, a: UPA, v: 0, t: rand() * 9, state: "idle", look: x ? x.look : (rand() * 7) | 0, id: x ? x.id : ++pedSeq, idn: x && x.idn, tourist: x && x.tourist, wait: 0, room: true };
+    if (staffSpot) Object.assign(q, { x: staffSpot.x, y: staffSpot.y, a: staffSpot.a, staff: true, role: staffSpot.role, home: staffSpot, state: staffSpot.lie ? "down" : staffSpot.sit ? "sit" : staffSpot.dance ? "dance" : "idle", z: staffSpot.z || 0, kit: staffSpot.role === "agent" || staffSpot.role === "guard" || staffSpot.role === "judge" || staffSpot.role === "president" || staffSpot.role === "clerk" });
+    if (staffSpot && staffSpot.role === "guard") q.cop = R.o.id === "police" || R.o.type === "etat";
+    if (staffSpot && staffSpot.role === "prisoner") q.state = "idle";
+    R.people.push(q); return q;
+  }
+  function openRoom(o, watch) {
+    if (!o || !lifeT(o) || o.id === "maison") return false;
+    const R = roomLayout(o); roomGrid(R); R.people = []; R.watch = !!watch; R.t = 0; R.ox = ROOM_O.x; R.oy = ROOM_O.y; R.plates = []; if (G.room) closeRoom(); G.room = R;
+    R.spots.staff.forEach(s => roomPerson(R, null, s));
+    // les clients déjà à l'intérieur sont à leur place
+    lifeOf(o).inside.forEach(x => { const q = roomPerson(R, x); q.src = x; const D2 = R.door; q.x = D2.x + (rand() - .5) * R.W * .6; q.y = D2.y - 10 - rand() * R.D * .5; const [i, j] = [Math.floor((q.x + R.W / 2) / R.grid.c), Math.floor((q.y + R.D / 2) / R.grid.c)]; if (R.grid.b[j * R.grid.nx + i]) { q.x = D2.x; q.y = D2.y - 6; } roomPlan(R, q); if (q.path && q.path.length) { const e = q.path[q.path.length - 1]; q.x = e.x; q.y = e.y; q.path = [e]; } });
+    if (!watch && G.foot) { const me = roomPerson(R, { look: 0, id: "moi" }); me.player = true; me.x = R.door.x; me.y = R.door.y; R.me = me; if (R.kind === "club") me.mustDance = true; roomPlan(R, me); }
+    document.body.classList.add("in-room");
+    const b = document.getElementById("roombar"); if (b) { b.hidden = false; b.querySelector(".rb-t").textContent = o.icone + " " + o.nom; }
+    msg("🏅 Pionnier : tu entres vraiment dans " + o.nom + ". " + (watch ? "Ton personnage reste dehors, tu regardes à l'intérieur." : "Regarde comment on l'accueille et le sert."), 4.5, "ok");
+    return true;
+  }
+  function closeRoom() {
+    const R = G.room; if (!R) return; R.seats.forEach(s => { s.who = null; }); G.room = null; document.body.classList.remove("in-room");
+    const b = document.getElementById("roombar"); if (b) b.hidden = true;
+  }
+  function roomStep(dt) {
+    const R = G.room; if (!R) return;
+    R.t += dt; R.people.forEach(q => { if (q.talk > 0) q.talk -= dt; }); const L = lifeOf(R.o), ids = new Set(L.inside.map(x => x.id));
+    if (!R.watch && !(G.foot && G.foot.inside === R.o)) { closeRoom(); return; }
+    if (R.watch && !L.open && !L.inside.length) { closeRoom(); msg("🔒 " + R.o.nom + " a fermé ses portes.", 3); return; }
+    // nouveaux clients qui entrent, clients qui sortent par la porte
+    const have = new Set(R.people.filter(q => q.src).map(q => q.src.id));
+    L.inside.forEach(x => { if (!have.has(x.id)) { const q = roomPerson(R, x); q.src = x; roomPlan(R, q); } });
+    for (const q of R.people) {
+      if (q.src && !ids.has(q.src.id) && !q.leaving) { q.leaving = true; if (q.seat) { q.seat.who = null; q.seat = null; } q.paying = q.inQueue = false; q.atG = null; roomGo(q, R.door.x, R.door.y + 4, () => { q.gone = true; }); }
+    }
+    R.people = R.people.filter(q => !q.gone);
+    // la caisse : le premier de la file paie, la caissière l'encaisse
+    if (R.spots.pay.length) {
+      const queue = R.people.filter(q => q.inQueue).sort((a, b) => Math.hypot(a.x - R.spots.pay[0].x, a.y - R.spots.pay[0].y) - Math.hypot(b.x - R.spots.pay[0].x, b.y - R.spots.pay[0].y));
+      queue.forEach((q, k) => { const p = R.spots.pay[Math.min(k, R.spots.pay.length - 1)]; if (Math.hypot(q.x - p.x, q.y - p.y) > 3 && !(q.path && q.path.length)) roomGo(q, p.x, p.y, () => { q.a = p.a; q.state = "idle"; }); });
+      const first = queue[0], cash = R.people.find(q => q.role === "cashier");
+      if (first && !(first.path && first.path.length) && Math.hypot(first.x - R.spots.pay[0].x, first.y - R.spots.pay[0].y) < 3) {
+        first.payT = (first.payT || 0) + dt; if (cash) cash.talk = 1; first.doing = "paie à la caisse";
+        if (first.payT > 3.5) { first.inQueue = first.paying = false; first.payT = 0; first.n = 0; first.shopBag = true; first.bagNew = true; if (first.player) { msg("🛍️ " + (G.me && G.me.prenom || "Ton personnage") + " a payé à la caisse : la caissière lui tend son sac.", 3.5, "ok"); } roomGo(first, R.door.x - 14, R.door.y - 14, () => { first.state = "idle"; first.wait = 8 + rand() * 6; first.doing = "range ses courses"; }); }
+      }
+    }
+    for (const q of R.people) {
+      if (q.staff) { roomStaff(R, q, dt); continue; }
+      if (q.leaving) { roomMove(q, dt); continue; }
+      if (q.path && q.path.length) { roomMove(q, dt); continue; }
+      if (q.inQueue) continue;
+      q.wait -= dt; if (q.wait <= 0) roomPlan(R, q);
+    }
+    if (R.me && G.auto) G.auto.doing = "🏠 " + R.o.nom + " : il " + (R.me.doing || "regarde autour de lui");
+  }
+  // le personnel : caissière, serveuse qui apporte les plats, DJ, barman, pasteur qui prêche, agents aux guichets, infirmière…
+  function roomStaff(R, q, dt) {
+    const h = q.home;
+    if (q.path && q.path.length) { roomMove(q, dt); return; }
+    if (q.role === "waiter") {
+      if (q.carry) { const s = q.carry; if (!s.who) { q.carry = null; return; } const t = s.table; roomGo(q, t.x + (s.x - t.x) * 1.8, t.y + (s.y - t.y) * 1.8, () => { s.plate = true; R.plates.push(s); q.carry = null; q.talk = 1.5; if (s.who) { s.who.doing = "mange son plat"; if (s.who.player) msg("🍲 La serveuse apporte le plat : poulet mayo et chikwangue. Bon appétit !", 3.5, "ok"); } q.wait = 1.5; }); return; }
+      q.wait = (q.wait || 0) - dt; if (q.wait > 0) return;
+      const s = R.seats.find(x => x.who && !x.plate && !x.ordered && x.who.state === "sit");
+      if (s) { s.ordered = true; roomGo(q, h.x, h.y, () => { q.a = UPA; q.wait = 2.5; q.carry = s; const cook = R.people.find(p => p.role === "cook"); if (cook) cook.talk = 1.5; }); return; }
+      R.seats.forEach(x => { if (!x.who) { x.plate = false; x.ordered = false; } });
+      if (Math.hypot(q.x - h.x, q.y - h.y) > 3) roomGo(q, h.x, h.y, () => { q.a = h.a; }); else { q.state = "idle"; q.wait = 1; }
+      return;
+    }
+    if (h.pace) { q.wait = (q.wait || 0) - dt; if (q.wait <= 0) { const tx = h.x + (rand() - .5) * 2 * h.pace; q.path = [{ x: tx, y: h.y }]; q.then = () => { q.a = h.a; q.state = h.preach ? "idle" : "idle"; q.wait = 3 + rand() * 4; if (h.preach) q.talk = 2.5; }; } return; }
+    if (h.rounds) { q.wait = (q.wait || 0) - dt; if (q.wait <= 0) { const b = R.spots.staff.filter(s => s.lie); const t = b[(rand() * b.length) | 0]; if (t) roomGo(q, t.x + 26, t.y, () => { q.a = Math.PI; q.state = "idle"; q.wait = 5 + rand() * 4; q.talk = 1.5; }); } return; }
+    if (q.role === "agent") { const c = R.people.find(p => p.atG && p.atG.agent === h.desk && !(p.path && p.path.length)); if (c && rand() < dt * .6) q.talk = 1.2; }
+    if (q.role === "reception") { const c = R.people.find(p => p.atG && !(p.path && p.path.length)); if (c && rand() < dt * .6) q.talk = 1.2; }
   }
   function update(dt) {
     const p = G.player; G.t += dt; G.dt = dt;
@@ -2393,7 +2626,7 @@
       if (G.foot && G.foot.sit) sitUpdate(dt);
       if (G.hour >= 7 && G.hour <= 21) G.games.forEach(g => gameStep(g, dt));
       chatUpdate(dt);
-      placesLife(dt); taxiLife(dt);
+      placesLife(dt); taxiLife(dt); roomStep(dt);
       if (G.foot && G.foot.inside) { G.foot.inT -= dt; if (!G.auto || G.auto.phase !== "visit") leavePlace(); }
       insideBtn();
       lifeUpdate();
@@ -2760,7 +2993,18 @@
   }
   function start(car) {
     Audio.init(); Audio.resume(); resize(); newGame(car); show(null);
+    if (WALK) pioneerCheck();
     if (!running) { running = true; last = performance.now(); requestAnimationFrame(loop); }
+  }
+  // pionnier ? (les 100 premiers inscrits) : demandé au serveur ; en démo, tout le monde l'est pour essayer
+  let PIO = null;
+  function pioneerCheck() {
+    const apply = j => { PIO = j; if (G) G.pionnier = !!j.pionnier; const b = $("piobadge"); if (b) { b.hidden = !j.pionnier; if (j.pionnier) b.textContent = "🏅 Pionnier" + (j.rang ? " n° " + j.rang : " (démo)"); } };
+    if (PIO) return apply(PIO);
+    const API = (window.TWO_LIFE_API || "").replace(/\/$/, ""); let tok = null; try { tok = JSON.parse(localStorage.getItem("twolife_token")); } catch (e) { }
+    if (!API) return apply({ pionnier: true, demo: true });
+    if (!tok) return apply({ pionnier: false });
+    fetch(API + "/api/pionnier", { headers: { Authorization: "Bearer " + tok } }).then(r => r.ok ? r.json() : { pionnier: false }).then(apply).catch(() => apply({ pionnier: false }));
   }
   function setPause(v) { if (!G || G.over) return; G.paused = v; show(v ? "pause" : null); v ? Audio.suspend() : Audio.resume(); }
 
@@ -2814,7 +3058,13 @@
   if ($("mebtn")) $("mebtn").addEventListener("click", () => showMe());
   if ($("speedbtn")) { if (WALK && window.TWO_LIFE_API) $("speedbtn").hidden = true; $("speedbtn").addEventListener("click", () => { if (!G) return; G.speed = G.speed === 1 ? 10 : G.speed === 10 ? 60 : 1; $("speedbtn").textContent = "⏩ ×" + G.speed; }); }
   $("actbtn").addEventListener("click", () => { if (G && !G.over) actPressed = true; });
-  $("insidebtn").addEventListener("click", () => { if (G && G.nearLife) openInterior(G.nearLife); });
+  $("insidebtn").addEventListener("click", () => {
+    if (!G || !G.nearLife) return;
+    if (G.pionnier && !(G.room && G.room.o === G.nearLife)) { const inside = G.foot && G.foot.inside === G.nearLife; if (isOpen(G.nearLife, G.hour) || inside) { openRoom(G.nearLife, !inside); return; } }
+    openInterior(G.nearLife);
+  });
+  $("rb-who").addEventListener("click", () => { if (G && G.room) openInterior(G.room.o); });
+  $("rb-out").addEventListener("click", () => { if (!G || !G.room) return; const w = G.room.watch; closeRoom(); if (!w) msg("🚶 Ton personnage ressortira tout seul quand il aura fini. Tu regardes la rue en attendant.", 3.5); });
   document.querySelector("#interior .in-close").addEventListener("click", () => { $("interior").hidden = true; });
   $("interior").addEventListener("click", e => { if (e.target.id === "interior") $("interior").hidden = true; });
   const camLabel = () => { $("cambtn").textContent = "Caméra : " + (window.ZBOSS_3D && window.ZBOSS_3D.ok ? window.ZBOSS_3D.camLabel() : (camMode === "chase" ? "poursuite" : "dessus")); };
@@ -2831,5 +3081,5 @@
 
   // Accès pour les tests automatisés
   window.ZBOSS_WORLD = { busNet, addObst, OBST, W, H, C, MW, MH, mask, MAP, ROADS, FILL, walkBlocked, SHOPS, PLACES, BILLBOARDS, BENCHES, LIGHTS, lightState, isOpen, SHOP_W, SHOP_D, SHOP_DOOR, nodes, nodesNear, nearestNode, solidAt, groundAt, angDiff, rand };
-  window.__zboss = { interior: o => openInterior(o || G.nearLife), get state() { return G; }, start: () => start(chosen), spawnCop, keys, touch, act: () => { actPressed = true; }, sortie: m => autoToggle(true, m), auto: m => autoToggle(true, m, true), sorties: openSorties, plan: openPlan, me: showMe, setHour: h => { G.hour = h; }, live: () => ({ others: (G && G.others || []).map(o => ({ nom: o.nom, x: Math.round(o.x), y: Math.round(o.y), m: o.m, ped: !!o.ped })), ws: LIVE.ws ? LIVE.ws.readyState : -1, online: LIVE.online }), liveStep: dt => liveStep(dt || 1 / 30), step: (n, dt) => { for (let i = 0; i < n && G && !G.paused; i++) update(dt || 1 / 30); } };
+  window.__zboss = { interior: o => openInterior(o || G.nearLife), room: (id, watch) => { const o = PLACES.find(x => x.id === id); return o ? openRoom(o, watch) : false; }, get roomState() { const R = G.room; return R && { kind: R.kind, n: R.people.length, people: R.people.map(q => ({ role: q.role || (q.player ? "moi" : "client"), s: q.state, d: q.doing || "", x: Math.round(q.x), y: Math.round(q.y) })) }; }, closeRoom: () => closeRoom(), get state() { return G; }, start: () => start(chosen), spawnCop, keys, touch, act: () => { actPressed = true; }, sortie: m => autoToggle(true, m), auto: m => autoToggle(true, m, true), sorties: openSorties, plan: openPlan, me: showMe, setHour: h => { G.hour = h; }, live: () => ({ others: (G && G.others || []).map(o => ({ nom: o.nom, x: Math.round(o.x), y: Math.round(o.y), m: o.m, ped: !!o.ped })), ws: LIVE.ws ? LIVE.ws.readyState : -1, online: LIVE.online }), liveStep: dt => liveStep(dt || 1 / 30), step: (n, dt) => { for (let i = 0; i < n && G && !G.paused; i++) update(dt || 1 / 30); } };
 })();

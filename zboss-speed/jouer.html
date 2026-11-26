@@ -125,7 +125,14 @@
     #interior ul { margin: 0; padding-left: 18px; } #interior li { margin: 3px 0; }
     #interior .in-h { margin: 0; color: #b9c0cc; font-size: 13px; } #interior .in-me { background: rgba(255,90,31,.14); border-radius: 10px; padding: 8px 10px; }
     #interior .in-close { margin-top: 12px; width: 100%; background: #ff5a1f; color: #fff; border: 0; border-radius: 10px; padding: 10px; font: 700 14px var(--font-body); cursor: pointer; }
-    @media (max-width: 640px) { #insidebtn { top: auto; bottom: 214px; right: 10px; } }
+    #interior .in-pio { color: #ffd23f; font-size: 13px; }
+    #roombar { position: fixed; left: 50%; transform: translateX(-50%); top: max(10px, env(safe-area-inset-top)); z-index: 7; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: center; max-width: calc(100vw - 32px); background: rgba(5,7,12,.86); color: #fff; border: 1px solid rgba(255,210,63,.45); border-radius: 14px; padding: 7px 10px; font: 700 13px var(--font-body); }
+    #roombar[hidden], #piobadge[hidden] { display: none; }
+    #roombar .rb-t { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 46vw; }
+    #roombar button { background: rgba(255,255,255,.1); color: #fff; border: 1px solid rgba(255,255,255,.22); border-radius: 10px; padding: 5px 9px; font: 700 12px var(--font-body); cursor: pointer; }
+    #piobadge { position: fixed; right: 14px; top: 246px; z-index: 6; background: rgba(5,7,12,.82); color: #ffd23f; border: 1px solid rgba(255,210,63,.45); border-radius: 12px; padding: 5px 10px; font: 700 12px var(--font-body); }
+    body.in-room .hud .p-heat, body.in-room .hud .p-score, body.in-room #minimap, body.in-room .hud .p-car, body.in-room .hud .p-speed { display: none; }
+    @media (max-width: 640px) { #insidebtn { top: auto; bottom: 214px; right: 10px; } #piobadge { top: auto; bottom: 256px; right: 10px; } #roombar { top: max(8px, env(safe-area-inset-top)); flex-wrap: nowrap; gap: 5px; padding: 6px 8px; font-size: 12px; } #roombar .rb-t { max-width: 38vw; } #roombar button { padding: 5px 7px; font-size: 11px; white-space: nowrap; } body.in-room #insidebtn, body.in-room #piobadge { display: none; } }
   </style>
 </head>
 <body>
@@ -146,6 +153,8 @@
   </div>
 
   <button type="button" id="insidebtn" hidden>👁️ Intérieur</button>
+  <div id="piobadge" hidden>🏅 Pionnier</div>
+  <div id="roombar" role="region" aria-label="À l'intérieur du lieu" hidden><span class="rb-t">Intérieur</span><button type="button" id="rb-who">📋 Qui est là</button><button type="button" id="rb-out">🚪 Vue de la rue</button></div>
   <div id="interior" role="dialog" aria-modal="true" aria-label="À l'intérieur du lieu" hidden><div class="in-card"><div class="in-body"></div><button type="button" class="in-close">Fermer</button></div></div>
 
   <div class="touch" aria-hidden="true">

@@ -166,7 +166,7 @@ function actionsHtml(c, L) {
   const see = ev ? `<div class="box act"><h3>🎟️ Aller ${c.sexe === "F" ? "la" : "le"} voir sur place</h3><p>${esc(ev.titre)} · ${ev.prix ? "billet " + fmtMakuta(ev.prix) : "entrée libre"}. Ton personnage y va et gagne de la bonne humeur.</p>
       <div class="row"><button type="button" class="btn" id="go-see">J'y vais</button>${lieu3d ? `<a class="btn ghost" href="jouer.html?lieu=${lieu3d}">📍 Voir le lieu en 3D</a>` : ""}</div></div>`
     : `<div class="box act"><h3>🎟️ Sur place</h3><p>Pas d'événement public en ce moment. Revenez pendant un culte, un concert, un match ou une séance publique.</p></div>`;
-  const give = c.domaine === "religion" && c.id !== "moi" ? `<div class="box act"><h3>🙏 Soutenir son église</h3><p>La dîme : 10 % de tes revenus du mois, une fois par mois. L'offrande est libre (1 à 1 000 e-makuta). Chaque don publie un reçu dans le journal.</p>
+  const give = c.domaine === "religion" && c.id !== "moi" ? `<div class="box act"><h3>🙏 Soutenir son église</h3><p>La dîme : 10 % de tes revenus du mois, une fois par mois. L'offrande est libre (1 à 1 000 e-makuta). Chaque don publie un reçu dans le journal. L'église paie 10 % d'impôt sur les dons, versés au Trésor.</p>
       <div class="row"><button type="button" class="btn" id="give-dime">Payer ma dîme</button><label class="amt"><input id="off-amt" type="number" min="1" max="1000" step="1" value="${offAmt}" aria-label="Montant de l'offrande en e-makuta"> e-makuta</label><button type="button" class="btn ghost" id="give-off">Donner l'offrande</button></div></div>` : "";
   const m = actMsg ? `<p class="act-msg ${actMsg.ok ? "ok" : "ko"}" role="status">${esc(actMsg.t)}</p>` : "";
   return `<div class="acts">${see}${give}</div>${m}`;

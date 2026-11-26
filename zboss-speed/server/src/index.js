@@ -11,7 +11,7 @@ import {
   BUDGET_POSTS, LIFESTYLES, LIFESTYLE_MIN_AGE, lifestyleCost, lifestyleFor, lifestyleStep, lifeExpectancy, OLD_AGE_HEALTH, tenueBlocks, livingView, CHILD_REAL_DAYS,
   LAWS, VAT_LIMITS, cannotSetVat, BUDGET_LINES, cleanBudget, budgetText, PARLIAMENT, PARLIAMENT_SEATS, cannotProposeLaw, LAW_TYPES, cleanLaw, lawText, lawTitle, cannotVoteBill, billOutcome, attendance, dechuText,
   CELEB_DOMAINS, celebStory, celebFromMoves, celebClean, pickCelebrities, protestChance, protestText, PROTEST_REP,
-  OFFERING, titheOf, cannotGiveOffering, offeringReceipt, celebLive, celebEvent, CELEB_VISITS_PER_DAY,
+  OFFERING, offeringTax, pioneerView, titheOf, cannotGiveOffering, offeringReceipt, celebLive, celebEvent, CELEB_VISITS_PER_DAY,
   CAMPAIGN_MAX_DAYS, ambassadorFee, cannotHireAmbassador, LEAGUE_NAME, NPC_CLUBS, CLUB_MIN_AGE, CLUB_MAX_AGE, MATCH_GATE, clubStrength, playMatch, pairClubs, standings, seasonKey, scorersText, cannotRecruit, CLUB_CONTRACT_DAYS, cannotAddLogo, LOGOS_MAX_SHOWN,
 } from "./life.js";
 import { sendPush, newVapidKeys } from "./webpush.js";
@@ -1186,6 +1186,12 @@ const worker = {
       // ---- routes réservées aux joueurs connectés
       const compte = await auth(db, req, now);
       if (!compte) return fail(h, 401, "Connecte-toi pour continuer.");
+      // ---- pionniers : les 100 premiers inscrits entrent vraiment dans les lieux en 3D (intérieurs meublés)
+      if (url.pathname === "/api/pionnier" && req.method === "GET") {
+        const r = await db.prepare(`SELECT COUNT(*) AS n FROM comptes WHERE cree_le < ? OR (cree_le = ? AND id <= ?)`).bind(compte.cree_le, compte.cree_le, compte.id).first();
+        const t = await db.prepare(`SELECT COUNT(*) AS n FROM comptes`).first();
+        return json(h, 200, pioneerView(r.n, t.n));
+      }
 
       // ---- administration (e-mails listés dans ADMIN_EMAILS)
       if (url.pathname.startsWith("/api/admin/")) {
@@ -1487,14 +1493,16 @@ const worker = {
         const vers = `${c.prenom} ${c.nom}`, titre = job ? (JOBS.find(j => j.id === job.metier_id) || {}).nom : c.titre, dest = job ? r.id : "eglise-" + c.id;
         const recu = offeringReceipt({ de: `${p.prenom} ${p.nom.charAt(0)}.`, vers, titre, type, montant, numero: n.n + 1 });
         const motif = type === "dime" ? "dîme à l'église de " + vers : "offrande à l'église de " + vers;
+        const impot = offeringTax(montant), net = montant - impot;
         try {
           await db.batch([
             db.prepare(`UPDATE personnages SET makuta = makuta - ?, bonheur = MIN(100, bonheur + 3) WHERE id = ? AND makuta >= ?`).bind(montant, p.id, montant), GUARD(db),
-            ...(job ? [db.prepare(`UPDATE personnages SET makuta = makuta + ? WHERE id = ?`).bind(montant, r.id)] : []),
-            tx(db, p.id, dest, montant, motif, now),
+            ...(job ? [db.prepare(`UPDATE personnages SET makuta = makuta + ? WHERE id = ?`).bind(net, r.id)] : []),
+            tx(db, p.id, dest, net, motif, now),
+            ...(impot ? [tx(db, p.id, STATE_ID, impot, "impôt sur les dons : église de " + vers, now)] : []),
             db.prepare(`INSERT INTO offrandes (id, de_id, vers_id, type, montant, recu, le) VALUES (?, ?, ?, ?, ?, ?, ?)`).bind(uid(), p.id, dest, type, montant, recu, now),
             db.prepare(`INSERT INTO mouvements (id, personnage_id, icone, texte, par_consigne, le) VALUES (?, ?, '🙏', ?, 0, ?)`).bind(uid(), p.id, `Tu as ${type === "dime" ? "versé ta dîme" : "donné une offrande"} : ${fmtMakuta(montant)} à l'église de ${vers}. Le reçu est publié dans le journal.`, now),
-            ...(job ? [db.prepare(`INSERT INTO mouvements (id, personnage_id, icone, texte, par_consigne, le) VALUES (?, ?, '🙏', ?, 0, ?)`).bind(uid(), r.id, `${p.prenom} ${p.nom.charAt(0)}. a ${type === "dime" ? "versé sa dîme" : "donné une offrande"} à ton église : +${fmtMakuta(montant)}.`, now),
+            ...(job ? [db.prepare(`INSERT INTO mouvements (id, personnage_id, icone, texte, par_consigne, le) VALUES (?, ?, '🙏', ?, 0, ?)`).bind(uid(), r.id, `${p.prenom} ${p.nom.charAt(0)}. a ${type === "dime" ? "versé sa dîme" : "donné une offrande"} à ton église : +${fmtMakuta(net)} après ${fmtMakuta(impot)} d'impôt retenu pour le Trésor.`, now),
               repSt(db, r.id, 1, now)] : []),
           ]);
         } catch (e) { if (guardFailed(e)) return fail(h, 409, "Pas assez d'argent pour ce don."); throw e; }

@@ -1734,6 +1734,11 @@ export function celebLive(c, now = Date.now()) {
 // Comme dans la vraie vie : la dîme = 10 % des revenus du mois, une fois par mois ; l'offrande est libre.
 // Chaque don à un pasteur joueur publie un reçu dans le Journal de Kinshasa (transparence).
 export const OFFERING = { minMakuta: 20, maxMakuta: 20000, dimeTaux: .1, dimeJours: 30, metiers: ["pasteur", "grand-pasteur", "chef-chorale"] };
+// les 100 premiers inscrits (« pionniers ») entrent vraiment dans les bâtiments en 3D : pièces meublées, personnel qui sert
+export const PIONEERS = 100;
+export const pioneerView = (rang, inscrits) => ({ pionnier: rang > 0 && rang <= PIONEERS, rang, places: Math.max(0, PIONEERS - (inscrits || 0)), max: PIONEERS });
+// comme toute recette : l'église paie l'impôt sur les dons reçus (10 %, retenu à la source et versé au Trésor)
+export const offeringTax = montant => Math.round(montant * TAX.recettes);
 export const titheOf = revenus30 => Math.max(OFFERING.minMakuta, Math.round((revenus30 || 0) * OFFERING.dimeTaux));
 export function cannotGiveOffering({ type, montant, solde, toSelf, dimeDuMois, religieux }) {
   if (!religieux) return "Les dons vont seulement aux pasteurs, aux églises et aux chorales.";
@@ -1746,7 +1751,8 @@ export function cannotGiveOffering({ type, montant, solde, toSelf, dimeDuMois, r
   return null;
 }
 export function offeringReceipt({ de, vers, titre, type, montant, numero }) {
-  return `Reçu n° ${numero} · ${de} a ${type === "dime" ? "versé sa dîme" : "donné une offrande"} de ${fmtMakuta(montant)} à ${vers}${titre ? " (" + titre.toLowerCase() + ")" : ""}.`;
+  const impot = offeringTax(montant);
+  return `Reçu n° ${numero} · ${de} a ${type === "dime" ? "versé sa dîme" : "donné une offrande"} de ${fmtMakuta(montant)} à ${vers}${titre ? " (" + titre.toLowerCase() + ")" : ""}, dont ${fmtMakuta(impot)} d'impôt versé au Trésor.`;
 }
 // ce qu'on peut aller voir sur place selon ce que fait la célébrité en ce moment : [titre, prix en makuta, bonheur gagné]
 export const PUBLIC_EVENTS = {
