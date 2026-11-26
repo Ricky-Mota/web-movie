@@ -326,6 +326,7 @@ export const FORMATIONS = [
   { id: "ingenieur", nom: "Polytechnique", diplome: "Diplôme d'ingénieur civil", annees: 5, coursParAn: 10, minAge: 17, requis: "secondaire", fraisAn: 1800, talent: "technique" },
   { id: "droit", nom: "Faculté de droit", diplome: "Licence en droit", annees: 5, coursParAn: 10, minAge: 17, requis: "secondaire", fraisAn: 1500, talent: "parole" },
   { id: "commerce", nom: "Institut de commerce", diplome: "Graduat en gestion", annees: 3, coursParAn: 10, minAge: 17, requis: "secondaire", fraisAn: 1200, talent: "commerce" },
+  { id: "permis", nom: "Auto-école (code de la route et conduite)", diplome: "Permis de conduire", annees: 1, coursParAn: 4, minAge: 18, requis: null, fraisAn: 1000 },
 ];
 export const courseFee = f => Math.ceil(f.fraisAn / f.coursParAn);
 
@@ -829,6 +830,47 @@ export const ROAD_FAULTS = [
 export function roadFaultText(f, kmh, r) {
   if (!f.casier) return `Bousculade : un piéton a été poussé par ta voiture (${kmh} km/h). Les passants n'ont pas aimé (réputation ${f.rep}).`;
   return `Accident : tu as blessé un piéton en conduisant à ${kmh} km/h. Amende ${fmtMakuta(r.amende)} et frais médicaux de la victime ${fmtMakuta(r.soins)}` + (r.prison ? `. Récidive ou impayé : ${PRISON_HOURS} h de prison.` : ".");
+}
+// code de la route (règle du 26/11 : « que les voitures, bus et camions ne soient pas conduits n'importe comment »).
+// En ville : 50 km/h. Feu rouge grillé, excès de vitesse vu par la police, contrôle du permis.
+// Ce sont des contraventions : amende au Trésor et points retirés du permis, pas de casier judiciaire.
+// Permis à points : 12 points, chaque point perdu revient au bout d'un an. À 0, le permis est suspendu :
+// conduire quand même compte comme une conduite sans permis.
+export const SPEED_LIMIT = 50;
+export const PERMIS = { points: 12, recuperationJours: 365, minAge: 18 };
+export const TRAFFIC_TICKETS = [
+  { id: "feu-rouge", nom: "Feu rouge grillé", amende: 1000, points: 4, rep: -3 },
+  { id: "exces-vitesse", nom: "Excès de vitesse", amende: 0, points: 0, rep: -2 },
+  { id: "controle", nom: "Contrôle de police", amende: 0, points: 0, rep: 0 },
+];
+export const NO_PERMIT_FINE = 2000;
+export function speedTicket(kmh, limit = SPEED_LIMIT) {
+  const over = Math.round(kmh) - limit;
+  if (over < 6) return null;   // marge de tolérance
+  if (over < 20) return { amende: 600, points: 1 };
+  if (over < 40) return { amende: 1500, points: 3 };
+  return { amende: 3000, points: 6 };
+}
+export function permitStatus(diplomas = [], pts = [], now = Date.now()) {
+  const a = diplomas.includes("permis");
+  const lost = pts.filter(x => x.le > now - PERMIS.recuperationJours * 864e5).reduce((t, x) => t + (x.points || 0), 0);
+  const points = a ? Math.max(0, PERMIS.points - lost) : 0;
+  return { a, points, max: PERMIS.points, valide: a && points > 0, suspendu: a && points <= 0, limite: SPEED_LIMIT };
+}
+// calcule la contravention ; null si l'événement est invalide (vitesse sous la limite…)
+export function trafficTicket(faute, kmh, st) {
+  const t = TRAFFIC_TICKETS.find(x => x.id === faute); if (!t) return null;
+  const base = faute === "exces-vitesse" ? speedTicket(kmh) : { amende: t.amende, points: t.points };
+  if (!base) return null;
+  const sans = !st.valide, amende = base.amende + (sans ? NO_PERMIT_FINE : 0), points = st.valide ? base.points : 0;
+  const reste = Math.max(0, st.points - points), rep = t.rep + (sans ? -5 : 0);
+  const permisTxt = sans ? (st.suspendu ? " Ton permis est suspendu (0 point) : conduite sans permis valable, amende en plus." : " Tu n'as pas de permis de conduire : amende en plus. Passe-le à l'auto-école.")
+    : points ? ` −${points} point${points > 1 ? "s" : ""} : il te reste ${reste}/${PERMIS.points}.${reste === 0 ? " Ton permis est suspendu." : ""}` : "";
+  let texte;
+  if (faute === "controle") texte = sans ? `👮 Contrôle de police : pas de permis valable. Amende ${fmtMakuta(amende)}.` : `👮 Contrôle de police : permis en règle (${st.points}/${PERMIS.points} points). Bonne route !`;
+  else if (faute === "feu-rouge") texte = `🚦 Feu rouge grillé, vu par l'agent de la circulation. Amende ${fmtMakuta(amende)}.` + permisTxt;
+  else texte = `📸 Excès de vitesse : ${Math.round(kmh)} km/h au lieu de ${SPEED_LIMIT}, vu par la police. Amende ${fmtMakuta(amende)}.` + permisTxt;
+  return { id: faute, nom: sans && faute === "controle" ? "Conduite sans permis" : t.nom, amende, points, rep, texte };
 }
 export function inPrison(until, now = Date.now()) { return !!until && until > now; }
 // en prison : pas de travail, d'école, de voyage, de magasin (sauf manger), ni d'affaires

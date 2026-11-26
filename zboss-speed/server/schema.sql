@@ -454,3 +454,6 @@ CREATE TABLE IF NOT EXISTS assistances (id TEXT PRIMARY KEY, personnage_id TEXT 
 CREATE INDEX IF NOT EXISTS assistances_p ON assistances (personnage_id, le);
 -- pensée du jour du personnage (écrite par la petite IA ou par les règles), une par jour
 CREATE TABLE IF NOT EXISTS pensees (personnage_id TEXT NOT NULL, jour TEXT NOT NULL, texte TEXT NOT NULL, source TEXT NOT NULL, le INTEGER NOT NULL, PRIMARY KEY (personnage_id, jour));
+-- code de la route : contraventions (feu rouge, vitesse, contrôle) et points retirés du permis
+CREATE TABLE IF NOT EXISTS permis_points (id TEXT PRIMARY KEY, personnage_id TEXT NOT NULL, type TEXT NOT NULL, points INTEGER NOT NULL, amende INTEGER NOT NULL, le INTEGER NOT NULL);
+CREATE INDEX IF NOT EXISTS permis_points_p ON permis_points (personnage_id, le);

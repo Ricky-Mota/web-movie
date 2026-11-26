@@ -2,7 +2,7 @@
 // simule la même vie dans le navigateur (mode démo).
 import {
   ageYears, stageOf, STAGES, realMsUntil, TALENTS, ACTIVITIES, rng, drawTalents, doActivity, needsAt, newIdentity, BIRTH_GIFT,
-  SHOP, cannotBuy, OFFERS, USD_TO_MAKUTA, USD_UNITS, fmtMakuta, WITHDRAW_FEE, walletInfo, birthShiftMs, shopView, familyOf, JOBS, payFor, cannotWork, workView, SHIFT_ENERGY, cannotApply, FORMATIONS, cannotEnroll, attendCourse, schoolView, STUDY_ENERGY, SUPPORT_PER_DAY, HOST_MIN_AGE, canSignupBeforeLaunch, COMPANY_TYPES, cannotOpenCompany, companyName, companyView, companyAccrue, companyJob, EMPLOYEE_YIELD, RESELL_RATE, TAXI_FARE, TAXI_ENERGY, KINSHASA_QUARTIERS, OTHER_CITIES, TAX, POSTS, PUBLIC_JOBS, BANKS, bankAccrue, INSURERS, CARE, careCost, ACCIDENT, injuredBlocks, accidentText, ROAD_FAULTS, roadFaultText, ELECTION_FEE, cannotRun, ELECTION_CAMPAIGN, cannotCampaignElec, resultLine, OPERATORS, RECHARGES, CALL, stateView, supportDue, unpaidEffect, familyShare, FIRST_NAMES,
+  SHOP, cannotBuy, OFFERS, USD_TO_MAKUTA, USD_UNITS, fmtMakuta, WITHDRAW_FEE, walletInfo, birthShiftMs, shopView, familyOf, JOBS, payFor, cannotWork, workView, SHIFT_ENERGY, cannotApply, FORMATIONS, cannotEnroll, attendCourse, schoolView, STUDY_ENERGY, SUPPORT_PER_DAY, HOST_MIN_AGE, canSignupBeforeLaunch, COMPANY_TYPES, cannotOpenCompany, companyName, companyView, companyAccrue, companyJob, EMPLOYEE_YIELD, RESELL_RATE, TAXI_FARE, TAXI_ENERGY, KINSHASA_QUARTIERS, OTHER_CITIES, TAX, POSTS, PUBLIC_JOBS, BANKS, bankAccrue, INSURERS, CARE, careCost, ACCIDENT, injuredBlocks, accidentText, ROAD_FAULTS, roadFaultText, TRAFFIC_TICKETS, trafficTicket, permitStatus, ELECTION_FEE, cannotRun, ELECTION_CAMPAIGN, cannotCampaignElec, resultLine, OPERATORS, RECHARGES, CALL, stateView, supportDue, unpaidEffect, familyShare, FIRST_NAMES,
   describeAction, ORDER_DONE, ORDERS, ORDERS_PER_DAY, ORDERS_CHECK_MS, dayKey, ordersToRun, cannotGiveOrder,
   VOTER_MIN_AGE, NEGLECT_DANGER_DAYS, NEGLECT_DANGER_HEALTH, splitEstate, deathCause, familyShareRate, REP, REP_BAD, REP_GOOD, repLabel, repDiscount, DOT_MAKUTA, MARRY_MIN_AGE, STREET_JOBS, cannotStreetJob, RENT, rentOf, houseOf, rentDue, HOUSING_MIN_AGE, SALE_TAX, LIFE_EVENTS, EVENT_EVERY_H, drawEvent, eventMoney, lifeAlbum, CRIMES, catchChance, sentence, inPrison, PRISON_BLOCKED, BAIL, PRISON_HOURS, RECIDIVE, policeView, applySettings, food, drawEntry, classOfWealth, classLabel, MATURITY_GAIN, BIG_DECISIONS, cannotDecide, dashboard,
   PAY_METHODS, cannotDeposit, cannotWithdraw, maskPhone, withdrawUsd, COMMUNES, communeView, ROLES, drawRole, roleOf,
@@ -110,6 +110,7 @@ const demo = {
       mots: { recus: (d.mots || {}).recus || [], nonLus: ((d.mots || {}).recus || []).filter(m => !m.lu).length, envoyes: (d.mots || {}).envoyes || [], modeles: GREETINGS, max: WORD_MAX },
       resume: nightSummary({ prenom: c.firstName, fem: c.sex === "F", mouvements: d.mouvements || [], vuLe: d.fid && d.fid.resume_vu_le, makutaVu: d.fid && d.fid.makuta_vu, makuta: c.makuta, besoins: n, now }),
       consignes: { ...this.orders(d), max: ORDERS_PER_DAY, catalogue: ORDERS, verifieToutesLesMinutes: DEMO_ORDERS_MS / 60e3 },
+      permis: { ...permitStatus(d.dip || [], d.permisPts || [], now), contraventions: (d.permisPts || []).slice(0, 8) },
       police: policeView({ policiers: 0, prisonJusqu: d.prison, casier: d.casier || [] }, now),
       etat: stateView({ comptes: d.comptes || [], assureur: d.assureur, assureJusqu: d.assureJusqu, operateur: d.operateur, credit: d.credit || 0, candidature: d.candidature },
         { tresor: d.tresor || 0, masse: c.makuta + (d.comptes || []).reduce((a, x) => a + bankAccrue(x, now), 0), candidats: d.candidature ? { [d.candidature]: 1 } : {} }, now),
@@ -577,6 +578,16 @@ const demo = {
       const from = d.assureJusqu > Date.now() && d.assureur === a.id ? d.assureJusqu : Date.now();
       c.makuta -= a.prime; d.assureur = a.id; d.assureJusqu = from + a.jours * 864e5;
       store.set(LS_DEMO, d); return this.view(d);
+    }
+    if (path === "/api/conduite/faute" && TRAFFIC_TICKETS.some(t => t.id === body.faute)) {   // code de la route : mêmes règles que le serveur
+      const now = Date.now(), st = permitStatus(d.dip || [], d.permisPts || [], now), T = trafficTicket(body.faute, Number(body.kmh) || 0, st);
+      if (!T) throw new Error("Contravention invalide.");
+      const wait = body.faute === "controle" ? 10 * 6e4 : 6e4;
+      if ((d.permisPts || []).some(x => (x.type === body.faute || (body.faute === "controle" && x.type === "sans-permis")) && x.le > now - wait)) return this.view(d);
+      this.settle(c); const paye = Math.min(c.makuta, T.amende), impaye = T.amende - paye;
+      c.makuta -= paye; d.tresor = (d.tresor || 0) + paye; if (T.rep || impaye) this.addRep(d, T.rep - (impaye ? 3 : 0));
+      d.permisPts = [{ type: body.faute === "controle" && T.amende ? "sans-permis" : body.faute, nom: T.nom, points: T.points, amende: paye, le: now }, ...(d.permisPts || [])].slice(0, 40);
+      this.move(d, "🚔", T.texte + (impaye ? ` Il manquait ${fmtMakuta(impaye)} : amende impayée, la police le note.` : "")); store.set(LS_DEMO, d); return this.view(d);
     }
     if (path === "/api/conduite/faute") {   // le conducteur qui blesse ou bouscule un piéton est puni
       const f = ROAD_FAULTS.find(x => x.id === body.faute), kmh = Math.round(Number(body.kmh)), now = Date.now();
@@ -1362,6 +1373,11 @@ function renderState(v) {
       `<p style="font-size:13px;margin:0 0 6px">La police fait respecter la loi. Si elle t'attrape, tu paies une amende au Trésor. Si tu ne peux pas payer, ou après ${P.recidive.fois} infractions en ${P.recidive.jours} jours, c'est la prison pour ${P.prisonHeures} heures (sortie plus tôt avec une caution de ${mk(P.caution)}).${P.policiers ? ` ${P.policiers} joueur(s) policier(s) patrouillent : le risque augmente.` : ""}</p>
       <h2 style="font-size:16px;margin:12px 0 4px">Tentations</h2>` +
       P.crimes.map(c => `<div class="item"><span class="sw">⚠️</span><div class="t">${c.nom}<small>${c.desc} Risque actuel : ${Math.round(c.chance * 100)} %. Amende : ${mk(c.amende)}.</small></div><button class="mini" data-crime="${c.id}" type="button" ${dis(P.prisonJusqu || p.age < 12, P.prisonJusqu ? "Impossible depuis la cellule." : "Pas avant 12 ans.")}>Tenter</button></div>`).join("") +
+      (() => { const K = v.permis; if (!K) return "";   // code de la route : permis à points
+        const etat = K.valide ? `<b style="color:var(--ok)">${K.points} / ${K.max} points</b>` : K.suspendu ? `<b style="color:var(--bad, #e2574c)">suspendu (0 point)</b>` : `<b>pas de permis</b>`;
+        return `<h2 style="font-size:16px;margin:16px 0 4px">🚗 Permis de conduire</h2><div class="row"><span>Mon permis</span><span>${etat}</span></div>
+          <p style="font-size:13px;margin:6px 0">Code de la route en ville : ${K.limite} km/h au plus, arrêt au feu rouge, permis obligatoire. Les agents et la police verbalisent : feu rouge grillé ${mk(1000)} et 4 points, excès de vitesse ${mk(600)} à ${mk(3000)} et 1 à 6 points, conduite sans permis valable ${mk(2000)}. Les points reviennent au bout d'un an.${K.a ? "" : " Le permis se passe à l'auto-école (onglet École), dès 18 ans."}</p>` +
+          ((K.contraventions || []).length ? K.contraventions.map(x => `<div class="row"><span>${new Date(x.le).toLocaleDateString("fr-FR")} · ${esc(x.nom || x.type)}</span><span>${x.amende ? mk(x.amende) : "—"}${x.points ? ` · −${x.points} pt` : ""}</span></div>`).join("") : `<p style="font-size:13px;margin:0">Aucune contravention.</p>`); })() +
       `<h2 style="font-size:16px;margin:16px 0 4px">Mon casier judiciaire</h2>` +
       (P.casier.length ? P.casier.map(x => `<div class="row"><span>${new Date(x.le).toLocaleDateString("fr-FR")} · ${esc(x.nom)}</span><span>${mk(x.amende)}${x.prison_heures ? " + prison" : ""}</span></div>`).join("") : `<p style="font-size:13px;margin:0">Casier vierge. Continue comme ça !</p>`);
   } else if (stateTab === "banque") {

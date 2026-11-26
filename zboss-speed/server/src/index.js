@@ -14,6 +14,7 @@ import {
   OFFERING, offeringTax, pioneerView, titheOf, cannotGiveOffering, offeringReceipt, celebLive, celebEvent, CELEB_VISITS_PER_DAY,
   CAMPAIGN_MAX_DAYS, ambassadorFee, cannotHireAmbassador, LEAGUE_NAME, NPC_CLUBS, CLUB_MIN_AGE, CLUB_MAX_AGE, MATCH_GATE, clubStrength, playMatch, pairClubs, standings, seasonKey, scorersText, cannotRecruit, CLUB_CONTRACT_DAYS, cannotAddLogo, LOGOS_MAX_SHOWN,
   thoughtFacts, thoughtFallback, thoughtPrompt, cleanThought, THOUGHT_MODEL,
+  TRAFFIC_TICKETS, trafficTicket, permitStatus,
 } from "./life.js";
 import { sendPush, newVapidKeys } from "./webpush.js";
 import { payConfigured, startDeposit, startPayout, readNotice } from "./paiement.js";
@@ -251,7 +252,7 @@ async function celebrities(db, now) {
     sport: await byTalent("sport"), musique: await byTalent("art"),
     religion: await q(`SELECT ${base}, e.metier_id AS metier FROM emplois e JOIN personnages p ON p.id = e.personnage_id ${rj} WHERE e.fin IS NULL AND e.metier_id IN ('grand-pasteur', 'pasteur', 'chef-chorale') AND ${alive}
       ORDER BY CASE e.metier_id WHEN 'grand-pasteur' THEN 0 WHEN 'pasteur' THEN 1 ELSE 2 END, rep DESC LIMIT 3`),
-    academique: await q(`SELECT ${base} FROM diplomes_obtenus d JOIN personnages p ON p.id = d.personnage_id ${rj} WHERE ${alive} GROUP BY p.id HAVING COUNT(*) >= 2 ORDER BY COUNT(*) DESC, rep DESC LIMIT 3`),
+    academique: await q(`SELECT ${base} FROM diplomes_obtenus d JOIN personnages p ON p.id = d.personnage_id ${rj} WHERE ${alive} AND d.formation_id != 'permis' GROUP BY p.id HAVING COUNT(*) >= 2 ORDER BY COUNT(*) DESC, rep DESC LIMIT 3`),
     autres: await q(`SELECT ${base} FROM entreprises e JOIN personnages p ON p.id = e.proprietaire_id ${rj} WHERE ${alive} GROUP BY p.id ORDER BY SUM(e.capital) DESC LIMIT 3`),
   };
   const seen = new Set();
@@ -520,6 +521,7 @@ async function loadCharacter(db, id) {
   const last = await db.prepare(`SELECT MAX(le) AS le FROM activites WHERE personnage_id = ? AND activite LIKE 'travail:%'`).bind(id).first();
   const enr = await db.prepare(`SELECT formation_id AS formation, annee, cours, points, dernier FROM inscriptions WHERE personnage_id = ?`).bind(id).first();
   const { results: dip } = await db.prepare(`SELECT formation_id FROM diplomes_obtenus WHERE personnage_id = ? ORDER BY obtenu_le`).bind(id).all();
+  const ptsPermis = (await db.prepare(`SELECT type, points, amende, le FROM permis_points WHERE personnage_id = ? AND le > ? ORDER BY le DESC LIMIT 40`).bind(id, Date.now() - 400 * 864e5).all().catch(() => ({ results: [] }))).results || [];
   const { results: kids } = await db.prepare(`SELECT id, prenom, nom, sexe, ne_le, faim, energie, bonheur, sante, maj_le, makuta, entretien_le, compte_id FROM personnages
       WHERE (pere_id = ? OR mere_id = ?) AND mort_le IS NULL ORDER BY ne_le`).bind(id, id).all();
   // les parents voient les mouvements de leurs enfants joueurs (20 derniers chacun)
@@ -576,7 +578,7 @@ async function loadCharacter(db, id) {
   const conjoint = p.conjoint_id ? await db.prepare(`SELECT p.prenom, p.nom, p.sexe, c.pseudo FROM personnages p LEFT JOIN comptes c ON c.id = p.compte_id WHERE p.id = ?`).bind(p.conjoint_id).first() : null;
   const { results: dmIn } = await db.prepare(`SELECT d.id, d.le, p.prenom, p.nom, p.sexe, c.pseudo FROM demandes_mariage d JOIN personnages p ON p.id = d.de_id LEFT JOIN comptes c ON c.id = p.compte_id WHERE d.vers_id = ? AND d.statut = 'attente' ORDER BY d.le DESC`).bind(id).all();
   const { results: dmOut } = await db.prepare(`SELECT d.id, d.le, p.prenom, p.nom, c.pseudo FROM demandes_mariage d JOIN personnages p ON p.id = d.vers_id LEFT JOIN comptes c ON c.id = p.compte_id WHERE d.de_id = ? AND d.statut = 'attente' ORDER BY d.le DESC`).bind(id).all();
-  return { blessure, origine, flux, logement, lastStreet: lastStreet && lastStreet.le, annonces, reputation, couple: { conjoint, recues: dmIn, envoyees: dmOut }, p, tal, inv, dep, ret, gui, job, lastShift: last && last.le, enr, dip: dip.map(d => d.formation_id), kids, par, sibs, ent, aVendre, offres, boss, comptes, cand, pub, elec, policiers: pol.n, casier,
+  return { blessure, origine, flux, logement, lastStreet: lastStreet && lastStreet.le, annonces, reputation, couple: { conjoint, recues: dmIn, envoyees: dmOut }, p, tal, inv, dep, ret, gui, job, lastShift: last && last.le, enr, dip: dip.map(d => d.formation_id), ptsPermis, kids, par, sibs, ent, aVendre, offres, boss, comptes, cand, pub, elec, policiers: pol.n, casier,
     consignes: { jour, liste: ord.map(o => o.ordre), journal }, mouvements: mv, notifications: notif.n, fid, motsRecus, motsEnvoyes, objectifs, mandat, dus: dus.n, fin, train, campagnes };
 }
 // ce que mesurent les objectifs de vie
@@ -750,7 +752,7 @@ function view(compte, ch, now) { const v = viewBase(compte, ch, now); v.objectif
   v.campagnes = { maxJours: CAMPAIGN_MAX_DAYS, liste: (ch.campagnes || []).map(c => ({ entreprise: c.entreprise, entrepriseId: c.entreprise_id, ambassadeur: c.ambassadeur, moi: c.ambassadeur_id === ch.p.id, prixJour: c.prix_jour, fin: c.fin, slogan: c.slogan })) };
   if (ch.boss && ch.job && ch.job.salaire && v.travail.emploiEntreprise) v.travail.emploiEntreprise.salaire = ch.job.salaire;
   return v; }
-function viewBase(compte, { origine = null, flux = {}, logement = null, lastStreet = null, annonces = [], reputation = 0, couple = { conjoint: null, recues: [], envoyees: [] }, p, tal, inv = [], dep = [], ret = [], gui = [], job = null, lastShift = null, enr = null, dip = [], kids = [], par = [], sibs = [], ent = [], aVendre = [], offres = [], boss = null, comptes = [], cand = null, pub = {}, elec = null, policiers = 0, casier = [], consignes = { jour: dayKey(now), liste: [], journal: [] }, mouvements = [], notifications = 0, fid = null, motsRecus = [], motsEnvoyes = [] }, now) {
+function viewBase(compte, { origine = null, flux = {}, logement = null, lastStreet = null, annonces = [], reputation = 0, couple = { conjoint: null, recues: [], envoyees: [] }, p, tal, inv = [], dep = [], ret = [], gui = [], job = null, lastShift = null, enr = null, dip = [], ptsPermis = [], kids = [], par = [], sibs = [], ent = [], aVendre = [], offres = [], boss = null, comptes = [], cand = null, pub = {}, elec = null, policiers = 0, casier = [], consignes = { jour: dayKey(now), liste: [], journal: [] }, mouvements = [], notifications = 0, fid = null, motsRecus = [], motsEnvoyes = [] }, now) {
   const age = ageYears(p.ne_le, now);
   const st = stageOf(age);
   const next = STAGES[STAGES.indexOf(st) + 1];
@@ -787,6 +789,7 @@ function viewBase(compte, { origine = null, flux = {}, logement = null, lastStre
     entreprises: companyView(ent, { aVendre, offres }, now),
     etat: stateView({ comptes, assureur: p.assureur, assureJusqu: p.assure_jusqu, operateur: p.operateur, credit: p.credit, candidature: cand && cand.poste }, pub, now),
     elections: elec,
+    permis: { ...permitStatus(dip, ptsPermis, now), contraventions: ptsPermis.slice(0, 8).map(x => ({ type: x.type, nom: (TRAFFIC_TICKETS.find(t => t.id === x.type) || { nom: x.type === "sans-permis" ? "Conduite sans permis" : x.type }).nom, points: x.points, amende: x.amende, le: x.le })) },
     police: policeView({ policiers, prisonJusqu: p.prison_jusqu, casier: casier.map(c => ({ ...c, nom: ([...CRIMES, ...ROAD_FAULTS].find(x => x.id === c.type) || {}).nom || c.type })) }, now),
     voyage: { quartiers: KINSHASA_QUARTIERS, communes: COMMUNES.map(c => communeView(c.nom)), prix: TAXI_FARE, fatigue: TAXI_ENERGY, villes: OTHER_CITIES },
     mouvements,
@@ -1943,6 +1946,21 @@ const worker = {
         return json(h, 200, view(compte, await loadCharacter(db, p.id), now));
       }
       // ---- faute de conduite dans la ville 3D : le conducteur qui blesse ou bouscule un piéton est puni, comme dans la vraie vie
+      if (url.pathname === "/api/conduite/faute" && req.method === "POST" && TRAFFIC_TICKETS.some(t => t.id === body.faute)) {
+        // code de la route : feu rouge, excès de vitesse, contrôle du permis (contraventions, pas de casier)
+        const st = permitStatus(ch.dip || [], ch.ptsPermis || [], now), T = trafficTicket(body.faute, Number(body.kmh) || 0, st);
+        if (!T || !(Number(body.kmh) >= 0 && Number(body.kmh) <= ACCIDENT.maxKmh)) return fail(h, 400, "Contravention invalide.");
+        const wait = body.faute === "controle" ? 10 * 6e4 : 6e4;   // une même faute comptée au plus une fois par minute (contrôle : 10 min)
+        if ((ch.ptsPermis || []).some(x => (x.type === body.faute || (body.faute === "controle" && x.type === "sans-permis")) && x.le > now - wait)) return json(h, 200, view(compte, ch, now));
+        const paye = Math.min(p.makuta, T.amende), impaye = T.amende - paye, type = body.faute === "controle" && T.amende ? "sans-permis" : body.faute;
+        await db.batch([
+          ...(paye > 0 ? [db.prepare(`UPDATE personnages SET makuta = makuta - ? WHERE id = ? AND makuta >= ?`).bind(paye, p.id, paye), GUARD(db), ...taxTo(db, p.id, paye, "contravention (police routière) : " + T.nom.toLowerCase(), now)] : []),
+          db.prepare(`INSERT INTO permis_points (id, personnage_id, type, points, amende, le) VALUES (?, ?, ?, ?, ?, ?)`).bind(uid(), p.id, type, T.points, paye, now),
+          ...(T.rep || impaye ? [repSt(db, p.id, T.rep - (impaye ? 3 : 0), now)] : []),
+          db.prepare(`INSERT INTO mouvements (id, personnage_id, icone, texte, par_consigne, le) VALUES (?, ?, '🚔', ?, 0, ?)`).bind(uid(), p.id, T.texte + (impaye ? ` Il manquait ${fmtMakuta(impaye)} : amende impayée, la police le note.` : ""), now),
+        ]);
+        return json(h, 200, view(compte, await loadCharacter(db, p.id), now));
+      }
       if (url.pathname === "/api/conduite/faute" && req.method === "POST") {
         const f = ROAD_FAULTS.find(x => x.id === body.faute), kmh = Math.round(Number(body.kmh));
         if (!f || !(kmh >= 3 && kmh <= ACCIDENT.maxKmh) || (f.casier ? kmh < ACCIDENT.minKmh : kmh >= ACCIDENT.minKmh)) return fail(h, 400, "Faute de conduite invalide.");

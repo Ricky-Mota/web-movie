@@ -531,7 +531,7 @@
       const off = Math.min(30, T.w * .22), x = F.x - Math.sin(a) * off, y = F.y + Math.cos(a) * off;
       if (solidAt(x, y)) continue;
       if ([...G.traffic, ...G.parked, ...G.cops].some(o => Math.abs(o.x - x) < 50 && Math.abs(o.y - y) < 50)) continue;   // jamais sur une autre voiture
-      const c = makeCar("traffic", x, y, a, { maxSpeed: 150 + rand() * 90, accel: 260, steerMax: 2.2, dmgMul: 1, mass: .8, grip: 9 });
+      const c = makeCar("traffic", x, y, a, { maxSpeed: WALK ? ROAD.npc() : 150 + rand() * 90, accel: 260, steerMax: 2.2, dmgMul: 1, mass: .8, grip: 9 });
       c.from = from; c.to = to; c.tIdx = (rand() * TRAFFIC_SPRITES.length) | 0; c.sprite = TRAFFIC_SPRITES[c.tIdx]; c.bus = rand() < .12; c.taxi = !c.bus && rand() < .38; if (c.bus) { c.maxSpeed *= .8; Object.assign(c, { hl: BUS_HL, hw: BUS_HW, offs: BUS_OFF, mass: 3 }); }
       const sp = c.maxSpeed * .7; c.vx = Math.cos(a) * sp; c.vy = Math.sin(a) * sp;
       G.traffic.push(c); return;
@@ -686,10 +686,20 @@
     c.inp.nitro = c.mode === "chase" && sees && dist > 380 && G.heat >= 4 ? 1 : 0;
     if (c.mode === "chase" && dist < 85 && Math.hypot(p.vx, p.vy) < 200) { c.inp.gas = 0; c.inp.brake = 1; c.inp.hand = 0; c.inp.nitro = 0; } // encercle au lieu de pousser
   }
+  // feu rouge (ou orange trop tard) devant le véhicule
+  // (tous les feux devant lui, pas seulement celui du prochain nœud : un carrefour peut être traversé « en passant »)
+  function redAhead(c) {
+    const fx = Math.cos(c.a), fy = Math.sin(c.a);
+    for (const L of LIGHTS) {
+      const dx = L.x - c.x, dy = L.y - c.y; if (Math.abs(dx) > 400 || Math.abs(dy) > 400) continue;
+      const d = Math.hypot(dx, dy); if (d >= L.w / 2 + 95 || d <= L.w / 2 + 2 || dx * fx + dy * fy < d * .3) continue;
+      const st = redFor(L, Math.atan2(dy, dx), G.t); if (st === "r" || (st === "y" && d > L.w / 2 + 40)) return true;   // axe d'arrivée = direction vers le carrefour
+    }
+    return false;
+  }
   // feu rouge devant, ou voiture arrêtée juste devant : on freine
   function stopHere(c, to) {
-    const L = LIGHT_AT.get(to);
-    if (L) { const d = Math.hypot(L.x - c.x, L.y - c.y); if (d < L.w / 2 + 95 && d > L.w / 2 + 8) { const st = redFor(L, c.a, G.t); if (st === "r" || (st === "y" && d > L.w / 2 + 40)) return true; } }
+    if (redAhead(c)) return true;
     const fx = Math.cos(c.a), fy = Math.sin(c.a);
     for (const o of G.buses ? G.traffic.concat(G.buses) : G.traffic) { if (o === c) continue; const dx = o.x - c.x, dy = o.y - c.y, ah = dx * fx + dy * fy; if (ah > 0 && ah < (c.hl || CAR_HL) + (o.hl || CAR_HL) + 20 && Math.abs(-dx * fy + dy * fx) < (o.hw || CAR_HW) + 7 && Math.hypot(o.vx, o.vy) < Math.hypot(c.vx, c.vy) + 20) return true; }
     // un piéton (ou le personnage) sur la chaussée juste devant : on le laisse passer
@@ -928,7 +938,8 @@
   function carHitsPed(c, q) {
     const sp = Math.hypot(c.vx || 0, c.vy || 0); if (sp < BUMP_MIN || (q.hitCd || 0) > G.t) return;
     q.hitCd = G.t + 3;
-    const me = q === G.foot, mine = c === G.player, near = me || mine || (G.foot && Math.hypot(q.x - G.foot.x, q.y - G.foot.y) < 500);
+    const riding = G.auto && G.auto.phase === "ride";   // dans un taxi, c'est le chauffeur qui conduit, pas le personnage
+    const me = q === G.foot, mine = c === G.player && !riding, near = me || mine || (G.foot && Math.hypot(q.x - G.foot.x, q.y - G.foot.y) < 500);
     const who = me ? "Ton personnage" : q.cop ? "Un policier" : ident(q).nom, kmh = Math.round(sp * .45);
     const ux = sp ? c.vx / sp : 0, uy = sp ? c.vy / sp : 0;
     c.stun = Math.max(c.stun || 0, sp >= CRASH_SPEED ? 3 : 1);   // le conducteur s'arrête
@@ -960,6 +971,25 @@
   // démo : l'événement attend dans ce navigateur, « Ma vie » l'applique avec les mêmes règles que le serveur
   function demoEvent(path, body) {
     try { const q = JSON.parse(localStorage.getItem("twolife_demo_ville") || "[]"); q.push({ path, body, le: Date.now() }); localStorage.setItem("twolife_demo_ville", JSON.stringify(q.slice(-20))); } catch (e) { }
+  }
+  // ---------------------------------------------------------------- code de la route (26/11)
+  // En ville : 50 km/h (x 0,45 = km/h dans les unités du jeu), arrêt au feu rouge, priorité aux piétons, distance de sécurité.
+  // Les voitures, taxis et bus du jeu respectent ces règles. Le joueur qui conduit lui-même est verbalisé :
+  // feu rouge grillé (agent de la circulation à chaque feu), excès de vitesse vu par la police, contrôle du permis.
+  const ROAD = { limitKmh: 50, limitU: 50 / .45, bus: 42 / .45, npc: () => (44 + rand() * 6) / .45 };
+  function roadRules(dt) {
+    const p = G.player; if (!WALK || G.foot || G.auto || !p) return;
+    const sp = Math.hypot(p.vx, p.vy), kmh = Math.round(sp * .45), R = G.road || (G.road = { inL: new Set(), cdV: 0, cdC: 0, cdF: 0, hint: 0 });
+    if (!R.hint) { R.hint = 1; msg("🚦 Code de la route : 50 km/h en ville, arrêt au feu rouge, permis obligatoire.", 4); }
+    R.cdV -= dt; R.cdC -= dt; R.cdF -= dt;
+    for (const L of LIGHTS) {   // feu rouge grillé : on entre dans le carrefour alors que le feu de son axe est rouge
+      const d = Math.hypot(L.x - p.x, L.y - p.y), inside = d < L.w / 2;
+      if (inside && !R.inL.has(L)) { R.inL.add(L); if (kmh > 8 && redFor(L, p.a, G.t) === "r" && R.cdF <= 0) { R.cdF = 60; msg("🚦 Feu rouge grillé ! L'agent de la circulation te verbalise.", 4, "alert"); reportFault("feu-rouge", kmh); } }
+      else if (!inside && d > L.w / 2 + 30) R.inL.delete(L);
+    }
+    const cops = G.peds.filter(q => q.cop && !q.gone && Math.hypot(q.x - p.x, q.y - p.y) < 650);
+    if (kmh > ROAD.limitKmh + 5 && cops.length && R.cdV <= 0) { R.cdV = 60; msg(`📸 ${kmh} km/h au lieu de ${ROAD.limitKmh} : un policier t'a vu. Contravention.`, 4, "alert"); reportFault("exces-vitesse", kmh); }
+    else if (kmh < 40 && R.cdC <= 0 && cops.some(q => Math.hypot(q.x - p.x, q.y - p.y) < 260)) { R.cdC = 600; if (rand() < .35) { msg("👮 Contrôle de police : « Permis de conduire, s'il vous plaît. »", 4); reportFault("controle", 0); } }
   }
   // faute de conduite : le joueur au volant qui blesse ou bouscule un piéton est puni (amende, casier, réputation)
   function reportFault(faute, kmh) {
@@ -1455,7 +1485,7 @@
     const sp = Math.hypot(p.vx, p.vy), dist = Math.hypot(t.x - p.x, t.y - p.y), ang = Math.abs(angDiff(p.a, Math.atan2(t.y - p.y, t.x - p.x)));
     steerTo(p, t.x, t.y);
     const lastLeg = A.i >= P.length - 1;
-    p.inp.gas = sp < (lastLeg ? Math.min(220, dist * 1.2) : 330) * (ang > .5 ? .5 : 1) ? 1 : 0;
+    p.inp.gas = sp < (lastLeg ? Math.min(ROAD.limitU, dist * 1.2) : ROAD.limitU * .97) * (ang > .5 ? .5 : 1) ? 1 : 0;   // le taxi respecte les 50 km/h
     p.inp.brake = (ang > .8 && sp > 180) || (lastLeg && dist < 90 && sp > 60) ? 1 : 0; p.inp.hand = 0; p.inp.nitro = 0;
     if (!lastLeg && stopHere(p, P[A.i + 1])) { p.inp.gas = 0; p.inp.brake = 1; }
     if (lastLeg && dist < 70 && sp < 70) { // arrivée : on descend devant le lieu
@@ -2055,7 +2085,7 @@
     const n = N.stops.length, nb = Math.min(3, n);
     for (let j = 0; j < nb; j++) {
       const st = N.stops[Math.floor(j * n / nb)];
-      const c = makeCar("traffic", st.x, st.y, st.a, { maxSpeed: 165, accel: 190, steerMax: 1.9, dmgMul: .4, mass: 3, grip: 10 });
+      const c = makeCar("traffic", st.x, st.y, st.a, { maxSpeed: ROAD.bus, accel: 190, steerMax: 1.9, dmgMul: .4, mass: 3, grip: 10 });
       Object.assign(c, { bus: true, line: 1, num: j + 1, hl: BUS_HL, hw: BUS_HW, offs: BUS_OFF, tIdx: 0, sprite: TRAFFIC_SPRITES[0],
         ri: st.ri, at: st.k, next: (st.k + 1) % n, state: "stop", wait: 3 + j * 2, door: 0, closing: false, pax: [], stuck: 0 });
       // des passagers sont déjà à bord
@@ -2083,11 +2113,12 @@
     const st = N.stops[c.next], i = c.ri, j = (i + 1) % L, b = N.route[j], toStop = j === st.ri;
     const t = toStop ? st : edgePoint(N.route[i], b, Math.min(30, nodes[b].w * .22));
     const dx = t.x - c.x, dy = t.y - c.y, d = Math.hypot(dx, dy);
-    let want = 120;
+    let want = ROAD.bus;   // 42 km/h : le bus respecte la limitation en ville
     if (toStop) want = Math.min(want, 16 + d * .8);
     else { const nb = nodes[b], na = nodes[N.route[i]], nc = nodes[N.route[(j + 1) % L]], turn = Math.abs(angDiff(Math.atan2(nb.y - na.y, nb.x - na.x), Math.atan2(nc.y - nb.y, nc.x - nb.x))); if (turn > .5 && d < 170) want = 42; }
     c.blockT = c.blockT || 0;
-    if (c.blockT < 4 && stopHere(c, b)) { want = 0; c.blockT += dt; }
+    if (redAhead(c, b)) { want = 0; c.blockT = 0; }   // feu rouge : le bus attend toujours, sans exception
+    else if (c.blockT < 4 && stopHere(c, b)) { want = 0; c.blockT += dt; }
     else if (c.blockT >= 4) { c.blockT += dt; if (c.blockT > 7) c.blockT = 0; }
     else c.blockT = 0;
     c.spd = c.spd || 0; c.spd += Math.max(-220 * dt, Math.min(80 * dt, want - c.spd));
@@ -2613,9 +2644,10 @@
       p.inp.steer = kSteer;
       p.inp.hand = keys.Space || touch.hand ? 1 : 0;
       const wantN = keys.ShiftLeft || keys.ShiftRight || keys.KeyN || touch.nitro;
-      if (wantN && G.nitro > 0 && p.inp.gas) { if (!p.inp.nitro) Audio.boost(); p.inp.nitro = 1; G.nitro = Math.max(0, G.nitro - 28 * dt); } else p.inp.nitro = 0;
+      if (wantN && !WALK && G.nitro > 0 && p.inp.gas) { if (!p.inp.nitro) Audio.boost(); p.inp.nitro = 1; G.nitro = Math.max(0, G.nitro - 28 * dt); } else p.inp.nitro = 0;
     }
     if (actPressed) { actPressed = false; doAction(); }
+    roadRules(dt);
     if (WALK) {
       // énergie : la marche fatigue, s'asseoir, le taxi et la maison reposent
       const fv = G.foot ? Math.abs(G.foot.v) : 0, home = G.auto && G.auto.phase === "home";
@@ -3083,5 +3115,5 @@
   window.ZBOSS_WORLD = { busNet, addObst, OBST, W, H, C, MW, MH, mask, MAP, ROADS, FILL, walkBlocked, SHOPS, PLACES, BILLBOARDS, BENCHES, LIGHTS, lightState, isOpen, SHOP_W, SHOP_D, SHOP_DOOR, nodes, nodesNear, nearestNode, solidAt, groundAt, angDiff, rand };
   // outil d'aperçu : réseau routier et tracé d'une ligne de bus passant devant une liste de lieux
   const lineRoute = ids => { const st = ids.map(id => PLACES.find(o => o.id === id)).filter(Boolean).map(o => nearestNode(o.door.x, o.door.y)), out = []; st.forEach((n, k) => { const P = findPath(n, st[(k + 1) % st.length]) || []; P.forEach(i => out.push([nodes[i].x, nodes[i].y])); }); return out; };
-  window.__zboss = { interior: o => openInterior(o || G.nearLife), roads: () => nodes.map(n => [n.x, n.y, n.nb]), lineRoute, line1: () => busNet().route.map(i => [nodes[i].x, nodes[i].y]), places: () => PLACES.map(o => [o.id, o.nom, o.icone, o.x, o.y]), room: (id, watch) => { const o = PLACES.find(x => x.id === id); return o ? openRoom(o, watch) : false; }, get roomState() { const R = G.room; return R && { kind: R.kind, n: R.people.length, people: R.people.map(q => ({ role: q.role || (q.player ? "moi" : "client"), s: q.state, d: q.doing || "", x: Math.round(q.x), y: Math.round(q.y) })) }; }, closeRoom: () => closeRoom(), get state() { return G; }, start: () => start(chosen), spawnCop, keys, touch, act: () => { actPressed = true; }, sortie: m => autoToggle(true, m), auto: m => autoToggle(true, m, true), sorties: openSorties, plan: openPlan, me: showMe, setHour: h => { G.hour = h; }, live: () => ({ others: (G && G.others || []).map(o => ({ nom: o.nom, x: Math.round(o.x), y: Math.round(o.y), m: o.m, ped: !!o.ped })), ws: LIVE.ws ? LIVE.ws.readyState : -1, online: LIVE.online }), liveStep: dt => liveStep(dt || 1 / 30), step: (n, dt) => { for (let i = 0; i < n && G && !G.paused; i++) update(dt || 1 / 30); } };
+  window.__zboss = { redAhead: c => redAhead(c), lightOf: i => LIGHTS[i], roadAudit: () => G.traffic.concat(G.buses || []).map(c => { const L = LIGHTS.find(L => Math.hypot(L.x - c.x, L.y - c.y) < L.w / 2); return { c, L: L ? LIGHTS.indexOf(L) : -1, red: L ? redFor(L, c.a, G.t) === "r" && redFor(L, c.a, G.t - 1.5) === "r" : false, to: c.to, lt: L ? L.n : -1 }; }), interior: o => openInterior(o || G.nearLife), roads: () => nodes.map(n => [n.x, n.y, n.nb]), lineRoute, line1: () => busNet().route.map(i => [nodes[i].x, nodes[i].y]), places: () => PLACES.map(o => [o.id, o.nom, o.icone, o.x, o.y]), room: (id, watch) => { const o = PLACES.find(x => x.id === id); return o ? openRoom(o, watch) : false; }, get roomState() { const R = G.room; return R && { kind: R.kind, n: R.people.length, people: R.people.map(q => ({ role: q.role || (q.player ? "moi" : "client"), s: q.state, d: q.doing || "", x: Math.round(q.x), y: Math.round(q.y) })) }; }, closeRoom: () => closeRoom(), get state() { return G; }, start: () => start(chosen), spawnCop, keys, touch, act: () => { actPressed = true; }, sortie: m => autoToggle(true, m), auto: m => autoToggle(true, m, true), sorties: openSorties, plan: openPlan, me: showMe, setHour: h => { G.hour = h; }, live: () => ({ others: (G && G.others || []).map(o => ({ nom: o.nom, x: Math.round(o.x), y: Math.round(o.y), m: o.m, ped: !!o.ped })), ws: LIVE.ws ? LIVE.ws.readyState : -1, online: LIVE.online }), liveStep: dt => liveStep(dt || 1 / 30), step: (n, dt) => { for (let i = 0; i < n && G && !G.paused; i++) update(dt || 1 / 30); } };
 })();
