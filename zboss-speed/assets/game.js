@@ -1097,12 +1097,14 @@
       <p><b>Caractère</b><br>${esc(I.car.t)}</p><p><b>Aime</b><br>${esc(I.gouts.join(" et "))}</p>
       <p><b>Point fort</b><br>${esc(I.forte)}</p><p><b>Point faible</b><br>${esc(I.faible)}</p></div>
       ${bar(I.intel, "Intelligence")}${bar(I.force, "Force")}${bar(I.charisme, "Charisme")}
+      ${!q.tourist && I.home ? '<p style="margin-top:12px"><button type="button" class="btn btn-primary pp-home">🏠 Voir sa maison</button></p>' : ""}
       <p style="font-size:12px;opacity:.7;margin-top:12px">Habitant non joueur. Les personnages des vrais joueurs auront aussi leur fiche, avec leurs talents découverts.</p></div>`;
     document.body.appendChild(d);
     const close = () => { d.remove(); if (G) G.paused = wasPaused; };
     d.querySelector(".bureau-x").onclick = close; d.addEventListener("click", e => { if (e.target === d) close(); });
     d.addEventListener("keydown", e => { e.stopPropagation(); if (e.key === "Escape") close(); });
     d.querySelector(".bureau-x").focus();
+    const hb = d.querySelector(".pp-home"); if (hb) hb.onclick = () => { const o = homeOf(q); close(); if (!o) return; if (G.pionnier) openRoom(o, true); else openInterior(o); };
   }
   function updatePrompt() {
     const p = G.player, sp = Math.hypot(p.vx, p.vy);
@@ -2370,6 +2372,21 @@
   const SCENE_T = { alim: "🛒", magasin: "👗", club: "🪩", bureau: "🏢", etat: "🏛️", eglise: "⛪" };
   function openInterior(o) {
     o = o || (G.foot && G.foot.inside); if (!o) return;
+    if (o.virt) {   // maison d'une famille ou bureaux : qui est là, ce qu'on y trouve
+      const w = document.getElementById("interior"); if (!w) return; const h = Math.floor(G.hour), esc = t => String(t).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+      let body;
+      if (o.virt === "openspace") { const st = officeNow(o, h); body = '<p class="in-h">' + (st.open ? "🟢 Ouvert · 7 h – 18 h" : "🔴 Fermé (ouvert du lundi au samedi, 7 h – 18 h)") + "</p><p>" + (st.open ? st.n + " employés à leur poste, une réceptionniste à l'accueil et le directeur qui passe entre les bureaux." : "Les employés sont rentrés chez eux ; le gardien surveille l'immeuble.") + "</p><h4>Dans les bureaux</h4><p>Postes de travail avec ordinateurs, salle de réunion vitrée avec tableau blanc, imprimante, fontaine à eau, armoires à dossiers.</p>"; }
+      else {
+        const M = houseNow(o, h), all = houseHold(o);
+        body = "<p>Ici vit la famille " + esc(o.fam) + " : " + all.length + " personne" + (all.length > 1 ? "s" : "") + ".</p>" +
+          (M.length ? "<h4>À la maison en ce moment</h4><ul>" + M.map(m => "<li>" + esc(m.nom) + " (" + m.role + ") " + esc(m.act) + "</li>").join("") + "</ul>" : "<p>Personne à la maison pour l'instant : chacun est au travail ou à l'école.</p>") +
+          (o.owner && !M.some(m => m.owner) ? "<p>👤 " + esc(o.owner.nom) + " est dehors en ce moment.</p>" : "") +
+          "<h4>Dans la maison</h4><p>Salon avec télévision, canapé et table basse · salle à manger · cuisine avec réchaud à gaz, frigo et bidons d'eau · chambre des parents · chambre des enfants" + (o.rich ? " · climatiseur" : "") + ".</p>";
+      }
+      w.querySelector(".in-body").innerHTML = '<div class="in-scene">' + o.icone + "</div><h3>" + o.icone + " " + esc(o.nom) + "</h3>" + body +
+        (G.pionnier ? "" : '<p class="in-pio">🏅 Entrer vraiment dans la pièce en 3D est réservé aux 100 premiers inscrits (les pionniers).</p>');
+      w.hidden = false; return;
+    }
     const L = lifeOf(o), T = lifeT(o), w = document.getElementById("interior"); if (!w) return;
     const staff = o.resto ? "la serveuse et la cuisinière" : o.id === "hopital" ? "les infirmières et un médecin" : o.id === "police" ? "l'agent de permanence" : STAFF_T[o.type] || "le personnel";
     const me = G.foot && G.foot.inside === o, A = G.auto;
@@ -2388,14 +2405,84 @@
     const b = document.getElementById("insidebtn"); if (!b) return; const f = G.foot;
     let o = f && f.inside;
     if (!o && f && !f.inBus) { let bd = 160; for (const p of PLACES) { if (!lifeT(p) || p.id === "maison") continue; const d = Math.hypot(p.door.x - f.x, p.door.y - f.y); if (d < bd) { bd = d; o = p; } } }
+    if (!o && f && !f.inBus && WALK) { if (G.t - (G.bldT || 0) > .5) { G.bldT = G.t; G.bldNear = bldNear(f.x, f.y, 90); } o = G.bldNear; }
     G.nearLife = o || null; b.hidden = !o;
     if (o) { const t = (f.inside ? "👁️ À l'intérieur : " : "👁️ Regarder dans ") + o.nom; if (b.textContent !== t) b.textContent = t; }
+  }
+  // ---------------------------------------------------------------- tous les bâtiments de la ville sont habités ou occupés
+  // Chaque maison du quartier abrite une famille (lits, cuisine, salon, télé…), chaque immeuble de bureaux a ses employés.
+  // Ces lieux « virtuels » se créent à la demande, une fois pour toutes (même famille, mêmes meubles à chaque visite).
+  const VBLD = new Map(), SURNOMS = ["Mbuyi", "Kabila", "Tshibanda", "Lukusa", "Nsimba", "Mukendi", "Ilunga", "Kanku", "Makiese", "Bokele", "Matondo", "Ngalula", "Mpiana", "Lokwa"];
+  const BUREAUX = ["Cabinet d'avocats", "Agence de voyages", "Société de transport", "Bureau d'études", "Banque commerciale", "Agence de communication", "ONG de santé", "Cabinet comptable", "Société minière", "Assurance", "Agence immobilière", "Société de télécoms"];
+  const hash2 = (a, b) => (Math.imul((a | 0) ^ 0x9e3779b9, 2654435761) ^ Math.imul((b | 0) + 7, 40503)) >>> 0;
+  function virtPlace(key, x, y, door, kind, seed) {
+    let o = VBLD.get(key); if (o) return o;
+    const r = rng(seed), pick = L => L[(r() * L.length) | 0], fam = pick(SURNOMS);
+    o = { id: "bat-" + key, virt: kind, seed, x, y, door, fam, rich: r() < (kind === "appart" ? .5 : .25), nRooms: 2 };
+    if (kind === "openspace") { o.nom = pick(BUREAUX) + " " + fam; o.icone = "🏢"; o.type = "bureau"; }
+    else { o.nom = (kind === "appart" ? "Appartement de la famille " : "Maison de la famille ") + fam; o.icone = kind === "appart" ? "🏬" : "🏠"; o.type = "maison"; }
+    VBLD.set(key, o); return o;
+  }
+  // la maison d'un habitant (sa « home » sur la carte) : il y vit avec sa famille
+  function homeOf(q) {
+    const I = ident(q); if (!I.home || q.tourist) return null; const f = I.home, k = FILL.indexOf(f);
+    const o = virtPlace("f" + k, f.x, f.y, { x: f.x, y: f.y + f.d / 2 + 14 }, "maison", hash2(k, 31));
+    if (!o.owner) { o.owner = { id: q.id, nom: I.nom, woman: I.woman, age: I.age, metier: I.metier }; o.fam = I.nom.split(" ").pop(); o.nom = "Maison de la famille " + o.fam; }
+    return o;
+  }
+  // le bâtiment le plus proche du personnage (petites maisons du quartier et bâtiments de la carte)
+  const OSM_BB = [];
+  function bldNear(x, y, R) {
+    let best = null, bd = R;
+    FILL.forEach((f, k) => { const dx = Math.max(0, Math.abs(x - f.x) - f.w / 2), dy = Math.max(0, Math.abs(y - f.y) - f.d / 2), d = Math.hypot(dx, dy); if (d < bd) { bd = d; best = { k: "f" + k, f, kind: "maison", seed: hash2(k, 31) }; } });
+    if (!OSM_BB.length) MAP.buildings.forEach((b, k) => { if (b[0] < 0) return; let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9; for (let i = 1; i < b.length; i += 2) { x0 = Math.min(x0, b[i]); x1 = Math.max(x1, b[i]); y0 = Math.min(y0, b[i + 1]); y1 = Math.max(y1, b[i + 1]); } OSM_BB.push([k, x0, y0, x1, y1]); });
+    for (const [k, x0, y0, x1, y1] of OSM_BB) {
+      const dx = Math.max(0, x0 - x, x - x1), dy = Math.max(0, y0 - y, y - y1), d = Math.hypot(dx, dy); if (d >= bd) continue;
+      const b = MAP.buildings[k], tall = b[0] > 200, s = hash2(k, 77), u = (s % 100) / 100;
+      bd = d; best = { k: "b" + k, bb: [x0, y0, x1, y1], kind: tall ? (u < .7 ? "openspace" : "appart") : (u < .3 ? "openspace" : "maison"), seed: s };
+    }
+    if (!best) return null;
+    const cx = best.f ? best.f.x : (best.bb[0] + best.bb[2]) / 2, cy = best.f ? best.f.y : (best.bb[1] + best.bb[3]) / 2;
+    return virtPlace(best.k, cx, cy, { x, y }, best.kind, best.seed);
+  }
+  // qui est là, selon l'heure : la nuit tout le monde dort ; le jour, les enfants vont à l'école et les parents au travail
+  function houseHold(o) {
+    if (o.members) return o.members;
+    const r = rng(o.seed + 5), M = [], fam = o.fam, ow = o.owner;
+    const adult = (woman, role) => ({ woman, nom: (woman ? NOMS_F : NOMS_H)[(r() * 12) | 0] + " " + fam, role });
+    const pere = ow && !ow.woman ? Object.assign(adult(false, "père"), { nom: ow.nom, owner: true }) : adult(false, "père");
+    const mere = ow && ow.woman ? Object.assign(adult(true, "mère"), { nom: ow.nom, owner: true }) : adult(true, "mère");
+    if (r() < .85 || (ow && !ow.woman)) M.push(pere);
+    M.push(mere);
+    const kids = (r() * 4) | 0; for (let k = 0; k < kids; k++) { const w = r() < .5; M.push({ woman: w, nom: (w ? NOMS_F : NOMS_H)[(r() * 12) | 0] + " " + fam, role: w ? "fille" : "fils", kid: .6 + r() * .2 }); }
+    if (r() < .35) M.push(Object.assign(adult(true, "grand-mère"), { old: true }));
+    M.forEach((m, i) => { m.id = 700000 + (o.seed % 90000) * 8 + i; m.look = (o.seed + i * 3) % 7; });
+    return (o.members = M);
+  }
+  // où est chaque membre de la famille maintenant
+  function houseNow(o, h) {
+    const M = houseHold(o), out = [];
+    M.forEach((m, i) => {
+      if (m.owner && G.peds.some(q => q.id === o.owner.id && !q.gone)) return;   // il est dehors, dans la rue
+      const night = h >= 22 || h < 5, morning = h >= 5 && h < 8, day = h >= 8 && h < 16;
+      let act;
+      if (night) act = "dort";
+      else if (morning) act = m.role === "mère" ? "prépare le petit déjeuner" : m.kid ? "prend son petit déjeuner avant l'école" : "boit son café à table";
+      else if (day) { if (m.kid && (i + h) % 3) return; if (!m.kid && !m.old && m.role !== "mère") return; if (m.role === "mère" && (o.seed + h) % 2) return; act = m.old ? "regarde la télévision" : m.kid ? "fait ses devoirs" : "fait le ménage et la cuisine"; }
+      else act = m.role === "mère" ? "prépare le dîner" : m.kid ? (i % 2 ? "joue dans le salon" : "fait ses devoirs à table") : "regarde le journal télévisé";
+      out.push(Object.assign({}, m, { act }));
+    });
+    return out;
+  }
+  function officeNow(o, h) {
+    const open = h >= 7 && h < 18 && ((G.day + 4) % 7 + 7) % 7 !== 0;
+    return { open, n: open ? 6 + (o.seed % 4) : 0 };
   }
   // ---------------------------------------------------------------- intérieurs 3D (pionniers : les 100 premiers inscrits)
   // On entre vraiment dans la pièce : meubles, personnel qui accueille et sert, clients qui font leurs courses, mangent, dansent, prient…
   // La pièce est construite hors de la carte (ROOM_O) ; la simulation tourne ici, game3d.js la dessine.
   const ROOM_O = { x: -40000, y: -40000 }, UPA = -Math.PI / 2;
-  const roomKind = o => o.resto ? "resto" : o.id === "phones" ? "phones" : o.id === "hopital" ? "hopital" : o.id === "police" ? "police" : o.id === "justice" || o.id === "assemblee" ? "salle" : o.type === "bureau" || o.type === "etat" ? "office" : o.type;
+  const roomKind = o => o.virt ? o.virt : o.resto ? "resto" : o.id === "phones" ? "phones" : o.id === "hopital" ? "hopital" : o.id === "police" ? "police" : o.id === "justice" || o.id === "assemblee" ? "salle" : o.type === "bureau" || o.type === "etat" ? "office" : o.type;
   function roomLayout(o) {
     const kind = roomKind(o), it = [], seats = [], spots = { browse: [], pay: [], dance: [], guichet: [], staff: [] };
     let W = 170, D = 130, H = 32;
@@ -2468,6 +2555,57 @@
       for (let r = 0; r < 4; r++) { const y = -D / 2 + 60 + r * 26; [-55, 55].forEach(x => { if (ass) { add("desk", x, y, 70, 7, { a: DOWN }); for (let s = -2; s <= 2; s++) seat(x + s * 13, y + 8, UP); } else { add("pew", x, y, 70, 7, { a: UP }); for (let s = -2; s <= 2; s++) seat(x + s * 13, y, UP); } }); }
       if (!ass) { add("box", -60, -D / 2 + 40, 20, 8, { solid: false, label: "PARTIE CIVILE" }); add("box", 60, -D / 2 + 40, 20, 8, { solid: false, label: "DÉFENSE" }); }
       staff("guard", -30, D / 2 - 12, UP);
+    } else if (kind === "maison" || kind === "appart") {   // une vraie maison kinoise : salon, salle à manger, cuisine, deux chambres
+      W = 180; D = 150; H = 30;
+      const rich = o.rich, wall = (x, y, w, d) => add("wall", x, y, w, d, { a: DOWN });
+      // chambre des parents (fond à gauche) et chambre des enfants (fond à droite), cloisons à mi-hauteur côté caméra
+      wall(-70, -15, 40, 3); wall(-26, -15, 12, 3); add("curtain", -41, -15, 18, 2, { solid: false, color: "#c0392b" }); wall(-20, -45, 3, 60);
+      wall(36, -15, 12, 3); wall(75, -15, 30, 3); add("curtain", 51, -15, 18, 2, { solid: false, color: "#2b6cb0" }); wall(30, -45, 3, 60);
+      add("homebed", -62, -48, 40, 34, { double: true, sheet: rich ? "#f4f2ee" : "#e8a317" }); add("wardrobe", -36, -69, 24, 9);
+      add("homebed", 68, -62, 36, 16, { a: -DOWN, sheet: "#3fa9ff" }); add("homebed", 68, -30, 36, 16, { a: -DOWN, sheet: "#ff4f9a" });
+      add("frame", -62, -73, 20, 2, { solid: false, a: DOWN, cross: true });
+      // cuisine : plan de travail, réchaud à gaz, frigo, bidons d'eau
+      add("kitchen", -2, -69, 30, 10); add("fridge", 21, -69, 12, 10); add("jerrycans", 20, -26, 14, 8);
+      // salon : télé, canapé, table basse, tapis
+      add("rug", -60, 28, 52, 44, { solid: false }); add("tvstand", -85, 28, 30, 8, { a: 0, big: rich }); add("sofa", -44, 28, 40, 14, { a: Math.PI, color: rich ? "#3d2b1f" : "#7a1f2b" }); add("lowtable", -64, 28, 18, 12, { a: Math.PI });
+      add("frame", -55, -13, 22, 2, { solid: false, a: DOWN }); add("plant", -84, 68, 8, 8);
+      // salle à manger
+      add("dtable", 42, 26, 34, 18);
+      [[32, 13, DOWN], [52, 13, DOWN], [32, 39, UP], [52, 39, UP]].forEach(([x, y, a]) => { add("chair", x, y, 6, 6, { a, solid: false, white: !rich }); seat(x, y, a, { table: { x: 42, y: 26 } }); });
+      if (rich) add("clim", 80, -12, 24, 3, { solid: false, a: DOWN });
+      // la famille, selon l'heure
+      const sofa = [[-48, 20, Math.PI], [-48, 36, Math.PI]], tab = [[32, 13, DOWN], [52, 13, DOWN], [32, 39, UP], [52, 39, UP]];
+      const bedP = [[-61, -56], [-61, -40]], bedK = [[67, -62], [67, -30], [67, -59], [67, -27]];
+      let nP = 0, nK = 0, nS = 0, nT = 0;
+      (o.nowM || []).forEach(m => {
+        const sp = { role: "famille", who: m };
+        if (m.act === "dort") {
+          const kidBed = m.kid && nK < bedK.length, b = kidBed ? bedK[nK++] : !m.kid && !m.old && nP < 2 ? bedP[nP++] : null;
+          if (b) Object.assign(sp, { x: b[0], y: b[1], a: kidBed ? -DOWN : DOWN, lie: true, z: 2 }); else Object.assign(sp, { x: -44, y: 28, a: 0, lie: true, z: 1 });
+        } else if (/prépare|cuisine/.test(m.act)) Object.assign(sp, { x: -2, y: -58, a: UP, role: "cook" });
+        else if (/télé/.test(m.act) && nS < sofa.length) { const s = sofa[nS++]; Object.assign(sp, { x: s[0], y: s[1], a: s[2], sit: true }); }
+        else if (/table|devoirs|café|déjeuner/.test(m.act) && nT < tab.length) { const s = tab[nT++]; Object.assign(sp, { x: s[0], y: s[1], a: s[2], sit: true }); }
+        else Object.assign(sp, { x: -30 + (nS + nT) * 6, y: 52, a: UP, pace: 18 });
+        spots.staff.push(sp);
+      });
+    } else if (kind === "openspace") {   // bureaux : postes de travail, salle de réunion, accueil
+      W = 200; D = 160; H = 32;
+      const gl = (x, y, w, d) => add("glasswall", x, y, w, d, { a: DOWN });
+      add("counter", 55, 46, 40, 12, { label: "ACCUEIL" }); spots.guichet.push({ x: 55, y: 60, a: UP, agent: 0 });
+      gl(40, -54, 3, 52); gl(40, -14, 3, 8); gl(52, -10, 24, 3); gl(88, -10, 24, 3);
+      add("dtable", 70, -45, 40, 20, { office: true }); add("whiteboard", 70, -79, 36, 2, { solid: false, a: DOWN, label: o.nom.split(" ").slice(0, 3).join(" ").toUpperCase() });
+      [[60, -59, DOWN], [80, -59, DOWN], [60, -31, UP], [80, -31, UP]].forEach(([x, y, a]) => { add("chair", x, y, 6, 6, { a, solid: false }); seat(x, y, a); });
+      const desks = []; [-50, -18].forEach(y => [-80, -50, -20, 10].forEach(x => { add("desk", x, y, 24, 11, { a: DOWN, pc: true }); add("chair", x, y - 9, 6, 6, { a: DOWN, solid: false }); desks.push([x, y - 9]); }));
+      add("cooler", -94, 42, 8, 8); add("printer", -60, 22, 14, 10); add("cabinet", -96, -64, 22, 7, { a: 0 }); add("cabinet", -96, -36, 22, 7, { a: 0 });
+      add("plant", 94, 72, 8, 8); add("plant", -94, 72, 8, 8); add("plant", 34, -74, 8, 8);
+      const st = o.officeNow || { open: false, n: 0 };
+      if (st.open) {
+        staff("reception", 60, 34, DOWN, { sit: true });
+        desks.slice(0, Math.min(desks.length, st.n)).forEach(([x, y]) => staff("worker", x, y, DOWN, { sit: true }));
+        if (st.n > 6) { [[60, -59, DOWN], [80, -59, DOWN], [60, -31, UP]].forEach(([x, y, a]) => staff("worker", x, y, a, { sit: true, meet: true })); staff("presenter", 70, -70, DOWN, { pace: 10, preach: true }); }
+        staff("boss", -35, 6, DOWN, { pace: 40, biz: true });
+      } else if (G.hour >= 18 && G.hour < 21) staff("cleaner", -20, 6, DOWN, { pace: 50 });
+      staff("guard", 26, D / 2 - 12, UP);
     } else {   // bureaux, administrations, commissariat : guichets et salle d'attente
       W = 180; D = 150;
       const gy = -D / 2 + 32;
@@ -2484,7 +2622,7 @@
   }
   // petite grille de déplacement (1 case = 0,5 m) : on contourne les meubles
   function roomGrid(R) {
-    const c = 5, nx = Math.ceil(R.W / c), ny = Math.ceil(R.D / c), b = new Uint8Array(nx * ny), tall = new Uint8Array(nx * ny), pad = 3, TALL = ["shelf", "fridges", "fridge", "cell", "speaker", "cabin", "rack"];
+    const c = 5, nx = Math.ceil(R.W / c), ny = Math.ceil(R.D / c), b = new Uint8Array(nx * ny), tall = new Uint8Array(nx * ny), pad = 3, TALL = ["shelf", "fridges", "fridge", "cell", "speaker", "cabin", "rack", "wall", "wardrobe", "cabinet", "glasswall"];
     for (let i = 0; i < nx; i++) for (let j = 0; j < ny; j++) {
       const x = -R.W / 2 + (i + .5) * c, y = -R.D / 2 + (j + .5) * c;
       if (Math.abs(x) > R.W / 2 - 4 || Math.abs(y) > R.D / 2 - 4) { b[j * nx + i] = tall[j * nx + i] = 1; continue; }
@@ -2554,17 +2692,22 @@
     if (staffSpot) Object.assign(q, { x: staffSpot.x, y: staffSpot.y, a: staffSpot.a, staff: true, role: staffSpot.role, home: staffSpot, state: staffSpot.lie ? "down" : staffSpot.sit ? "sit" : staffSpot.dance ? "dance" : "idle", z: staffSpot.z || 0, kit: staffSpot.role === "agent" || staffSpot.role === "guard" || staffSpot.role === "judge" || staffSpot.role === "president" || staffSpot.role === "clerk" });
     if (staffSpot && staffSpot.role === "guard") q.cop = R.o.id === "police" || R.o.type === "etat";
     if (staffSpot && staffSpot.role === "prisoner") q.state = "idle";
+    if (staffSpot && staffSpot.who) { const m = staffSpot.who; Object.assign(q, { id: m.id, look: m.look, fem: m.woman, kid: m.kid, doing: m.act, nom: m.nom, lookBiz: false }); }
+    if (staffSpot && staffSpot.biz) q.lookBiz = true;
+    if (staffSpot && (staffSpot.role === "worker" || staffSpot.role === "presenter")) q.lookBiz = rand() < .6;
     R.people.push(q); return q;
   }
-  function openRoom(o, watch) {
-    if (!o || !lifeT(o) || o.id === "maison") return false;
-    const R = roomLayout(o); roomGrid(R); R.people = []; R.watch = !!watch; R.t = 0; R.ox = ROOM_O.x; R.oy = ROOM_O.y; R.plates = []; if (G.room) closeRoom(); G.room = R;
+  function openRoom(o, watch, quiet) {
+    if (!o || (!o.virt && (!lifeT(o) || o.id === "maison"))) return false;
+    if (o.virt) { const h = Math.floor(G.hour); if (o.virt === "openspace") o.officeNow = officeNow(o, h); else o.nowM = houseNow(o, h); }
+    const R = roomLayout(o); R.h0 = Math.floor(G.hour); roomGrid(R); R.people = []; R.watch = !!watch; R.t = 0; R.ox = ROOM_O.x; R.oy = ROOM_O.y; R.plates = []; if (G.room) closeRoom(); G.room = R;
     R.spots.staff.forEach(s => roomPerson(R, null, s));
     // les clients déjà à l'intérieur sont à leur place
     lifeOf(o).inside.forEach(x => { const q = roomPerson(R, x); q.src = x; const D2 = R.door; q.x = D2.x + (rand() - .5) * R.W * .6; q.y = D2.y - 10 - rand() * R.D * .5; const [i, j] = [Math.floor((q.x + R.W / 2) / R.grid.c), Math.floor((q.y + R.D / 2) / R.grid.c)]; if (R.grid.b[j * R.grid.nx + i]) { q.x = D2.x; q.y = D2.y - 6; } roomPlan(R, q); if (q.path && q.path.length) { const e = q.path[q.path.length - 1]; q.x = e.x; q.y = e.y; q.path = [e]; } });
     if (!watch && G.foot) { const me = roomPerson(R, { look: 0, id: "moi" }); me.player = true; me.x = R.door.x; me.y = R.door.y; R.me = me; if (R.kind === "club") me.mustDance = true; roomPlan(R, me); }
     document.body.classList.add("in-room");
     const b = document.getElementById("roombar"); if (b) { b.hidden = false; b.querySelector(".rb-t").textContent = o.icone + " " + o.nom; }
+    if (o.virt) { if (!quiet) msg("🏅 Pionnier : tu regardes à l'intérieur. " + (o.virt === "openspace" ? (o.officeNow.open ? "Les employés sont à leur poste." : "Les bureaux sont fermés à cette heure : seul le gardien est là.") : (o.nowM.length ? (o.nowM.some(m => m.act === "dort") ? "Toute la famille dort." : "La famille est à la maison.") : "Personne à la maison pour l'instant.") + (o.owner && !o.nowM.some(m => m.owner) && o.virt !== "openspace" ? " " + o.owner.nom.split(" ")[0] + " est dehors." : "")), 4.5, "ok"); return true; }
     msg("🏅 Pionnier : tu entres vraiment dans " + o.nom + ". " + (watch ? "Ton personnage reste dehors, tu regardes à l'intérieur." : "Regarde comment on l'accueille et le sert."), 4.5, "ok");
     return true;
   }
@@ -2576,6 +2719,7 @@
     const R = G.room; if (!R) return;
     R.t += dt; R.people.forEach(q => { if (q.talk > 0) q.talk -= dt; }); const L = lifeOf(R.o), ids = new Set(L.inside.map(x => x.id));
     if (!R.watch && !(G.foot && G.foot.inside === R.o)) { closeRoom(); return; }
+    if (R.o.virt && Math.floor(G.hour) !== R.h0) { openRoom(R.o, true, true); return; }
     if (R.watch && !L.open && !L.inside.length) { closeRoom(); msg("🔒 " + R.o.nom + " a fermé ses portes.", 3); return; }
     // nouveaux clients qui entrent, clients qui sortent par la porte
     const have = new Set(R.people.filter(q => q.src).map(q => q.src.id));
@@ -2618,6 +2762,7 @@
     }
     if (h.pace) { q.wait = (q.wait || 0) - dt; if (q.wait <= 0) { const tx = h.x + (rand() - .5) * 2 * h.pace; q.path = [{ x: tx, y: h.y }]; q.then = () => { q.a = h.a; q.state = h.preach ? "idle" : "idle"; q.wait = 3 + rand() * 4; if (h.preach) q.talk = 2.5; }; } return; }
     if (h.rounds) { q.wait = (q.wait || 0) - dt; if (q.wait <= 0) { const b = R.spots.staff.filter(s => s.lie); const t = b[(rand() * b.length) | 0]; if (t) roomGo(q, t.x + 26, t.y, () => { q.a = Math.PI; q.state = "idle"; q.wait = 5 + rand() * 4; q.talk = 1.5; }); } return; }
+    if (q.role === "worker" || q.role === "famille" || q.role === "cook") { if (rand() < dt * (h.meet ? .25 : .06)) q.talk = 1.4; return; }
     if (q.role === "agent") { const c = R.people.find(p => p.atG && p.atG.agent === h.desk && !(p.path && p.path.length)); if (c && rand() < dt * .6) q.talk = 1.2; }
     if (q.role === "reception") { const c = R.people.find(p => p.atG && !(p.path && p.path.length)); if (c && rand() < dt * .6) q.talk = 1.2; }
   }
@@ -3092,7 +3237,7 @@
   $("actbtn").addEventListener("click", () => { if (G && !G.over) actPressed = true; });
   $("insidebtn").addEventListener("click", () => {
     if (!G || !G.nearLife) return;
-    if (G.pionnier && !(G.room && G.room.o === G.nearLife)) { const inside = G.foot && G.foot.inside === G.nearLife; if (isOpen(G.nearLife, G.hour) || inside) { openRoom(G.nearLife, !inside); return; } }
+    if (G.pionnier && !(G.room && G.room.o === G.nearLife)) { const inside = G.foot && G.foot.inside === G.nearLife; if (G.nearLife.virt || isOpen(G.nearLife, G.hour) || inside) { openRoom(G.nearLife, !inside); return; } }
     openInterior(G.nearLife);
   });
   $("rb-who").addEventListener("click", () => { if (G && G.room) openInterior(G.room.o); });
@@ -3115,5 +3260,5 @@
   window.ZBOSS_WORLD = { busNet, addObst, OBST, W, H, C, MW, MH, mask, MAP, ROADS, FILL, walkBlocked, SHOPS, PLACES, BILLBOARDS, BENCHES, LIGHTS, lightState, isOpen, SHOP_W, SHOP_D, SHOP_DOOR, nodes, nodesNear, nearestNode, solidAt, groundAt, angDiff, rand };
   // outil d'aperçu : réseau routier et tracé d'une ligne de bus passant devant une liste de lieux
   const lineRoute = ids => { const st = ids.map(id => PLACES.find(o => o.id === id)).filter(Boolean).map(o => nearestNode(o.door.x, o.door.y)), out = []; st.forEach((n, k) => { const P = findPath(n, st[(k + 1) % st.length]) || []; P.forEach(i => out.push([nodes[i].x, nodes[i].y])); }); return out; };
-  window.__zboss = { redAhead: c => redAhead(c), lightOf: i => LIGHTS[i], roadAudit: () => G.traffic.concat(G.buses || []).map(c => { const L = LIGHTS.find(L => Math.hypot(L.x - c.x, L.y - c.y) < L.w / 2); return { c, L: L ? LIGHTS.indexOf(L) : -1, red: L ? redFor(L, c.a, G.t) === "r" && redFor(L, c.a, G.t - 1.5) === "r" : false, to: c.to, lt: L ? L.n : -1 }; }), interior: o => openInterior(o || G.nearLife), roads: () => nodes.map(n => [n.x, n.y, n.nb]), lineRoute, line1: () => busNet().route.map(i => [nodes[i].x, nodes[i].y]), places: () => PLACES.map(o => [o.id, o.nom, o.icone, o.x, o.y]), room: (id, watch) => { const o = PLACES.find(x => x.id === id); return o ? openRoom(o, watch) : false; }, get roomState() { const R = G.room; return R && { kind: R.kind, n: R.people.length, people: R.people.map(q => ({ role: q.role || (q.player ? "moi" : "client"), s: q.state, d: q.doing || "", x: Math.round(q.x), y: Math.round(q.y) })) }; }, closeRoom: () => closeRoom(), get state() { return G; }, start: () => start(chosen), spawnCop, keys, touch, act: () => { actPressed = true; }, sortie: m => autoToggle(true, m), auto: m => autoToggle(true, m, true), sorties: openSorties, plan: openPlan, me: showMe, setHour: h => { G.hour = h; }, live: () => ({ others: (G && G.others || []).map(o => ({ nom: o.nom, x: Math.round(o.x), y: Math.round(o.y), m: o.m, ped: !!o.ped })), ws: LIVE.ws ? LIVE.ws.readyState : -1, online: LIVE.online }), liveStep: dt => liveStep(dt || 1 / 30), step: (n, dt) => { for (let i = 0; i < n && G && !G.paused; i++) update(dt || 1 / 30); } };
+  window.__zboss = { redAhead: c => redAhead(c), lightOf: i => LIGHTS[i], roadAudit: () => G.traffic.concat(G.buses || []).map(c => { const L = LIGHTS.find(L => Math.hypot(L.x - c.x, L.y - c.y) < L.w / 2); return { c, L: L ? LIGHTS.indexOf(L) : -1, red: L ? redFor(L, c.a, G.t) === "r" && redFor(L, c.a, G.t - 1.5) === "r" : false, to: c.to, lt: L ? L.n : -1 }; }), interior: o => openInterior(o || G.nearLife), roads: () => nodes.map(n => [n.x, n.y, n.nb]), lineRoute, line1: () => busNet().route.map(i => [nodes[i].x, nodes[i].y]), places: () => PLACES.map(o => [o.id, o.nom, o.icone, o.x, o.y]), room: (id, watch) => { const o = PLACES.find(x => x.id === id); return o ? openRoom(o, watch) : false; }, get roomState() { const R = G.room; return R && { kind: R.kind, n: R.people.length, people: R.people.map(q => ({ role: q.role || (q.player ? "moi" : "client"), s: q.state, d: q.doing || "", x: Math.round(q.x), y: Math.round(q.y) })) }; }, closeRoom: () => closeRoom(), home: q => { const o = homeOf(q || G.peds.find(p => !p.staff && !p.tourist)); return o && openRoom(o, true) && o; }, bld: (x, y, r) => bldNear(x, y, r || 90), virt: o => openRoom(o, true), talk: q => talkTo(q), get state() { return G; }, start: () => start(chosen), spawnCop, keys, touch, act: () => { actPressed = true; }, sortie: m => autoToggle(true, m), auto: m => autoToggle(true, m, true), sorties: openSorties, plan: openPlan, me: showMe, setHour: h => { G.hour = h; }, live: () => ({ others: (G && G.others || []).map(o => ({ nom: o.nom, x: Math.round(o.x), y: Math.round(o.y), m: o.m, ped: !!o.ped })), ws: LIVE.ws ? LIVE.ws.readyState : -1, online: LIVE.online }), liveStep: dt => liveStep(dt || 1 / 30), step: (n, dt) => { for (let i = 0; i < n && G && !G.paused; i++) update(dt || 1 / 30); } };
 })();
