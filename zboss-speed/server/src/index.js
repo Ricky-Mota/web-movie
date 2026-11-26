@@ -13,6 +13,7 @@ import {
   CELEB_DOMAINS, celebStory, celebFromMoves, celebClean, pickCelebrities, protestChance, protestText, PROTEST_REP,
   OFFERING, offeringTax, pioneerView, titheOf, cannotGiveOffering, offeringReceipt, celebLive, celebEvent, CELEB_VISITS_PER_DAY,
   CAMPAIGN_MAX_DAYS, ambassadorFee, cannotHireAmbassador, LEAGUE_NAME, NPC_CLUBS, CLUB_MIN_AGE, CLUB_MAX_AGE, MATCH_GATE, clubStrength, playMatch, pairClubs, standings, seasonKey, scorersText, cannotRecruit, CLUB_CONTRACT_DAYS, cannotAddLogo, LOGOS_MAX_SHOWN,
+  thoughtFacts, thoughtFallback, thoughtPrompt, cleanThought, THOUGHT_MODEL,
 } from "./life.js";
 import { sendPush, newVapidKeys } from "./webpush.js";
 import { payConfigured, startDeposit, startPayout, readNotice } from "./paiement.js";
@@ -722,6 +723,25 @@ async function applyOrders(env, db, compte, ch, now, force) {
   return true;
 }
 
+// pensée du jour : une par personnage et par jour (heure de Kinshasa), gardée dans la table pensees.
+// L'IA (Cloudflare Workers AI, liaison « AI ») écrit seulement le texte ; elle ne change aucune règle.
+async function thoughtOfDay(env, db, compte, ch, now) {
+  const jour = dayKey(now), pid = ch.p.id;
+  const got = await db.prepare(`SELECT texte, source FROM pensees WHERE personnage_id = ? AND jour = ?`).bind(pid, jour).first().catch(() => null);
+  if (got) return { texte: got.texte, ia: got.source === "ia", jour };
+  const F = thoughtFacts(view(compte, ch, now), ch.origine && ch.origine.caractere);
+  let texte = null, source = "regles";
+  if (env.AI && SET.ia >= 0.5 && !ch.p.mort_le) {
+    try {
+      const out = await Promise.race([env.AI.run(THOUGHT_MODEL, { messages: thoughtPrompt(F), max_tokens: 90, temperature: 0.8 }), new Promise((_, no) => setTimeout(() => no(new Error("délai")), 8000))]);
+      texte = cleanThought(out && (out.response || out.result));
+      if (texte) source = "ia";
+    } catch (e) { console.error("pensee IA", e && e.message); }
+  }
+  if (!texte) texte = thoughtFallback(F, now);
+  await db.prepare(`INSERT OR IGNORE INTO pensees (personnage_id, jour, texte, source, le) VALUES (?, ?, ?, ?, ?)`).bind(pid, jour, texte, source, now).run().catch(e => console.error(e));
+  return { texte, ia: source === "ia", jour };
+}
 function view(compte, ch, now) { const v = viewBase(compte, ch, now); v.objectifs = goalsView(ch.objectifs || [], goalFacts(ch)); v.salaireDu = ch.dus || 0;
   if (ch.fin) v.etat.finances = { tresor: ch.fin.tresor, impotsJour: ch.fin.impotsJour, salairesJour: ch.fin.salairesJour, arrieres: ch.fin.arrieres, societes: ch.fin.societes, tva: LAWS.tva };
   v.promo = { prix: PROMO_PRICE, maxJours: PROMO_MAX_DAYS };
@@ -1459,6 +1479,7 @@ const worker = {
         ]);
         return json(h, 200, { recrue: `${j.prenom} ${j.nom}`, ...view(compte, await loadCharacter(db, p.id), now) });
       }
+      if (url.pathname === "/api/pensee" && req.method === "POST") return json(h, 200, await thoughtOfDay(env, db, compte, ch, now));
       if (url.pathname === "/api/journal" && req.method === "POST") return json(h, 200, newspaper(await newsFacts(db, now), now, p.quartier));
       if (url.pathname === "/api/voisins" && req.method === "POST") {
         const { results } = await db.prepare(`SELECT p.id, p.prenom, p.nom, p.sexe, p.quartier, p.ne_le, c.pseudo,

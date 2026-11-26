@@ -452,3 +452,5 @@ CREATE INDEX IF NOT EXISTS offrandes_de ON offrandes (de_id, type, le);
 -- visites sur place : culte, concert, match d'une célébrité
 CREATE TABLE IF NOT EXISTS assistances (id TEXT PRIMARY KEY, personnage_id TEXT NOT NULL, celeb_id TEXT NOT NULL, lieu TEXT NOT NULL, prix INTEGER NOT NULL, le INTEGER NOT NULL);
 CREATE INDEX IF NOT EXISTS assistances_p ON assistances (personnage_id, le);
+-- pensée du jour du personnage (écrite par la petite IA ou par les règles), une par jour
+CREATE TABLE IF NOT EXISTS pensees (personnage_id TEXT NOT NULL, jour TEXT NOT NULL, texte TEXT NOT NULL, source TEXT NOT NULL, le INTEGER NOT NULL, PRIMARY KEY (personnage_id, jour));

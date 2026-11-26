@@ -6,7 +6,7 @@ import {
   describeAction, ORDER_DONE, ORDERS, ORDERS_PER_DAY, ORDERS_CHECK_MS, dayKey, ordersToRun, cannotGiveOrder,
   VOTER_MIN_AGE, NEGLECT_DANGER_DAYS, NEGLECT_DANGER_HEALTH, splitEstate, deathCause, familyShareRate, REP, REP_BAD, REP_GOOD, repLabel, repDiscount, DOT_MAKUTA, MARRY_MIN_AGE, STREET_JOBS, cannotStreetJob, RENT, rentOf, houseOf, rentDue, HOUSING_MIN_AGE, SALE_TAX, LIFE_EVENTS, EVENT_EVERY_H, drawEvent, eventMoney, lifeAlbum, CRIMES, catchChance, sentence, inPrison, PRISON_BLOCKED, BAIL, PRISON_HOURS, RECIDIVE, policeView, applySettings, food, drawEntry, classOfWealth, classLabel, MATURITY_GAIN, BIG_DECISIONS, cannotDecide, dashboard,
   PAY_METHODS, cannotDeposit, cannotWithdraw, maskPhone, withdrawUsd, COMMUNES, communeView, ROLES, drawRole, roleOf,
-  streakStep, streakView, nightSummary, prevDayKey,
+  streakStep, streakView, nightSummary, prevDayKey, thoughtFacts, thoughtFallback,
   newspaper, cannotSendWord, neighborView, GREETINGS, WORD_MAX,
   PUBLIC_COMPANIES, STATE_SEED, soeView, promoPrice, cannotPromote, PROMO_PRICE, PROMO_MAX_DAYS, goalsView, newlyReached, cannotChooseGoal, GOAL_REP, pickStars, vatOf, AD_COLORS,
   LIFESTYLES, LIFESTYLE_MIN_AGE, lifestyleCost, lifestyleFor, lifestyleStep, lifeExpectancy, OLD_AGE_HEALTH, tenueBlocks, livingView, BILLS,
@@ -389,6 +389,7 @@ const demo = {
       store.set(LS_DEMO, d);
       await this.applyOrders(d, true); return { ...this.view(store.get(LS_DEMO)), serieBonus };
     }
+    if (path === "/api/pensee") return { texte: thoughtFallback(thoughtFacts(this.view(d), (d.origine || {}).caractere)), ia: false, jour: dayKey() };
     if (path === "/api/journal") {
       const V = demoNeighbors(c), day = dayKey(), rr = rng(Number(day.replace(/-/g, "")) ^ (c.look || 1)), t0 = Date.now() - 20 * 36e5, at = k => t0 + k * 2.5 * 36e5;
       const facts = {
@@ -941,7 +942,7 @@ function render(v) {
   ] : []).concat([["Joueur", v.compte.pseudo], ["Né le", new Date(p.neLe).toLocaleDateString("fr-FR")]])
     .map(([a, b]) => `<div class="row"><span>${a}</span><span style="text-align:right">${b}</span></div>`).join("")
     + (v.demo ? `<button class="mini" id="b-demo-die" type="button" style="margin-top:12px">💀 Simuler la mort (démo)</button>` : "");
-  renderNight(v); renderNeighbors(v); renderJournal(); renderGoals(v); renderStars(); renderTrain(v); renderFoot(); renderDash(v); renderCouple(v); renderCity(v);
+  renderNight(v); renderThought(v); renderNeighbors(v); renderJournal(); renderGoals(v); renderStars(); renderTrain(v); renderFoot(); renderDash(v); renderCouple(v); renderCity(v);
   renderShop(v); renderWallet(v); renderWork(v); renderSchool(v); renderKids(v); renderCompanies(v); renderTravel(v); renderState(v); renderTips(v); renderOrders(v); renderMoves(v);
   if (!render.hashDone && ["#moves", "#nuit", "#orders", "#voisins", "#journal"].includes(location.hash)) { render.hashDone = true; setTimeout(() => goTo(location.hash.slice(1)), 300); }
   portrait(p);
@@ -1457,6 +1458,19 @@ function tips(v) {
 const SECTIONS = { moves: "moves", orders: "orders", state: "state", needs: "needs", work: "work", school: "school", companies: "companies", inv: "inv", travel: "travel", shop: "shop-tabs", wallet: "wallet", kids: "kids-card" };
 function goTo(id) { const el = $(id); if (el) (el.closest(".card") || el).scrollIntoView({ behavior: "smooth", block: "start" }); }
 // ---- pendant ton absence : ce que le personnage a fait depuis la dernière visite
+// ---- pensée du jour : ce que le personnage a en tête (texte seulement, ça ne change aucune règle)
+let thought = null;
+async function renderThought(v) {
+  const box = $("pensee-card"); if (!box || !v.perso || !v.perso.vivant) { if (box) box.hidden = true; return; }
+  const jour = dayKey();
+  if (!thought || thought.jour !== jour || thought.pid !== v.perso.id) {
+    thought = { jour, pid: v.perso.id, loading: true };
+    try { const t = await call("/api/pensee", {}); thought = { ...t, jour, pid: v.perso.id }; } catch (e) { thought = { jour, pid: v.perso.id, texte: null }; }
+  }
+  if (!thought.texte) { box.hidden = true; return; }
+  box.hidden = false;
+  $("pensee").innerHTML = `<p class="pensee-txt">« ${esc(thought.texte)} »</p><small style="opacity:.7">${esc(v.perso.prenom)}, ce matin${thought.ia ? " · écrit par une IA, ça ne change pas ses choix" : ""}</small>`;
+}
 function renderNight(v) {
   const R = v.resume, box = $("nuit-card");
   if (!R || !R.nouveau) { box.hidden = true; return; }

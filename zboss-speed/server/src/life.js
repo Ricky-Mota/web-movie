@@ -959,6 +959,7 @@ export const SETTINGS = [
   { id: "vol", label: "Risque de vol", aide: "Chance qu'un enfant négligé vole.", min: 0, max: 3 },
   { id: "police", label: "Efficacité de la police", aide: "Chance d'être attrapé après un délit.", min: 0.25, max: 3 },
   { id: "destin", label: "Fréquence des événements", aide: "Paludisme, pluie, cadeaux… 0 = aucun.", min: 0, max: 3 },
+  { id: "ia", label: "Pensées écrites par l'IA", aide: "0 = textes écrits à la main seulement. 1 = une petite IA écrit la pensée du jour (elle ne décide rien).", min: 0, max: 1 },
 ];
 export const SET = Object.fromEntries(SETTINGS.map(s => [s.id, 1]));
 const BASE = { shop: SHOP.map(x => x.prix) };
@@ -1765,3 +1766,57 @@ export function celebEvent(live) {
   return { lieu: L.lieu, titre: E[0], prix: E[1], bonheur: E[2], texte: L.texte };
 }
 export const CELEB_VISITS_PER_DAY = 3;
+
+// ---------------------------------------------------------------- pensée du jour (IA facultative)
+// Une petite IA peut écrire ce que le personnage pense aujourd'hui. Elle ne décide RIEN : les règles du jeu
+// (besoins, caractère, consignes, argent) restent seules à agir. Sans IA (démo, panne, quota), un texte
+// écrit à la main prend le relais. Une seule pensée par personnage et par jour.
+export const THOUGHT_MAX = 220;
+export const THOUGHT_MODEL = "@cf/meta/llama-3.1-8b-instruct";
+const THOUGHT_BANNED = /https?:|www\.|@|\b(sexe?|sexuel|nu(e|es)?|tuer|meurtre|suicide|drogue|cocaïne|arme|fusil|pistolet|viol)\b/i;
+const lc1 = s => s ? s.charAt(0).toLowerCase() + s.slice(1) : s;
+export function thoughtFacts(v, caractere = null) {
+  const p = (v && v.perso) || {}, b = p.besoins || {};
+  const car = CARACTERES.find(c => c.id === caractere);
+  const job = v && v.travail && (v.travail.emploiEntreprise ? v.travail.emploiEntreprise.poste || v.travail.emploiEntreprise.nom : (JOBS.find(j => j.id === v.travail.metier) || {}).nom);
+  return { prenom: p.prenom || "Il", fem: p.sexe === "F", age: Math.floor(p.age || 0), quartier: p.quartier || "Kinshasa", caractere: car ? car.nom : null,
+    metier: job || null, faim: b.hunger, energie: b.energy, moral: b.happiness, sante: b.health, makuta: p.makuta || 0,
+    faits: ((v && v.mouvements) || []).slice(0, 4).map(m => m.texte).filter(Boolean) };
+}
+// texte écrit à la main : le besoin le plus urgent d'abord, puis l'humeur selon le caractère
+export function thoughtFallback(F, now = Date.now()) {
+  const r = rng(hashStr("pensee" + dayKey(now) + F.prenom)), pick = a => a[Math.floor(r() * a.length)], e = F.fem ? "e" : "";
+  if (F.age < 3) return pick(["Maman, papa… j'ai envie de jouer.", "Tout est grand et bruyant dehors. J'aime regarder les gens."]);
+  if (F.sante !== undefined && F.sante < 40) return pick([`Je ne me sens pas bien. Si personne ne m'emmène au centre de santé, ça va empirer.`, `J'ai mal partout aujourd'hui. Il faut que je me soigne avant d'aller où que ce soit.`]);
+  if (F.faim !== undefined && F.faim < 30) return pick([`J'ai le ventre vide. Un bon plat de fumbwa au maquis, voilà tout ce que je demande.`, `La faim me tient depuis ce matin. Je ne pense qu'à manger.`]);
+  if (F.energie !== undefined && F.energie < 20) return pick([`Je suis épuisé${e}. Aujourd'hui, je rentre tôt dormir.`, `Mes jambes ne me portent plus. Un peu de repos, sinon je vais tomber.`]);
+  if (F.makuta < 100) return pick([`Les poches sont vides. Il faut que je trouve un petit boulot à ${F.quartier}.`, `Pas un makuta en trop. Je compte chaque dépense aujourd'hui.`]);
+  const byCar = {
+    "Travailleur": [`Le travail, c'est la seule route qui mène quelque part. Je commence tôt aujourd'hui.`],
+    "Paresseux": [`Pourquoi courir ? La journée est longue, je verrai bien.`],
+    "Généreux": [`Si je gagne un peu plus aujourd'hui, j'aiderai un voisin.`],
+    "Avare": [`Chaque makuta gardé est un makuta gagné. Pas de dépenses inutiles.`],
+    "Colérique": [`Que personne ne me cherche aujourd'hui, je n'ai pas la patience.`],
+    "Jaloux": [`Le voisin a encore acheté quelque chose de neuf… et moi alors ?`],
+    "Honnête": [`Je préfère peu gagner mais dormir tranquille.`],
+    "Rusé et malhonnête": [`Il y a toujours une affaire à faire pour qui garde les yeux ouverts.`],
+  };
+  const base = [`Kinshasa bouge déjà. Aujourd'hui, je veux avancer un peu plus qu'hier.`, `Il fait chaud à ${F.quartier}. Je vais voir ce que la journée me réserve.`,
+    F.metier ? `Encore une journée comme ${lc1(F.metier)}. Un jour, j'aurai mieux.` : `Je cherche encore ma voie. Peut-être une formation, peut-être un commerce.`];
+  return pick((F.caractere && byCar[F.caractere] || []).concat(base));
+}
+export function thoughtPrompt(F) {
+  const etat = [F.faim !== undefined && `faim ${100 - F.faim}/100`, F.energie !== undefined && `énergie ${F.energie}/100`, F.moral !== undefined && `moral ${F.moral}/100`, F.sante !== undefined && `santé ${F.sante}/100`].filter(Boolean).join(", ");
+  return [
+    { role: "system", content: "Tu écris la pensée intime du jour d'un personnage d'un jeu de simulation de vie à Kinshasa (RDC). Réponds en français simple, à la première personne, en une ou deux phrases courtes (moins de 200 caractères), sans guillemets. Tu peux glisser un mot de lingala courant. N'invente aucun événement, aucune somme d'argent, aucune personne réelle et aucune marque. Rien de violent, sexuel, haineux ou illégal. Ne donne aucun conseil réel." },
+    { role: "user", content: `Personnage : ${F.prenom}, ${F.fem ? "femme" : "homme"}, ${F.age} ans, quartier ${F.quartier}${F.caractere ? `, caractère ${F.caractere.toLowerCase()}` : ""}${F.metier ? `, métier ${lc1(F.metier)}` : ""}. État : ${etat || "normal"}. Ce qui lui est arrivé récemment : ${F.faits.length ? F.faits.join(" ; ") : "rien de spécial"}. Écris sa pensée du jour.` },
+  ];
+}
+// filtre de sortie : texte court, propre ; sinon null (le texte écrit à la main est utilisé)
+export function cleanThought(t) {
+  if (typeof t !== "string") return null;
+  let s = t.replace(/[\r\n]+/g, " ").replace(/^[\s"«“'*-]+|[\s"»”'*]+$/g, "").replace(/\s+/g, " ").trim();
+  if (s.length < 12 || THOUGHT_BANNED.test(s)) return null;
+  if (s.length > THOUGHT_MAX) { const cut = s.slice(0, THOUGHT_MAX), i = Math.max(cut.lastIndexOf(". "), cut.lastIndexOf("! "), cut.lastIndexOf("? ")); s = i > 40 ? cut.slice(0, i + 1) : cut.replace(/\s+\S*$/, "") + "…"; }
+  return s;
+}

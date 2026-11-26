@@ -129,7 +129,8 @@
     .co { border: 1px solid var(--line); border-radius: 12px; padding: 6px 12px 12px; margin-bottom: 10px; }
     .two-btn { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
     @media (max-width: 380px) { .acts { grid-template-columns: 1fr; } .hero { height: 280px; } }
-  </style>
+  .pensee-txt{font-size:16px;font-style:italic;line-height:1.45;margin:0 0 6px}
+</style>
 </head>
 <body>
   <div class="wrap">
@@ -181,6 +182,11 @@
       <nav class="quick" aria-label="Aller à">
         <button class="chip" data-to="dash" type="button">📊 Tableau de bord</button><button class="chip" data-to="nuit" type="button">☀️ Ma nuit</button><button class="chip" data-to="stars" type="button">⭐ Stars</button><button class="chip" data-to="goals" type="button">🎯 Objectifs</button><button class="chip" data-to="journal" type="button">📰 Journal</button><button class="chip" data-to="voisins" type="button">🏘️ Voisins</button><button class="chip" data-to="orders" type="button">📋 Consignes</button><button class="chip" data-to="moves" type="button">👣 Mouvements</button><button class="chip" data-to="needs" type="button">🍲 Manger</button><button class="chip" data-to="work" type="button">💼 Travail</button><button class="chip" data-to="school" type="button">🎓 École</button><button class="chip" data-to="companies" type="button">🏪 Entreprises</button><button class="chip" data-to="shop" type="button">🛍️ Magasin</button><button class="chip" data-to="inv" type="button">🏷️ Vendre</button><button class="chip" data-to="travel" type="button">🚕 Voyager</button><button class="chip" data-to="couple" type="button">💍 Couple</button><button class="chip" data-to="street" type="button">🧹 Petits boulots</button><button class="chip" data-to="home" type="button">🏠 Logement</button><button class="chip" data-to="market" type="button">🤝 Annonces</button><button class="chip" data-to="wallet" type="button">💰 Argent</button><button class="chip" data-to="state" type="button">🏛️ État et banques</button>
       </nav>
+
+      <div class="card" id="pensee-card" hidden>
+        <h2>💭 Pensée du jour</h2>
+        <div id="pensee"></div>
+      </div>
 
       <div class="card nuit" id="nuit-card" hidden>
         <h2>☀️ Pendant ton absence</h2>
