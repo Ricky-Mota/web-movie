@@ -349,11 +349,20 @@
     } else lampLights.forEach(L => { L.intensity = 0; });
   }
 
+  const FILL_TILES = [];
+  function fillCull() { const x = camera.position.x, z = camera.position.z; FILL_TILES.forEach(t => { const v = Math.abs(t.x - x) < 1300 && Math.abs(t.z - z) < 1300; if (t.ims[0].visible !== v) t.ims.forEach(m => { m.visible = v; }); }); }
   // ------------------------------------------------------------ Quartiers de remplissage (maisons basses, hors carte détaillée)
   if (WORLD.FILL && WORLD.FILL.length) {
     const fm = new THREE.MeshStandardMaterial({ map: wallTex(3, 2), roughness: .9 });
-    instanced(WORLD.FILL, box, fm, (o, p, s, c) => { p.set(o.x * S, 0, o.y * S); s.set(o.w * S, o.h * S, o.d * S); c.set(PAINT[o.c]); });
-    instanced(WORLD.FILL, new THREE.BoxGeometry(1, .3, 1), new THREE.MeshStandardMaterial({ roughness: .6, metalness: .4 }), (o, p, s, c) => { p.set(o.x * S, o.h * S + .15, o.y * S); s.set(o.w * S + .5, 1, o.d * S + .5); c.set(ROOF[o.c % ROOF.length]); });
+    // par tuiles de 1 km : seules les tuiles proches de la caméra sont dessinées (le brouillard cache le reste), léger sur téléphone
+    const tiles = new Map(), rm = new THREE.MeshStandardMaterial({ roughness: .6, metalness: .4 }), roofGeo = new THREE.BoxGeometry(1, .3, 1);
+    WORLD.FILL.forEach(o => { const k = Math.floor(o.x * S / 1000) + "_" + Math.floor(o.y * S / 1000); let t = tiles.get(k); if (!t) tiles.set(k, t = []); t.push(o); });
+    tiles.forEach((list, k) => {
+      const [i, j] = k.split("_").map(Number);
+      const a1 = instanced(list, box, fm, (o, p, s, c) => { p.set(o.x * S, 0, o.y * S); s.set(o.w * S, o.h * S, o.d * S); c.set(PAINT[o.c]); });
+      const a2 = instanced(list, roofGeo, rm, (o, p, s, c) => { p.set(o.x * S, o.h * S + .15, o.y * S); s.set(o.w * S + .5, 1, o.d * S + .5); c.set(ROOF[o.c % ROOF.length]); });
+      a1.frustumCulled = a2.frustumCulled = false; FILL_TILES.push({ x: (i + .5) * 1000, z: (j + .5) * 1000, ims: [a1, a2] });
+    });
   }
   // ------------------------------------------------------------ Repère : la tour de l'Échangeur (Limete)
   (MAP.landmarks || []).forEach(L => {
@@ -1265,6 +1274,41 @@
     wheels(g, L, Wd);
     return g;
   }
+  // ---- camions et motos (26/11) : dessinés ici, légers, mêmes règles de circulation que les voitures
+  const TRUCK_CAB = ["#e9e6df", "#c0392b", "#1d4fa0", "#f2c230", "#2f8f46"];
+  function bigWheels(g, xs, Wd, r) { xs.forEach(x => [1, -1].forEach(k => { const w = new THREE.Mesh(wheelGeo, wheelMat); w.scale.setScalar(r); w.position.set(x, .36 * r, k * Wd / 2); g.add(w); })); }
+  function makeTruck(c) {
+    const g = new THREE.Group(), L = c.hl * 2 * S, Wd = 2.3, cab = mat(TRUCK_CAB[c.tIdx % TRUCK_CAB.length]), cx = L / 2 - .95;
+    addBox(g, L - .2, .35, 1.3, -.1, .85, 0, mat("#2a2a2e"));   // châssis
+    addBox(g, 1.8, 1.6, Wd, cx, 1.85, 0, cab, true); addBox(g, .05, .75, Wd - .3, cx + .91, 2.15, 0, glass); [1, -1].forEach(k => addBox(g, .9, .6, .04, cx + .2, 2.2, k * (Wd / 2 + .01), glass));
+    addBox(g, .1, .18, .4, cx + .91, 1.2, .8, headMat); addBox(g, .1, .18, .4, cx + .91, 1.2, -.8, headMat); addBox(g, .06, .3, Wd, cx + .93, 1.35, 0, mat("#1b1b1f"));
+    const bl = L - 2.2, bx = -L / 2 + bl / 2 + .1;
+    if (c.truck === "citerne") { const t = new THREE.Mesh(new THREE.CylinderGeometry(1.05, 1.05, bl, 18), mat("#d7dde2", { metalness: .7, roughness: .25 })); t.rotation.z = Math.PI / 2; t.position.set(bx, 2.1, 0); t.castShadow = true; g.add(t); addBox(g, bl * .9, .12, .2, bx, 2.1, 1.06, mat("#c0392b")); }
+    else if (c.truck === "bache") { addBox(g, bl, .3, Wd, bx, 1.15, 0, mat("#5d4632")); addBox(g, bl, 1.9, Wd, bx, 2.25, 0, mat(["#2f6d3a", "#1d4fa0", "#8a6a3f"][c.tIdx % 3], { roughness: .95, metalness: 0 }), true); }
+    else { addBox(g, bl, .25, Wd, bx, 1.15, 0, mat("#e8711a")); [1, -1].forEach(k => addBox(g, bl, 1.0, .08, bx, 1.75, k * Wd / 2, mat("#e8711a"))); addBox(g, .08, 1.0, Wd, bx - bl / 2, 1.75, 0, mat("#e8711a")); addBox(g, bl * .9, .5, Wd * .85, bx, 1.5, 0, mat("#9a7b55", { roughness: 1, metalness: 0 })); }   // benne de sable
+    addBox(g, .08, .16, .4, -L / 2 + .05, 1.0, .9, tailMat); addBox(g, .08, .16, .4, -L / 2 + .05, 1.0, -.9, tailMat);
+    bigWheels(g, [cx, -L / 2 + 1.4, -L / 2 + 2.4], Wd - .1, 1.35);
+    return g;
+  }
+  const MOTO_COL = ["#c0392b", "#111318", "#1d4fa0", "#d4af37", "#7f8c8d"], SKINS_M = ["#3b2414", "#5a3825", "#2a1a10", "#6b4423"], SHIRTS_M = ["#f4f4f2", "#1e3a8a", "#c0392b", "#16a085", "#e8a317", "#5b2a86"];
+  function rider(g, x, k, vest) {   // un motard assis : jambes, buste, bras sur le guidon, casque (ou pas)
+    const sk = mat(SKINS_M[k % 4], { metalness: 0, roughness: .7 }), sh = mat(vest ? "#f2d12e" : SHIRTS_M[k % 6], { metalness: 0, roughness: .9 }), pt = mat(["#1b1b1f", "#2b3a55", "#4a3b2a"][k % 3], { metalness: 0, roughness: .9 });
+    addBox(g, .45, .16, .36, x + .05, .92, 0, pt); [1, -1].forEach(s2 => { addBox(g, .14, .5, .13, x + .3, .62, s2 * .2, pt); addBox(g, .22, .08, .12, x + .38, .38, s2 * .2, mat("#111")); });
+    const b = addBox(g, .26, .62, .4, x, 1.3, 0, sh, true); b.rotation.z = -.25;
+    [1, -1].forEach(s2 => { const ar = addBox(g, .5, .1, .1, x + .3, 1.38, s2 * .24, sh); ar.rotation.z = -.35; });
+    const hd = new THREE.Mesh(new THREE.SphereGeometry(.13, 10, 8), sk); hd.position.set(x + .1, 1.75, 0); g.add(hd);
+    if (k % 3) { const hm = new THREE.Mesh(new THREE.SphereGeometry(.16, 10, 8, 0, Math.PI * 2, 0, Math.PI / 1.7), mat(["#111", "#c0392b", "#f4f4f2"][k % 3], { roughness: .3 })); hm.position.set(x + .1, 1.77, 0); g.add(hm); }
+  }
+  function makeMoto(c) {
+    const g = new THREE.Group(), body = mat(MOTO_COL[c.tIdx % MOTO_COL.length]), tyre = mat("#141414", { roughness: .9, metalness: 0 }), ch = mat("#9aa3ab", { metalness: .8, roughness: .3 });
+    [.65, -.65].forEach(x => { const w = new THREE.Mesh(new THREE.TorusGeometry(.27, .07, 8, 18), tyre); w.position.set(x, .32, 0); g.add(w); const hub = new THREE.Mesh(new THREE.CylinderGeometry(.12, .12, .08, 12), ch); hub.rotation.x = Math.PI / 2; hub.position.set(x, .32, 0); g.add(hub); });
+    addBox(g, 1.05, .14, .14, 0, .55, 0, ch); const fk = addBox(g, .06, .6, .06, .58, .6, 0, ch); fk.rotation.z = .35;
+    addBox(g, .45, .25, .3, .2, .82, 0, body, true); addBox(g, .3, .28, .26, -.05, .5, 0, mat("#2a2a2e"));   // réservoir, moteur
+    addBox(g, .7, .1, .3, -.3, .9, 0, mat("#1b1b1f")); addBox(g, .06, .06, .62, .5, 1.12, 0, mat("#1b1b1f")); addBox(g, .05, .1, .16, .62, .98, 0, headMat); addBox(g, .04, .07, .12, -.72, .82, 0, tailMat);
+    addBox(g, .5, .05, .05, -.45, .4, .14, ch);   // pot d'échappement
+    rider(g, -.18, c.tIdx, c.wewa); if (c.pass) rider(g, -.55, c.tIdx + 2, false);
+    return g;
+  }
   const doorMat = new THREE.MeshPhysicalMaterial({ color: "#20303f", metalness: .6, roughness: .15, transparent: true, opacity: .85 });
   const doorFrameMat = new THREE.MeshStandardMaterial({ color: "#070a0e", roughness: .9 });
   function addBusDoor(m, c) { // porte double : deux battants qui coulissent quand le bus s'arrête
@@ -1294,13 +1338,16 @@
     if (!m) {
       if (C3) {
         const hi = mine || d < LOD_NEAR, o = { lod: hi ? "high" : "low", shadow: hi && (mine || !MOBILE) };
+        if (c.truck) m = makeTruck(c); else if (c.moto) m = makeMoto(c); else
         if (mine) m = C3.build(c.carDef.id, Object.assign(o, { color: c.carDef.color }));
         else if (c.kind === "cop" || c.kind === "block") m = C3.build("police", o);
         else if (c.bus) m = C3.bus();
         else if (c.taxi) m = C3.build("taxi", o);
         else m = C3.build(["sedan", "suv", "hatch"][c.tIdx % 3], Object.assign(o, { color: TRAFFIC_COLS[c.tIdx % TRAFFIC_COLS.length] }));
-        if (!c.bus) m.userData.hi = hi;
+        if (!c.bus && !c.truck && !c.moto) m.userData.hi = hi;
       }
+      else if (c.truck) m = makeTruck(c);
+      else if (c.moto) m = makeMoto(c);
       else if (c.kind === "player") m = makeCarModel("car", c.carDef.color, { low: true, spoiler: ["kasai", "gombe", "kivu"].includes(c.carDef.id) });
       else if (c.kind === "cop" || c.kind === "block") m = makeCarModel("police", "#f2f4f8");
       else if (c.bus) m = makeCarModel("bus");
@@ -1784,7 +1831,7 @@
     updateLights(G);
     updateShops(G);
     updatePlaces(G);
-    skyG.position.copy(camera.position); renderer.render(scene, camera);
+    fillCull(); skyG.position.copy(camera.position); renderer.render(scene, camera);
   }
 
   // Vue d'attente derrière le menu : survol lent de la ville
@@ -1796,7 +1843,7 @@
     camera.fov = 55; camera.updateProjectionMatrix();
     camera.position.set(cx + Math.cos(a) * 260, 80, cz + Math.sin(a) * 260); camera.lookAt(cx, 10, cz);
     sunLight.position.set(cx - 120, 140, cz - 80); sunLight.target.position.set(cx, 0, cz);
-    skyG.position.copy(camera.position); renderer.render(scene, camera);
+    fillCull(); skyG.position.copy(camera.position); renderer.render(scene, camera);
   }
   requestAnimationFrame(idle);
 

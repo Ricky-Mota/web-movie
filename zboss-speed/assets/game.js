@@ -319,6 +319,33 @@
       LIGHT_AT.set(i, L); LIGHTS.push(L);
     });
   })();
+  // habitations périphériques (26/11) : les parcelles des quartiers populaires bordent les rues hors de la Gombe,
+  // puis un second rang remplit les terrains nus. Posées après les lieux, bancs et parkings : rien d'existant ne bouge.
+  (function () {
+    const pr = rng(9091), y0 = H * .28, MAXN = 22000; let n = 0;
+    const free = (xa, ya, xb, yb) => { if (xa < 0 || ya < 0 || xb >= W || yb >= H) return false; for (let y = ya; y <= yb; y += C) for (let x = xa; x <= xb; x += C) if (mask[(y / C | 0) * MW + (x / C | 0)] !== 0) return false; return true; };
+    const near = (A, x, y, r) => A.some(o => Math.abs(o.x - x) < r && Math.abs(o.y - y) < r);
+    const put = (x, y, w, d) => {
+      if (n >= MAXN || y < y0 || !free(x - w / 2 - 14, y - d / 2 - 14, x + w / 2 + 14, y + d / 2 + 14)) return false;
+      if (near(PLACES, x, y, 420) || near(PARKED, x, y, 90) || near(BENCHES, x, y, 70) || near(BILLBOARDS, x, y, 90) || near(LIGHTS, x, y, 160) || near(SHOPS, x, y, 400)) return false;
+      FILL.push({ x, y, w, d, h: 26 + pr() * 14, c: (pr() * 12) | 0, peri: true }); n++;
+      for (let yy = y - d / 2; yy < y + d / 2; yy += C) for (let xx = x - w / 2; xx < x + w / 2; xx += C) mask[(yy / C | 0) * MW + (xx / C | 0)] = 2;
+      return true;
+    };
+    ROADS.forEach(r => {
+      if (!["residential", "tertiary", "unclassified", "secondary", "living_street"].includes(r.cls)) return;
+      for (let k = 2; k < r.p.length; k += 2) {
+        const ax = r.p[k - 2], ay = r.p[k - 1], bx = r.p[k], by = r.p[k + 1], L = Math.hypot(bx - ax, by - ay); if (L < 140) continue;
+        const ux = (bx - ax) / L, uy = (by - ay) / L;
+        for (let t = 60; t < L - 60; t += 115 + pr() * 35) for (const sd of [-1, 1]) {
+          const w = 78 + pr() * 40, d = 70 + pr() * 34, off = r.w / 2 + 34 + Math.max(w, d) / 2;
+          put(ax + ux * t - uy * off * sd, ay + uy * t + ux * off * sd, w, d);
+        }
+      }
+    });
+    for (let gy = y0; gy < H - 160; gy += 165) for (let gx = 160; gx < W - 160; gx += 165) put(gx + (pr() - .5) * 40, gy + (pr() - .5) * 40, 74 + pr() * 36, 66 + pr() * 30);
+    FILL.periN = n;
+  })();
   // cycle de 24 s : axe A vert 10 s, orange 2 s, puis axe B
   function lightState(L, t) { const k = ((t + L.ph) % 24 + 24) % 24; return { a: k < 10 ? "g" : k < 12 ? "y" : "r", b: k < 12 ? "r" : k < 22 ? "g" : "y" }; }
   function redFor(L, a, t) { const s = lightState(L, t); return Math.abs(Math.cos(a - L.ax)) > .7 ? s.a : s.b; }
@@ -533,6 +560,8 @@
       if ([...G.traffic, ...G.parked, ...G.cops].some(o => Math.abs(o.x - x) < 50 && Math.abs(o.y - y) < 50)) continue;   // jamais sur une autre voiture
       const c = makeCar("traffic", x, y, a, { maxSpeed: WALK ? ROAD.npc() : 150 + rand() * 90, accel: 260, steerMax: 2.2, dmgMul: 1, mass: .8, grip: 9 });
       c.from = from; c.to = to; c.tIdx = (rand() * TRAFFIC_SPRITES.length) | 0; c.sprite = TRAFFIC_SPRITES[c.tIdx]; c.bus = rand() < .12; c.taxi = !c.bus && rand() < .38; if (c.bus) { c.maxSpeed *= .8; Object.assign(c, { hl: BUS_HL, hw: BUS_HW, offs: BUS_OFF, mass: 3 }); }
+      // camions (benne, bâché, citerne) et motos (dont les motos-taxis « wewa ») : mêmes feux, même code de la route
+      if (WALK && !c.bus) { const k = rand(); if (k < .09) { c.taxi = false; c.truck = ["benne", "bache", "citerne"][(rand() * 3) | 0]; c.maxSpeed = ROAD.truck(); Object.assign(c, { hl: 30, hw: 11, offs: [-20, 0, 20], mass: 3.5, accel: 150 }); } else if (k < .3) { c.taxi = false; c.moto = true; c.wewa = rand() < .6; c.pass = c.wewa && rand() < .6; Object.assign(c, { hl: 10, hw: 4, offs: [0], mass: .35, accel: 300 }); } }
       const sp = c.maxSpeed * .7; c.vx = Math.cos(a) * sp; c.vy = Math.sin(a) * sp;
       G.traffic.push(c); return;
     }
@@ -976,7 +1005,7 @@
   // En ville : 50 km/h (x 0,45 = km/h dans les unités du jeu), arrêt au feu rouge, priorité aux piétons, distance de sécurité.
   // Les voitures, taxis et bus du jeu respectent ces règles. Le joueur qui conduit lui-même est verbalisé :
   // feu rouge grillé (agent de la circulation à chaque feu), excès de vitesse vu par la police, contrôle du permis.
-  const ROAD = { limitKmh: 50, limitU: 50 / .45, bus: 42 / .45, npc: () => (44 + rand() * 6) / .45 };
+  const ROAD = { limitKmh: 50, limitU: 50 / .45, bus: 42 / .45, npc: () => (44 + rand() * 6) / .45, truck: () => (36 + rand() * 4) / .45 };   // poids lourds : 40 km/h en ville
   function roadRules(dt) {
     const p = G.player; if (!WALK || G.foot || G.auto || !p) return;
     const sp = Math.hypot(p.vx, p.vy), kmh = Math.round(sp * .45), R = G.road || (G.road = { inL: new Set(), cdV: 0, cdC: 0, cdF: 0, hint: 0 });
