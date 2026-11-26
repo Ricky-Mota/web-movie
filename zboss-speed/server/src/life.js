@@ -156,6 +156,9 @@ export const SHOP = [
   { id: "pantalon-beige", nom: "Pantalon beige", type: "vetement", slot: "bas", prix: 130, couleur: "#c9b28c" },
   { id: "baskets-blanches", nom: "Baskets blanches", type: "vetement", slot: "pieds", prix: 180, couleur: "#eeeeee" },
   { id: "sandales", nom: "Sandales", type: "vetement", slot: "pieds", prix: 40, couleur: "#6b4a2f" },
+  // maillots de bain (26/11) : obligatoires pour nager à la piscine
+  { id: "maillot-bleu", nom: "Maillot de bain bleu", type: "vetement", slot: "bain", prix: 80, couleur: "#1f6fd1" },
+  { id: "maillot-wax", nom: "Maillot de bain en wax", type: "vetement", slot: "bain", prix: 150, couleur: "#e8a317" },
   // téléphones
   { id: "tel-simple", nom: "Téléphone simple", type: "telephone", prix: 300, effet: { bonheur: 8 }, minAge: 10 },
   { id: "smartphone", nom: "Smartphone", type: "telephone", prix: 1500, effet: { bonheur: 15 }, minAge: 12 },
@@ -514,22 +517,21 @@ export function neglectStealChance(unpaidDays, hunger) {
 }
 
 // ---------------------------------------------------------------- lancement du jeu
-// Le jeu ne s'ouvre aux naissances qu'une fois toutes les conditions réunies ; l'administrateur appuie alors sur « Démarrer ».
+// Règle du 26/11 : le jeu démarre quand l'administrateur appuie sur « Lancer le jeu ». Le bouton n'est cliquable
+// qu'une fois 100 personnages réels inscrits par de vraies personnes et au moins 10 entreprises ouvertes (pas de démarrage automatique).
 // Pour ajouter une condition plus tard : une ligne ici, et son compteur côté serveur (launchCounts).
 export const LAUNCH_RULES = [
-  { id: "parents", label: "Parents fondateurs ajoutés par l'administrateur", min: 20 },
-  { id: "investisseurs", label: "Investisseurs inscrits", min: 10 },
-  { id: "entreprises", label: "Entreprises ouvertes", min: 20 },
-  { id: "date", label: "Date d'ouverture officielle", min: 1 },
+  { id: "joueurs", label: "Personnages réels inscrits par de vraies personnes", min: 100 },
+  { id: "entreprises", label: "Entreprises ouvertes", min: 10 },
 ];
 // counts : { parents, investisseurs, entreprises } ; openingDate : date fixée par l'administrateur (ms) ou null
 export function launchStatus(counts, startedAt, openingDate = null, now = Date.now()) {
-  const c = { ...counts, date: openingDate && now >= openingDate ? 1 : 0 };
+  const c = { ...counts };
   const conditions = LAUNCH_RULES.map(r => ({ ...r, actuel: c[r.id] || 0, ok: (c[r.id] || 0) >= r.min }));
-  return { demarre: !!startedAt, demarreLe: startedAt || null, dateOuverture: openingDate || null, pret: conditions.every(x => x.ok), conditions };
+  return { demarre: !!startedAt, demarreLe: startedAt || null, dateOuverture: openingDate || null, pret: conditions.every(x => x.ok), manuel: true, conditions };
 }
-// avant le lancement, seuls les investisseurs peuvent s'inscrire (les parents fondateurs sont créés par l'administrateur)
-export function canSignupBeforeLaunch(formule) { return OFFERS.some(o => o.id === formule && o.type === "investissement"); }
+// avant le lancement, tout le monde peut s'inscrire (pré-inscription) : il faut 100 vrais inscrits pour pouvoir lancer
+export function canSignupBeforeLaunch(formule) { return OFFERS.some(o => o.id === formule); }
 
 // ---------------------------------------------------------------- entreprises
 // prix en makuta (20 makuta = 1 e-makuta). Les recettes et les embauches viendront à l'étape suivante.

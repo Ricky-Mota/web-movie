@@ -1652,7 +1652,7 @@
     } else if (t === "ledwall") {   // écran LED géant : nom du lieu + égaliseur qui bat au rythme de la musique
       const ww = w, hh = m.big ? 3.6 : 1.7, y0 = m.big ? 1.2 + hh / 2 : 1.25 + hh / 2;
       B(ww + .12, hh + .12, .08, 0, y0, .04, RMAT.black);
-      pplane(g, ww, hh, new THREE.MeshBasicMaterial({ map: PL.txt(1024, 420, "#09000f", [{ t: m.label || "LIVE", f: "900 120px 'Chakra Petch', Impact, sans-serif", c: "#ffffff", y: .34, glow: 18 }, { t: m.big ? "EN CONCERT CE SOIR · RUMBA · NDOMBOLO" : "NDOMBOLO · RUMBA · AFRO", f: "800 46px Inter, Arial, sans-serif", c: "#ffd23f", y: .66 }]) }), 0, y0 + hh * .18, .09, 0);
+      pplane(g, ww, hh, new THREE.MeshBasicMaterial({ map: PL.txt(1024, 420, "#09000f", [{ t: m.label || "LIVE", f: "900 120px 'Chakra Petch', Impact, sans-serif", c: "#ffffff", y: .34, glow: 18 }, { t: m.sub || (m.big ? "EN CONCERT CE SOIR · RUMBA · NDOMBOLO" : "NDOMBOLO · RUMBA · AFRO"), f: "800 46px Inter, Arial, sans-serif", c: "#ffd23f", y: .66 }]) }), 0, y0 + hh * .18, .09, 0);
       const nb = Math.round(ww / .25), cols = ["#ff2bd6", "#18e0ff", "#ffd23f", "#7dff8a"];
       for (let i = 0; i < nb; i++) { const b = new THREE.Mesh(new THREE.BoxGeometry(ww / nb * .7, 1, .02), PL.glow(cols[i % 4])); b.position.set(-ww / 2 + (i + .5) * ww / nb, y0 - hh / 2 + .05, .1); b.userData.h = hh * .3; g.add(b); ROOM3.eq.push(b); }
     } else if (t === "lasers") {   // projecteurs laser au plafond : faisceaux colorés qui balaient la salle

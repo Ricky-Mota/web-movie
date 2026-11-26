@@ -96,12 +96,15 @@
     .btn.ghost { background: none; border: 1px solid var(--line); color: var(--muted); }
     .back { width: 36px; height: 36px; border-radius: 12px; border: 1px solid var(--line); background: var(--panel); color: var(--text); font-size: 18px; line-height: 1; margin-right: 2px; }
     .started { color: var(--ok); font-family: var(--font-d); font-size: 22px; }
+    .btn.launch { width: 100%; margin-top: 16px; font-size: 18px; padding: 16px; background: #3a3f4a; color: #9aa3b2; cursor: not-allowed; }
+    .btn.launch.ready { background: linear-gradient(135deg, #ff5a1f, #ffb21f); color: #160a02; cursor: pointer; box-shadow: 0 0 0 3px rgba(255,178,31,.25), 0 8px 24px rgba(255,90,31,.35); }
+    .launch-why { font-size: 13px; margin-top: 8px; }
   </style>
 </head>
 <body>
   <div class="wrap">
     <header class="top">
-      <div class="brand"><button class="back" type="button" onclick="history.length > 1 ? history.back() : location.href = 'index.html'" aria-label="Retour à la page précédente">←</button><img src="assets/icons/2life.svg" alt=""> 2 Life</div>
+      <div class="brand"><button class="back" type="button" onclick="history.length > 1 ? history.back() : location.href = 'index.html'" aria-label="Retour à la page précédente">←</button><img src="assets/icons/2life.svg" alt=""> <span class="wm">2<b>LIFE</b></span></div>
       <span class="pill" id="mode">Administration</span>
     </header>
 
@@ -127,7 +130,7 @@
           <div class="two"><input id="d-date" type="datetime-local"><button class="btn ghost" type="submit" style="margin-top:0">Fixer la date</button></div>
         </form>
         <div id="demo-tools" hidden>
-          <p class="sim">Démo : tout est gardé dans ce navigateur. Tu peux remplir les listes automatiquement pour montrer le démarrage.</p>
+          <p class="sim">Démo : tout est gardé dans ce navigateur. Tu peux remplir automatiquement (100 inscrits, 10 entreprises) pour essayer le bouton « Lancer le jeu ».</p>
           <div class="two">
             <button class="btn ghost" id="b-fill" type="button">Remplir automatiquement</button>
             <button class="btn ghost" id="b-reset" type="button">Tout remettre à zéro</button>
@@ -272,6 +275,7 @@
   </div>
   <div class="toast" id="toast" hidden role="status"></div>
   <script src="config.js"></script>
+  <script src="assets/nav.js"></script>
   <script type="module" src="assets/admin.js"></script>
 </body>
 </html>

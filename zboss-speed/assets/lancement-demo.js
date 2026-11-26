@@ -11,16 +11,15 @@ export const launchDemo = {
   save: write,
   status(L = this.get()) {
     const now = Date.now();
-    const S = launchStatus({ parents: L.parents.length, investisseurs: new Set(L.investisseurs.map(i => i.email)).size, entreprises: L.entreprises.length }, L.demarreLe, L.dateOuverture, now);
-    if (!S.demarre && S.pret) { L.demarreLe = now; write(L); return { ...S, demarre: true, demarreLe: now }; } // démarrage automatique
-    return S;
+    const joueurs = L.parents.length + new Set(L.investisseurs.map(i => i.email)).size + (L.joueurs || 0);
+    return launchStatus({ joueurs, entreprises: L.entreprises.length }, L.demarreLe, L.dateOuverture, now);   // pas de démarrage automatique
   },
   // message identique au serveur quand une inscription arrive trop tôt
   refusal(formule) {
     const S = this.status();
     if (S.demarre || canSignupBeforeLaunch(formule)) return null;
     const miss = S.conditions.filter(c => !c.ok).map(c => `${c.label.toLowerCase()} : ${c.actuel}/${c.min}`).join(", ");
-    return `Le jeu n'a pas encore démarré (${miss || "en attente du lancement"}). Les investisseurs peuvent déjà s'inscrire.`;
+    return `Le jeu n'a pas encore démarré (${miss || "en attente du lancement"}).`;
   },
   addInvestor(pseudo, email, offre) {
     const L = this.get(), o = OFFERS.find(x => x.id === offre);
@@ -109,11 +108,11 @@ export const launchDemo = {
         const w = newIdentity(r), n = L.investisseurs.length + 1, o = OFFERS.find(x => x.id === (n % 4 ? "petit" : "grand"));
         L.investisseurs.push({ pseudo: `${w.lastName}${n}`, email: `investisseur${n}@demo.2life`, offre: o.id, usd: o.usd, le: Date.now() });
       }
-      while (L.entreprises.length < 20) {
+      L.joueurs = Math.max(0, 100 - L.parents.length - new Set(L.investisseurs.map(i => i.email)).size);   // démo : 100 inscrits en tout
+      while (L.entreprises.length < 10) {
         const t = COMPANY_TYPES[L.entreprises.length % 5], w = newIdentity(r);
         L.entreprises.push({ nom: `${t.nom} ${w.lastName}`, type: t.id, quartier: w.quartier, proprietaire: `${w.firstName} ${w.lastName}`, cree_le: Date.now() });
       }
-      if (!L.dateOuverture) L.dateOuverture = Date.now() + 2 * 60e3; // démo : ouverture dans 2 minutes
       write(L); return etat();
     }
     if (path === "/api/admin/reinitialiser") { write(null); localStorage.removeItem(KEY); return { ok: true, lancement: this.status(), parents: [], investisseurs: [], entreprises: [], demo: true }; }

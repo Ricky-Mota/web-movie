@@ -26,12 +26,18 @@ function show(admin) { $("v-login").hidden = admin; $("v-admin").hidden = !admin
 
 function render(e) {
   const L = e.lancement;
-  $("state").innerHTML = (L.demarre ? `<p class="started">Le jeu a démarré le ${day(L.demarreLe)}.</p><p>Les naissances sont ouvertes : chaque nouveau bébé arrive dans la famille d'un parent joueur.</p>` : "") +
-    L.conditions.map(c => c.id === "date" ? `<div class="cond"><div class="need">${esc(c.label)} <b>${L.dateOuverture ? when(L.dateOuverture) : "à fixer"}</b></div>
-      <small class="${c.ok ? "ok-badge" : "wait-badge"}">${c.ok ? "Date atteinte" : L.dateOuverture ? `Dans ${wait(L.dateOuverture - Date.now())}` : "Choisis la date ci-dessous"}</small></div>` : `<div class="cond"><div class="need">${esc(c.label)} <b>${c.actuel} / ${c.min}</b><div class="bar"><i class="${c.ok ? "" : "mid"}" style="width:${Math.min(100, c.actuel / c.min * 100)}%"></i></div></div>
+  const miss = L.conditions.filter(c => !c.ok);
+  $("state").innerHTML = (L.demarre ? `<p class="started">🚀 Le jeu a été lancé le ${day(L.demarreLe)}.</p><p>Les naissances sont ouvertes : chaque nouveau bébé arrive dans la famille d'un parent joueur.</p>` : "") +
+    L.conditions.map(c => `<div class="cond"><div class="need">${esc(c.label)} <b>${c.actuel} / ${c.min}</b><div class="bar"><i class="${c.ok ? "" : "mid"}" style="width:${Math.min(100, c.actuel / c.min * 100)}%"></i></div></div>
       <small class="${c.ok ? "ok-badge" : "wait-badge"}">${c.ok ? "Condition remplie" : `Encore ${c.min - c.actuel}`}</small></div>`).join("") +
-    `<p style="font-size:13px;margin-top:12px">Le jeu démarre tout seul à la date d'ouverture si toutes les conditions sont réunies. Sinon il démarre dès que la dernière condition est remplie.</p>`;
-  $("f-date").hidden = L.demarre;
+    (L.demarre ? "" : `<button class="btn launch${L.pret ? " ready" : ""}" id="b-launch" type="button" ${L.pret ? "" : "disabled aria-disabled=\"true\""}>🚀 Lancer le jeu</button>
+      <p class="launch-why">${L.pret ? "Toutes les conditions sont réunies : le bouton est actif. Le lancement ouvre les naissances à tout le monde et ne peut pas être annulé." : "Le bouton deviendra cliquable quand " + miss.map(c => `${c.label.toLowerCase()} atteindra ${c.min} (encore ${c.min - c.actuel})`).join(" et ") + ". Les inscriptions sont déjà ouvertes en attendant."}</p>`);
+  $("f-date").hidden = true;
+  const lb = $("b-launch"); if (lb) lb.onclick = async () => {
+    if (!L.pret) return;
+    if (!confirm("Lancer 2 Life maintenant ? Les naissances seront ouvertes à tout le monde. Cette action ne peut pas être annulée.")) return;
+    try { await call("/api/admin/demarrer", {}); await load(); toast("🚀 2 Life est lancé !"); } catch (er) { toast(er.message); }
+  };
   if (L.dateOuverture && !$("d-date").value) $("d-date").value = local(L.dateOuverture);
   const ent = e.entreprises || [];
   $("n-ent").textContent = ent.length;

@@ -1419,7 +1419,7 @@
       if (g) { A.seen.push(g.id); return toPlace(g); }
     }
     if (mode === "courses" || mode === "soiree") {
-      const types = mode === "courses" ? ["alim", "magasin", "marche"] : rand() < .45 ? ["concert"] : ["club"];
+      const types = mode === "courses" ? ["alim", "magasin", "marche"] : rand() < (starNight() ? .85 : .45) ? ["concert"] : ["club"];
       let list = PLACES.filter(o => types.includes(o.type) && !A.seen.includes(o.id) && isOpen(o, G.hour));
       if (!list.length) { A.seen = []; list = PLACES.filter(o => types.includes(o.type) && isOpen(o, G.hour)); }
       const o = list.sort((a, b) => Math.hypot(a.x - f.x, a.y - f.y) - Math.hypot(b.x - f.x, b.y - f.y))[0];
@@ -1538,10 +1538,12 @@
       A.phase = "visit"; A.wait = 1e9; A.doing = "🪩 Il danse au " + d.nom; return;
     }
     if ((t === "concert" || t === "piscine") && isOpen(o, G.hour) && A.mode !== "vol") {
-      const tk = t === "concert" ? 8 : 4, drink = (rand() * 6) | 0;
-      if (!pay(tk + drink, (t === "concert" ? "billet de concert à " : "entrée à la ") + d.nom + (drink ? " et boissons" : ""))) { note((t === "concert" ? "🎤 " : "🏊 ") + "Pas assez d'argent pour entrer à " + d.nom + ".", "alert"); A.phase = "visit"; A.wait = 3; return; }
+      const star = t === "concert" && starNight(), tk = t === "concert" ? (star ? STAR_PRICE : CONCERT_PRICE) : 4, drink = (rand() * 6) | 0;
+      if (!pay(tk + drink, (t === "concert" ? (star ? "billet soirée star (" + starName() + ") à " : "billet de concert à ") : "entrée à la ") + d.nom + (drink ? " et boissons" : ""))) { note((t === "concert" ? "🎤 " : "🏊 ") + "Pas assez d'argent pour entrer à " + d.nom + ".", "alert"); A.phase = "visit"; A.wait = 3; return; }
       if (t === "concert" && rand() < .4) flirt();
-      A.phase = "visit"; A.wait = 1e9; A.doing = t === "concert" ? "🎤 Il danse au concert à " + d.nom : "🏊 Il nage et bronze à " + d.nom; return;
+      if (star) note("⭐ Soirée star : " + starName() + " chante ce soir à " + d.nom + " ! Billet " + STAR_PRICE + " e-makuta.", "ok");
+      if (t === "piscine" && !hasSwimsuit()) note("🩱 Pas de maillot de bain : il ne peut pas nager, il reste au bord (maillot en vente dans la boutique de « Ma vie »).", "alert");
+      A.phase = "visit"; A.wait = 1e9; A.doing = t === "concert" ? (star ? "⭐ Soirée star : " + starName() + " en concert" : "🎤 Il danse au concert à " + d.nom) : hasSwimsuit() ? "🏊 Il nage et bronze à " + d.nom : "🏊 Il bronze au bord de la piscine (pas de maillot)"; return;
     }
     if (t === "marche") { msg("🧺 Au marché : il compare les prix des légumes et du poisson, puis discute avec les commerçantes.", 4.5); A.phase = "visit"; A.wait = 10 + rand() * 6; A.doing = "Courses au marché"; return; }
     if (d.guide) { msg("📸 " + d.icone + " " + d.nom + " : " + d.guide, 6, "ok"); A.phase = "visit"; A.wait = 6 + rand() * 3; A.doing = "Tourisme : " + d.nom; return; }
@@ -2025,6 +2027,7 @@
     if (h >= 11 && (me.charisme >= 6 || ["drôle", "fier", "bavard"].includes(me.car))) add("draguer", (me.conjoint ? (me.honnete < 40 ? .8 : .2) : 2.5) / (1 + 2 * relations.get().filter(r => r.amour && !r.epouse).length), relations.get().some(r => r.amour) ? "il a déjà quelqu'un, mais il aime plaire" : "il veut séduire quelqu'un");
     { const lv = lover(); if (lv && h >= 12) add("rendezvous", lv.epouse ? 2 : lv.fiance ? 6 : 4, lv.epouse ? "il veut passer du temps avec sa femme" : lv.fiance ? "il pense à son mariage avec " + lv.nom.split(" ")[0] : "il est amoureux de " + lv.nom.split(" ")[0]); }
     if ((me.honnete >= 60 || me.car === "généreux") && me.argent >= 30) add("aider", me.car === "généreux" ? 4 : 1.5, "il a bon cœur et un peu d'argent");
+    if (h >= 19 && starNight() && me.argent >= STAR_PRICE + 2) add("soiree", likes("rumba") || likes("danse") ? 9 : 4, "c'est la soirée star : " + starName() + " chante ce soir");
     if (h >= 20 && me.argent >= 10) { add("soiree", likes("rumba") || likes("danse") || ["drôle", "bavard", "fier"].includes(me.car) ? 6 : 1.5, likes("rumba") ? "il aime la rumba" : "c'est le soir, il a envie de sortir"); add("repos", 2, "la journée a été longue"); }
     if (h >= 11 && h < 17 && me.argent >= 10) add("piscine", me.force >= 6 || likes("sport") ? 3 : 1.2, G.hour >= 12 && G.hour < 16 ? "il fait chaud : il va se rafraîchir à la piscine" : "il a envie de nager");
     if (h >= 7 && h < 12 && me.car === "ambitieux") add("travail", 5, "il est ambitieux : il va travailler");
@@ -2327,6 +2330,19 @@
     piscine: [60, 200, .45, false, ["nage dans la piscine", "bronze sur un transat", "boit un cocktail au bar"]],
   };
   const CAP = { club: 26, concert: 40, piscine: 20 };   // clients à l'intérieur en même temps (ambiance)
+  const capOf = o => o.type === "concert" && starNight() ? 55 : CAP[o.type];
+  // ---- soirée star (26/11) : chaque samedi soir, une célébrité de la musique du jeu chante à la salle de concert ; billet plus cher
+  const STAR_PRICE = 20, CONCERT_PRICE = 8;
+  let STAR = null, starLoading = false;
+  function starNight() { const dow = ((G.day + 4) % 7 + 7) % 7; return (dow === 6 && G.hour >= 12) || (dow === 0 && G.hour < 1); }
+  function loadStar() {
+    if (STAR || starLoading) return; starLoading = true;
+    const pickM = list => { const m = list.filter(c => c.domaine === "musique"); const wk = Math.floor(Date.now() / 6048e5); const c = m.find(x => x.joueur) || m[wk % Math.max(1, m.length)]; if (c) STAR = { nom: c.prenom + " " + c.nom, titre: c.titre || "Chanteur de rumba", joueur: !!c.joueur, fem: c.sexe === "F" }; };
+    const API = (window.TWO_LIFE_API || "").replace(/\/$/, "");
+    (API ? fetch(API + "/api/celebrites").then(r => r.json()).then(j => pickM(j.celebrites || [])) : import("../server/src/life.js").then(m => pickM(m.pickCelebrities({}, Date.now()).celebrites)))
+      .catch(() => { STAR = { nom: "Fally Mbuta", titre: "Chanteur de rumba" }; });
+  }
+  const starName = () => (STAR || { nom: "la star de la semaine" }).nom;
   const RESTO_T = [25, 60, .5, false, ["mange du poulet mayo", "mange du pondu avec de la chikwangue", "boit un jus de gingembre"]];
   const lifeT = o => o.resto ? RESTO_T : LIFE_T[o.type];
   const lifeOf = o => o.life || (o.life = { inside: [], door: 0, hold: 0, open: true, queue: [], crew: [] });
@@ -2394,7 +2410,7 @@
       L.door += Math.max(-dt * 1.6, Math.min(dt * 1.6, (L.hold > 0 || pin ? 1 : 0) - L.door));
       if (Math.abs(o.x - f.x) > 1500 || Math.abs(o.y - f.y) > 1500) continue;
       crewUpdate(o, L, open);
-      if (!L.init) { L.init = true; if (open) for (let k = CAP[o.type] ? (CAP[o.type] * (.45 + rand() * .25)) | 0 : (rand() * 4) | 0; k > 0; k--) L.inside.push({ id: ++pedSeq, look: (rand() * 7) | 0, doing: T[4][(rand() * T[4].length) | 0], until: G.t + 4 + rand() * T[1] }); }
+      if (!L.init) { L.init = true; if (open) for (let k = capOf(o) ? (capOf(o) * (.45 + rand() * .25)) | 0 : (rand() * 4) | 0; k > 0; k--) L.inside.push({ id: ++pedSeq, look: (rand() * 7) | 0, doing: T[4][(rand() * T[4].length) | 0], until: G.t + 4 + rand() * T[1] }); }
       // à la fermeture, tout le monde sort ; sinon chacun sort quand il a fini
       for (let i = 0; i < L.inside.length; i++) {
         const x = L.inside[i]; if (!open && !x.kick) x.kick = G.t + 2 + rand() * 12;
@@ -2408,7 +2424,7 @@
         L.qT = (L.qT || 0) - dt;
         if (L.queue.length && L.qT <= 0) { const q = L.queue.shift(); q.queueAt = null; q.goStage = 1; L.qT = 5 + rand() * 5; const b = L.crew.find(c => c.bouncer); if (b) { b.talk = 1.5; } }
       }
-      if (rand() < dt * T[2] && L.inside.length < (CAP[o.type] || 10) && (o.type !== "club" || L.queue.length < 6)) {
+      if (rand() < dt * T[2] && L.inside.length < (capOf(o) || 10) && (o.type !== "club" || L.queue.length < 6)) {
         let best = null, bd = 260;
         for (const q of G.peds) { if (q.staff || q.cop || q.bus || q.enter || q.chat || q.talk || q.greet || q.goIn || q.emerge || q.hail || q.vendor || q.play || q.state !== "walk") continue; const d = Math.hypot(q.x - o.door.x, q.y - o.door.y); if (d < bd) { bd = d; best = q; } }
         if (best) { best.goIn = o; best.goStage = 0; best.route = null; if (o.type === "club") { best.queueAt = atPlace(o, -40 - L.queue.length * 9, -(o.d / 2 + 22)); L.queue.push(best); } }
@@ -2609,6 +2625,7 @@
     return o;
   }
   // meubles achetés dans la boutique de « Ma vie » (liste posée par vie.js dans ce navigateur)
+  function hasSwimsuit() { let L = []; try { L = JSON.parse(lsGet("twolife_objets") || "[]"); } catch (e) { } return Array.isArray(L) && L.some(id => /^maillot/.test(id)); }
   function myMeubles() { let L = []; try { L = JSON.parse(lsGet("twolife_meubles") || "[]"); } catch (e) { } return new Set(Array.isArray(L) ? L : []); }
   function enterHome() {
     const A = G.auto, f = G.foot; if (!f || !A || A.mode === "prison") return;
@@ -2705,18 +2722,19 @@
     } else if (kind === "concert") {   // concert : scène, orchestre, danseuses, écran géant, foule qui danse
       W = 280; D = 240; H = 80;
       const sy = -D / 2 + 30;
-      add("stage", 0, sy, 230, 58, { solid: true, low: true }); add("ledwall", 0, -D / 2 + 1, 170, 2, { solid: false, a: DOWN, big: true, label: o.nom.toUpperCase() });
+      const star = starNight(); o.sig = star ? "star:" + starName() : "";
+      add("stage", 0, sy, 230, 58, { solid: true, low: true }); add("ledwall", 0, -D / 2 + 1, 170, 2, { solid: false, a: DOWN, big: true, label: star ? "⭐ " + starName().toUpperCase() : o.nom.toUpperCase(), sub: star ? "SOIRÉE STAR · EN CONCERT CE SOIR" : null });
       add("truss", 0, sy + 22, 236, 4, { solid: false }); add("lasers", 0, sy - 10, 10, 4, { solid: false });
       [-128, 128].forEach(x => { add("speaker", x, sy + 6, 18, 14); add("speaker", x, sy + 24, 18, 14); });
       add("drums", 0, -D / 2 + 12, 24, 16, { solid: false }); staff("musician", 0, -D / 2 + 6, DOWN, { z: 6, dance: true });
       add("keyboard", -70, -D / 2 + 18, 18, 8, { solid: false }); staff("musician", -70, -D / 2 + 10, DOWN, { z: 6 });
       [[-36, -D / 2 + 26], [36, -D / 2 + 26], [72, -D / 2 + 20]].forEach(([x, y]) => { add("amp", x, y - 10, 10, 7, { solid: false }); staff("guitar", x, y, DOWN, { z: 6, pace: 6 }); });
-      add("mic", 0, sy + 18, 3, 3, { solid: false }); staff("singer", 0, sy + 16, DOWN, { z: 6, pace: 34, preach: true, biz: true });
+      add("mic", 0, sy + 18, 3, 3, { solid: false }); staff("singer", 0, sy + 16, DOWN, { z: 6, pace: 34, preach: true, biz: true, nom: star ? starName() : null, fem: star && STAR && STAR.fem, doing: star ? "chante en tête d'affiche (soirée star)" : "chante avec l'orchestre" });
       staff("atalaku", -54, sy + 18, DOWN, { z: 6, pace: 16, preach: true });
       [-96, -80, 80, 96].forEach((x, k) => staff("gogo", x, sy + 8 + (k % 2) * 8, DOWN, { z: 6, dance: true, fem: true }));
       add("barrier", 0, sy + 36, 230, 3); [-60, 60].forEach(x => staff("guard", x, sy + 42, UP));
       for (let i = 0; i < 8; i++) for (let j = 0; j < 5; j++) spots.dance.push({ x: -105 + i * 30, y: sy + 54 + j * 20, a: UP });
-      for (let k = 0; k < 18; k++) { const d = spots.dance[(k * 11) % spots.dance.length]; staff("fan", d.x + (rand() - .5) * 14, d.y + (rand() - .5) * 10, UP + (rand() - .5) * .9, { dance: rand() < .8, fem: rand() < .5 }); }
+      for (let k = 0; k < (star ? 30 : 18); k++) { const d = spots.dance[(k * 11) % spots.dance.length]; staff("fan", d.x + (rand() - .5) * 14, d.y + (rand() - .5) * 10, UP + (rand() - .5) * .9, { dance: rand() < .8, fem: rand() < .5 }); }
       add("bar", W / 2 - 12, 60, 60, 12, { a: Math.PI, label: "BAR" }); staff("barman", W / 2 - 4, 60, Math.PI, { pace: 20 });
       for (let k = 0; k < 4; k++) { add("stool", W / 2 - 26, 42 + k * 12, 6, 6, { solid: false }); seat(W / 2 - 26, 42 + k * 12, 0, { bar: true }); }
       staff("guard", -30, D / 2 - 12, UP);
@@ -2871,8 +2889,15 @@
       const s = freeSeat(x => x.bar); if (s) { q.doing = "boit une bière au bar"; s.who = q; q.seat = s; roomGo(q, s.x, s.y, () => { q.state = "sit"; q.a = s.a; q.wait = 15 + rand() * 15; }); } else q.wait = 5;
       return;
     }
-    if (R.kind === "piscine") {   // transat au soleil, bar à cocktails, discussion au bord de l'eau
-      if (q.seat) { q.seat.who = null; q.seat = null; } q.z = 0;
+    if (R.kind === "piscine") {   // transat au soleil, bar à cocktails, discussion au bord de l'eau ; on nage seulement avec un maillot
+      if (q.seat) { q.seat.who = null; q.seat = null; }
+      if (q.swimming) { q.swimming = false; q.x = Math.max(-100, Math.min(50, q.x)); q.y = 30; }   // il sort de l'eau par l'échelle
+      q.z = 0;
+      if (q.player && hasSwimsuit() && rand() < .6) {
+        q.doing = "nage dans la piscine";
+        roomGo(q, -90 + rand() * 120, 30, () => { q.z = -10; q.y = 16; q.swimming = true; q.path = [{ x: Math.max(-95, Math.min(45, q.x + (rand() < .5 ? -1 : 1) * (40 + rand() * 40))), y: -60 + rand() * 70 }]; q.then = () => { q.state = "idle"; q.wait = 10 + rand() * 12; }; });
+        return;
+      }
       const r = rand();
       if (r < .5) { const s = freeSeat(x => x.transat); if (s) { q.doing = pick(["bronze sur un transat", "se repose au soleil", "lit un magazine sur son transat"]); s.who = q; q.seat = s; roomGo(q, s.x, s.y + 6, () => { q.x = s.x; q.y = s.y; q.state = "down"; q.z = 3; q.a = s.a; q.wait = 30 + rand() * 30; }); return; } }
       if (r < .75) { const s = freeSeat(x => x.bar); if (s) { q.doing = "boit un cocktail au bar"; s.who = q; q.seat = s; roomGo(q, s.x, s.y, () => { q.state = "sit"; q.a = s.a; q.wait = 15 + rand() * 20; }); return; } }
@@ -2920,6 +2945,7 @@
     if (staffSpot && staffSpot.who) { const m = staffSpot.who; Object.assign(q, { id: m.id, look: m.look, fem: m.woman, kid: m.kid, doing: m.act, nom: m.nom, lookBiz: false }); }
     if (staffSpot && staffSpot.biz) q.lookBiz = true;
     if (staffSpot && staffSpot.fem) q.fem = true;
+    if (staffSpot && staffSpot.nom) { q.nom = staffSpot.nom; q.doing = staffSpot.doing; q.star = true; }
     if (staffSpot && (staffSpot.role === "worker" || staffSpot.role === "presenter")) q.lookBiz = rand() < .6;
     R.people.push(q); return q;
   }
@@ -3154,6 +3180,7 @@
     const sirenNear = G.cops.reduce((m, c) => c.alive && c.mode === "chase" ? Math.max(m, 1 - Math.hypot(c.x - p.x, c.y - p.y) / 1400) : m, 0);
     Audio.update(Math.min(1.2, sp / p.maxSpeed), p.inp.gas, Math.max(0, sirenNear), !G.over && !G.paused);
     { const m = musicFor(); Audio.music(m[0], m[1], m[2]); }
+    if (WALK && G.hour >= 17 && starNight() && G.starTold !== G.day && STAR) { G.starTold = G.day; msg("⭐ Soirée star ce soir à Kin Show Arena : " + starName() + " en concert de 19 h à 1 h. Billet " + STAR_PRICE + " e-makuta.", 6, "ok"); }
   }
   function sparks(x, y, n) { for (let k = 0; k < n; k++) { const a = rand() * 6.28, v = 80 + rand() * 260; G.parts.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, life: .35, max: .35, kind: "spark", r: 2 }); } }
 
@@ -3398,7 +3425,7 @@
   }
   function start(car) {
     Audio.init(); Audio.resume(); resize(); newGame(car); show(null);
-    if (WALK) pioneerCheck();
+    if (WALK) { pioneerCheck(); loadStar(); }
     if (!running) { running = true; last = performance.now(); requestAnimationFrame(loop); }
   }
   // pionnier ? (les 100 premiers inscrits) : demandé au serveur ; en démo, tout le monde l'est pour essayer

@@ -969,21 +969,16 @@ async function albumOf(db, p) {
 
 // ---------------------------------------------------------------- lancement
 async function launchCounts(db) {
-  const a = await db.prepare(`SELECT COUNT(*) AS n FROM personnages WHERE fondateur = 1 AND mort_le IS NULL`).first();
-  const b = await db.prepare(`SELECT COUNT(DISTINCT compte_id) AS n FROM depots WHERE offre IN (${OFFERS.filter(o => o.type === "investissement").map(o => `'${o.id}'`).join(",")})`).first();
+  // un compte = une vraie personne inscrite ; on compte les comptes qui ont un personnage vivant
+  const a = await db.prepare(`SELECT COUNT(DISTINCT compte_id) AS n FROM personnages WHERE compte_id IS NOT NULL AND mort_le IS NULL`).first();
   const e = await db.prepare(`SELECT COUNT(*) AS n FROM entreprises`).first();
-  return { parents: a.n, investisseurs: b.n, entreprises: e.n };
+  return { joueurs: a.n, entreprises: e.n };
 }
 async function launch(db, now = Date.now()) {
   const { results } = await db.prepare(`SELECT cle, valeur FROM jeu WHERE cle IN ('demarre_le', 'date_ouverture')`).all();
   const kv = Object.fromEntries(results.map(r => [r.cle, Number(r.valeur)]));
   let S = launchStatus(await launchCounts(db), kv.demarre_le || null, kv.date_ouverture || null, now);
-  // démarrage automatique : la date officielle est passée et toutes les conditions sont réunies
-  if (!S.demarre && S.pret) {
-    await db.prepare(`INSERT OR IGNORE INTO jeu (cle, valeur) VALUES ('demarre_le', ?)`).bind(String(now)).run();
-    S = { ...S, demarre: true, demarreLe: now };
-  }
-  return S;
+  return S;   // pas de démarrage automatique : l'administrateur appuie sur « Lancer le jeu » (règle du 26/11)
 }
 const isAdmin = (env, compte) => !!compte && (env.ADMIN_EMAILS || "").split(",").map(x => x.trim().toLowerCase()).filter(Boolean).includes(compte.email);
 
@@ -1184,7 +1179,7 @@ const worker = {
         const L = await launch(db);
         if (!L.demarre && !canSignupBeforeLaunch(body.formule) && !isAdmin(env, { email: String(body.email || "").trim().toLowerCase() })) {
           const miss = L.conditions.filter(c => !c.ok).map(c => `${c.label.toLowerCase()} : ${c.actuel}/${c.min}`).join(", ");
-          return fail(h, 403, `Le jeu n'a pas encore démarré (${miss || "en attente du lancement"}). Les investisseurs peuvent déjà s'inscrire.`);
+          return fail(h, 403, `Le jeu n'a pas encore démarré (${miss || "en attente du lancement"}).`);
         }
         const offer = OFFERS.find(o => o.id === body.formule) || OFFERS[0];
         const r = await createAccount(db, body, now, offer, false);

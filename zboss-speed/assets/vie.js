@@ -1078,7 +1078,7 @@ const MEUBLE_ICON = { "lit-king": "🛏️", "tele-plasma": "📺", clim: "❄�
 let shopTab = "nourriture";
 const mk = n => fmtMakuta(Math.round(n));
 const usd = n => `${n.toLocaleString("fr-FR", { maximumFractionDigits: 2 })} $`;
-const SLOT = { haut: "Haut", bas: "Bas", pieds: "Chaussures" };
+const SLOT = { haut: "Haut", bas: "Bas", pieds: "Chaussures", bain: "Maillot de bain : pour nager à la piscine" };
 function swatch(it) {
   if (it.type === "meuble") return `<span class="sw">${MEUBLE_ICON[it.id] || "🛋️"}</span>`;
   return it.couleur ? `<span class="sw" style="background:${it.couleur}"></span>` : `<span class="sw">${(TYPES.find(t => t[0] === it.type) || [, , "•"])[2]}</span>`;
@@ -1096,7 +1096,7 @@ function renderShop(v) {
   }).join("");
   const inv = v.inventaire.map(x => ({ ...x, it: v.boutique.find(b => b.id === x.objet) })).filter(x => x.it);
   // la ville 3D lit cette liste pour meubler la maison du personnage (même navigateur, démo ou compte réel)
-  try { localStorage.setItem("twolife_meubles", JSON.stringify(inv.filter(x => x.it.type === "meuble").map(x => x.it.id))); } catch (e) { }
+  try { localStorage.setItem("twolife_meubles", JSON.stringify(inv.filter(x => x.it.type === "meuble").map(x => x.it.id))); localStorage.setItem("twolife_objets", JSON.stringify(inv.map(x => x.it.id))); } catch (e) { }
   $("inv").innerHTML = inv.length ? inv.map(x => `<div class="item">${swatch(x.it)}<div class="t">${x.it.nom}<small>${x.it.slot ? (x.porte ? "Porté · " : "") + SLOT[x.it.slot] : x.it.type === "meuble" ? "Dans ta maison (visible en 3D dans « La ville »)" : "Téléphone : tu peux appeler ta famille"}</small></div>
       ${x.it.slot ? `<button class="mini ${x.porte ? "" : "fill"}" data-wear="${x.id}" type="button">${x.porte ? "Retirer" : "Porter"}</button>` : ""}
       <button class="mini" data-sell="${x.id}" type="button">Vendre ${mk(x.it.prix * RESELL_RATE)}</button></div>`).join("")
@@ -1741,10 +1741,10 @@ async function showLaunch() {
     if (closed && i.checked) { i.checked = false; document.querySelector("input[name=formule][value=petit]").checked = true; }
   });
   if (!launch || launch.demarre) return;
-  box.innerHTML = `<b>Le jeu n'a pas encore démarré</b><p>La ville ouvre quand toutes les conditions sont réunies. En attendant, seuls les investisseurs peuvent s'inscrire.</p>` +
+  box.innerHTML = `<b>Le jeu n'a pas encore démarré</b><p>La ville ouvre quand 100 vraies personnes sont inscrites et 10 entreprises ouvertes : l'administrateur lance alors le jeu. Tu peux déjà t'inscrire.</p>` +
     launch.conditions.map(c => c.id === "date" ? `<div class="need">${c.label} <b style="float:right">${launch.dateOuverture ? new Date(launch.dateOuverture).toLocaleString("fr-FR", { dateStyle: "long", timeStyle: "short" }) : "à fixer"}</b></div>`
       : `<div class="need">${c.label} <b style="float:right">${c.actuel} / ${c.min}</b><div class="bar"><i class="${c.ok ? "" : "mid"}" style="width:${Math.min(100, c.actuel / c.min * 100)}%"></i></div></div>`).join("") +
-    (API ? "" : `<p class="sim" style="margin-top:12px">Démo : ouvre <a href="admin.html" style="color:inherit">l'espace administrateur</a> pour ajouter les parents fondateurs et démarrer le jeu.</p>`);
+    (API ? "" : `<p class="sim" style="margin-top:12px">Démo : ouvre <a href="admin.html" style="color:inherit">l'espace administrateur</a> pour remplir les conditions et lancer le jeu.</p>`);
   authLabel();
 }
 function authLabel() {

@@ -135,9 +135,10 @@
 <body>
   <div class="wrap">
     <header class="top">
-      <div class="brand"><button class="back" type="button" onclick="history.length > 1 ? history.back() : location.href = 'index.html'" aria-label="Retour à la page précédente">←</button><img src="assets/icons/2life.svg" alt=""> 2 Life</div>
+      <div class="brand"><button class="back" type="button" onclick="history.length > 1 ? history.back() : location.href = 'index.html'" aria-label="Retour à la page précédente">←</button><img src="assets/icons/2life.svg" alt=""> <span class="wm">2<b>LIFE</b></span></div>
       <span class="pill" id="mode">Mode démo</span>
     </header>
+    <nav data-site-tabs></nav>
 
     <!-- Accueil : inscription / connexion -->
     <section id="v-auth" hidden>
@@ -343,6 +344,7 @@
   <div class="toast" id="toast" hidden role="status"></div>
 
   <script src="config.js"></script>
+  <script src="assets/nav.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/libs/meshopt_decoder.js"></script>
