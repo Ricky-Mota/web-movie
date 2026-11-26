@@ -99,6 +99,7 @@ export function doActivity(act, talents, age, r) {
 // ---------------------------------------------------------------- besoins
 // valeurs 0..100, recalculées à la demande depuis la dernière mise à jour
 export function needsAt(c, now = Date.now()) {
+  if (CLOCK.pause) now = c.updatedAt;   // avant le lancement, le temps est arrêté : rien ne baisse
   const h = Math.max(0, (now - c.updatedAt) / 36e5);
   const hunger = Math.max(0, c.hunger - h * 4 * SET.faim); // la faim baisse de 4 points par heure réelle (réglable par l'admin)
   const energy = Math.min(100, c.energy + h * 12);       // l'énergie remonte au repos
@@ -137,6 +138,16 @@ export function newIdentity(r, sex) {
 export const BIRTH_USD = 15, ADMIN_FEE_USD = 5;
 export const BIRTH_GIFT = (BIRTH_USD - ADMIN_FEE_USD) * 100; // makuta (100 par $) : 1 000 makuta = 50 e-makuta
 
+// ---------------------------------------------------------------- horloge du jeu (règle du 26/11)
+// Avant que l'administrateur appuie sur « Lancer le jeu », le temps est arrêté : personne ne vieillit, n'a faim,
+// ne paie ni ne meurt. Les inscrits préparent seulement leur arrivée (dépôt, investissement, ouverture d'entreprise).
+// Au lancement, toutes les règles s'appliquent : rien n'est gratuit, tout s'achète pour survivre et réussir.
+export const CLOCK = { pause: false };
+export const PRELAUNCH_OK = ["/api/inscription", "/api/connexion", "/api/beta", "/api/support", "/api/paiement/notification", "/api/push/abonner", "/api/push/desabonner",
+  "/api/mots/lus", "/api/resume/vu", "/api/guichet/deposer", "/api/investir", "/api/entreprise/ouvrir", "/api/journal", "/api/voisins", "/api/pensee", "/api/stars", "/api/celebrites"];
+export const PRELAUNCH_TEXT = "Le jeu n'a pas encore commencé : le temps est arrêté jusqu'au lancement. Ton personnage t'attend chez lui. En attendant, tu peux déposer de l'argent, investir ou ouvrir une entreprise.";
+export function prelaunchBlocked(path, method) { return CLOCK.pause && method === "POST" && !path.startsWith("/api/admin/") && !PRELAUNCH_OK.includes(path) ? PRELAUNCH_TEXT : null; }
+
 // ---------------------------------------------------------------- magasin
 // prix en e-makuta ; les vêtements se portent et changent l'apparence 3D, la nourriture se mange tout de suite
 export const SHOP = [
@@ -170,7 +181,28 @@ export const SHOP = [
   { id: "ventilo", nom: "Ventilateur sur pied", type: "meuble", prix: 600, effet: { bonheur: 4 }, minAge: 12, conso: 2, desc: "Un peu d'air pendant les fortes chaleurs." },
   { id: "canape-cuir", nom: "Canapé en cuir", type: "meuble", prix: 2500, effet: { bonheur: 6 }, minAge: 16, desc: "Remplace le vieux canapé du salon." },
   { id: "chauffe-eau", nom: "Chauffe-eau pour la douche", type: "meuble", prix: 1800, effet: { bonheur: 5 }, minAge: 16, conso: 6, desc: "Douche chaude le matin." },
+  // pharmacie (26/11) : rien n'est gratuit, la santé et l'énergie s'achètent aussi (argent versé aux pharmacies des joueurs)
+  { id: "boisson-energie", nom: "Boisson énergisante", type: "soin", prix: 30, effet: { energie: 20 }, minAge: 12, jetable: true, vers: "pharmacie", desc: "+20 d'énergie tout de suite." },
+  { id: "paracetamol", nom: "Paracétamol (maux de tête, fièvre)", type: "soin", prix: 40, effet: { sante: 8 }, jetable: true, vers: "pharmacie", desc: "+8 de santé." },
+  { id: "vitamines", nom: "Cure de vitamines", type: "soin", prix: 120, effet: { sante: 3, vitalite: 3 }, jetable: true, vers: "pharmacie", desc: "+3 de vitalité : il vivra plus longtemps." },
+  { id: "antipaludeen", nom: "Traitement contre le paludisme", type: "soin", prix: 160, effet: { sante: 25 }, jetable: true, vers: "pharmacie", desc: "+25 de santé." },
+  { id: "moustiquaire", nom: "Moustiquaire imprégnée", type: "soin", prix: 400, effet: { bonheur: 2 }, vers: "pharmacie", unique: true, desc: "Divise par trois le risque de paludisme." },
+  // sport : entretient la vitalité (espérance de vie) et ouvre les carrières sportives
+  { id: "seance-gym", nom: "Séance à la salle de sport", type: "sport", prix: 60, effet: { energie: -10, sante: 4, bonheur: 3, vitalite: 2 }, minAge: 14, jetable: true, desc: "+2 de vitalité, fatigue un peu." },
+  { id: "terrain-foot", nom: "Match de foot sur terrain loué", type: "sport", prix: 40, effet: { energie: -15, sante: 2, bonheur: 6, vitalite: 1 }, minAge: 8, jetable: true, desc: "Entre amis, +1 de vitalité." },
+  { id: "tenue-sport", nom: "Tenue et chaussures de sport", type: "sport", prix: 250, effet: { bonheur: 3 }, minAge: 8, unique: true, desc: "Demandée pour devenir footballeur." },
+  // véhicules : plus de taxi à payer (seulement le carburant), et des métiers qui demandent un véhicule
+  { id: "velo", nom: "Vélo", type: "vehicule", prix: 1200, effet: { bonheur: 4 }, minAge: 10, unique: true, trajet: 0, desc: "Gratuit à rouler, mais fatigant." },
+  { id: "moto", nom: "Moto 125 cm³", type: "vehicule", prix: 9000, effet: { bonheur: 8 }, minAge: 18, unique: true, trajet: 50, permis: true, desc: "Carburant 2,5 e-makuta par trajet. Permis obligatoire." },
+  { id: "voiture-occasion", nom: "Voiture d'occasion", type: "vehicule", prix: 40000, effet: { bonheur: 12 }, minAge: 18, unique: true, trajet: 120, permis: true, desc: "Carburant 6 e-makuta par trajet. Permis obligatoire." },
+  { id: "voiture-neuve", nom: "Voiture neuve (SUV)", type: "vehicule", prix: 120000, effet: { bonheur: 20 }, minAge: 18, unique: true, trajet: 150, permis: true, desc: "Confort et prestige. Carburant 7,5 e-makuta par trajet. Permis obligatoire." },
 ];
+// le meilleur véhicule que le personnage peut conduire (permis valide pour moto et voiture), sinon null = taxi
+export function ownVehicle(ids = [], permisValide = false) {
+  const v = SHOP.filter(x => x.type === "vehicule" && ids.includes(x.id) && (!x.permis || permisValide));
+  return v.sort((a, b) => b.prix - a.prix)[0] || null;
+}
+export const BIKE_ENERGY = 12;   // un trajet à vélo fatigue plus que le taxi
 // électricité consommée en plus par les équipements de la maison (makuta par jour)
 export const homeConso = ids => [...new Set(ids || [])].reduce((t, id) => t + ((SHOP.find(x => x.id === id) || {}).conso || 0), 0);
 
@@ -178,6 +210,7 @@ export const homeConso = ids => [...new Set(ids || [])].reduce((t, id) => t + ((
 export function cannotBuy(item, makuta, age, owned = []) {
   if (!item) return "Article inconnu.";
   if (item.type === "meuble" && owned.includes(item.id)) return "Tu l'as déjà dans ta maison.";
+  if (item.unique && owned.includes(item.id)) return "Tu l'as déjà.";
   if (item.minAge && age < item.minAge) return `Réservé aux ${item.minAge} ans et plus.`;
   if (item.maxAge && age > item.maxAge) return "Cet article est pour les tout-petits.";
   if (makuta < item.prix) return "Pas assez d'e-makuta.";
@@ -275,12 +308,14 @@ export const SHIFT_HOURS = 8;
 export const SHIFT_ENERGY = 35;
 export const JOBS = [
   { id: "vendeur", nom: "Vendeur au marché de la Liberté", talent: "commerce", salaire: 120, minAge: 16 },
-  { id: "taxi-moto", nom: "Chauffeur de taxi-moto", talent: "sport", salaire: 150, minAge: 18 },
+  { id: "taxi-moto", nom: "Chauffeur de taxi-moto", talent: "sport", salaire: 150, minAge: 18, besoin: "moto" },
+  { id: "livreur", nom: "Livreur à moto ou à vélo", talent: "commerce", salaire: 130, minAge: 16, besoin: "deux-roues" },
+  { id: "chauffeur-prive", nom: "Chauffeur de taxi avec sa voiture", talent: "technique", salaire: 260, minAge: 18, besoin: "voiture" },
   { id: "cuisinier", nom: "Cuisinier dans un maquis", talent: "cuisine", salaire: 140, minAge: 16 },
   { id: "aide-soignant", nom: "Aide-soignant au centre de santé", talent: "soin", salaire: 160, minAge: 18, etudesMin: "secondaire" },
   { id: "musicien", nom: "Musicien dans un orchestre", talent: "art", salaire: 130, minAge: 16 },
   { id: "mecanicien", nom: "Mécanicien au garage", talent: "technique", salaire: 170, minAge: 18, etudesMin: "primaire" },
-  { id: "animateur", nom: "Animateur à la radio", talent: "parole", salaire: 150, minAge: 18, etudesMin: "secondaire" },
+  { id: "animateur", nom: "Animateur à la radio", talent: "parole", salaire: 150, minAge: 18, etudesMin: "secondaire", besoin: "telephone" },
   { id: "repetiteur", nom: "Répétiteur (cours du soir)", talent: "etudes", salaire: 140, minAge: 16, etudesMin: "secondaire" },
   // vie religieuse (25/11) : métiers d'église ouverts aux joueurs ; les plus connus deviennent des célébrités
   { id: "chef-chorale", nom: "Chef de chorale à l'église", talent: "art", salaire: 150, minAge: 16, religion: true },
@@ -288,21 +323,31 @@ export const JOBS = [
   // carrières qui demandent des études (ouvertes avec l'école et l'université)
   { id: "medecin", nom: "Médecin", talent: "soin", salaire: 600, minAge: 24, formation: "medecine", diplome: "Doctorat en médecine" },
   { id: "ingenieur", nom: "Ingénieur", talent: "technique", salaire: 500, minAge: 22, formation: "ingenieur", diplome: "Diplôme d'ingénieur civil" },
-  { id: "avocat", nom: "Avocat", talent: "parole", salaire: 550, minAge: 22, formation: "droit", diplome: "Licence en droit" },
+  { id: "avocat", nom: "Avocat", talent: "parole", salaire: 550, minAge: 22, formation: "droit", diplome: "Licence en droit", besoin: "telephone" },
   { id: "enseignant", nom: "Enseignant au secondaire", talent: "etudes", salaire: 260, minAge: 18, formation: "secondaire", diplome: "Diplôme d'État" },
   // carrières de talent : réservées à ceux dont le talent a été découvert par leurs parents
-  { id: "footballeur", nom: "Footballeur professionnel", talent: "sport", salaire: 420, minAge: 17, talentRequis: true },
+  { id: "footballeur", nom: "Footballeur professionnel", talent: "sport", salaire: 420, minAge: 17, talentRequis: true, besoin: "tenue-sport" },
   { id: "star-rumba", nom: "Chanteur de rumba (vedette)", talent: "art", salaire: 450, minAge: 18, talentRequis: true },
   { id: "chef", nom: "Grand chef cuisinier", talent: "cuisine", salaire: 340, minAge: 18, talentRequis: true },
-  { id: "grossiste", nom: "Commerçant grossiste", talent: "commerce", salaire: 380, minAge: 20, talentRequis: true },
-  { id: "journaliste", nom: "Journaliste vedette à la télé", talent: "parole", salaire: 380, minAge: 20, talentRequis: true },
+  { id: "grossiste", nom: "Commerçant grossiste", talent: "commerce", salaire: 380, minAge: 20, talentRequis: true, besoin: "telephone" },
+  { id: "journaliste", nom: "Journaliste vedette à la télé", talent: "parole", salaire: 380, minAge: 20, talentRequis: true, besoin: "telephone" },
   { id: "inventeur", nom: "Inventeur (atelier d'innovation)", talent: "technique", salaire: 400, minAge: 20, talentRequis: true },
   { id: "chercheur", nom: "Chercheur à l'université", talent: "etudes", salaire: 420, minAge: 22, talentRequis: true },
   { id: "infirmier-chef", nom: "Infirmier chef", talent: "soin", salaire: 360, minAge: 20, talentRequis: true },
   { id: "grand-pasteur", nom: "Pasteur d'une grande église (vedette)", talent: "parole", salaire: 420, minAge: 28, talentRequis: true, religion: true },
 ];
-export function cannotApply(job, age, diplomas, talents = []) {
+const NEEDS = {
+  telephone: [ids => SHOP.some(x => x.type === "telephone" && ids.includes(x.id)), "Il faut un téléphone pour ce métier (boutique, onglet Téléphones)."],
+  moto: [ids => ids.includes("moto"), "Il faut acheter une moto pour ce métier (boutique, onglet Véhicules)."],
+  "deux-roues": [ids => ids.includes("moto") || ids.includes("velo"), "Il faut une moto ou un vélo pour livrer (boutique, onglet Véhicules)."],
+  voiture: [ids => ids.includes("voiture-occasion") || ids.includes("voiture-neuve"), "Il faut sa propre voiture pour ce métier (boutique, onglet Véhicules)."],
+  "tenue-sport": [ids => ids.includes("tenue-sport"), "Il faut une tenue de sport (boutique, onglet Sport)."],
+};
+// owned = identifiants des objets possédés (null = ne pas vérifier, pour les anciens appels)
+export function cannotApply(job, age, diplomas, talents = [], owned = null) {
   if (!job) return "Métier inconnu.";
+  if (job.besoin && owned && NEEDS[job.besoin] && !NEEDS[job.besoin][0](owned)) return NEEDS[job.besoin][1];
+  if (job.besoin && owned && (job.besoin === "moto" || job.besoin === "voiture") && !diplomas.includes("permis")) return "Il faut d'abord le permis de conduire (auto-école).";
   if (job.talentRequis && !talents.includes(job.talent)) return `Carrière réservée aux talents découverts : ${(TALENTS.find(t => t.id === job.talent) || {}).label || job.talent}.`;
   if (job.elu) return "Ce poste s'obtient par élection.";
   if (job.formation && !diplomas.includes(job.formation)) return `Il faut d'abord le diplôme : ${job.diplome}.`;
@@ -467,7 +512,8 @@ export const LIFE_EVENTS = [
 export const EVENT_EVERY_H = 20;
 export function drawEvent(r = Math.random, ctx = {}) {
   if (!(SET.destin > 0)) return null;
-  const Q = communeOf(ctx.quartier), mult = (Q && Q.risques) || {};
+  const Q = communeOf(ctx.quartier), mult = { ...((Q && Q.risques) || {}) };
+  if (ctx.moustiquaire) mult.paludisme = (mult.paludisme || 1) / 3;   // moustiquaire achetée à la pharmacie
   // le quartier change QUELS événements arrivent, pas leur fréquence totale
   const list = LIFE_EVENTS.filter(e => !e.camp || e.camp === ctx.camp);
   const base = list.reduce((t, e) => t + e.p, 0), w = list.map(e => e.p * (mult[e.id] || 1)), k = base / w.reduce((t, v) => t + v, 0);
@@ -1095,6 +1141,21 @@ export function dashboard({ makuta, banque = 0, biens = 0, entreprises = 0, mais
     role: roleOf(origine, seed),
     quartier: communeView(quartier),
   };
+}
+
+// atouts pour réussir sa vie (26/11) : ce qui s'achète (études, téléphone, véhicule, tenue, sport) ouvre des portes
+export function opportunities({ ids = [], diplomas = [], tenue = 40, vitalite = 50, reputation = 0 } = {}) {
+  const has = t => SHOP.some(x => x.type === t && ids.includes(x.id));
+  const atouts = [
+    { id: "etudes", icone: "🎓", label: "Études", ok: eduRank(eduLevel(diplomas)) >= 2, aide: "Diplôme d'État ou plus : métiers mieux payés." },
+    { id: "telephone", icone: "📱", label: "Téléphone", ok: has("telephone"), aide: "Demandé pour les métiers de contact (radio, commerce, droit)." },
+    { id: "vehicule", icone: "🛵", label: "Véhicule", ok: has("vehicule"), aide: "Plus de taxi à payer, métiers de chauffeur et de livreur." },
+    { id: "permis", icone: "🪪", label: "Permis", ok: diplomas.includes("permis"), aide: "Obligatoire pour conduire moto et voiture." },
+    { id: "tenue", icone: "👔", label: "Belle tenue", ok: tenue >= 60, aide: "Les bons employeurs regardent la présentation." },
+    { id: "forme", icone: "💪", label: "En forme", ok: vitalite >= 60, aide: "Sport, vitamines et bon train de vie : vie plus longue." },
+    { id: "reputation", icone: "⭐", label: "Réputation", ok: reputation >= 10, aide: "Les gens respectés trouvent plus facilement." },
+  ];
+  return { score: Math.round(100 * atouts.filter(a => a.ok).length / atouts.length), atouts };
 }
 
 // ---------------------------------------------------------------- guichet : dépôt et retrait d'argent

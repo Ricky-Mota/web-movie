@@ -14,7 +14,7 @@ import {
   OFFERING, offeringTax, pioneerView, titheOf, cannotGiveOffering, offeringReceipt, celebLive, celebEvent, CELEB_VISITS_PER_DAY,
   CAMPAIGN_MAX_DAYS, ambassadorFee, cannotHireAmbassador, LEAGUE_NAME, NPC_CLUBS, CLUB_MIN_AGE, CLUB_MAX_AGE, MATCH_GATE, clubStrength, playMatch, pairClubs, standings, seasonKey, scorersText, cannotRecruit, CLUB_CONTRACT_DAYS, cannotAddLogo, LOGOS_MAX_SHOWN,
   thoughtFacts, thoughtFallback, thoughtPrompt, cleanThought, THOUGHT_MODEL,
-  TRAFFIC_TICKETS, trafficTicket, permitStatus,
+  TRAFFIC_TICKETS, trafficTicket, permitStatus, CLOCK, prelaunchBlocked, ownVehicle, opportunities, BIKE_ENERGY,
 } from "./life.js";
 import { sendPush, newVapidKeys } from "./webpush.js";
 import { payConfigured, startDeposit, startPayout, readNotice } from "./paiement.js";
@@ -29,6 +29,20 @@ async function loadSettings(db, now, force) {
   setAt = now;
   try { const { results } = await db.prepare(`SELECT cle, valeur FROM reglages`).all(); applySettings(Object.fromEntries(results.map(r => [r.cle, r.valeur]))); } catch (e) { console.error(e); }
   try { await loadLaws(db); } catch (e) { console.error(e); }
+  try { const d = await db.prepare(`SELECT valeur FROM jeu WHERE cle = 'demarre_le'`).first(); CLOCK.pause = !d; } catch (e) { console.error(e); }
+}
+// avant le lancement, le temps ne passe pas : à chaque passage du Cron (et au lancement), toutes les dates de vie
+// avancent du temps écoulé. Âge, faim, maturité, entretien et caisses des entreprises restent donc figés.
+async function freezeTime(db, now) {
+  const t = await db.prepare(`SELECT valeur FROM jeu WHERE cle = 'pause_tick'`).first();
+  const d = t ? now - Number(t.valeur) : 0;
+  const st = [db.prepare(`INSERT INTO jeu (cle, valeur) VALUES ('pause_tick', ?) ON CONFLICT(cle) DO UPDATE SET valeur = excluded.valeur`).bind(String(now))];
+  if (d > 0) st.push(
+    db.prepare(`UPDATE personnages SET ne_le = ne_le + ?, maj_le = maj_le + ?, entretien_le = CASE WHEN entretien_le IS NULL THEN NULL ELSE entretien_le + ? END WHERE mort_le IS NULL`).bind(d, d, d),
+    db.prepare(`UPDATE origines SET arrive_le = arrive_le + ?`).bind(d),
+    db.prepare(`UPDATE entreprises SET maj_le = maj_le + ? WHERE maj_le IS NOT NULL`).bind(d),
+    db.prepare(`UPDATE logements SET depuis = depuis + ?, paye_jusqu = CASE WHEN paye_jusqu IS NULL THEN NULL ELSE paye_jusqu + ? END`).bind(d, d));
+  await db.batch(st);
 }
 // lois en vigueur : TVA fixée par décret du Président, budget voté par le Parlement (table jeu)
 async function loadLaws(db) {
@@ -748,6 +762,8 @@ function view(compte, ch, now) { const v = viewBase(compte, ch, now); v.objectif
   if (ch.fin) v.etat.finances = { tresor: ch.fin.tresor, impotsJour: ch.fin.impotsJour, salairesJour: ch.fin.salairesJour, arrieres: ch.fin.arrieres, societes: ch.fin.societes, tva: LAWS.tva };
   v.promo = { prix: PROMO_PRICE, maxJours: PROMO_MAX_DAYS };
   v.train = livingView(ch.train || {}, ch.p.makuta, ageYears(ch.p.ne_le, now));
+  v.pause = CLOCK.pause;
+  v.atouts = opportunities({ ids: (ch.inv || []).map(x => x.objet_id), diplomas: ch.dip || [], tenue: ch.train ? ch.train.tenue : 40, vitalite: ch.train ? ch.train.vitalite : 50, reputation: ch.reputation || 0 });
   v.blessure = ch.blessure ? { le: ch.blessure.le, vitesse: ch.blessure.vitesse } : null;
   v.campagnes = { maxJours: CAMPAIGN_MAX_DAYS, liste: (ch.campagnes || []).map(c => ({ entreprise: c.entreprise, entrepriseId: c.entreprise_id, ambassadeur: c.ambassadeur, moi: c.ambassadeur_id === ch.p.id, prixJour: c.prix_jour, fin: c.fin, slogan: c.slogan })) };
   if (ch.boss && ch.job && ch.job.salaire && v.travail.emploiEntreprise) v.travail.emploiEntreprise.salaire = ch.job.salaire;
@@ -890,7 +906,8 @@ async function dailyEvent(db, pid, now) {
   const p = await db.prepare(`SELECT * FROM personnages WHERE id = ? AND mort_le IS NULL`).bind(pid).first(); if (!p) return;
   await settle(db, p, now);
   const o = await db.prepare(`SELECT caractere, role, camp FROM origines WHERE personnage_id = ?`).bind(pid).first();
-  const e = drawEvent(Math.random, { quartier: p.quartier, camp: roleOf(o, p.apparence).camp }), st = [db.prepare(`INSERT INTO activites (id, personnage_id, activite, score, resultat, le) VALUES (?, ?, ?, 0, '', ?)`).bind(uid(), pid, "evenement:" + (e ? e.id : "calme"), now)];
+  const mq = await db.prepare(`SELECT 1 AS x FROM possessions WHERE proprietaire_id = ? AND objet_id = 'moustiquaire' LIMIT 1`).bind(pid).first();
+  const e = drawEvent(Math.random, { quartier: p.quartier, camp: roleOf(o, p.apparence).camp, moustiquaire: !!mq }), st = [db.prepare(`INSERT INTO activites (id, personnage_id, activite, score, resultat, le) VALUES (?, ?, ?, 0, '', ?)`).bind(uid(), pid, "evenement:" + (e ? e.id : "calme"), now)];
   if (e) {
     let m = eventMoney(e); if (m < 0) m = -Math.min(-m, p.makuta);
     st.push(db.prepare(`UPDATE personnages SET sante = MAX(1, MIN(100, sante + ?)), energie = MAX(0, MIN(100, energie + ?)), bonheur = MAX(0, MIN(100, bonheur + ?)), makuta = makuta + ? WHERE id = ?`)
@@ -1045,7 +1062,9 @@ const worker = {
   // toutes les 15 minutes (Cron Trigger gratuit) : les personnages suivent leurs consignes, même joueur déconnecté
   async scheduled(event, env, ctx) {
     const db = env.DB, now = Date.now();
-    await loadSettings(db, now);
+    await loadSettings(db, now, true);
+    // jeu pas encore lancé : le temps est arrêté, aucune règle ne s'applique encore
+    if (CLOCK.pause) { try { await freezeTime(db, now); } catch (e) { console.error(e); } return; }
     try { await parlement(db, now); } catch (e) { console.error(e); }
     try { await kidAlerts(env, now); } catch (e) { console.error(e); }
     try { await morningPush(env, now); } catch (e) { console.error(e); }
@@ -1317,17 +1336,29 @@ const worker = {
           const L = await launch(db);
           if (L.demarre) return fail(h, 409, "Le jeu a déjà démarré.");
           if (!L.pret) return fail(h, 409, "Toutes les conditions ne sont pas encore réunies.");
-          await db.prepare(`INSERT INTO jeu (cle, valeur) VALUES ('demarre_le', ?)`).bind(String(now)).run();
+          await freezeTime(db, now);   // dernier rattrapage : chacun commence sa vie à cette minute
+          await db.batch([
+            db.prepare(`INSERT INTO jeu (cle, valeur) VALUES ('demarre_le', ?)`).bind(String(now)),
+            db.prepare(`DELETE FROM jeu WHERE cle = 'pause_tick'`),
+            db.prepare(`INSERT INTO mouvements (id, personnage_id, icone, texte, par_consigne, le) SELECT lower(hex(randomblob(12))), id, '🚀', ?, 0, ? FROM personnages WHERE compte_id IS NOT NULL AND mort_le IS NULL`)
+              .bind("Le jeu a commencé ! Désormais rien n'est gratuit : manger, se soigner, s'habiller, étudier, faire du sport et se déplacer, tout s'achète.", now),
+          ]);
+          CLOCK.pause = false;
           return json(h, 200, { ok: true, lancement: await launch(db) });
         }
         return fail(h, 404, "Route inconnue.");
       }
 
-      try { await supportFamily(db, compte.vie_id, now, env); } catch (e) { if (!guardFailed(e)) throw e; }
-      await checkDeath(env, db, compte.vie_id, now);
-      try { await collectRent(db, compte.vie_id, now); } catch (e) { console.error(e); }
-      try { await dailyEvent(db, compte.vie_id, now); } catch (e) { console.error(e); }
-      try { if (await dailyLiving(db, compte.vie_id, now)) await checkDeath(env, db, compte.vie_id, now); } catch (e) { console.error(e); }
+      // avant le lancement : seules la préparation (dépôt, investissement, entreprise) et la lecture sont permises
+      const pre = prelaunchBlocked(url.pathname, req.method);
+      if (pre && !isAdmin(env, compte)) return fail(h, 423, pre);
+      if (!CLOCK.pause) {
+        try { await supportFamily(db, compte.vie_id, now, env); } catch (e) { if (!guardFailed(e)) throw e; }
+        await checkDeath(env, db, compte.vie_id, now);
+        try { await collectRent(db, compte.vie_id, now); } catch (e) { console.error(e); }
+        try { await dailyEvent(db, compte.vie_id, now); } catch (e) { console.error(e); }
+        try { if (await dailyLiving(db, compte.vie_id, now)) await checkDeath(env, db, compte.vie_id, now); } catch (e) { console.error(e); }
+      }
       const ch = await loadCharacter(db, compte.vie_id);
       if (!ch) return fail(h, 404, "Personnage introuvable.");
       // personnage mort : on ne peut que voir son décès et renaître (en payant une nouvelle naissance)
@@ -1771,16 +1802,19 @@ const worker = {
         const no = cannotBuy(item, p.makuta, ageYears(p.ne_le, now), (ch.inv || []).map(x => x.objet_id));
         if (no) return fail(h, 409, no);
         const e = item.effet || {};
+        if (e.energie < 0 && needsAt({ hunger: p.faim, energy: p.energie, happiness: p.bonheur, health: p.sante, updatedAt: p.maj_le }, now).energy < -e.energie) return fail(h, 409, "Trop fatigué pour faire du sport : repose-toi ou mange d'abord.");
         const st = [
-          db.prepare(`UPDATE personnages SET makuta = makuta - ?, faim = MIN(100, faim + ?), bonheur = MIN(100, bonheur + ?), energie = MIN(100, energie + ?) WHERE id = ? AND makuta >= ?`)
-            .bind(item.prix, e.faim || 0, e.bonheur || 0, e.energie || 0, p.id, item.prix), GUARD(db),
-          ...(item.type === "telephone"
+          db.prepare(`UPDATE personnages SET makuta = makuta - ?, faim = MIN(100, faim + ?), bonheur = MIN(100, bonheur + ?), energie = MAX(0, MIN(100, energie + ?)), sante = MIN(100, sante + ?) WHERE id = ? AND makuta >= ?`)
+            .bind(item.prix, e.faim || 0, e.bonheur || 0, e.energie || 0, e.sante || 0, p.id, item.prix), GUARD(db),
+          ...(item.vers ? await payToCompany(db, item.vers, p.id, item.prix, "achat : " + item.nom, now) : item.type === "telephone"
             ? [db.prepare(`INSERT INTO transactions (id, de_id, vers_id, montant, motif, le) VALUES (?, ?, NULL, ?, ?, ?)`).bind(uid(), p.id, item.prix - Math.round(item.prix * TAX.douane), "achat : " + item.nom, now),
                ...taxTo(db, p.id, Math.round(item.prix * TAX.douane), "droits de douane 10 % (DGDA) : " + item.nom, now)]
             : [db.prepare(`INSERT INTO transactions (id, de_id, vers_id, montant, motif, le) VALUES (?, ?, NULL, ?, ?, ?)`).bind(uid(), p.id, item.prix - vatOf(item.prix), "achat : " + item.nom, now),
                ...taxTo(db, p.id, vatOf(item.prix), "TVA " + LAWS.tva + " % (DGI) : " + item.nom, now)]),
         ];
-        if (item.type !== "nourriture") {
+        if (e.vitalite) st.push(db.prepare(`INSERT OR IGNORE INTO train_de_vie (personnage_id, maj_le) VALUES (?, ?)`).bind(p.id, now),
+          db.prepare(`UPDATE train_de_vie SET vitalite = MIN(100, vitalite + ?) WHERE personnage_id = ?`).bind(e.vitalite, p.id));
+        if (item.type !== "nourriture" && !item.jetable) {
           // un vêtement acheté est porté tout de suite (il remplace celui du même emplacement)
           if (item.slot) st.push(db.prepare(`UPDATE possessions SET porte = 0 WHERE proprietaire_id = ? AND objet_id IN (${SHOP.filter(x => x.slot === item.slot).map(() => "?").join(",")})`).bind(p.id, ...SHOP.filter(x => x.slot === item.slot).map(x => x.id)));
           st.push(db.prepare(`INSERT INTO possessions (id, proprietaire_id, objet_id, acquis_le, porte) VALUES (?, ?, ?, ?, ?)`).bind(uid(), p.id, item.id, now, item.slot ? 1 : 0));
@@ -1821,7 +1855,7 @@ const worker = {
 
       if (url.pathname === "/api/postuler" && req.method === "POST") {
         const job = JOBS.find(j => j.id === body.metier);
-        const no = cannotApply(job, ageYears(p.ne_le, now), ch.dip, tal.filter(t => t.decouvert).map(t => t.talent_id)) || tenueBlocks(job, ch.train ? ch.train.tenue : null);
+        const no = cannotApply(job, ageYears(p.ne_le, now), ch.dip, tal.filter(t => t.decouvert).map(t => t.talent_id), (ch.inv || []).map(x => x.objet_id)) || tenueBlocks(job, ch.train ? ch.train.tenue : null);
         if (no) return fail(h, 409, no);
         await db.batch([
           db.prepare(`UPDATE emplois SET fin = ? WHERE personnage_id = ? AND fin IS NULL`).bind(now, p.id),
@@ -2156,6 +2190,18 @@ const worker = {
         if (!q) return fail(h, 400, OTHER_CITIES.includes(body.quartier) ? `${body.quartier} n'est pas encore ouverte.` : "Destination inconnue.");
         if (q === p.quartier) return fail(h, 409, `Tu es déjà à ${q}.`);
         await settle(db, p, now);
+        // son propre véhicule (permis valide pour moto et voiture) : seulement le carburant, sinon le taxi
+        const veh = ownVehicle((ch.inv || []).map(x => x.objet_id), permitStatus(ch.dip || [], ch.ptsPermis || [], now).valide);
+        if (veh && ageYears(p.ne_le, now) >= (veh.minAge || 0)) {
+          const fuel = veh.trajet || 0, tired = veh.id === "velo" ? BIKE_ENERGY : TAXI_ENERGY;
+          if (p.makuta < fuel) return fail(h, 409, `Le carburant coûte ${fmtMakuta(fuel)} : pas assez d'e-makuta.`);
+          if (p.energie < tired) return fail(h, 409, "Trop fatigué pour sortir : repose-toi ou mange.");
+          await db.batch([
+            db.prepare(`UPDATE personnages SET makuta = makuta - ?, energie = MAX(0, energie - ?), quartier = ? WHERE id = ? AND makuta >= ?`).bind(fuel, tired, q, p.id, fuel), GUARD(db),
+            ...(fuel ? [db.prepare(`INSERT INTO transactions (id, de_id, vers_id, montant, motif, le) VALUES (?, ?, NULL, ?, ?, ?)`).bind(uid(), p.id, fuel - vatOf(fuel), "carburant vers " + q, now), ...taxTo(db, p.id, vatOf(fuel), "TVA " + LAWS.tva + " % (DGI) : carburant", now)] : []),
+          ]);
+          return json(h, 200, { arrive: q, vehicule: veh.nom, ...view(compte, await loadCharacter(db, p.id), now) });
+        }
         if (ageYears(p.ne_le, now) < 12) return fail(h, 409, "Trop jeune pour prendre le taxi seul.");
         if (p.makuta < TAXI_FARE) return fail(h, 409, `La course coûte ${fmtMakuta(TAXI_FARE)}.`);
         if (p.energie < TAXI_ENERGY) return fail(h, 409, "Trop fatigué pour sortir : repose-toi ou mange.");

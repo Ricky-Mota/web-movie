@@ -2,7 +2,7 @@
 // simule la même vie dans le navigateur (mode démo).
 import {
   ageYears, stageOf, STAGES, realMsUntil, TALENTS, ACTIVITIES, rng, drawTalents, doActivity, needsAt, newIdentity, BIRTH_GIFT,
-  SHOP, homeConso, cannotBuy, OFFERS, USD_TO_MAKUTA, USD_UNITS, fmtMakuta, WITHDRAW_FEE, walletInfo, birthShiftMs, shopView, familyOf, JOBS, payFor, cannotWork, workView, SHIFT_ENERGY, cannotApply, FORMATIONS, cannotEnroll, attendCourse, schoolView, STUDY_ENERGY, SUPPORT_PER_DAY, HOST_MIN_AGE, canSignupBeforeLaunch, COMPANY_TYPES, cannotOpenCompany, companyName, companyView, companyAccrue, companyJob, EMPLOYEE_YIELD, RESELL_RATE, TAXI_FARE, TAXI_ENERGY, KINSHASA_QUARTIERS, OTHER_CITIES, TAX, POSTS, PUBLIC_JOBS, BANKS, bankAccrue, INSURERS, CARE, careCost, ACCIDENT, injuredBlocks, accidentText, ROAD_FAULTS, roadFaultText, TRAFFIC_TICKETS, trafficTicket, permitStatus, ELECTION_FEE, cannotRun, ELECTION_CAMPAIGN, cannotCampaignElec, resultLine, OPERATORS, RECHARGES, CALL, stateView, supportDue, unpaidEffect, familyShare, FIRST_NAMES,
+  SHOP, homeConso, cannotBuy, ownVehicle, opportunities, BIKE_ENERGY, OFFERS, USD_TO_MAKUTA, USD_UNITS, fmtMakuta, WITHDRAW_FEE, walletInfo, birthShiftMs, shopView, familyOf, JOBS, payFor, cannotWork, workView, SHIFT_ENERGY, cannotApply, FORMATIONS, cannotEnroll, attendCourse, schoolView, STUDY_ENERGY, SUPPORT_PER_DAY, HOST_MIN_AGE, canSignupBeforeLaunch, COMPANY_TYPES, cannotOpenCompany, companyName, companyView, companyAccrue, companyJob, EMPLOYEE_YIELD, RESELL_RATE, TAXI_FARE, TAXI_ENERGY, KINSHASA_QUARTIERS, OTHER_CITIES, TAX, POSTS, PUBLIC_JOBS, BANKS, bankAccrue, INSURERS, CARE, careCost, ACCIDENT, injuredBlocks, accidentText, ROAD_FAULTS, roadFaultText, TRAFFIC_TICKETS, trafficTicket, permitStatus, ELECTION_FEE, cannotRun, ELECTION_CAMPAIGN, cannotCampaignElec, resultLine, OPERATORS, RECHARGES, CALL, stateView, supportDue, unpaidEffect, familyShare, FIRST_NAMES,
   describeAction, ORDER_DONE, ORDERS, ORDERS_PER_DAY, ORDERS_CHECK_MS, dayKey, ordersToRun, cannotGiveOrder,
   VOTER_MIN_AGE, NEGLECT_DANGER_DAYS, NEGLECT_DANGER_HEALTH, splitEstate, deathCause, familyShareRate, REP, REP_BAD, REP_GOOD, repLabel, repDiscount, DOT_MAKUTA, MARRY_MIN_AGE, STREET_JOBS, cannotStreetJob, RENT, rentOf, houseOf, rentDue, HOUSING_MIN_AGE, SALE_TAX, LIFE_EVENTS, EVENT_EVERY_H, drawEvent, eventMoney, lifeAlbum, CRIMES, catchChance, sentence, inPrison, PRISON_BLOCKED, BAIL, PRISON_HOURS, RECIDIVE, policeView, applySettings, food, drawEntry, classOfWealth, classLabel, MATURITY_GAIN, BIG_DECISIONS, cannotDecide, dashboard,
   PAY_METHODS, cannotDeposit, cannotWithdraw, maskPhone, withdrawUsd, COMMUNES, communeView, ROLES, drawRole, roleOf,
@@ -68,6 +68,7 @@ const demo = {
     v.etat.finances = { tresor, impotsJour: (d.tva || 0) + Math.max(0, d.tresor || 0), salairesJour: 0, arrieres: 0, societes: soeView(soldes, { "sp-mwinda": 3, "sp-mai": 2, "sp-regie": 1, "sp-voirie": 6 }), tva: 16, demo: true };
     v.salaireDu = 0; v.promo = { prix: PROMO_PRICE, maxJours: PROMO_MAX_DAYS };
     v.train = livingView(d.train || {}, d.perso.makuta, ageYears(d.perso.neLe));
+    v.atouts = opportunities({ ids: (d.inv || []).map(x => x.objet_id), diplomas: d.dip || [], tenue: (d.train || {}).tenue ?? 40, vitalite: (d.train || {}).vitalite ?? 50, reputation: d.rep || 0 });
     v.blessure = d.blessure || null;
     v.campagnes = { maxJours: CAMPAIGN_MAX_DAYS, liste: (d.campagnes || []).filter(x => x.fin > Date.now()) };
     return v;
@@ -482,10 +483,12 @@ const demo = {
       const no = cannotBuy(item, c.makuta, ageYears(c.neLe), (d.inv || []).map(x => x.objet_id));
       if (no) throw new Error(no);
       const e = item.effet || {};
+      if (e.energie < 0 && c.energy < -e.energie) throw new Error("Trop fatigué pour faire du sport : repose-toi ou mange d'abord.");
       c.makuta -= item.prix; if (item.type === "telephone") d.tresor = (d.tresor || 0) + Math.round(item.prix * TAX.douane);
-      c.hunger = Math.min(100, c.hunger + (e.faim || 0)); c.happiness = Math.min(100, c.happiness + (e.bonheur || 0)); c.energy = Math.min(100, c.energy + (e.energie || 0));
+      c.hunger = Math.min(100, c.hunger + (e.faim || 0)); c.happiness = Math.min(100, c.happiness + (e.bonheur || 0)); c.energy = Math.max(0, Math.min(100, c.energy + (e.energie || 0))); c.health = Math.min(100, c.health + (e.sante || 0));
+      if (e.vitalite) { d.train = d.train || { niveau: "auto", tenue: 40, vitalite: 50 }; d.train.vitalite = Math.min(100, (d.train.vitalite ?? 50) + e.vitalite); }
       d.inv = d.inv || [];
-      if (item.type !== "nourriture") {
+      if (item.type !== "nourriture" && !item.jetable) {
         if (item.slot) d.inv.forEach(x => { if (SHOP.find(y => y.id === x.objet_id).slot === item.slot) x.porte = 0; });
         d.inv.push({ id: "p" + this.seed(), objet_id: item.id, porte: item.slot ? 1 : 0, acquis_le: Date.now() });
       }
@@ -701,6 +704,14 @@ const demo = {
       if (!q) throw new Error(OTHER_CITIES.includes(body.quartier) ? `${body.quartier} n'est pas encore ouverte.` : "Destination inconnue.");
       if (q === c.quartier) throw new Error(`Tu es déjà à ${q}.`);
       this.settle(c);
+      const veh = ownVehicle((d.inv || []).map(x => x.objet_id), permitStatus(d.dip || [], d.permisPts || []).valide);
+      if (veh && ageYears(c.neLe) >= (veh.minAge || 0)) {
+        const fuel = veh.trajet || 0, tired = veh.id === "velo" ? BIKE_ENERGY : TAXI_ENERGY;
+        if (c.makuta < fuel) throw new Error(`Le carburant coûte ${fmtMakuta(fuel)} : pas assez d'e-makuta.`);
+        if (c.energy < tired) throw new Error("Trop fatigué pour sortir : repose-toi ou mange.");
+        c.makuta -= fuel; c.energy -= tired; c.quartier = q;
+        store.set(LS_DEMO, d); return { arrive: q, vehicule: veh.nom, ...this.view(d) };
+      }
       if (ageYears(c.neLe) < 12) throw new Error("Trop jeune pour prendre le taxi seul.");
       if (c.makuta < TAXI_FARE) throw new Error(`La course coûte ${fmtMakuta(TAXI_FARE)}.`);
       if (c.energy < TAXI_ENERGY) throw new Error("Trop fatigué pour sortir : repose-toi ou mange.");
@@ -770,7 +781,7 @@ const demo = {
       return { stars: pickStars(cands, Date.now()), demo: true };
     }
     if (path === "/api/postuler") {
-      const job = JOBS.find(j => j.id === body.metier), no = cannotApply(job, ageYears(c.neLe), d.dip || [], c.talents.filter(t => t.discovered).map(t => t.talent)) || tenueBlocks(job, d.train ? d.train.tenue : null);
+      const job = JOBS.find(j => j.id === body.metier), no = cannotApply(job, ageYears(c.neLe), d.dip || [], c.talents.filter(t => t.discovered).map(t => t.talent), (d.inv || []).map(x => x.objet_id)) || tenueBlocks(job, d.train ? d.train.tenue : null);
       if (no) throw new Error(no);
       d.job = job.id; d.boss = null; store.set(LS_DEMO, d); return this.view(d);
     }
@@ -998,6 +1009,8 @@ $("market").onclick = e => {
 const quartierHtml = q => `<div class="qtr"><div>${q.bon.map(x => `<span class="good">＋ ${esc(x)}</span>`).join("")}</div><div>${q.mauvais.map(x => `<span class="bad">− ${esc(x)}</span>`).join("")}</div></div>`;
 function renderDash(v) {
   const T = v.tableau; if (!T) { $("dash-card").hidden = true; return; } $("dash-card").hidden = false;
+  const O = v.atouts;
+  $("pause-card").hidden = !v.pause;
   const R = T.richesse, A = T.argent, P = T.proprietaire, N = v.perso.besoins, M = T.maturite;
   const row = (l, x, b) => `<div class="row"><span>${l}</span><span>${b ? "<b>" + x + "</b>" : x}</span></div>`;
   const bar = (l, n, inv) => { const g = inv ? 100 - n : n; return `<div class="need">${l} <b style="float:right">${n}</b><div class="bar"><i class="${g < 25 ? "low" : g < 50 ? "mid" : ""}" style="width:${n}%"></i></div></div>`; };
@@ -1008,6 +1021,10 @@ function renderDash(v) {
     ${T.role ? `<h3 style="font-size:15px;margin:14px 0 6px">Son caractère et son rôle</h3>
     <div class="role ${T.role.camp}"><b>${esc(T.role.roleNom)}</b> · ${esc(T.role.caractereNom)} <span class="camp">${T.role.camp === "bon" ? "👍 bon" : "👎 mauvais"}</span><small>${esc(T.role.roleDesc)} Donné par le jeu à l'arrivée.</small></div>` : ""}
     ${T.quartier ? `<h3 style="font-size:15px;margin:14px 0 6px">Son quartier : ${esc(T.quartier.nom)} <small style="color:var(--muted);font-weight:400">· ${esc(T.quartier.zone)}</small></h3>${quartierHtml(T.quartier)}` : ""}
+    ${O ? `<h3 style="font-size:15px;margin:14px 0 6px">Ses chances de réussir : ${O.score} %</h3>
+    <div class="need"><div class="bar"><i class="${O.score < 30 ? "low" : O.score < 60 ? "mid" : ""}" style="width:${O.score}%"></i></div></div>
+    <div class="atouts">${O.atouts.map(a => `<span class="atout ${a.ok ? "ok" : ""}" title="${esc(a.aide)}">${a.icone} ${esc(a.label)} ${a.ok ? "✓" : "✗"}</span>`).join("")}</div>
+    <p style="font-size:13px;margin:6px 0 0;color:var(--muted)">Rien n'est gratuit : études, téléphone, véhicule, tenue et sport s'achètent et ouvrent des métiers mieux payés.</p>` : ""}
     <h3 style="font-size:15px;margin:14px 0 2px">Ce qu'il possède</h3>
     ${row("En poche", mk(R.poche))}${R.banque ? row("À la banque", mk(R.banque)) : ""}${R.biens ? row("Objets", mk(R.biens)) : ""}${R.entreprises ? row("Entreprises", mk(R.entreprises)) : ""}${R.maison ? row("Maison", mk(R.maison)) : ""}
     <h3 style="font-size:15px;margin:14px 0 6px">Ses besoins</h3>
@@ -1073,14 +1090,18 @@ $("dead").onclick = e => {
   if (e.target.id === "b-reborn") act("/api/renaitre", {}, v => `Bienvenue dans ta nouvelle vie, ${v.perso.prenom} !`); };
 
 // ---------------------------------------------------------------- magasin, affaires, portefeuille
-const TYPES = [["nourriture", "Nourriture", "🍲"], ["vetement", "Vêtements", "👕"], ["telephone", "Téléphones", "📱"], ["meuble", "Maison", "🛋️"]];
-const MEUBLE_ICON = { "lit-king": "🛏️", "tele-plasma": "📺", clim: "❄️", ventilo: "🌀", "canape-cuir": "🛋️", "chauffe-eau": "🚿" };
+const TYPES = [["nourriture", "Nourriture", "🍲"], ["soin", "Pharmacie", "💊"], ["vetement", "Vêtements", "👕"], ["telephone", "Téléphones", "📱"], ["sport", "Sport", "⚽"], ["vehicule", "Véhicules", "🚗"], ["meuble", "Maison", "🛋️"]];
+const MEUBLE_ICON = { "lit-king": "🛏️", "tele-plasma": "📺", clim: "❄️", ventilo: "🌀", "canape-cuir": "🛋️", "chauffe-eau": "🚿",
+  "boisson-energie": "🥤", paracetamol: "💊", vitamines: "🍊", antipaludeen: "💉", moustiquaire: "🦟", "seance-gym": "🏋🏾", "terrain-foot": "⚽", "tenue-sport": "👟",
+  velo: "🚲", moto: "🏍️", "voiture-occasion": "🚗", "voiture-neuve": "🚙" };
+const FX = { faim: "satiété", bonheur: "bonheur", energie: "énergie", sante: "santé", vitalite: "vitalité" };
+const KEEP_TXT = { soin: "Pharmacie : te protège du paludisme", sport: "Équipement de sport", vehicule: "Ton véhicule : tes trajets ne passent plus par le taxi" };
 let shopTab = "nourriture";
 const mk = n => fmtMakuta(Math.round(n));
 const usd = n => `${n.toLocaleString("fr-FR", { maximumFractionDigits: 2 })} $`;
 const SLOT = { haut: "Haut", bas: "Bas", pieds: "Chaussures", bain: "Maillot de bain : pour nager à la piscine" };
 function swatch(it) {
-  if (it.type === "meuble") return `<span class="sw">${MEUBLE_ICON[it.id] || "🛋️"}</span>`;
+  if (MEUBLE_ICON[it.id]) return `<span class="sw">${MEUBLE_ICON[it.id]}</span>`;
   return it.couleur ? `<span class="sw" style="background:${it.couleur}"></span>` : `<span class="sw">${(TYPES.find(t => t[0] === it.type) || [, , "•"])[2]}</span>`;
 }
 function renderShop(v) {
@@ -1088,16 +1109,16 @@ function renderShop(v) {
   $("shop-tabs").innerHTML = TYPES.map(([id, label]) => `<button class="tab ${id === shopTab ? "on" : ""}" data-t="${id}" type="button">${label}</button>`).join("");
   $("shop").innerHTML = v.boutique.filter(it => it.type === shopTab).map(it => {
     const why = it.minAge && p.age < it.minAge ? `dès ${it.minAge} ans` : it.maxAge && p.age > it.maxAge ? "pour les tout-petits" : p.makuta < it.prix ? "trop cher" : "";
-    const owned = it.type === "meuble" && v.inventaire.some(x => x.objet === it.id);
-    const fx = (it.desc ? it.desc + " · " : "") + (it.effet ? Object.entries(it.effet).map(([k, x]) => `+${x} ${{ faim: "satiété", bonheur: "bonheur", energie: "énergie" }[k]}`).join(" · ") : SLOT[it.slot] || "") + (it.conso ? ` · électricité +${mk(it.conso)}/jour` : "");
-    if (owned) return `<div class="item">${swatch(it)}<div class="t">${it.nom}<small>Déjà dans ta maison</small></div><button class="mini" type="button" disabled>✓ Chez toi</button></div>`;
+    const owned = (it.type === "meuble" || it.unique) && v.inventaire.some(x => x.objet === it.id);
+    const fx = ((it.desc ? it.desc + " · " : "") + (it.effet && !(it.desc && ["soin", "sport", "vehicule"].includes(it.type)) ? Object.entries(it.effet).filter(([k]) => !(it.desc && k === "bonheur")).map(([k, x]) => `${x > 0 ? "+" : ""}${x} ${FX[k] || k}`).join(" · ") : SLOT[it.slot] || "") + (it.conso ? ` · électricité +${mk(it.conso)}/jour` : "")).replace(/ · $/, "");
+    if (owned) return `<div class="item">${swatch(it)}<div class="t">${it.nom}<small>${it.type === "meuble" ? "Déjà dans ta maison" : "Tu l'as déjà"}</small></div><button class="mini" type="button" disabled>✓ ${it.type === "meuble" ? "Chez toi" : "À toi"}</button></div>`;
     return `<div class="item">${swatch(it)}<div class="t">${it.nom}<small>${mk(it.prix)}${fx ? " · " + fx : ""}${why ? " · " + why : ""}</small></div>
-      <button class="mini fill" data-buy="${it.id}" type="button" ${dis(why, why)}>${it.type === "nourriture" ? "Manger" : "Acheter"}</button></div>`;
+      <button class="mini fill" data-buy="${it.id}" type="button" ${dis(why, why)}>${it.type === "nourriture" ? "Manger" : it.jetable && it.type === "soin" ? "Prendre" : it.jetable ? "Y aller" : "Acheter"}</button></div>`;
   }).join("");
   const inv = v.inventaire.map(x => ({ ...x, it: v.boutique.find(b => b.id === x.objet) })).filter(x => x.it);
   // la ville 3D lit cette liste pour meubler la maison du personnage (même navigateur, démo ou compte réel)
   try { localStorage.setItem("twolife_meubles", JSON.stringify(inv.filter(x => x.it.type === "meuble").map(x => x.it.id))); localStorage.setItem("twolife_objets", JSON.stringify(inv.map(x => x.it.id))); } catch (e) { }
-  $("inv").innerHTML = inv.length ? inv.map(x => `<div class="item">${swatch(x.it)}<div class="t">${x.it.nom}<small>${x.it.slot ? (x.porte ? "Porté · " : "") + SLOT[x.it.slot] : x.it.type === "meuble" ? "Dans ta maison (visible en 3D dans « La ville »)" : "Téléphone : tu peux appeler ta famille"}</small></div>
+  $("inv").innerHTML = inv.length ? inv.map(x => `<div class="item">${swatch(x.it)}<div class="t">${x.it.nom}<small>${x.it.slot ? (x.porte ? "Porté · " : "") + SLOT[x.it.slot] : x.it.type === "meuble" ? "Dans ta maison (visible en 3D dans « La ville »)" : KEEP_TXT[x.it.type] || "Téléphone : tu peux appeler ta famille"}</small></div>
       ${x.it.slot ? `<button class="mini ${x.porte ? "" : "fill"}" data-wear="${x.id}" type="button">${x.porte ? "Retirer" : "Porter"}</button>` : ""}
       <button class="mini" data-sell="${x.id}" type="button">Vendre ${mk(x.it.prix * RESELL_RATE)}</button></div>`).join("")
     : `<p style="font-size:14px;margin:0">Rien pour l'instant. Les vêtements achetés apparaissent ici et sur ton personnage.</p>`;
@@ -1712,7 +1733,7 @@ async function act(path, body, ok) { try { const v = await call(path, body); ren
 $("shop").onclick = e => {
   const b = e.target.closest("[data-buy]"); if (!b) return;
   const it = state.boutique.find(x => x.id === b.dataset.buy); b.disabled = true;
-  act("/api/acheter", { objet: it.id }, () => it.type === "nourriture" ? `Bon appétit : ${it.nom}.` : it.slot ? `${it.nom} acheté et porté.` : `${it.nom} acheté. Il est dans tes affaires.`);
+  act("/api/acheter", { objet: it.id }, () => it.type === "nourriture" ? `Bon appétit : ${it.nom}.` : it.jetable ? `C'est fait : ${it.nom.toLowerCase()}.` : it.slot ? `${it.nom} acheté et porté.` : `${it.nom} acheté. Il est dans tes affaires.`);
 };
 $("inv").onclick = e => {
   const b = e.target.closest("[data-wear]"); if (b) return act("/api/porter", { possession: b.dataset.wear });
