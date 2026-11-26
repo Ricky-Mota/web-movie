@@ -14,10 +14,12 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import blender_cars as BC   # outils communs (matériaux, cubes biseautés, cylindres, pneus, export, studio)
 
 OUT = BC.OUT
-L, W, H = 7.2, 2.3, 2.85          # longueur, largeur, hauteur du toit
+LONG = "--long" in sys.argv        # variante 12 m (bus standard de ville, 3 portes)
+L, W, H = (12.0, 2.5, 3.05) if LONG else (7.2, 2.3, 2.85)   # longueur, largeur, hauteur du toit
 FLOOR = .42                        # plancher bas
-WB_F, WB_R, WR = 1.85, -2.1, .46  # essieux avant / arrière, rayon de roue
-DOORS = [(2.9, .95), (-.75, 1.2)]   # (centre x, largeur) des portes côté trottoir
+WB_F, WB_R, WR = (3.3, -2.9, .5) if LONG else (1.85, -2.1, .46)   # essieux avant / arrière, rayon de roue
+DOORS = [(L / 2 - .7, .95), (.9, 1.25), (-4.45, 1.1)] if LONG else [(2.9, .95), (-.75, 1.2)]   # (centre x, largeur) des portes côté trottoir
+NAME = "bus12" if LONG else "bus"
 
 def build():
     M = dict(
@@ -64,7 +66,7 @@ def build():
     for side in (-1, 1):
         y = side * (W / 2 + .005)
         C("winband", (x1 - x0, .04, zw1 - zw0), ((x0 + x1) / 2, y, (zw0 + zw1) / 2), M["glass"], bevel=.03)
-        n = 6
+        n = round((x1 - x0) / 1.15)
         for i in range(n + 1):
             x = x0 + i * (x1 - x0) / n
             C("pillar", (.09, .05, zw1 - zw0 + .04), (x, y + side * .005, (zw0 + zw1) / 2), M["black"])
@@ -111,14 +113,14 @@ def build():
         for k in (-1, 1): C("marker", (.06, .06, .04), (x, k * (W / 2 - .15), H + .01), M["amber"] if x > 0 else M["lightR"])
     # intérieur visible : plancher, sièges bleus, barres de maintien
     C("floorin", (L - .4, W - .2, .04), (0, 0, FLOOR + .02), M["floor"])
-    for i in range(6):
-        x = 1.6 - i * .78
-        if abs(x - DOORS[1][0]) < .7: continue
+    for i in range(int((L - 3.2) / .78)):
+        x = L / 2 - 2 - i * .78
+        if any(abs(x - d[0]) < d[1] / 2 + .3 for d in DOORS[1:]): continue
         for k in (-1, 1):
             if k < 0 and abs(x - DOORS[0][0]) < .8: continue
             C("seat", (.42, .45, .1), (x, k * .72, FLOOR + .45), M["seat"], bevel=.03)
             C("seatback", (.08, .45, .55), (x - .2, k * .72, FLOOR + .75), M["seat"], bevel=.03)
-    for x in (2.0, .4, -1.2):
+    for x in ((2.0, .4, -1.2) if not LONG else (4.2, 2.0, .2, -2.0, -4.0)):
         parts.append(BC.cyl("pole", .02, H - FLOOR - .2, (x, -.32, FLOOR + (H - FLOOR) / 2), M["chrome"], verts=10, axis="Z"))
     C("driverseat", (.48, .48, .5), (L / 2 - 1.05, .5, FLOOR + .55), M["black"], bevel=.05)
     wheelobj = BC.cyl("steering", .2, .04, (L / 2 - .6, .5, 1.25), M["black"], verts=20, axis="X"); wheelobj.rotation_euler = (0, math.radians(60), 0); parts.append(wheelobj)
@@ -153,9 +155,9 @@ def build():
 if __name__ == "__main__":
     BC.clear()
     build()
-    p = os.path.join(OUT, "bus.glb")
+    p = os.path.join(OUT, NAME + ".glb")
     BC.export_glb(p)
-    print("ok bus", os.path.getsize(p) // 1024, "Ko", flush=True)
+    print("ok", NAME, os.path.getsize(p) // 1024, "Ko", flush=True)
     if BC.RENDER:
         P = dict(L=L, H=H)
-        for v in ("34", "side"): BC.studio(v, os.path.join(OUT, f"bus-{v}.png"), P)
+        for v in ("34", "side"): BC.studio(v, os.path.join(OUT, f"{NAME}-{v}.png"), P)

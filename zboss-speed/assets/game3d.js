@@ -829,37 +829,46 @@
     bag: new THREE.InstancedMesh(new THREE.BoxGeometry(.36, .26, .08), pm({ color: "#2a1a10", roughness: .4 }), PEDMAX),
   };
   for (const k in PART) { const im = PART[k]; im.frustumCulled = false; im.castShadow = !MOBILE; im.setColorAt(0, new THREE.Color()); im.count = 0; im.instanceMatrix.setUsage(THREE.DynamicDrawUsage); scene.add(im); }
+  // Les habits changent chaque jour (jour de jeu) : le corps (sexe, peau, taille) reste le même,
+  // seule la tenue est retirée au sort avec le numéro du jour. Les uniformes (police, maillots) restent.
+  let LOOK_DAY = 0;
+  const PLAYER_TOP = ["#ff5a1f", "#f4f4f2", "#1e3a8a", "#0f766e", "#b91c1c", "#f59e0b", "#7c3aed", "#14532d"];
   const pedLook = q => {
-    if (q.lookC) return q.lookC;
-    let h = (q.look * 2654435761 + (q.staff ? 99 : 0) + Math.floor((q.x0 || q.x) * 7)) >>> 0; const r = () => ((h = (h * 1103515245 + 12345) >>> 0) / 4294967296);
+    if (q.lookC && q.lookDay === LOOK_DAY) return q.lookC;
+    q.lookDay = LOOK_DAY;
+    if (q.lookSeed === undefined) q.lookSeed = ((q.look || 0) * 2654435761 + (q.staff ? 99 : 0) + Math.floor((q.x0 || q.x || 0) * 7)) >>> 0;   // fixé une fois : le corps ne change pas quand il se déplace
+    let h = q.lookSeed; const r = () => ((h = (h * 1103515245 + 12345) >>> 0) / 4294967296);
+    let hd = (h ^ Math.imul(LOOK_DAY + 1, 2246822519)) >>> 0; const rd = () => ((hd = (hd * 1103515245 + 12345) >>> 0) / 4294967296); rd(); rd();
     if (q.kit) { // joueurs de foot / basket : maillot de l'équipe, short
       q.lookC = { woman: false, skin: new THREE.Color(SKIN[(r() * SKIN.length) | 0]), top: new THREE.Color(q.kit[0]), low: new THREE.Color(q.kit[1]), wrap: null, sleeve: false, h: .96 + r() * .1, shoe: new THREE.Color(["#111", "#f5f5f5", "#e11d48"][(r() * 3) | 0]) };
       const L = q.lookC, lin = c => c && c.clone().convertSRGBToLinear();
       L.fb = { skin: lin(L.skin), top: lin(L.top), low: lin(L.low), wrap: null, shoe: lin(L.shoe) };
       return L;
     }
-    const woman = q.player ? false : r() < (q.cop ? .25 : q.vendor || q.market ? .75 : .48);
+    const w0 = r(), woman = q.fem !== undefined ? !!q.fem : q.player ? false : w0 < (q.cop ? .25 : q.vendor || q.market ? .75 : .48);
     if (q.cop) { // police nationale : uniforme bleu marine, béret
       q.lookC = { woman, cop: true, skin: new THREE.Color(SKIN[(r() * SKIN.length) | 0]), top: new THREE.Color("#22345c"), low: new THREE.Color("#1a2744"), wrap: null, sleeve: true, h: .98 + r() * .08, shoe: new THREE.Color("#0b0b0d"), biz: false };
       const L = q.lookC, lin = c => c && c.clone().convertSRGBToLinear();
       L.fb = { skin: lin(L.skin), top: lin(L.top), low: lin(L.low), wrap: null, shoe: lin(L.shoe) };
       return L;
     }
-    const biz = !q.player && !q.staff && !q.vendor && ((((q.look || 0) * 7919 + Math.floor((q.x0 || q.x) * 3)) >>> 0) % 100) < (window.TWOLIFE_WALK ? 40 : 18);
+    if (q.lookBiz === undefined) q.lookBiz = !q.player && !q.staff && !q.vendor && ((((q.look || 0) * 7919 + Math.floor((q.x0 || q.x) * 3)) >>> 0) % 100) < (window.TWOLIFE_WALK ? 40 : 18);
+    const biz = q.lookBiz;   // le métier (tenue de bureau) ne change pas d'un jour à l'autre, seule la couleur du costume
     if (biz) {
-      const suit = SUIT[(r() * SUIT.length) | 0];
-      q.lookC = { woman, biz: true, skin: new THREE.Color(SKIN[(r() * SKIN.length) | 0]), top: new THREE.Color(suit), low: new THREE.Color(woman && r() < .5 ? SUIT[(r() * SUIT.length) | 0] : suit), wrap: null,
-        sleeve: true, h: .94 + r() * .12, shoe: new THREE.Color(r() < .7 ? "#0e0e10" : "#3b2414"), tie: new THREE.Color(woman ? "#f4f4f2" : TIE[(r() * TIE.length) | 0]), bag: r() < .55 };
+      const skin = SKIN[(r() * SKIN.length) | 0], tall = .94 + r() * .12, bag = r() < .55, suit = SUIT[(rd() * SUIT.length) | 0];
+      q.lookC = { woman, biz: true, skin: new THREE.Color(skin), top: new THREE.Color(suit), low: new THREE.Color(woman && rd() < .5 ? SUIT[(rd() * SUIT.length) | 0] : suit), wrap: null,
+        sleeve: true, h: tall, shoe: new THREE.Color(rd() < .7 ? "#0e0e10" : "#3b2414"), tie: new THREE.Color(woman ? "#f4f4f2" : TIE[(rd() * TIE.length) | 0]), bag };
       const L = q.lookC, lin = c => c && c.clone().convertSRGBToLinear();
       L.fb = { skin: lin(L.skin), top: lin(L.top), low: lin(L.low), wrap: null, shoe: lin(L.shoe), tie: lin(L.tie) };
       return L;
     }
+    const skin = SKIN[(r() * SKIN.length) | 0], tall = .94 + r() * .12;
     q.lookC = {
-      woman, skin: new THREE.Color(SKIN[(r() * SKIN.length) | 0]),
-      top: new THREE.Color(q.player ? "#ff5a1f" : q.staff ? "#14161c" : woman && r() < .6 ? WAX[(r() * WAX.length) | 0] : SHIRT[(r() * SHIRT.length) | 0]),
-      low: new THREE.Color(q.staff ? "#14161c" : woman ? WAX[(r() * WAX.length) | 0] : PANTS[(r() * PANTS.length) | 0]),
-      wrap: woman && r() < .55 ? new THREE.Color(WAX[(r() * WAX.length) | 0]) : null,
-      sleeve: r() < .5, h: .94 + r() * .12, shoe: new THREE.Color(["#111", "#f5f5f5", "#5b3a1e", "#1d4ed8"][(r() * 4) | 0]),
+      woman, skin: new THREE.Color(skin),
+      top: new THREE.Color(q.player ? PLAYER_TOP[LOOK_DAY % PLAYER_TOP.length] : q.staff ? "#14161c" : woman && rd() < .6 ? WAX[(rd() * WAX.length) | 0] : SHIRT[(rd() * SHIRT.length) | 0]),
+      low: new THREE.Color(q.staff ? "#14161c" : woman ? WAX[(rd() * WAX.length) | 0] : PANTS[(rd() * PANTS.length) | 0]),
+      wrap: woman && rd() < .55 ? new THREE.Color(WAX[(rd() * WAX.length) | 0]) : null,
+      sleeve: rd() < .5, h: tall, shoe: new THREE.Color(["#111", "#f5f5f5", "#5b3a1e", "#1d4ed8"][(rd() * 4) | 0]),
     };
     // mêmes couleurs en espace linéaire pour les silhouettes simplifiées (sinon la peau sort beige à l'écran)
     const L = q.lookC, lin = c => c && c.clone().convertSRGBToLinear();
@@ -1101,6 +1110,8 @@
     for (let k = n; k < BUB.length; k++) BUB[k].visible = false;
   }
   function updatePeds(G, camX, camZ, dt) {
+    const day = Math.max(0, Math.floor(G.day || 0));
+    if (day !== LOOK_DAY) { LOOK_DAY = day; for (const [q, h] of HUM.byPed) { h.ped = null; scene.remove(h.obj); HUM.byPed.delete(q); } }   // nouveau jour : tout le monde se rhabille
     let list = G.room ? roomPeds(G).slice(0, PEDMAX - 1) : G.peds.filter(q => Math.abs(q.x * S - camX) < 140 && Math.abs(q.y * S - camZ) < 140).slice(0, PEDMAX - 1);
     if (G.room) { /* dans la pièce : seulement les gens de l'intérieur */ }
     else if (G.foot && (G.foot.inBus || G.foot.inside)) { for (const [q, h] of HUM.byPed) if (q.player) { h.ped = null; scene.remove(h.obj); HUM.byPed.delete(q); } }
@@ -1109,7 +1120,7 @@
     // vrais joueurs à pied (ville en direct) : silhouette homme / femme selon leur personnage
     for (const o of G.room ? [] : G.others || []) {
       if (o.ped || o.m !== "pied" || o.x === undefined || Math.abs(o.x * S - camX) > 140 || Math.abs(o.y * S - camZ) > 140) continue;
-      if (!o.lookC) { pedLook(o); o.lookC.woman = !!o.fem; }
+      pedLook(o);
       list.push(o);
     }
     const real = updateHumans(list, camX, camZ, dt || 1 / 60);
