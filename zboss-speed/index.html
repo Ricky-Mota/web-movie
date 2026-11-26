@@ -21,12 +21,13 @@
 <nav class="nav" aria-label="Navigation principale">
   <div class="wrap">
     <a class="logo" href="#top" aria-label="2 Life, accueil">
-      <svg width="30" height="30" viewBox="0 0 32 32" aria-hidden="true"><path d="M4 22 L14 6 H28 L18 22 Z" fill="#ff5a1f"/><path d="M10 26 H24 L27 22 H13 Z" fill="#ffb21f"/></svg>
-      <span>2<b> LIFE</b></span>
+      <img src="assets/icons/2life.svg" width="34" height="34" alt="">
+      <span class="wordmark"><span>2<b>LIFE</b></span><small>Naître à Kinshasa</small></span>
     </a>
     <ul>
-      <li><a href="jouer.html" style="color:var(--accent-2)">La ville en 3D</a></li>
-      <li><a href="vie.html">Ma vie</a></li>
+      <li><a href="jouer.html" class="nav-key">🏙️ La ville en 3D</a></li>
+      <li><a href="vie.html" class="nav-key">👤 Ma vie</a></li>
+      <li><a href="celebrites.html" class="nav-key">⭐ Célébrités</a></li>
       <li><a href="#trailer">Bande-annonce</a></li>
       <li><a href="#gameplay">Gameplay</a></li>
       <li><a href="#villes">Villes</a></li>
@@ -289,6 +290,21 @@
   </div>
 </section>
 
+<section id="celebrites">
+  <div class="wrap">
+    <div class="reveal">
+      <div class="eyebrow">Célébrités</div>
+      <h2>Les célébrités de la ville</h2>
+      <p class="section-lead">Politiques, sportifs, musiciens, religieux, universitaires et entrepreneurs : chaque jour, le jeu choisit les personnalités de Kinshasa et raconte leur parcours et leurs difficultés. Les joueurs qui réussissent dans le jeu y entrent à leur tour.</p>
+    </div>
+    <div class="reveal" style="display:flex;flex-wrap:wrap;gap:10px;margin:18px 0 22px;font-size:15px">
+      <span class="btn btn-ghost" style="pointer-events:none">🏛️ Politique</span><span class="btn btn-ghost" style="pointer-events:none">⚽ Sport</span><span class="btn btn-ghost" style="pointer-events:none">🎤 Musique</span>
+      <span class="btn btn-ghost" style="pointer-events:none">⛪ Religion</span><span class="btn btn-ghost" style="pointer-events:none">🎓 Académique</span><span class="btn btn-ghost" style="pointer-events:none">💼 Affaires et autres</span>
+    </div>
+    <div class="reveal"><a class="btn btn-primary" href="celebrites.html">⭐ Découvrir les célébrités</a></div>
+  </div>
+</section>
+
 <section id="villes">
   <div class="wrap">
     <div class="reveal">
@@ -480,11 +496,17 @@
     <span>© <span id="year"></span> 2 Life. Jeu en développement. Tous droits réservés.</span>
     <span><a href="#beta">Bêta</a> · <a href="crm.html">Espace équipe</a></span>
   </div>
+  <details class="wrap ia-note" style="margin-top:10px;font-size:13px;opacity:.85">
+    <summary>Utilisation de l'IA dans 2 Life</summary>
+    <p>Une petite IA (modèle Llama 3.1 8B, sur Cloudflare Workers AI) écrit seulement la « pensée du jour » des personnages. Elle ne décide rien : l'argent, la santé, le travail et les choix du personnage suivent les règles du jeu. Ses textes passent par un filtre (pas de violence, de contenu sexuel, de marques ni de liens), et l'administrateur peut la couper à tout moment.</p>
+    <p>Les personnages 3D viennent de MakeHuman (licence libre CC0), les bus et voitures sont modélisés dans Blender par l'équipe, et la carte de Kinshasa vient d'OpenStreetMap. Aucune image, musique ou voix du jeu n'est générée par IA aujourd'hui. Si cela change, cette note sera mise à jour.</p>
+  </details>
 </footer>
 
 <script src="config.js"></script>
 <script src="assets/store.js"></script>
 <script src="assets/sections.js"></script>
+<script type="module" src="assets/bandeau.js"></script>
 <script>
 (function () {
   document.getElementById("year").textContent = new Date().getFullYear();

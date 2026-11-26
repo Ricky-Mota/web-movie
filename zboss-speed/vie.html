@@ -56,6 +56,7 @@
     .row:last-child { border-bottom: 0; } .row span:first-child { color: var(--muted); }
     .talents { display: flex; flex-wrap: wrap; gap: 8px; }
     .tal { border-radius: 99px; padding: 6px 12px; font-size: 13px; border: 1px solid var(--line); background: var(--panel-2); }
+    button.tal { color: var(--text); font: inherit; font-size: 13px; cursor: pointer; } button.tal:disabled, button.tal[aria-disabled="true"] { opacity: .45; }
     .tal.on { border-color: var(--accent); color: var(--accent); }
     .hint { font-size: 13px; color: #e9d9c9; margin-top: 10px; padding-left: 10px; border-left: 2px solid var(--accent); }
     .acts { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
@@ -88,6 +89,8 @@
     .role.bon { border-color: color-mix(in srgb, var(--ok) 55%, var(--line)); } .role.mauvais { border-color: color-mix(in srgb, var(--bad) 55%, var(--line)); }
     .role small { display: block; color: var(--muted); font-size: 12px; margin-top: 4px; } .role .camp { float: right; font-size: 12px; }
     .qtr { display: grid; gap: 4px; font-size: 13px; } .qtr span { display: block; margin: 2px 0; } .qtr .good { color: var(--ok); } .qtr .bad { color: #f08a8d; }
+    .atouts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; } .atout { font-size: 12.5px; padding: 4px 9px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); } .atout.ok { color: var(--ok); border-color: var(--ok); }
+    .card.pause { border-color: var(--accent); } .card.pause p { font-size: 14px; }
     .guichet { margin-top: 16px; padding: 14px; border: 1px solid var(--line); border-radius: 14px; background: var(--panel-2); }
     .paygrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 6px; }
     .pay { margin: 0; display: block; cursor: pointer; }
@@ -128,14 +131,16 @@
     .co { border: 1px solid var(--line); border-radius: 12px; padding: 6px 12px 12px; margin-bottom: 10px; }
     .two-btn { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
     @media (max-width: 380px) { .acts { grid-template-columns: 1fr; } .hero { height: 280px; } }
-  </style>
+  .pensee-txt{font-size:16px;font-style:italic;line-height:1.45;margin:0 0 6px}
+</style>
 </head>
 <body>
   <div class="wrap">
     <header class="top">
-      <div class="brand"><button class="back" type="button" onclick="history.length > 1 ? history.back() : location.href = 'index.html'" aria-label="Retour à la page précédente">←</button><img src="assets/icons/2life.svg" alt=""> 2 Life</div>
+      <div class="brand"><button class="back" type="button" onclick="history.length > 1 ? history.back() : location.href = 'index.html'" aria-label="Retour à la page précédente">←</button><img src="assets/icons/2life.svg" alt=""> <span class="wm">2<b>LIFE</b></span></div>
       <span class="pill" id="mode">Mode démo</span>
     </header>
+    <nav data-site-tabs></nav>
 
     <!-- Accueil : inscription / connexion -->
     <section id="v-auth" hidden>
@@ -178,12 +183,24 @@
       </div>
 
       <nav class="quick" aria-label="Aller à">
-        <button class="chip" data-to="dash" type="button">📊 Tableau de bord</button><button class="chip" data-to="nuit" type="button">☀️ Ma nuit</button><button class="chip" data-to="journal" type="button">📰 Journal</button><button class="chip" data-to="voisins" type="button">🏘️ Voisins</button><button class="chip" data-to="orders" type="button">📋 Consignes</button><button class="chip" data-to="moves" type="button">👣 Mouvements</button><button class="chip" data-to="needs" type="button">🍲 Manger</button><button class="chip" data-to="work" type="button">💼 Travail</button><button class="chip" data-to="school" type="button">🎓 École</button><button class="chip" data-to="companies" type="button">🏪 Entreprises</button><button class="chip" data-to="shop" type="button">🛍️ Magasin</button><button class="chip" data-to="inv" type="button">🏷️ Vendre</button><button class="chip" data-to="travel" type="button">🚕 Voyager</button><button class="chip" data-to="couple" type="button">💍 Couple</button><button class="chip" data-to="street" type="button">🧹 Petits boulots</button><button class="chip" data-to="home" type="button">🏠 Logement</button><button class="chip" data-to="market" type="button">🤝 Annonces</button><button class="chip" data-to="wallet" type="button">💰 Argent</button><button class="chip" data-to="state" type="button">🏛️ État et banques</button>
+        <button class="chip" data-to="dash" type="button">📊 Tableau de bord</button><button class="chip" data-to="nuit" type="button">☀️ Ma nuit</button><button class="chip" data-to="stars" type="button">⭐ Stars</button><button class="chip" data-to="goals" type="button">🎯 Objectifs</button><button class="chip" data-to="journal" type="button">📰 Journal</button><button class="chip" data-to="voisins" type="button">🏘️ Voisins</button><button class="chip" data-to="orders" type="button">📋 Consignes</button><button class="chip" data-to="moves" type="button">👣 Mouvements</button><button class="chip" data-to="needs" type="button">🍲 Manger</button><button class="chip" data-to="work" type="button">💼 Travail</button><button class="chip" data-to="school" type="button">🎓 École</button><button class="chip" data-to="companies" type="button">🏪 Entreprises</button><button class="chip" data-to="shop" type="button">🛍️ Magasin</button><button class="chip" data-to="inv" type="button">🏷️ Vendre</button><button class="chip" data-to="travel" type="button">🚕 Voyager</button><button class="chip" data-to="couple" type="button">💍 Couple</button><button class="chip" data-to="street" type="button">🧹 Petits boulots</button><button class="chip" data-to="home" type="button">🏠 Logement</button><button class="chip" data-to="market" type="button">🤝 Annonces</button><button class="chip" data-to="wallet" type="button">💰 Argent</button><button class="chip" data-to="state" type="button">🏛️ État et banques</button>
       </nav>
+
+      <div class="card" id="pensee-card" hidden>
+        <h2>💭 Pensée du jour</h2>
+        <div id="pensee"></div>
+      </div>
 
       <div class="card nuit" id="nuit-card" hidden>
         <h2>☀️ Pendant ton absence</h2>
         <div id="nuit"></div>
+      </div>
+
+      <div class="card pause" id="pause-card" hidden>
+        <h2>⏸️ Le jeu n'a pas encore commencé</h2>
+        <p>Le temps est arrêté : ton personnage ne vieillit pas, n'a pas faim et ne dépense rien. Il t'attend chez lui.</p>
+        <p>Le jour du lancement, toutes les règles s'appliqueront d'un coup : <b>rien n'est gratuit</b>. Manger, se soigner, s'habiller, étudier, faire du sport, se déplacer : tout s'achète pour survivre et réussir sa vie.</p>
+        <p style="margin-bottom:0">En attendant, tu peux déjà déposer de l'argent, investir ou ouvrir une entreprise.</p>
       </div>
 
       <div class="card" id="dash-card">
@@ -194,6 +211,16 @@
       <div class="card tips-card">
         <h2>Que faire maintenant ?</h2>
         <div id="tips"></div>
+      </div>
+
+      <div class="card">
+        <h2>⭐ Regarder une star</h2>
+        <div id="stars"></div>
+      </div>
+
+      <div class="card">
+        <h2>🎯 Mes objectifs de vie</h2>
+        <div id="goals"></div>
       </div>
 
       <div class="card">
@@ -221,6 +248,11 @@
         <h2>Besoins</h2>
         <div class="grid2" id="needs"></div>
         <button class="btn" id="b-eat" type="button" style="margin-top:14px">Manger au maquis</button>
+      </div>
+
+      <div class="card">
+        <h2>🧺 Mon train de vie</h2>
+        <div id="train"></div>
       </div>
 
       <div class="card">
@@ -263,6 +295,11 @@
       <div class="card">
         <h2>Mes entreprises</h2>
         <div id="companies"></div>
+      </div>
+
+      <div class="card">
+        <h2>⚽ Championnat de Kinshasa</h2>
+        <div id="foot"></div>
       </div>
 
       <div class="card">
@@ -316,11 +353,13 @@
   <div class="toast" id="toast" hidden role="status"></div>
 
   <script src="config.js"></script>
+  <script src="assets/nav.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/libs/meshopt_decoder.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/utils/SkeletonUtils.js"></script>
   <script type="module" src="assets/vie.js"></script>
+  <script type="module" src="assets/bandeau.js"></script>
   <script>if ("serviceWorker" in navigator) addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch(() => {}));</script>
 </body>
 </html>

@@ -278,3 +278,182 @@ CREATE TABLE IF NOT EXISTS mots (
 );
 CREATE INDEX IF NOT EXISTS idx_mots_vers ON mots (vers_id, le);
 CREATE INDEX IF NOT EXISTS idx_mots_de ON mots (de_id, le);
+
+-- annonces payantes des commerçants partenaires (journal, panneaux LED) ; accord = contrat écrit signé
+CREATE TABLE IF NOT EXISTS pubs (
+  id TEXT PRIMARY KEY,
+  annonceur TEXT NOT NULL,
+  titre TEXT NOT NULL,
+  texte TEXT,
+  commune TEXT,
+  emplacement TEXT NOT NULL,
+  couleur TEXT,
+  debut INTEGER NOT NULL,
+  fin INTEGER NOT NULL,
+  prix_usd REAL NOT NULL DEFAULT 0,
+  paye INTEGER NOT NULL DEFAULT 0,
+  accord INTEGER NOT NULL DEFAULT 0,
+  actif INTEGER NOT NULL DEFAULT 1,
+  cree_le INTEGER NOT NULL
+);
+
+-- salaires publics dus quand la caisse de l'État (ou de la société publique) était vide
+CREATE TABLE IF NOT EXISTS arrieres (
+  id TEXT PRIMARY KEY,
+  personnage_id TEXT NOT NULL,
+  payeur_id TEXT NOT NULL,
+  montant INTEGER NOT NULL,
+  motif TEXT NOT NULL,
+  le INTEGER NOT NULL,
+  paye_le INTEGER
+);
+CREATE INDEX IF NOT EXISTS arrieres_dus ON arrieres (paye_le, le);
+
+-- objectifs de vie choisis par le joueur (3 en cours au plus)
+CREATE TABLE IF NOT EXISTS objectifs (
+  personnage_id TEXT NOT NULL,
+  objectif_id TEXT NOT NULL,
+  choisi_le INTEGER NOT NULL,
+  atteint_le INTEGER,
+  PRIMARY KEY (personnage_id, objectif_id)
+);
+
+-- communiqués du bandeau défilant : décisions publiques et messages des partenaires (accord écrit obligatoire)
+CREATE TABLE IF NOT EXISTS communiques (
+  id TEXT PRIMARY KEY,
+  auteur TEXT NOT NULL,
+  texte TEXT NOT NULL,
+  debut INTEGER NOT NULL,
+  fin INTEGER NOT NULL,
+  accord INTEGER NOT NULL DEFAULT 0,
+  actif INTEGER NOT NULL DEFAULT 1,
+  cree_le INTEGER NOT NULL
+);
+
+-- train de vie : niveau choisi (ou « auto »), présentation (tenue) et vitalité, dernière journée de dépenses
+CREATE TABLE IF NOT EXISTS train_de_vie (
+  personnage_id TEXT PRIMARY KEY,
+  niveau TEXT NOT NULL DEFAULT 'auto',
+  tenue INTEGER NOT NULL DEFAULT 40,
+  vitalite INTEGER NOT NULL DEFAULT 50,
+  dernier_jour TEXT,
+  dernier_niveau TEXT,
+  depense_jour INTEGER NOT NULL DEFAULT 0,
+  maj_le INTEGER NOT NULL
+);
+
+-- campagnes publicitaires : une entreprise de joueur paie un ambassadeur pour se faire connaître
+CREATE TABLE IF NOT EXISTS campagnes (
+  id TEXT PRIMARY KEY,
+  entreprise_id TEXT NOT NULL,
+  ambassadeur_id TEXT NOT NULL,
+  prix_jour INTEGER NOT NULL,
+  jours INTEGER NOT NULL,
+  slogan TEXT,
+  debut INTEGER NOT NULL,
+  fin INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS campagnes_fin ON campagnes (fin);
+
+-- championnat de Kinshasa : un match par jour pour chaque club (clubs des joueurs + clubs du jeu)
+CREATE TABLE IF NOT EXISTS matchs (
+  id TEXT PRIMARY KEY,
+  saison TEXT NOT NULL,
+  jour TEXT NOT NULL,
+  dom_id TEXT NOT NULL,
+  dom_nom TEXT NOT NULL,
+  ext_id TEXT NOT NULL,
+  ext_nom TEXT NOT NULL,
+  buts_dom INTEGER NOT NULL,
+  buts_ext INTEGER NOT NULL,
+  buteurs TEXT,
+  le INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS matchs_saison ON matchs (saison, jour);
+
+-- logos des partenaires qui défilent à côté de « EN DIRECT » (accord écrit signé obligatoire)
+CREATE TABLE IF NOT EXISTS partenaires_logos (
+  id TEXT PRIMARY KEY,
+  nom TEXT NOT NULL,
+  logo TEXT NOT NULL,
+  debut INTEGER NOT NULL,
+  fin INTEGER NOT NULL,
+  accord INTEGER NOT NULL DEFAULT 1,
+  actif INTEGER NOT NULL DEFAULT 1,
+  cree_le INTEGER NOT NULL
+);
+
+-- garde-fou des paiements : dans un lot (transaction), « INSERT OR REPLACE INTO garde VALUES (1, changes()) » juste après
+-- un débit « ... AND makuta >= ? » annule tout le lot si le débit n'a pas eu lieu (solde insuffisant, double clic)
+CREATE TABLE IF NOT EXISTS garde (
+  id INTEGER PRIMARY KEY,
+  ok INTEGER NOT NULL CHECK (ok = 1)
+);
+
+-- blessure d'un accident de la route (ville 3D) : bloque le travail jusqu'aux soins payants
+CREATE TABLE IF NOT EXISTS blessures (
+  personnage_id TEXT PRIMARY KEY,
+  le INTEGER NOT NULL,
+  vitesse INTEGER NOT NULL,
+  cause TEXT NOT NULL DEFAULT 'accident'
+);
+
+-- campagne électorale : programme, soutien gagné aux meetings, caution versée à la CENI
+CREATE TABLE IF NOT EXISTS campagnes_elec (
+  personnage_id TEXT PRIMARY KEY,
+  poste TEXT NOT NULL,
+  programme TEXT NOT NULL,
+  soutien INTEGER NOT NULL DEFAULT 0,
+  dernier_jour TEXT,
+  depense INTEGER NOT NULL DEFAULT 0,
+  caution INTEGER NOT NULL DEFAULT 0,
+  le INTEGER NOT NULL
+);
+-- résultats publiés de chaque élection (voix des joueurs + voix des habitants)
+CREATE TABLE IF NOT EXISTS resultats_elections (
+  cycle INTEGER NOT NULL,
+  poste TEXT NOT NULL,
+  personnage_id TEXT NOT NULL,
+  nom TEXT NOT NULL,
+  voix INTEGER NOT NULL,
+  voix_joueurs INTEGER NOT NULL,
+  pct REAL NOT NULL,
+  elu INTEGER NOT NULL,
+  le INTEGER NOT NULL,
+  PRIMARY KEY (cycle, poste, personnage_id)
+);
+
+-- Parlement (pouvoirs des élus, 25/11) : projets de loi déposés par le gouvernement du Président, votés par les députés et les sénateurs
+CREATE TABLE IF NOT EXISTS lois (
+  id TEXT PRIMARY KEY,
+  type TEXT NOT NULL,
+  titre TEXT NOT NULL,
+  contenu TEXT NOT NULL,
+  auteur_id TEXT NOT NULL,
+  statut TEXT NOT NULL DEFAULT 'vote',   -- vote, adoptee, rejetee
+  depot INTEGER NOT NULL,
+  fin_vote INTEGER NOT NULL,
+  resultat TEXT
+);
+CREATE UNIQUE INDEX IF NOT EXISTS lois_un_seul_vote ON lois (statut) WHERE statut = 'vote';
+CREATE TABLE IF NOT EXISTS votes_lois (
+  loi_id TEXT NOT NULL,
+  personnage_id TEXT NOT NULL,
+  chambre TEXT NOT NULL,
+  choix TEXT NOT NULL,
+  le INTEGER NOT NULL,
+  PRIMARY KEY (loi_id, personnage_id)
+);
+
+-- dîme et offrandes aux pasteurs joueurs (reçu public dans le journal)
+CREATE TABLE IF NOT EXISTS offrandes (id TEXT PRIMARY KEY, de_id TEXT NOT NULL, vers_id TEXT NOT NULL, type TEXT NOT NULL, montant INTEGER NOT NULL, recu TEXT NOT NULL, le INTEGER NOT NULL);
+CREATE INDEX IF NOT EXISTS offrandes_le ON offrandes (le);
+CREATE INDEX IF NOT EXISTS offrandes_de ON offrandes (de_id, type, le);
+-- visites sur place : culte, concert, match d'une célébrité
+CREATE TABLE IF NOT EXISTS assistances (id TEXT PRIMARY KEY, personnage_id TEXT NOT NULL, celeb_id TEXT NOT NULL, lieu TEXT NOT NULL, prix INTEGER NOT NULL, le INTEGER NOT NULL);
+CREATE INDEX IF NOT EXISTS assistances_p ON assistances (personnage_id, le);
+-- pensée du jour du personnage (écrite par la petite IA ou par les règles), une par jour
+CREATE TABLE IF NOT EXISTS pensees (personnage_id TEXT NOT NULL, jour TEXT NOT NULL, texte TEXT NOT NULL, source TEXT NOT NULL, le INTEGER NOT NULL, PRIMARY KEY (personnage_id, jour));
+-- code de la route : contraventions (feu rouge, vitesse, contrôle) et points retirés du permis
+CREATE TABLE IF NOT EXISTS permis_points (id TEXT PRIMARY KEY, personnage_id TEXT NOT NULL, type TEXT NOT NULL, points INTEGER NOT NULL, amende INTEGER NOT NULL, le INTEGER NOT NULL);
+CREATE INDEX IF NOT EXISTS permis_points_p ON permis_points (personnage_id, le);

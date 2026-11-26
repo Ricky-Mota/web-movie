@@ -1,6 +1,6 @@
 // 2 Life : espace administrateur (conditions de démarrage, parents fondateurs, investisseurs).
 import { launchDemo } from "./lancement-demo.js";
-import { OFFERS, COMPANY_TYPES, SETTINGS } from "../server/src/life.js";
+import { OFFERS, COMPANY_TYPES, SETTINGS, AD_SPOTS, adPrice, cannotCreateAd, COMMUNES, AD_COLORS, cannotCreateCommunique, INSTITUTIONS, PUBLIC_COMPANIES, cannotAddLogo, logoPrice } from "../server/src/life.js";
 
 const API = (window.TWO_LIFE_API || "").replace(/\/$/, "");
 const $ = id => document.getElementById(id);
@@ -26,12 +26,18 @@ function show(admin) { $("v-login").hidden = admin; $("v-admin").hidden = !admin
 
 function render(e) {
   const L = e.lancement;
-  $("state").innerHTML = (L.demarre ? `<p class="started">Le jeu a démarré le ${day(L.demarreLe)}.</p><p>Les naissances sont ouvertes : chaque nouveau bébé arrive dans la famille d'un parent joueur.</p>` : "") +
-    L.conditions.map(c => c.id === "date" ? `<div class="cond"><div class="need">${esc(c.label)} <b>${L.dateOuverture ? when(L.dateOuverture) : "à fixer"}</b></div>
-      <small class="${c.ok ? "ok-badge" : "wait-badge"}">${c.ok ? "Date atteinte" : L.dateOuverture ? `Dans ${wait(L.dateOuverture - Date.now())}` : "Choisis la date ci-dessous"}</small></div>` : `<div class="cond"><div class="need">${esc(c.label)} <b>${c.actuel} / ${c.min}</b><div class="bar"><i class="${c.ok ? "" : "mid"}" style="width:${Math.min(100, c.actuel / c.min * 100)}%"></i></div></div>
+  const miss = L.conditions.filter(c => !c.ok);
+  $("state").innerHTML = (L.demarre ? `<p class="started">🚀 Le jeu a été lancé le ${day(L.demarreLe)}.</p><p>Les naissances sont ouvertes : chaque nouveau bébé arrive dans la famille d'un parent joueur.</p>` : "") +
+    L.conditions.map(c => `<div class="cond"><div class="need">${esc(c.label)} <b>${c.actuel} / ${c.min}</b><div class="bar"><i class="${c.ok ? "" : "mid"}" style="width:${Math.min(100, c.actuel / c.min * 100)}%"></i></div></div>
       <small class="${c.ok ? "ok-badge" : "wait-badge"}">${c.ok ? "Condition remplie" : `Encore ${c.min - c.actuel}`}</small></div>`).join("") +
-    `<p style="font-size:13px;margin-top:12px">Le jeu démarre tout seul à la date d'ouverture si toutes les conditions sont réunies. Sinon il démarre dès que la dernière condition est remplie.</p>`;
-  $("f-date").hidden = L.demarre;
+    (L.demarre ? "" : `<button class="btn launch${L.pret ? " ready" : ""}" id="b-launch" type="button" ${L.pret ? "" : "disabled aria-disabled=\"true\""}>🚀 Lancer le jeu</button>
+      <p class="launch-why">${L.pret ? "Toutes les conditions sont réunies : le bouton est actif. Le lancement ouvre les naissances à tout le monde et ne peut pas être annulé." : "Le bouton deviendra cliquable quand " + miss.map(c => `${c.label.toLowerCase()} atteindra ${c.min} (encore ${c.min - c.actuel})`).join(" et ") + ". Les inscriptions sont déjà ouvertes en attendant."}</p>`);
+  $("f-date").hidden = true;
+  const lb = $("b-launch"); if (lb) lb.onclick = async () => {
+    if (!L.pret) return;
+    if (!confirm("Lancer 2 Life maintenant ? Les naissances seront ouvertes à tout le monde. Cette action ne peut pas être annulée.")) return;
+    try { await call("/api/admin/demarrer", {}); await load(); toast("🚀 2 Life est lancé !"); } catch (er) { toast(er.message); }
+  };
   if (L.dateOuverture && !$("d-date").value) $("d-date").value = local(L.dateOuverture);
   const ent = e.entreprises || [];
   $("n-ent").textContent = ent.length;
@@ -125,7 +131,111 @@ $("support").addEventListener("click", async e => {
   if (API) { try { await call("/api/admin/support", { id: b.dataset.sup, statut: b.dataset.st }); load(); } catch (err) { toast(err.message); } }
   else { const L = demoSup.get(); const r = L.find(x => x.id === b.dataset.sup); if (r) { r.statut = b.dataset.st; demoSup.set(L); } renderSupport(L); }
 });
-const load = async () => { try { const e = await call("/api/admin/etat"); render(e); renderBeta(API ? e.beta : demoBeta()); renderSupport(API ? e.support : demoSup.get()); show(true); } catch (err) { show(false); } };
+// annonces des commerçants partenaires (en démo : gardées dans ce navigateur, visibles dans la démo du jeu)
+const demoPubs = { get() { try { return JSON.parse(localStorage.getItem("twolife_demo_pubs") || "[]"); } catch (e) { return []; } }, set(v) { try { localStorage.setItem("twolife_demo_pubs", JSON.stringify(v)); } catch (e) { } } };
+$("a-place").innerHTML = AD_SPOTS.map(s => `<option value="${s.id}">${esc(s.nom)} · ${s.prixJourUsd} $/jour, ${s.prixMoisUsd} $/mois</option>`).join("");
+$("a-commune").innerHTML += COMMUNES.map(c => `<option>${esc(c.nom)}</option>`).join("");
+const adPriceShow = () => { $("a-prix").textContent = adPrice($("a-place").value, Number($("a-jours").value) || 1) + " $"; };
+$("a-place").onchange = adPriceShow; $("a-jours").oninput = adPriceShow; adPriceShow();
+const logoPriceShow = () => { $("l-prix").textContent = logoPrice(Number($("l-jours").value) || 1) + " $"; };
+$("l-jours").oninput = logoPriceShow; logoPriceShow();
+// ---- communiqués du bandeau défilant
+const demoComs = { get() { try { return JSON.parse(localStorage.getItem("twolife_demo_communiques") || "[]"); } catch (e) { return []; } }, set(v) { try { localStorage.setItem("twolife_demo_communiques", JSON.stringify(v)); } catch (e) { } } };
+$("c-auteurs").innerHTML = ["Mairie de Kinshasa", ...INSTITUTIONS.map(i => i.nom), ...PUBLIC_COMPANIES.map(c => c.nom)].map(n => `<option value="${esc(n)}">`).join("");
+async function loadComs() {
+  const now = Date.now(), rows = API ? (await call("/api/admin/communiques")).communiques : demoComs.get().map(c => ({ ...c, enCours: !!c.actif && c.debut <= now && c.fin > now }));
+  $("n-com").textContent = rows.filter(c => c.enCours).length;
+  $("coms").innerHTML = rows.length ? rows.map(c => `<div class="item"><span class="sw">📢</span><div class="t">${esc(c.auteur)}<small>${esc(c.texte)}</small><small>jusqu'au ${day(c.fin)} · ${c.enCours ? "en ligne" : "arrêté"}${c.accord ? " · accord signé" : ""}</small></div>
+    <button class="btn ghost" style="width:auto;padding:6px 12px;font-size:13px;margin:0 0 0 auto" type="button" data-com="${esc(c.id)}" data-on="${c.actif ? 0 : 1}">${c.actif ? "Arrêter" : "Relancer"}</button></div>`).join("") : `<p>Aucun communiqué pour l'instant.</p>`;
+}
+$("f-com").onsubmit = async ev => {
+  ev.preventDefault(); $("com-err").textContent = "";
+  const c = { auteur: $("c-auteur").value.trim(), texte: $("c-texte").value.trim(), jours: Number($("c-jours").value), accord: $("c-accord").checked };
+  const no = cannotCreateCommunique(c); if (no) { $("com-err").textContent = no; return; }
+  try {
+    if (API) await call("/api/admin/communique", c);
+    else { const L = demoComs.get(), now = Date.now(); L.unshift({ ...c, id: "com" + now, debut: now, fin: now + c.jours * 864e5, actif: 1, cree_le: now }); demoComs.set(L); }
+    $("f-com").reset(); toast("Communiqué publié dans le bandeau."); loadComs();
+  } catch (err) { $("com-err").textContent = err.message; }
+};
+$("coms").addEventListener("click", async e => {
+  const b = e.target.closest("[data-com]"); if (!b) return;
+  try {
+    if (API) await call("/api/admin/communique/statut", { id: b.dataset.com, actif: b.dataset.on === "1" });
+    else { const L = demoComs.get(), r = L.find(x => x.id === b.dataset.com); if (r) r.actif = b.dataset.on === "1" ? 1 : 0; demoComs.set(L); }
+    loadComs();
+  } catch (err) { toast(err.message); }
+});
+// ---- logos des partenaires (onglet défilant du bandeau)
+const demoLogos = { get() { try { return JSON.parse(localStorage.getItem("twolife_demo_logos") || "[]"); } catch (e) { return []; } }, set(v) { try { localStorage.setItem("twolife_demo_logos", JSON.stringify(v)); } catch (e) { toast("Mémoire du navigateur pleine."); } } };
+let logoData = "";
+// réduit l'image à 160 × 80 au plus (WebP, sinon PNG) pour qu'elle reste légère
+$("l-file").onchange = () => {
+  const f = $("l-file").files[0]; logoData = ""; $("l-preview").innerHTML = ""; if (!f) return;
+  const img = new Image(), url = URL.createObjectURL(f);
+  img.onload = () => {
+    const k = Math.min(1, 160 / img.width, 80 / img.height), c = document.createElement("canvas");
+    c.width = Math.max(1, Math.round(img.width * k)); c.height = Math.max(1, Math.round(img.height * k));
+    c.getContext("2d").drawImage(img, 0, 0, c.width, c.height); URL.revokeObjectURL(url);
+    logoData = c.toDataURL("image/webp", .85); if (!logoData.startsWith("data:image/webp")) logoData = c.toDataURL("image/png");
+    $("l-preview").innerHTML = `<span style="display:inline-flex;align-items:center;justify-content:center;width:150px;height:48px;background:#fff;border-radius:8px;padding:4px"><img src="${logoData}" alt="aperçu" style="max-width:100%;max-height:100%"></span> <small>Aperçu dans le bandeau</small>`;
+  };
+  img.onerror = () => { $("logo-err").textContent = "Image illisible."; };
+  img.src = url;
+};
+async function loadLogos() {
+  const now = Date.now(), rows = API ? (await call("/api/admin/logos")).logos : demoLogos.get().map(l => ({ ...l, enCours: !!l.actif && l.debut <= now && l.fin > now }));
+  $("n-logo").textContent = rows.filter(l => l.enCours).length;
+  $("logos").innerHTML = rows.length ? rows.map(l => `<div class="item"><span class="sw" style="width:64px;background:#fff;border-radius:6px;display:flex;align-items:center;justify-content:center"><img src="${esc(l.logo)}" alt="" style="max-width:60px;max-height:28px"></span><div class="t">${esc(l.nom)}<small>jusqu'au ${day(l.fin)} · ${l.enCours ? "en ligne" : "arrêté"} · accord signé</small></div>
+    <button class="btn ghost" style="width:auto;padding:6px 12px;font-size:13px;margin:0 0 0 auto" type="button" data-logo="${esc(l.id)}" data-on="${l.actif ? 0 : 1}">${l.actif ? "Arrêter" : "Relancer"}</button></div>`).join("") : `<p>Aucun logo pour l'instant : le bandeau affiche « Votre logo ici ».</p>`;
+}
+$("f-logo").onsubmit = async ev => {
+  ev.preventDefault(); $("logo-err").textContent = "";
+  const l = { nom: $("l-nom").value.trim(), logo: logoData, jours: Number($("l-jours").value), accord: $("l-accord").checked };
+  const no = cannotAddLogo(l); if (no) { $("logo-err").textContent = no; return; }
+  try {
+    if (API) await call("/api/admin/logo", l);
+    else { const L = demoLogos.get(), now = Date.now(); L.unshift({ id: "logo" + now, nom: l.nom, logo: l.logo, debut: now, fin: now + l.jours * 864e5, accord: 1, actif: 1, cree_le: now }); demoLogos.set(L.slice(0, 20)); }
+    $("f-logo").reset(); logoPriceShow(); logoData = ""; $("l-preview").innerHTML = ""; toast("Logo ajouté : il défile maintenant dans le bandeau."); loadLogos();
+    if (window.TWO_LIFE_BANDEAU) window.TWO_LIFE_BANDEAU.reload();
+  } catch (err) { $("logo-err").textContent = err.message; }
+};
+$("logos").addEventListener("click", async e => {
+  const b = e.target.closest("[data-logo]"); if (!b) return;
+  try {
+    if (API) await call("/api/admin/logo/statut", { id: b.dataset.logo, actif: b.dataset.on === "1" });
+    else { const L = demoLogos.get(), r = L.find(x => x.id === b.dataset.logo); if (r) r.actif = b.dataset.on === "1" ? 1 : 0; demoLogos.set(L); }
+    loadLogos();
+  } catch (err) { toast(err.message); }
+});
+async function loadPubs() {
+  const rows = API ? (await call("/api/admin/pubs")).pubs : demoPubs.get().map(a => ({ ...a, enCours: !!a.actif && a.debut <= Date.now() && a.fin > Date.now() }));
+  $("n-pubs").textContent = rows.filter(a => a.enCours).length;
+  $("pubs").innerHTML = rows.length ? rows.map(a => `<div class="item"><span class="sw" style="color:${esc(a.couleur || "#ffd23f")}">📣</span><div class="t">${esc(a.titre)} · ${esc(a.annonceur)}<small>${esc(a.texte || "")}${a.commune ? " · " + esc(a.commune) : ""}</small><small>${esc((AD_SPOTS.find(s => s.id === a.emplacement) || {}).nom || a.emplacement)} · ${day(a.debut)} → ${day(a.fin)} · ${a.prix_usd} $ ${a.paye ? "payé" : "à encaisser"} · ${a.enCours ? "en ligne" : a.actif ? "programmée ou terminée" : "arrêtée"}</small></div>
+    <div style="display:flex;flex-direction:column;gap:4px;margin-left:auto">${a.paye ? "" : `<button class="btn ghost" style="width:auto;padding:6px 12px;font-size:13px;margin:0" type="button" data-pay="${esc(a.id)}">Marquer payé</button>`}<button class="btn ghost" style="width:auto;padding:6px 12px;font-size:13px;margin:0" type="button" data-toggle="${esc(a.id)}" data-on="${a.actif ? 0 : 1}">${a.actif ? "Arrêter" : "Relancer"}</button></div></div>`).join("")
+    : `<p>Aucune annonce pour l'instant.</p>`;
+}
+$("f-pub").onsubmit = async ev => {
+  ev.preventDefault(); $("pub-err").textContent = "";
+  const a = { annonceur: $("a-annonceur").value.trim(), titre: $("a-titre").value.trim(), texte: $("a-texte").value.trim(), emplacement: $("a-place").value, jours: Number($("a-jours").value), commune: $("a-commune").value, paye: $("a-paye").checked, accord: $("a-accord").checked };
+  const no = cannotCreateAd(a); if (no) { $("pub-err").textContent = no; return; }
+  try {
+    if (API) await call("/api/admin/pub", a);
+    else { const L = demoPubs.get(), now = Date.now(); L.unshift({ ...a, id: "pub" + now, couleur: AD_COLORS[L.length % AD_COLORS.length], debut: now, fin: now + a.jours * 864e5, prix_usd: adPrice(a.emplacement, a.jours), paye: a.paye ? 1 : 0, actif: 1, cree_le: now }); demoPubs.set(L); }
+    $("f-pub").reset(); adPriceShow(); toast("Annonce publiée."); loadPubs();
+  } catch (err) { $("pub-err").textContent = err.message; }
+};
+$("pubs").addEventListener("click", async e => {
+  const t = e.target.closest("[data-toggle],[data-pay]"); if (!t) return;
+  const id = t.dataset.toggle || t.dataset.pay, body = t.dataset.pay ? { id, actif: 1, paye: true } : { id, actif: t.dataset.on === "1" };
+  if (t.dataset.pay) { const r = (API ? null : demoPubs.get().find(x => x.id === id)); if (r) body.actif = r.actif; }
+  try {
+    if (API) { if (t.dataset.pay) { const cur = (await call("/api/admin/pubs")).pubs.find(x => x.id === id); body.actif = cur ? !!cur.actif : true; } await call("/api/admin/pub/statut", body); }
+    else { const L = demoPubs.get(), r = L.find(x => x.id === id); if (r) { r.actif = body.actif ? 1 : 0; if (body.paye) r.paye = 1; } demoPubs.set(L); }
+    loadPubs();
+  } catch (err) { toast(err.message); }
+});
+const load = async () => { try { const e = await call("/api/admin/etat"); render(e); renderBeta(API ? e.beta : demoBeta()); renderSupport(API ? e.support : demoSup.get()); show(true); loadPubs().catch(() => {}); loadComs().catch(() => {}); loadLogos().catch(() => {}); } catch (err) { show(false); } };
 
 $("f-login").onsubmit = async ev => {
   ev.preventDefault(); $("login-err").textContent = "";

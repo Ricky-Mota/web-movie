@@ -2,12 +2,17 @@
 // simule la même vie dans le navigateur (mode démo).
 import {
   ageYears, stageOf, STAGES, realMsUntil, TALENTS, ACTIVITIES, rng, drawTalents, doActivity, needsAt, newIdentity, BIRTH_GIFT,
-  SHOP, cannotBuy, OFFERS, USD_TO_MAKUTA, USD_UNITS, fmtMakuta, WITHDRAW_FEE, walletInfo, birthShiftMs, shopView, familyOf, JOBS, payFor, cannotWork, workView, SHIFT_ENERGY, cannotApply, FORMATIONS, cannotEnroll, attendCourse, schoolView, STUDY_ENERGY, SUPPORT_PER_DAY, HOST_MIN_AGE, canSignupBeforeLaunch, COMPANY_TYPES, cannotOpenCompany, companyName, companyView, companyAccrue, companyJob, EMPLOYEE_YIELD, RESELL_RATE, TAXI_FARE, TAXI_ENERGY, KINSHASA_QUARTIERS, OTHER_CITIES, TAX, POSTS, PUBLIC_JOBS, BANKS, bankAccrue, INSURERS, CARE, careCost, OPERATORS, RECHARGES, CALL, stateView, supportDue, unpaidEffect, familyShare, FIRST_NAMES,
+  SHOP, homeConso, cannotBuy, ownVehicle, opportunities, BIKE_ENERGY, OFFERS, USD_TO_MAKUTA, USD_UNITS, fmtMakuta, WITHDRAW_FEE, walletInfo, birthShiftMs, shopView, familyOf, JOBS, payFor, cannotWork, workView, SHIFT_ENERGY, cannotApply, FORMATIONS, cannotEnroll, attendCourse, schoolView, STUDY_ENERGY, SUPPORT_PER_DAY, HOST_MIN_AGE, canSignupBeforeLaunch, COMPANY_TYPES, cannotOpenCompany, companyName, companyView, companyAccrue, companyJob, EMPLOYEE_YIELD, RESELL_RATE, TAXI_FARE, TAXI_ENERGY, KINSHASA_QUARTIERS, OTHER_CITIES, TAX, POSTS, PUBLIC_JOBS, BANKS, bankAccrue, INSURERS, CARE, careCost, ACCIDENT, injuredBlocks, accidentText, ROAD_FAULTS, roadFaultText, TRAFFIC_TICKETS, trafficTicket, permitStatus, ELECTION_FEE, cannotRun, ELECTION_CAMPAIGN, cannotCampaignElec, resultLine, OPERATORS, RECHARGES, CALL, stateView, supportDue, unpaidEffect, familyShare, FIRST_NAMES,
   describeAction, ORDER_DONE, ORDERS, ORDERS_PER_DAY, ORDERS_CHECK_MS, dayKey, ordersToRun, cannotGiveOrder,
   VOTER_MIN_AGE, NEGLECT_DANGER_DAYS, NEGLECT_DANGER_HEALTH, splitEstate, deathCause, familyShareRate, REP, REP_BAD, REP_GOOD, repLabel, repDiscount, DOT_MAKUTA, MARRY_MIN_AGE, STREET_JOBS, cannotStreetJob, RENT, rentOf, houseOf, rentDue, HOUSING_MIN_AGE, SALE_TAX, LIFE_EVENTS, EVENT_EVERY_H, drawEvent, eventMoney, lifeAlbum, CRIMES, catchChance, sentence, inPrison, PRISON_BLOCKED, BAIL, PRISON_HOURS, RECIDIVE, policeView, applySettings, food, drawEntry, classOfWealth, classLabel, MATURITY_GAIN, BIG_DECISIONS, cannotDecide, dashboard,
   PAY_METHODS, cannotDeposit, cannotWithdraw, maskPhone, withdrawUsd, COMMUNES, communeView, ROLES, drawRole, roleOf,
-  streakStep, streakView, nightSummary, prevDayKey,
+  streakStep, streakView, nightSummary, prevDayKey, thoughtFacts, thoughtFallback,
   newspaper, cannotSendWord, neighborView, GREETINGS, WORD_MAX,
+  PUBLIC_COMPANIES, STATE_SEED, soeView, promoPrice, cannotPromote, PROMO_PRICE, PROMO_MAX_DAYS, goalsView, newlyReached, cannotChooseGoal, GOAL_REP, pickStars, vatOf, AD_COLORS,
+  LIFESTYLES, LIFESTYLE_MIN_AGE, lifestyleCost, lifestyleFor, lifestyleStep, lifeExpectancy, OLD_AGE_HEALTH, tenueBlocks, livingView, BILLS,
+  LAWS, VAT_LIMITS, cannotSetVat, BUDGET_LINES, cleanBudget, budgetText, PARLIAMENT, PARLIAMENT_SEATS, cannotProposeLaw, LAW_TYPES, cleanLaw, lawText, lawTitle, lawCost, cannotVoteBill, billOutcome, attendance, dechuText,
+  protestChance, protestText, PROTEST_REP,
+  CAMPAIGN_MAX_DAYS, ambassadorFee, cannotHireAmbassador, LEAGUE_NAME, NPC_CLUBS, CLUB_MIN_AGE, CLUB_MAX_AGE, MATCH_GATE, clubStrength, playMatch, pairClubs, standings, scorersText, cannotRecruit, CLUB_CONTRACT_DAYS,
 } from "../server/src/life.js";
 import { launchDemo } from "./lancement-demo.js";
 
@@ -46,7 +51,29 @@ function demoNeighbors(c) {
 const DEMO_REPLIES = ["Mbote ! Content de te connaître 😄", "Avec plaisir, on se voit au maquis ce soir.", "Merci ! Passe me voir à ma boutique.", "Ha ha, d'accord. Bonne journée à toi !", "Je suis au travail, je te réponds plus tard 🙏"];
 const demo = {
   seed() { return crypto.getRandomValues(new Uint32Array(1))[0]; },
+  goalFacts(d, v) {
+    return { entreprises: v.entreprises.miennes.length, proprio: !!(v.logement.actuel && v.logement.actuel.statut === "proprio"), marie: !!(v.couple && v.couple.conjoint), enfants: (v.enfants || []).length,
+      fortune: v.perso.makuta + (d.comptes || []).reduce((t, x) => t + (x.solde || 0), 0), diplomes: (d.dip || []).length, talents: v.perso.talents.length,
+      public: !!d.job && PUBLIC_JOBS.some(j => j.id === d.job), elu: String(d.job || "").startsWith("elu-"), rep: v.reputation.points };
+  },
   view(d) {
+    this.laws(d);
+    const v = this.viewBase(d);
+    v.elections.parlement = this.parlementView(d);
+    const rows = d.objectifs || [], won = newlyReached(rows, this.goalFacts(d, v));
+    if (won.length) { won.forEach(g => { const r = rows.find(x => x.objectif_id === g); r.atteint_le = Date.now(); this.addRep(d, GOAL_REP); this.move(d, "🏆", `Objectif de vie atteint : ${goalsView([r]).mes[0].nom} (+${GOAL_REP} de réputation).`); }); store.set(LS_DEMO, d); return this.view(d); }
+    v.objectifs = goalsView(rows, this.goalFacts(d, v));
+    const tresor = STATE_SEED + (d.tresor || 0) + (d.tva || 0), soldes = { "sp-regie": d.regie || 0, "sp-voirie": 60000, "sp-mwinda": 82000, "sp-mai": 41000 };
+    v.etat.tresor = tresor;
+    v.etat.finances = { tresor, impotsJour: (d.tva || 0) + Math.max(0, d.tresor || 0), salairesJour: 0, arrieres: 0, societes: soeView(soldes, { "sp-mwinda": 3, "sp-mai": 2, "sp-regie": 1, "sp-voirie": 6 }), tva: 16, demo: true };
+    v.salaireDu = 0; v.promo = { prix: PROMO_PRICE, maxJours: PROMO_MAX_DAYS };
+    v.train = livingView(d.train || {}, d.perso.makuta, ageYears(d.perso.neLe));
+    v.atouts = opportunities({ ids: (d.inv || []).map(x => x.objet_id), diplomas: d.dip || [], tenue: (d.train || {}).tenue ?? 40, vitalite: (d.train || {}).vitalite ?? 50, reputation: d.rep || 0 });
+    v.blessure = d.blessure || null;
+    v.campagnes = { maxJours: CAMPAIGN_MAX_DAYS, liste: (d.campagnes || []).filter(x => x.fin > Date.now()) };
+    return v;
+  },
+  viewBase(d) {
     const now = Date.now(), c = d.perso, age = ageYears(c.neLe, now), st = stageOf(age), next = STAGES[STAGES.indexOf(st) + 1];
     const n = needsAt(c, now);
     return {
@@ -75,7 +102,7 @@ const demo = {
         return { id: k.id, prenom: k.prenom, nom: k.nom, sexe: k.sex, age: Math.round(a * 100) / 100, etapeLabel: stageOf(a).label, joueur: true, simule: true,
           besoins: Object.fromEntries(Object.entries(kn).map(([x, y]) => [x, Math.round(y)])), makuta: k.makuta, prochainEntretien: a < 18 ? supportDue(k.entretienLe, k.neLe, now).next : null }; }),
       entretienParJour: SUPPORT_PER_DAY, demo: true,
-      entreprises: companyView((d.ent || []).map(e => ({ ...e, employes: 0 })), { aVendre: demoOthers().filter(e => e.en_vente && !(d.achetees || []).includes(e.id)), offres: demoOthers().filter(e => !(d.achetees || []).includes(e.id)).slice(0, 6) }, now),
+      entreprises: companyView((d.ent || []).map(e => ({ ...e, employes: ((d.club || {})[e.id] || []).length })), { aVendre: demoOthers().filter(e => e.en_vente && !(d.achetees || []).includes(e.id)), offres: demoOthers().filter(e => !(d.achetees || []).includes(e.id)).slice(0, 6) }, now),
       voyage: { quartiers: KINSHASA_QUARTIERS, communes: COMMUNES.map(c => communeView(c.nom)), prix: TAXI_FARE, fatigue: TAXI_ENERGY, villes: OTHER_CITIES },
       elections: launchDemo.elections(this.me(d)),
       mouvements: d.mouvements || [],
@@ -84,6 +111,7 @@ const demo = {
       mots: { recus: (d.mots || {}).recus || [], nonLus: ((d.mots || {}).recus || []).filter(m => !m.lu).length, envoyes: (d.mots || {}).envoyes || [], modeles: GREETINGS, max: WORD_MAX },
       resume: nightSummary({ prenom: c.firstName, fem: c.sex === "F", mouvements: d.mouvements || [], vuLe: d.fid && d.fid.resume_vu_le, makutaVu: d.fid && d.fid.makuta_vu, makuta: c.makuta, besoins: n, now }),
       consignes: { ...this.orders(d), max: ORDERS_PER_DAY, catalogue: ORDERS, verifieToutesLesMinutes: DEMO_ORDERS_MS / 60e3 },
+      permis: { ...permitStatus(d.dip || [], d.permisPts || [], now), contraventions: (d.permisPts || []).slice(0, 8) },
       police: policeView({ policiers: 0, prisonJusqu: d.prison, casier: d.casier || [] }, now),
       etat: stateView({ comptes: d.comptes || [], assureur: d.assureur, assureJusqu: d.assureJusqu, operateur: d.operateur, credit: d.credit || 0, candidature: d.candidature },
         { tresor: d.tresor || 0, masse: c.makuta + (d.comptes || []).reduce((a, x) => a + bankAccrue(x, now), 0), candidats: d.candidature ? { [d.candidature]: 1 } : {} }, now),
@@ -110,7 +138,57 @@ const demo = {
     } finally { this.busy = false; }
     if (faits.length && store.get(LS_DEMO).notif) demoNotify(`2 Life · ${d.perso.firstName}`, faits.join(" · "));
   },
-  me(d) { return { candidature: d.candidature, nom: `${d.perso.firstName} ${d.perso.lastName}`, quartier: d.perso.quartier }; },
+  me(d) { const k = d.campagneElec || {}; return { candidature: d.candidature, nom: `${d.perso.firstName} ${d.perso.lastName}`, quartier: d.perso.quartier,
+    programme: k.programme, soutien: k.soutien || 0, rep: d.rep || 0, sexe: d.perso.sex, faiteAujourdhui: k.dernierJour === dayKey(Date.now()) }; },
+  // Parlement en démo : mêmes règles que le serveur ; les autres élus sont les parents fondateurs simulés
+  laws(d) {
+    const L = d.lois || (d.lois = { tva: 16, tvaLe: null, budget: Object.fromEntries(BUDGET_LINES.map(l => [l.id, 0])), budgetLe: null, loi: null, lois: [], presences: [] });
+    LAWS.tva = L.tva; LAWS.budget = { ...L.budget }; LAWS.amendes = L.amendes || 100; LAWS.salaires = L.salaires || 100; return L;
+  },
+  poste(d) { return d.job && String(d.job).startsWith("elu-") ? d.job.slice(4) : null; },
+  demoElus(d) { return (launchDemo.elections(this.me(d)).elus || []).filter(x => !x.moi); },
+  demoSeats(d) { const s = {}; this.demoElus(d).forEach(x => s[x.poste] = (s[x.poste] || 0) + 1); const p = this.poste(d); if (p) s[p] = (s[p] || 0) + 1; return s; },
+  newBill(d, type, contenu, auteur, moi) {   // les élus simulés votent selon ce que la loi coûte
+    const L = this.laws(d), now = Date.now(), cout = lawCost(type, contenu);
+    const votes = this.demoElus(d).filter(x => PARLIAMENT_SEATS.includes(x.poste)).map((x, i) => ({ chambre: x.poste, choix: cout <= 1 + (i % 3) ? "oui" : "non" }));
+    L.loi = { id: "loi-" + now, type, titre: lawTitle(type), auteur, contenu, depot: now, finVote: now + PARLIAMENT.voteJours * 864e5, votes, monVote: null, moi };
+  },
+  protest(d, type, valeur) {   // la rue réagit (le jeu décide) : manifestation et popularité en baisse
+    const now = Date.now(); if ((now % 1000) / 1000 >= protestChance(type, valeur)) return;
+    this.addRep(d, -PROTEST_REP); this.move(d, "📢", protestText(type, typeof valeur === "object" ? 0 : valeur, now) + ` Ta popularité baisse (réputation −${PROTEST_REP}).`);
+  },
+  parliament(d) {
+    const L = this.laws(d), now = Date.now(), poste = this.poste(d);
+    if (L.loi && L.loi.finVote <= now) {   // clôture du vote
+      const o = L.loi, t = o.type || "budget", r = billOutcome(o.votes, this.demoSeats(d));
+      let closed = []; try { closed = JSON.parse(localStorage.getItem("twolife_lois_closes") || "[]"); } catch (e) { }
+      const again = closed.includes(o.id); if (!again) try { localStorage.setItem("twolife_lois_closes", JSON.stringify([...closed, o.id].slice(-20))); } catch (e) { }   // deux appels en même temps : un seul dépouillement
+      const texte = `${o.titre} : ${r.raison}. ` + (r.adoptee ? `En vigueur : ${t === "budget" ? budgetText(o.contenu) : lawText(t, o.contenu).replace(/ \(aujourd'hui.*\)/, "")}.` : "La loi actuelle reste en vigueur.");
+      if (r.adoptee && t === "budget") { L.budget = { ...o.contenu }; L.budgetLe = now; }
+      if (r.adoptee && t !== "budget") L[t] = o.contenu.niveau;
+      if (r.adoptee && o.moi && !again) this.protest(d, t, t === "budget" ? o.contenu : o.contenu.niveau);
+      if (!again) {
+        L.lois.unshift({ type: t, titre: L.loi.titre, auteur: L.loi.auteur, statut: r.adoptee ? "adoptee" : "rejetee", depot: L.loi.depot, contenu: L.loi.contenu, raison: r.raison }); L.lois = L.lois.slice(0, 5);
+        if (L.loi.moi || L.loi.monVote) this.move(d, "📜", (L.loi.moi ? "Ton projet : " : "") + texte); }
+      L.loi = null; this.laws(d);
+    }
+    if (PARLIAMENT_SEATS.includes(poste) && !L.loi && (!L.depotGouv || now - L.depotGouv > 7 * 864e5)) {   // le gouvernement dépose un budget chaque semaine
+      L.depotGouv = now; this.newBill(d, "budget", [{ sante: 20, ecole: 10, voirie: 1000 }, { sante: 30, ecole: 20, voirie: 2000 }, { sante: 10, ecole: 30, voirie: 500 }][L.lois.length % 3], "Le gouvernement", false);
+    }
+    if (PARLIAMENT_SEATS.includes(poste) && d.mandatLe) {   // plus d'une séance manquée sur quatre : déchéance
+      const a = attendance(d.mandatLe, L.presences, now);
+      if (a.dechu) { const nom = POSTS.find(x => x.id === poste).nom; d.job = null; d.mandatLe = null; this.addRep(d, -PARLIAMENT.repDechu);
+        this.move(d, "⚖️", dechuText(`${d.perso.firstName} ${d.perso.lastName}`, nom, a) + ` Mandat perdu, réputation −${PARLIAMENT.repDechu}.`); }
+    }
+  },
+  parlementView(d) {
+    const L = this.laws(d), now = Date.now(), poste = this.poste(d), sieges = this.demoSeats(d), o = L.loi;
+    const n = (c, k) => o ? o.votes.filter(v => v.chambre === c && v.choix === k).length : 0;
+    return { tva: L.tva, tvaLe: L.tvaLe, prochainTva: L.tvaLe ? L.tvaLe + VAT_LIMITS.delaiJours * 864e5 : null, limites: VAT_LIMITS, budget: L.budget, budgetLe: L.budgetLe, lignes: BUDGET_LINES, regles: PARLIAMENT,
+      types: LAW_TYPES, amendes: LAWS.amendes, salaires: LAWS.salaires, sieges, quorum: Math.max(1, Math.ceil((sieges.depute || 0) * PARLIAMENT.quorum)), monPoste: poste, siege: PARLIAMENT_SEATS.includes(poste) && d.mandatLe ? attendance(d.mandatLe, L.presences, now) : null,
+      loi: o ? { id: o.id, type: o.type || "budget", titre: o.titre, auteur: o.auteur, contenu: o.contenu, depot: o.depot, finVote: o.finVote, monVote: o.monVote, assemblee: { oui: n("depute", "oui"), non: n("depute", "non") }, senat: { oui: n("senateur", "oui"), non: n("senateur", "non") } } : null,
+      lois: L.lois };
+  },
   settle(c) { const n = needsAt(c); Object.assign(c, n, { updatedAt: Date.now() }); },
   // entretien quotidien des enfants simulés (même règle que le serveur)
   support(d) {
@@ -142,6 +220,47 @@ const demo = {
       d.market = sellers.map((v, i) => { const it = items[(i * 3 + 1) % items.length]; return { id: "ann" + i, objet: it.id, prix: Math.round(it.prix * (.6 + i * .1)), vendeur: v, le: Date.now() - i * 36e5 }; });
     }
     return d.market;
+  },
+  // train de vie (démo : même règle que le serveur, une fois par jour de Kinshasa)
+  living(d) {
+    const c = d.perso, now = Date.now(), jour = dayKey(now);
+    if (ageYears(c.neLe, now) < LIFESTYLE_MIN_AGE) return;
+    const t = d.train = d.train || { niveau: "auto", tenue: 40, vitalite: 50 };
+    if (t.dernier_jour === jour) return;
+    t.dernier_jour = jour; this.settle(c);
+    const l = lifestyleFor(t.niveau, c.makuta), nx = lifestyleStep(t, l), cost = l ? lifestyleCost(l.id) : 0, e = l ? l.effet : { faim: 0, sante: -3, bonheur: -6 };
+    const esp = lifeExpectancy(nx.vitalite), vieux = ageYears(c.neLe, now) > esp, cl = x => Math.max(0, Math.min(100, x));
+    c.makuta -= cost; c.hunger = cl(c.hunger + e.faim); c.health = cl(c.health + e.sante - (vieux ? OLD_AGE_HEALTH : 0)); c.happiness = cl(c.happiness + e.bonheur);
+    Object.assign(t, nx, { dernier_niveau: l ? l.id : null, depense_jour: cost });
+    if (l) { d.tva = (d.tva || 0) + Object.values(l.postes).reduce((a, n) => a + vatOf(n), 0); this.flow(d, "depense", cost);
+      this.move(d, l.icone, `Dépenses du jour, train de vie ${l.nom.toLowerCase()}${t.niveau === "auto" ? " (choisi selon ses moyens)" : t.niveau !== l.id ? " (l'argent manque pour mieux)" : ""} : ${fmtMakuta(cost)}.`); }
+    else this.move(d, "😣", `${c.firstName} n'a pas de quoi acheter à manger aujourd'hui : la santé et le moral baissent.`);
+    if (vieux) this.move(d, "👴", `${c.firstName} a dépassé son espérance de vie (${esp} ans) : la vieillesse fait baisser sa santé chaque jour.`);
+  },
+  // championnat (démo) : une journée de matchs par jour, ou à la demande avec le bouton « journée suivante »
+  footDay(d, force) {
+    const jour = dayKey();
+    if (!force && d.footJour === jour) return;
+    d.footJour = jour; d.footRound = (d.footRound || 0) + 1;
+    const mine = (d.ent || []).filter(e => e.type === "club" && ((d.club || {})[e.id] || []).length).map(e => ({ id: e.id, nom: e.nom, force: clubStrength(d.club[e.id]), joueurs: d.club[e.id] }));
+    const out = [];
+    for (const [a, b] of pairClubs(mine.concat(NPC_CLUBS), jour + d.footRound)) {
+      const [ga, gb] = playMatch(a.force, b.force), but = [];
+      for (const [t, g] of [[a, ga], [b, gb]]) if (t.joueurs) for (let i = 0; i < g; i++) but.push(t.joueurs[Math.floor(Math.random() * t.joueurs.length)]);
+      out.push({ jour: d.footRound, dom_id: a.id, dom_nom: a.nom, ext_id: b.id, ext_nom: b.nom, buts_dom: ga, buts_ext: gb, buteurs: scorersText(but.map(j => j.nom)) });
+      for (const [t, me, them] of [[a, ga, gb], [b, gb, ga]]) {
+        const e = (d.ent || []).find(x => x.id === t.id); if (!e) continue;
+        const gate = me > them ? MATCH_GATE.victoire : me === them ? MATCH_GATE.nul : MATCH_GATE.defaite;
+        e.caisse = (e.caisse || 0) + gate;
+        this.move(d, "⚽", `Match de ${e.nom} : ${a.nom} ${ga}-${gb} ${b.nom}. Billetterie : +${fmtMakuta(gate)} dans la caisse du club.`);
+      }
+    }
+    d.foot = out.concat(d.foot || []).slice(0, 300);
+  },
+  footView(d) {
+    const m = d.foot || [], last = m.length ? m.filter(x => x.jour === m[0].jour) : [];
+    return { ligue: LEAGUE_NAME, saison: dayKey().slice(0, 7), classement: standings(m), derniers: last.map(x => ({ dom: x.dom_nom, ext: x.ext_nom, bd: x.buts_dom, be: x.buts_ext, buteurs: x.buteurs })),
+      mesClubs: (d.ent || []).filter(e => e.type === "club").map(e => ({ id: e.id, nom: e.nom, force: clubStrength((d.club || {})[e.id] || []), joueurs: ((d.club || {})[e.id] || []).map(j => ({ id: j.id, nom: j.nom })) })), gains: MATCH_GATE, demo: true };
   },
   rent(d) {
     const L = d.logement; if (!L || L.statut !== "loue") return;
@@ -178,6 +297,9 @@ const demo = {
   deadView(d) { return { compte: { pseudo: d.pseudo, reputation: 0 }, mort: d.mort, report: d.report || 0, renaissance: OFFERS.find(o => o.id === "bebe"), demo: true }; },
   // chaque action réussie est inscrite dans les mouvements (même règle que le serveur)
   async call(path, body, parConsigne) {
+    // événements de la ville 3D (démo) : accident subi, faute de conduite. Ils s'appliquent avec les mêmes règles que le serveur.
+    if (!this.draining) { let q = []; try { q = JSON.parse(localStorage.getItem("twolife_demo_ville") || "[]"); } catch (e) { }
+      if (q.length) { localStorage.removeItem("twolife_demo_ville"); this.draining = true; for (const e of q) { try { await this.run(e.path, e.body); } catch (er) { } } this.draining = false; } }
     const r = await this.run(path, body);
     if (body && !["/api/inscription", "/api/connexion"].includes(path) && !path.startsWith("/api/admin/")) {
       const m = describeAction(path, body, r), d = store.get(LS_DEMO);
@@ -189,7 +311,8 @@ const demo = {
     let d = store.get(LS_DEMO);
     if (d && d.perso && !d.mort) {
       this.support(d);
-      const cause = deathCause(needsAt(d.perso), 0); if (cause) this.die(d, cause);
+      this.living(d); this.footDay(d);
+      const cause = deathCause(needsAt(d.perso), 0, !!d.train && ageYears(d.perso.neLe) > lifeExpectancy(d.train.vitalite)); if (cause) this.die(d, cause);
       this.rent(d);
       if (!d.lastEvent || Date.now() - d.lastEvent >= EVENT_EVERY_H * 36e5) {   // le destin (démo : même règle)
         d.lastEvent = Date.now(); this.settle(d.perso); const c0 = d.perso, e = drawEvent(Math.random, { quartier: c0.quartier, camp: roleOf(d.origine, c0.look).camp });
@@ -207,7 +330,9 @@ const demo = {
         }
       }
       const el = launchDemo.elections(this.me(d));   // dépouillement : un joueur élu prend son poste
-      if (el.depouille) { d.candidature = null; if (el.gagne) { d.job = "elu-" + el.gagne; d.boss = null; } }
+      if (el.depouille) { d.candidature = null; d.campagneElec = null; if (el.gagne) { d.job = "elu-" + el.gagne; d.boss = null; d.mandatLe = Date.now(); this.laws(d).presences = []; }
+        if (el.monResultat) this.move(d, el.monResultat.elu ? "🎖️" : "🗳️", `Résultats de l'élection n° ${el.monResultat.cycle} : ` + resultLine(el.monResultat, POSTS.find(x => x.id === el.monResultat.poste).nom) + (el.monResultat.elu ? ". Félicitations, ton mandat commence !" : ".")); }
+      this.parliament(d);
       store.set(LS_DEMO, d);
     }
     if (path === "/api/lancement") return launchDemo.status();
@@ -266,6 +391,7 @@ const demo = {
       store.set(LS_DEMO, d);
       await this.applyOrders(d, true); return { ...this.view(store.get(LS_DEMO)), serieBonus };
     }
+    if (path === "/api/pensee") return { texte: thoughtFallback(thoughtFacts(this.view(d), (d.origine || {}).caractere)), ia: false, jour: dayKey() };
     if (path === "/api/journal") {
       const V = demoNeighbors(c), day = dayKey(), rr = rng(Number(day.replace(/-/g, "")) ^ (c.look || 1)), t0 = Date.now() - 20 * 36e5, at = k => t0 + k * 2.5 * 36e5;
       const facts = {
@@ -276,6 +402,8 @@ const demo = {
         deces: rr() < .35 ? [{ prenom: V[8].prenom, nom: V[8].nom, quartier: V[8].quartier, age: 71, cause: "vieillesse", le: at(5) }] : [],
         arrestations: [{ quartier: V[6].quartier, n: 1 + Math.floor(rr() * 3) }],
         chiffres: { joueurs: V.length },
+        offrandes: (d.recus || []).filter(x => x.le > Date.now() - 864e5),
+        pubs: (() => { try { const n = Date.now(); return JSON.parse(localStorage.getItem("twolife_demo_pubs") || "[]").filter(a => a.actif && a.debut <= n && a.fin > n && ["journal", "tous"].includes(a.emplacement)); } catch (e) { return []; } })(),
       };
       return newspaper(facts, Date.now(), c.quartier);
     }
@@ -294,7 +422,9 @@ const demo = {
     if (path === "/api/demo/lendemain") {   // démo seulement : on fait comme si la journée était passée
       const C = this.orders(d), y = prevDayKey(C.jour);
       if (d.fid && d.fid.dernier_jour === C.jour) d.fid.dernier_jour = y;
-      d.consignes = { jour: C.jour, liste: [], journal: [] }; store.set(LS_DEMO, d); return this.view(d);
+      d.consignes = { jour: C.jour, liste: [], journal: [] };
+      if (d.train) d.train.dernier_jour = null; d.footJour = null;   // nouvelle journée de dépenses et de matchs
+      this.living(d); this.footDay(d); store.set(LS_DEMO, d); return this.view(d);
     }
     if (BIG_DECISIONS.includes(path) || (path === "/api/mariage/repondre" && body.accepte)) { const no = cannotDecide(d.origine, c.firstName); if (no) throw new Error(no); }
     if (inPrison(d.prison) && PRISON_BLOCKED.includes(path)) throw new Error(`Tu es en prison jusqu'au ${new Date(d.prison).toLocaleString("fr-FR")}. Paie la caution pour sortir plus tôt.`);
@@ -340,6 +470,7 @@ const demo = {
       return { resultat: { score: res.score, message: res.message, talent: res.discovered ? TALENTS.find(x => x.id === res.discovered).label : null }, ...this.view(d) };
     }
     if (path === "/api/manger") {
+      d.tva = (d.tva || 0) + vatOf(Math.round(FOOD.prix * repDiscount(d.rep || 0)));
       this.settle(c);
       const prix = Math.round(FOOD.prix * repDiscount(d.rep || 0));
       if (c.makuta < prix) throw new Error("Pas assez d'e-makuta pour un repas.");
@@ -349,13 +480,15 @@ const demo = {
     if (path === "/api/acheter") {
       const item = SHOP.find(x => x.id === body.objet);
       this.settle(c);
-      const no = cannotBuy(item, c.makuta, ageYears(c.neLe));
+      const no = cannotBuy(item, c.makuta, ageYears(c.neLe), (d.inv || []).map(x => x.objet_id));
       if (no) throw new Error(no);
       const e = item.effet || {};
+      if (e.energie < 0 && c.energy < -e.energie) throw new Error("Trop fatigué pour faire du sport : repose-toi ou mange d'abord.");
       c.makuta -= item.prix; if (item.type === "telephone") d.tresor = (d.tresor || 0) + Math.round(item.prix * TAX.douane);
-      c.hunger = Math.min(100, c.hunger + (e.faim || 0)); c.happiness = Math.min(100, c.happiness + (e.bonheur || 0)); c.energy = Math.min(100, c.energy + (e.energie || 0));
+      c.hunger = Math.min(100, c.hunger + (e.faim || 0)); c.happiness = Math.min(100, c.happiness + (e.bonheur || 0)); c.energy = Math.max(0, Math.min(100, c.energy + (e.energie || 0))); c.health = Math.min(100, c.health + (e.sante || 0));
+      if (e.vitalite) { d.train = d.train || { niveau: "auto", tenue: 40, vitalite: 50 }; d.train.vitalite = Math.min(100, (d.train.vitalite ?? 50) + e.vitalite); }
       d.inv = d.inv || [];
-      if (item.type !== "nourriture") {
+      if (item.type !== "nourriture" && !item.jetable) {
         if (item.slot) d.inv.forEach(x => { if (SHOP.find(y => y.id === x.objet_id).slot === item.slot) x.porte = 0; });
         d.inv.push({ id: "p" + this.seed(), objet_id: item.id, porte: item.slot ? 1 : 0, acquis_le: Date.now() });
       }
@@ -372,7 +505,7 @@ const demo = {
     if (path === "/api/postuler" && (d.rep || 0) <= REP_BAD) throw new Error("L'employeur refuse : ta réputation dans le quartier est trop mauvaise (vols, prison…). Travaille ta réputation d'abord.");
     if (path === "/api/petitboulot") {
       this.settle(c);
-      const j = STREET_JOBS.find(x => x.id === body.boulot), no = cannotStreetJob(j, ageYears(c.neLe), c.energy, d.lastStreet);
+      const j = STREET_JOBS.find(x => x.id === body.boulot), no = injuredBlocks(d.blessure) || cannotStreetJob(j, ageYears(c.neLe), c.energy, d.lastStreet);
       if (no) throw new Error(no);
       const gain = j.gain[0] + Math.floor(Math.random() * (j.gain[1] - j.gain[0] + 1));
       c.makuta += gain; c.energy = Math.max(0, c.energy - j.energie); d.lastStreet = Date.now(); this.mature(d, MATURITY_GAIN.petitboulot); this.flow(d, "recu", gain);
@@ -426,6 +559,7 @@ const demo = {
       const e = demoOthers().find(x => x.id === body.entreprise);
       if (!e) throw new Error("Entreprise introuvable.");
       if (ageYears(c.neLe) < 18) throw new Error("Il faut avoir 18 ans pour travailler dans une entreprise.");
+      const look = tenueBlocks(companyJob(e), d.train ? d.train.tenue : null); if (look) throw new Error(look);
       d.boss = { id: e.id, nom: e.nom, type: e.type }; d.job = companyJob(d.boss).id;
       store.set(LS_DEMO, d); return { embauche: e.nom, ...this.view(d) };
     }
@@ -448,10 +582,42 @@ const demo = {
       c.makuta -= a.prime; d.assureur = a.id; d.assureJusqu = from + a.jours * 864e5;
       store.set(LS_DEMO, d); return this.view(d);
     }
+    if (path === "/api/conduite/faute" && TRAFFIC_TICKETS.some(t => t.id === body.faute)) {   // code de la route : mêmes règles que le serveur
+      const now = Date.now(), st = permitStatus(d.dip || [], d.permisPts || [], now), T = trafficTicket(body.faute, Number(body.kmh) || 0, st);
+      if (!T) throw new Error("Contravention invalide.");
+      const wait = body.faute === "controle" ? 10 * 6e4 : 6e4;
+      if ((d.permisPts || []).some(x => (x.type === body.faute || (body.faute === "controle" && x.type === "sans-permis")) && x.le > now - wait)) return this.view(d);
+      this.settle(c); const paye = Math.min(c.makuta, T.amende), impaye = T.amende - paye;
+      c.makuta -= paye; d.tresor = (d.tresor || 0) + paye; if (T.rep || impaye) this.addRep(d, T.rep - (impaye ? 3 : 0));
+      d.permisPts = [{ type: body.faute === "controle" && T.amende ? "sans-permis" : body.faute, nom: T.nom, points: T.points, amende: paye, le: now }, ...(d.permisPts || [])].slice(0, 40);
+      this.move(d, "🚔", T.texte + (impaye ? ` Il manquait ${fmtMakuta(impaye)} : amende impayée, la police le note.` : "")); store.set(LS_DEMO, d); return this.view(d);
+    }
+    if (path === "/api/conduite/faute") {   // le conducteur qui blesse ou bouscule un piéton est puni
+      const f = ROAD_FAULTS.find(x => x.id === body.faute), kmh = Math.round(Number(body.kmh)), now = Date.now();
+      if (!f || !(kmh >= 3 && kmh <= ACCIDENT.maxKmh) || (f.casier ? kmh < ACCIDENT.minKmh : kmh >= ACCIDENT.minKmh)) throw new Error("Faute de conduite invalide.");
+      if ((d.derniereFaute || 0) > now - 60e3) return this.view(d); d.derniereFaute = now;
+      this.settle(c); this.addRep(d, f.rep);
+      if (!f.casier) { this.move(d, "🚔", roadFaultText(f, kmh)); store.set(LS_DEMO, d); return this.view(d); }
+      d.casier = d.casier || [];
+      const recent = d.casier.filter(x => x.le > now - RECIDIVE.jours * 864e5).length, amende = Math.min(c.makuta, f.amende), soins = Math.min(c.makuta - amende, f.soins);
+      const prison = recent + 1 >= RECIDIVE.fois || amende + soins < f.amende + f.soins;
+      c.makuta -= amende + soins; c.happiness = Math.max(0, c.happiness - 10); d.tresor = (d.tresor || 0) + amende;
+      if (prison) { d.prison = now + PRISON_HOURS * 36e5; this.addRep(d, REP.prison); }
+      d.casier.unshift({ type: f.id, nom: f.nom, amende, prison_heures: prison ? PRISON_HOURS : 0, le: now }); d.casier = d.casier.slice(0, 20);
+      this.move(d, "🚔", roadFaultText(f, kmh, { amende, soins, prison })); store.set(LS_DEMO, d); return this.view(d);
+    }
+    if (path === "/api/accident") {   // choc fort dans la ville 3D : blessure à soigner (au plus une fois par 10 min)
+      const kmh = Math.round(Number(body.kmh)); if (!(kmh >= ACCIDENT.minKmh && kmh <= ACCIDENT.maxKmh)) throw new Error("Vitesse du choc invalide.");
+      if (!(d.blessure && d.blessure.le > Date.now() - ACCIDENT.attenteMin * 6e4)) {
+        this.settle(c); c.health = Math.max(ACCIDENT.santeMin, c.health - ACCIDENT.sante); c.happiness = Math.max(0, c.happiness - ACCIDENT.bonheur);
+        d.blessure = { le: Date.now(), vitesse: kmh }; this.move(d, "🚑", accidentText(c.firstName, kmh, c.sex === "F"));
+      }
+      store.set(LS_DEMO, d); return this.view(d);
+    }
     if (path === "/api/soigner") {
-      this.settle(c); if (c.health >= 95) throw new Error("Tu es en bonne santé, pas besoin de soins.");
+      this.settle(c); if (c.health >= 95 && !d.blessure) throw new Error("Tu es en bonne santé, pas besoin de soins.");
       const k = careCost(d.assureJusqu, d.assureur); if (c.makuta < k.prix) throw new Error(`Les soins coûtent ${fmtMakuta(k.prix)}.`);
-      c.makuta -= k.prix; c.health = Math.min(100, c.health + CARE.sante);
+      c.makuta -= k.prix; c.health = Math.min(100, c.health + CARE.sante); d.blessure = null; d.tresor = (d.tresor || 0) - (k.etat || 0);   // part de l'État (budget santé)
       store.set(LS_DEMO, d); return { soins: k, ...this.view(d) };
     }
     if (path === "/api/telephone/recharger") {
@@ -466,11 +632,44 @@ const demo = {
       this.settle(c); d.credit -= CALL.prix; c.happiness = Math.min(100, c.happiness + CALL.bonheur);
       store.set(LS_DEMO, d); return this.view(d);
     }
+    if (path === "/api/presidence/tva") {
+      const L = this.laws(d), taux = Math.round(Number(body.taux)), no = cannotSetVat({ president: this.poste(d) === "president", taux, actuel: L.tva, dernier: L.tvaLe });
+      if (no) throw new Error(no);
+      this.move(d, "🏛️", `Décret présidentiel : la TVA passe de ${L.tva} % à ${taux} % dès aujourd'hui, comprise dans tous les prix.`); L.tva = taux; L.tvaLe = Date.now(); this.protest(d, "tva", taux);
+      store.set(LS_DEMO, d); return this.view(d);
+    }
+    if (path === "/api/parlement/projet") {
+      this.laws(d); const type = body.type || "budget", b = cleanLaw(type, type === "budget" ? body.budget || {} : body); if (b.erreur) throw new Error(b.erreur);
+      const no = cannotProposeLaw({ type, poste: this.poste(d), enCours: !!this.laws(d).loi }); if (no) throw new Error(no);
+      this.newBill(d, type, b.contenu, `${c.firstName} ${c.lastName}`, true); this.move(d, "📜", `Loi déposée au Parlement : ${lawText(type, b.contenu)}.`);
+      store.set(LS_DEMO, d); return this.view(d);
+    }
+    if (path === "/api/parlement/vote") {
+      const L = this.laws(d), choix = body.choix === "oui" ? "oui" : body.choix === "non" ? "non" : null; if (!choix) throw new Error("Vote invalide : pour ou contre.");
+      const no = cannotVoteBill({ siege: this.poste(d), loi: L.loi && { statut: "vote", fin_vote: L.loi.finVote }, deja: !!(L.loi && L.loi.monVote) }); if (no) throw new Error(no);
+      L.loi.monVote = choix; L.loi.votes.push({ chambre: this.poste(d), choix }); this.move(d, "🗳️", `Vote au Parlement : ${choix === "oui" ? "pour" : "contre"} ${L.loi.titre.toLowerCase()}.`);
+      store.set(LS_DEMO, d); return this.view(d);
+    }
     if (path === "/api/candidature") {
-      if (body.poste == null) { d.candidature = null; store.set(LS_DEMO, d); return this.view(d); }
-      const po = POSTS.find(x => x.id === body.poste); if (!po) throw new Error("Poste inconnu.");
-      if (ageYears(c.neLe) < po.minAge) throw new Error(`Il faut avoir ${po.minAge} ans pour être candidat au poste de ${po.nom.toLowerCase()}.`);
-      d.candidature = po.id; store.set(LS_DEMO, d); return this.view(d);
+      if (body.poste == null) { d.candidature = null; d.campagneElec = null; store.set(LS_DEMO, d); return this.view(d); }   // la caution n'est pas rendue
+      const now = Date.now(), programme = String(body.programme || "").trim();
+      const no = cannotRun({ poste: body.poste, age: ageYears(c.neLe), makuta: c.makuta, prison: inPrison(d.prison), dejaCandidat: !!d.candidature,
+        infractionsRecentes: (d.casier || []).filter(x => x.le > now - RECIDIVE.jours * 864e5).length, reputation: d.rep || 0, programme });
+      if (no) throw new Error(no);
+      const po = POSTS.find(x => x.id === body.poste), fee = ELECTION_FEE[po.id];
+      c.makuta -= fee; d.tresor = (d.tresor || 0) + fee;
+      d.candidature = po.id; d.campagneElec = { poste: po.id, programme, soutien: 0, dernierJour: null, caution: fee };
+      store.set(LS_DEMO, d); return this.view(d);
+    }
+    if (path === "/api/election/campagne") {   // un meeting par jour, affiches payées à la Régie
+      const k = d.campagneElec, jour = dayKey(Date.now()); this.settle(c);
+      const no = cannotCampaignElec({ candidat: !!k, energie: c.energy, makuta: c.makuta, dejaAujourdhui: k && k.dernierJour === jour, prison: inPrison(d.prison) });
+      if (no) throw new Error(no);
+      const C = ELECTION_CAMPAIGN, parole = c.talents.some(t => t.talent === "parole" && t.discovered), gain = C.soutien + (parole ? C.bonusParole : 0);
+      c.makuta -= C.cout; c.energy = Math.max(0, c.energy - C.energie); d.regie = (d.regie || 0) + C.cout;
+      k.soutien = Math.min(C.maxSoutien, k.soutien + gain); k.dernierJour = jour;
+      this.move(d, "📣", `Meeting de campagne à ${c.quartier || "Kinshasa"} : +${gain} de soutien${parole ? " (talent de parole)" : ""}.`);
+      store.set(LS_DEMO, d); return this.view(d);
     }
     if (path === "/api/entreprise/encaisser") {
       const e = (d.ent || []).find(x => x.id === body.entreprise); if (!e) throw new Error("Entreprise introuvable.");
@@ -505,22 +704,94 @@ const demo = {
       if (!q) throw new Error(OTHER_CITIES.includes(body.quartier) ? `${body.quartier} n'est pas encore ouverte.` : "Destination inconnue.");
       if (q === c.quartier) throw new Error(`Tu es déjà à ${q}.`);
       this.settle(c);
+      const veh = ownVehicle((d.inv || []).map(x => x.objet_id), permitStatus(d.dip || [], d.permisPts || []).valide);
+      if (veh && ageYears(c.neLe) >= (veh.minAge || 0)) {
+        const fuel = veh.trajet || 0, tired = veh.id === "velo" ? BIKE_ENERGY : TAXI_ENERGY;
+        if (c.makuta < fuel) throw new Error(`Le carburant coûte ${fmtMakuta(fuel)} : pas assez d'e-makuta.`);
+        if (c.energy < tired) throw new Error("Trop fatigué pour sortir : repose-toi ou mange.");
+        c.makuta -= fuel; c.energy -= tired; c.quartier = q;
+        store.set(LS_DEMO, d); return { arrive: q, vehicule: veh.nom, ...this.view(d) };
+      }
       if (ageYears(c.neLe) < 12) throw new Error("Trop jeune pour prendre le taxi seul.");
       if (c.makuta < TAXI_FARE) throw new Error(`La course coûte ${fmtMakuta(TAXI_FARE)}.`);
       if (c.energy < TAXI_ENERGY) throw new Error("Trop fatigué pour sortir : repose-toi ou mange.");
       c.makuta -= TAXI_FARE; c.energy -= TAXI_ENERGY; c.quartier = q;
       store.set(LS_DEMO, d); return { arrive: q, ...this.view(d) };
     }
+    if (path === "/api/objectif") {
+      d.objectifs = d.objectifs || [];
+      if (body.action === "abandonner") d.objectifs = d.objectifs.filter(r => !(r.objectif_id === body.id && !r.atteint_le));
+      else { const no = cannotChooseGoal(body.id, d.objectifs); if (no) throw new Error(no); d.objectifs.push({ objectif_id: body.id, choisi_le: Date.now(), atteint_le: null }); }
+      store.set(LS_DEMO, d); return this.view(d);
+    }
+    if (path === "/api/promouvoir") {
+      this.settle(c);
+      const e = (d.ent || []).find(x => x.id === body.entreprise), pubs = store.get("twolife_demo_pubs") || [], n = Date.now();
+      const active = e && pubs.some(a => a.annonceur === e.nom && a.actif && a.fin > n);
+      const no = cannotPromote(body, c.makuta, !!e, active); if (no) throw new Error(no);
+      const prix = promoPrice(body.emplacement, Number(body.jours)); c.makuta -= prix; d.regie = (d.regie || 0) + prix; this.flow(d, "depense", prix);
+      pubs.unshift({ id: n.toString(36), annonceur: e.nom, titre: String(body.titre).trim(), texte: String(body.texte || "").trim(), commune: COMMUNES.some(x => x.nom === c.quartier) ? c.quartier : "", emplacement: body.emplacement,
+        couleur: AD_COLORS[e.nom.length % AD_COLORS.length], debut: n, fin: n + Number(body.jours) * 864e5, prix_usd: 0, paye: true, accord: true, actif: true, cree_le: n, jeu: true });
+      store.set("twolife_demo_pubs", pubs.slice(0, 100)); store.set(LS_DEMO, d); return { promo: true, ...this.view(d) };
+    }
+    if (path === "/api/train") {
+      if (body.niveau !== "auto" && !LIFESTYLES.some(l => l.id === body.niveau)) throw new Error("Train de vie inconnu.");
+      if (ageYears(c.neLe) < LIFESTYLE_MIN_AGE) throw new Error(`Avant ${LIFESTYLE_MIN_AGE} ans, ce sont les parents qui paient la vie de tous les jours.`);
+      d.train = { ...(d.train || { tenue: 40, vitalite: 50 }), niveau: body.niveau }; store.set(LS_DEMO, d); return this.view(d);
+    }
+    if (path === "/api/ambassadeurs") {
+      const L = demoNeighbors(c).filter(x => ageYears(x.ne_le) >= 18).map((x, i) => { const star = i < 2, tenue = 30 + (i * 17) % 65;
+        return { id: x.id, nom: `${x.prenom} ${x.nom}`, sexe: x.sexe, quartier: x.quartier, joueur: true, rep: x.reputation, tenue, star, prix: ambassadorFee(x.reputation, star) }; });
+      return { ambassadeurs: L, maxJours: CAMPAIGN_MAX_DAYS, demo: true };
+    }
+    if (path === "/api/campagne") {
+      this.settle(c);
+      const e = (d.ent || []).find(x => x.id === body.entreprise), a = (await this.run("/api/ambassadeurs", {})).ambassadeurs.find(x => x.id === body.ambassadeur);
+      if (!a) throw new Error("Ambassadeur introuvable.");
+      d = store.get(LS_DEMO);
+      const active = e && (d.campagnes || []).some(x => x.entrepriseId === e.id && x.fin > Date.now()), prix = Number(body.prix), jours = Number(body.jours), slogan = String(body.slogan || "").trim().slice(0, 60);
+      const no = cannotHireAmbassador({ owns: !!e, active, self: false, age: 25, rep: a.rep, tenue: a.tenue, star: a.star, prix, jours, makuta: d.perso.makuta, slogan }); if (no) throw new Error(no);
+      const total = prix * jours; d.perso.makuta -= total; d.tresor = (d.tresor || 0) + Math.round(total * TAX.salaire); this.flow(d, "depense", total);
+      d.campagnes = [{ entreprise: e.nom, entrepriseId: e.id, ambassadeur: a.nom, fem: a.sexe === "F", moi: false, prixJour: prix, fin: Date.now() + jours * 864e5, slogan }, ...(d.campagnes || [])].slice(0, 20);
+      store.set(LS_DEMO, d); return { ambassadeur: a.nom, cout: total, ...this.view(d) };
+    }
+    if (path === "/api/foot") return this.footView(d);
+    if (path === "/api/demo/foot") { this.footDay(d, true); store.set(LS_DEMO, d); return this.footView(d); }
+    if (path === "/api/club/marche") {
+      const r = rng((c.look || 3) ^ 0xf007), taken = new Set(Object.values(d.club || {}).flat().map(j => j.id));
+      const L = demoNeighbors(c).map(x => ({ x, a: ageYears(x.ne_le) })).filter(o => o.a >= CLUB_MIN_AGE && o.a <= CLUB_MAX_AGE && !taken.has(o.x.id)).map(({ x, a }) => {
+        const sport = r() < .5 ? 40 + Math.floor(r() * 55) : null, job = JOBS.find(j => j.id === x.metier), sal = job ? job.salaire : 0;
+        return { id: x.id, nom: `${x.prenom} ${x.nom}`, sexe: x.sexe, age: Math.floor(a), quartier: x.quartier, joueur: true, sport, niveau: sport || 25 + Math.floor(r() * 30), poste: job ? job.nom : null, salaire: sal, demande: Math.max(150, Math.round(sal * 1.1)) };
+      }).sort((p, q) => (q.sport || 0) - (p.sport || 0));
+      return { joueurs: L, contratJours: CLUB_CONTRACT_DAYS, demo: true };
+    }
+    if (path === "/api/club/recruter") {
+      const e = (d.ent || []).find(x => x.id === body.entreprise), j = (await this.run("/api/club/marche", {})).joueurs.find(x => x.id === body.joueur);
+      if (!j) throw new Error("Joueur introuvable.");
+      d = store.get(LS_DEMO); d.club = d.club || {};
+      const t = COMPANY_TYPES.find(x => x.id === "club"), used = e ? (d.club[e.id] || []).length : 0;
+      const no = cannotRecruit({ owns: !!e, isClub: !!e && e.type === "club", self: false, age: j.age, prix: Number(body.salaire), current: j.salaire, places: t.places, used, prison: false }); if (no) throw new Error(no);
+      (d.club[e.id] = d.club[e.id] || []).push({ id: j.id, nom: j.nom, niveau: j.niveau, salaire: Number(body.salaire) });
+      store.set(LS_DEMO, d); return { recrue: j.nom, ...this.view(d) };
+    }
+    if (path === "/api/stars") {
+      const V = demoNeighbors(c), cands = { sport: [], musique: [], affaires: [], politique: [], cuisine: [] };
+      // démo : quelques voisins simulés deviennent les stars du jour
+      V.forEach((x, i) => { const k = ["sport", "musique", "affaires", "politique", "cuisine"][i % 5]; cands[k].push({ id: x.id, prenom: x.prenom, nom: x.nom, sexe: x.sexe, quartier: x.quartier, age: Math.floor(ageYears(x.ne_le)), joueur: true }); });
+      return { stars: pickStars(cands, Date.now()), demo: true };
+    }
     if (path === "/api/postuler") {
-      const job = JOBS.find(j => j.id === body.metier), no = cannotApply(job, ageYears(c.neLe), d.dip || [], c.talents.filter(t => t.discovered).map(t => t.talent));
+      const job = JOBS.find(j => j.id === body.metier), no = cannotApply(job, ageYears(c.neLe), d.dip || [], c.talents.filter(t => t.discovered).map(t => t.talent), (d.inv || []).map(x => x.objet_id)) || tenueBlocks(job, d.train ? d.train.tenue : null);
       if (no) throw new Error(no);
       d.job = job.id; d.boss = null; store.set(LS_DEMO, d); return this.view(d);
     }
     if (path === "/api/travailler") {
       this.settle(c);
-      const job = d.boss ? companyJob(d.boss) : JOBS.find(j => j.id === d.job), no = cannotWork(job, ageYears(c.neLe), c.energy, d.lastShift);
+      const job = d.boss ? companyJob(d.boss) : JOBS.find(j => j.id === d.job), no = injuredBlocks(d.blessure) || cannotWork(job, ageYears(c.neLe), c.energy, d.lastShift);
       if (no) throw new Error(no);
       const pay = payFor(job, c.talents, d.dip || []);
+      if (PUBLIC_JOBS.some(j => j.id === job.id) && LAWS.salaires !== 100) { pay.prime = Math.round(pay.montant * (LAWS.salaires - 100) / 100); pay.montant += pay.prime; }   // loi sur les salaires publics
+      if (job.elu) { const P = this.laws(d).presences; if (!P.includes(dayKey())) P.push(dayKey()); while (P.length > 40) P.shift(); }   // séance au Parlement
       pay.famille = familyShare(pay.montant, d.rancune || 0);   // 10 % pour les parents (moins s'il a été négligé enfant)
       pay.impot = Math.round(pay.montant * TAX.salaire); d.tresor = (d.tresor || 0) + pay.impot - (PUBLIC_JOBS.some(j => j.id === job.id) || job.elu ? pay.montant : 0);
       this.addRep(d, REP.travail); this.mature(d, MATURITY_GAIN.travail); this.flow(d, "recu", pay.montant); this.flow(d, "famille", pay.famille); this.flow(d, "impots", pay.impot); this.flow(d, "depense", pay.famille + pay.impot);
@@ -539,7 +810,7 @@ const demo = {
       const f = FORMATIONS.find(x => x.id === d.enr.formation);
       const res = attendCourse(f, d.enr, c.talents, c.makuta, c.energy, Date.now(), rng(this.seed()));
       if (res.error) throw new Error(res.error);
-      c.energy = Math.max(0, c.energy - STUDY_ENERGY); c.makuta -= res.fee; this.mature(d, MATURITY_GAIN.cours); this.flow(d, "depense", res.fee);
+      c.energy = Math.max(0, c.energy - STUDY_ENERGY); c.makuta -= res.fee; d.tresor = (d.tresor || 0) - (res.etat || 0); this.mature(d, MATURITY_GAIN.cours); this.flow(d, "depense", res.fee);
       if (res.fin) { (d.dip = d.dip || []).push(f.id); d.enr = null; } else d.enr = res.enr;
       store.set(LS_DEMO, d); return { cours: { note: res.note, message: res.message, diplome: !!res.fin }, ...this.view(d) };
     }
@@ -693,7 +964,7 @@ function render(v) {
   ] : []).concat([["Joueur", v.compte.pseudo], ["Né le", new Date(p.neLe).toLocaleDateString("fr-FR")]])
     .map(([a, b]) => `<div class="row"><span>${a}</span><span style="text-align:right">${b}</span></div>`).join("")
     + (v.demo ? `<button class="mini" id="b-demo-die" type="button" style="margin-top:12px">💀 Simuler la mort (démo)</button>` : "");
-  renderNight(v); renderNeighbors(v); renderJournal(); renderDash(v); renderCouple(v); renderCity(v);
+  renderNight(v); renderThought(v); renderNeighbors(v); renderJournal(); renderGoals(v); renderStars(); renderTrain(v); renderFoot(); renderDash(v); renderCouple(v); renderCity(v);
   renderShop(v); renderWallet(v); renderWork(v); renderSchool(v); renderKids(v); renderCompanies(v); renderTravel(v); renderState(v); renderTips(v); renderOrders(v); renderMoves(v);
   if (!render.hashDone && ["#moves", "#nuit", "#orders", "#voisins", "#journal"].includes(location.hash)) { render.hashDone = true; setTimeout(() => goTo(location.hash.slice(1)), 300); }
   portrait(p);
@@ -738,6 +1009,8 @@ $("market").onclick = e => {
 const quartierHtml = q => `<div class="qtr"><div>${q.bon.map(x => `<span class="good">＋ ${esc(x)}</span>`).join("")}</div><div>${q.mauvais.map(x => `<span class="bad">− ${esc(x)}</span>`).join("")}</div></div>`;
 function renderDash(v) {
   const T = v.tableau; if (!T) { $("dash-card").hidden = true; return; } $("dash-card").hidden = false;
+  const O = v.atouts;
+  $("pause-card").hidden = !v.pause;
   const R = T.richesse, A = T.argent, P = T.proprietaire, N = v.perso.besoins, M = T.maturite;
   const row = (l, x, b) => `<div class="row"><span>${l}</span><span>${b ? "<b>" + x + "</b>" : x}</span></div>`;
   const bar = (l, n, inv) => { const g = inv ? 100 - n : n; return `<div class="need">${l} <b style="float:right">${n}</b><div class="bar"><i class="${g < 25 ? "low" : g < 50 ? "mid" : ""}" style="width:${n}%"></i></div></div>`; };
@@ -748,6 +1021,10 @@ function renderDash(v) {
     ${T.role ? `<h3 style="font-size:15px;margin:14px 0 6px">Son caractère et son rôle</h3>
     <div class="role ${T.role.camp}"><b>${esc(T.role.roleNom)}</b> · ${esc(T.role.caractereNom)} <span class="camp">${T.role.camp === "bon" ? "👍 bon" : "👎 mauvais"}</span><small>${esc(T.role.roleDesc)} Donné par le jeu à l'arrivée.</small></div>` : ""}
     ${T.quartier ? `<h3 style="font-size:15px;margin:14px 0 6px">Son quartier : ${esc(T.quartier.nom)} <small style="color:var(--muted);font-weight:400">· ${esc(T.quartier.zone)}</small></h3>${quartierHtml(T.quartier)}` : ""}
+    ${O ? `<h3 style="font-size:15px;margin:14px 0 6px">Ses chances de réussir : ${O.score} %</h3>
+    <div class="need"><div class="bar"><i class="${O.score < 30 ? "low" : O.score < 60 ? "mid" : ""}" style="width:${O.score}%"></i></div></div>
+    <div class="atouts">${O.atouts.map(a => `<span class="atout ${a.ok ? "ok" : ""}" title="${esc(a.aide)}">${a.icone} ${esc(a.label)} ${a.ok ? "✓" : "✗"}</span>`).join("")}</div>
+    <p style="font-size:13px;margin:6px 0 0;color:var(--muted)">Rien n'est gratuit : études, téléphone, véhicule, tenue et sport s'achètent et ouvrent des métiers mieux payés.</p>` : ""}
     <h3 style="font-size:15px;margin:14px 0 2px">Ce qu'il possède</h3>
     ${row("En poche", mk(R.poche))}${R.banque ? row("À la banque", mk(R.banque)) : ""}${R.biens ? row("Objets", mk(R.biens)) : ""}${R.entreprises ? row("Entreprises", mk(R.entreprises)) : ""}${R.maison ? row("Maison", mk(R.maison)) : ""}
     <h3 style="font-size:15px;margin:14px 0 6px">Ses besoins</h3>
@@ -813,12 +1090,18 @@ $("dead").onclick = e => {
   if (e.target.id === "b-reborn") act("/api/renaitre", {}, v => `Bienvenue dans ta nouvelle vie, ${v.perso.prenom} !`); };
 
 // ---------------------------------------------------------------- magasin, affaires, portefeuille
-const TYPES = [["nourriture", "Nourriture", "🍲"], ["vetement", "Vêtements", "👕"], ["telephone", "Téléphones", "📱"]];
+const TYPES = [["nourriture", "Nourriture", "🍲"], ["soin", "Pharmacie", "💊"], ["vetement", "Vêtements", "👕"], ["telephone", "Téléphones", "📱"], ["sport", "Sport", "⚽"], ["vehicule", "Véhicules", "🚗"], ["meuble", "Maison", "🛋️"]];
+const MEUBLE_ICON = { "lit-king": "🛏️", "tele-plasma": "📺", clim: "❄️", ventilo: "🌀", "canape-cuir": "🛋️", "chauffe-eau": "🚿",
+  "boisson-energie": "🥤", paracetamol: "💊", vitamines: "🍊", antipaludeen: "💉", moustiquaire: "🦟", "seance-gym": "🏋🏾", "terrain-foot": "⚽", "tenue-sport": "👟",
+  velo: "🚲", moto: "🏍️", "voiture-occasion": "🚗", "voiture-neuve": "🚙" };
+const FX = { faim: "satiété", bonheur: "bonheur", energie: "énergie", sante: "santé", vitalite: "vitalité" };
+const KEEP_TXT = { soin: "Pharmacie : te protège du paludisme", sport: "Équipement de sport", vehicule: "Ton véhicule : tes trajets ne passent plus par le taxi" };
 let shopTab = "nourriture";
 const mk = n => fmtMakuta(Math.round(n));
 const usd = n => `${n.toLocaleString("fr-FR", { maximumFractionDigits: 2 })} $`;
-const SLOT = { haut: "Haut", bas: "Bas", pieds: "Chaussures" };
+const SLOT = { haut: "Haut", bas: "Bas", pieds: "Chaussures", bain: "Maillot de bain : pour nager à la piscine" };
 function swatch(it) {
+  if (MEUBLE_ICON[it.id]) return `<span class="sw">${MEUBLE_ICON[it.id]}</span>`;
   return it.couleur ? `<span class="sw" style="background:${it.couleur}"></span>` : `<span class="sw">${(TYPES.find(t => t[0] === it.type) || [, , "•"])[2]}</span>`;
 }
 function renderShop(v) {
@@ -826,12 +1109,16 @@ function renderShop(v) {
   $("shop-tabs").innerHTML = TYPES.map(([id, label]) => `<button class="tab ${id === shopTab ? "on" : ""}" data-t="${id}" type="button">${label}</button>`).join("");
   $("shop").innerHTML = v.boutique.filter(it => it.type === shopTab).map(it => {
     const why = it.minAge && p.age < it.minAge ? `dès ${it.minAge} ans` : it.maxAge && p.age > it.maxAge ? "pour les tout-petits" : p.makuta < it.prix ? "trop cher" : "";
-    const fx = it.effet ? Object.entries(it.effet).map(([k, x]) => `+${x} ${{ faim: "satiété", bonheur: "bonheur", energie: "énergie" }[k]}`).join(" · ") : SLOT[it.slot] || "";
+    const owned = (it.type === "meuble" || it.unique) && v.inventaire.some(x => x.objet === it.id);
+    const fx = ((it.desc ? it.desc + " · " : "") + (it.effet && !(it.desc && ["soin", "sport", "vehicule"].includes(it.type)) ? Object.entries(it.effet).filter(([k]) => !(it.desc && k === "bonheur")).map(([k, x]) => `${x > 0 ? "+" : ""}${x} ${FX[k] || k}`).join(" · ") : SLOT[it.slot] || "") + (it.conso ? ` · électricité +${mk(it.conso)}/jour` : "")).replace(/ · $/, "");
+    if (owned) return `<div class="item">${swatch(it)}<div class="t">${it.nom}<small>${it.type === "meuble" ? "Déjà dans ta maison" : "Tu l'as déjà"}</small></div><button class="mini" type="button" disabled>✓ ${it.type === "meuble" ? "Chez toi" : "À toi"}</button></div>`;
     return `<div class="item">${swatch(it)}<div class="t">${it.nom}<small>${mk(it.prix)}${fx ? " · " + fx : ""}${why ? " · " + why : ""}</small></div>
-      <button class="mini fill" data-buy="${it.id}" type="button" ${dis(why, why)}>${it.type === "nourriture" ? "Manger" : "Acheter"}</button></div>`;
+      <button class="mini fill" data-buy="${it.id}" type="button" ${dis(why, why)}>${it.type === "nourriture" ? "Manger" : it.jetable && it.type === "soin" ? "Prendre" : it.jetable ? "Y aller" : "Acheter"}</button></div>`;
   }).join("");
   const inv = v.inventaire.map(x => ({ ...x, it: v.boutique.find(b => b.id === x.objet) })).filter(x => x.it);
-  $("inv").innerHTML = inv.length ? inv.map(x => `<div class="item">${swatch(x.it)}<div class="t">${x.it.nom}<small>${x.it.slot ? (x.porte ? "Porté · " : "") + SLOT[x.it.slot] : "Téléphone : tu peux appeler ta famille"}</small></div>
+  // la ville 3D lit cette liste pour meubler la maison du personnage (même navigateur, démo ou compte réel)
+  try { localStorage.setItem("twolife_meubles", JSON.stringify(inv.filter(x => x.it.type === "meuble").map(x => x.it.id))); localStorage.setItem("twolife_objets", JSON.stringify(inv.map(x => x.it.id))); } catch (e) { }
+  $("inv").innerHTML = inv.length ? inv.map(x => `<div class="item">${swatch(x.it)}<div class="t">${x.it.nom}<small>${x.it.slot ? (x.porte ? "Porté · " : "") + SLOT[x.it.slot] : x.it.type === "meuble" ? "Dans ta maison (visible en 3D dans « La ville »)" : KEEP_TXT[x.it.type] || "Téléphone : tu peux appeler ta famille"}</small></div>
       ${x.it.slot ? `<button class="mini ${x.porte ? "" : "fill"}" data-wear="${x.id}" type="button">${x.porte ? "Retirer" : "Porter"}</button>` : ""}
       <button class="mini" data-sell="${x.id}" type="button">Vendre ${mk(x.it.prix * RESELL_RATE)}</button></div>`).join("")
     : `<p style="font-size:14px;margin:0">Rien pour l'instant. Les vêtements achetés apparaissent ici et sur ton personnage.</p>`;
@@ -901,8 +1188,89 @@ function renderWork(v) {
   }).join("");
   const co = p.age >= 18 && v.entreprises.offres.length ? `<h2 style="font-size:16px;margin:16px 0 4px">Les entreprises des joueurs embauchent</h2>` + v.entreprises.offres.map(e => `<div class="item"><span class="sw">${e.icone || "🏢"}</span><div class="t">${esc(e.emploi.nom)}<small>${mk(e.emploi.salaire)} par journée · ${esc(e.quartier || "")}${disc.has(e.emploi.talent) ? " · +30 % (ton talent)" : ""}</small></div>
     ${w.emploiEntreprise && w.emploiEntreprise.entreprise === e.id ? `<span class="mini" style="border-color:var(--ok);color:var(--ok)">Ton emploi</span>` : `<button class="mini fill" data-cjob="${e.id}" type="button">Postuler</button>`}</div>`).join("") : "";
-  $("work").innerHTML = head + co + `<h2 style="font-size:16px;margin:16px 0 4px">Offres d'emploi en ville</h2>` + list;
+  const du = v.salaireDu > 0 ? `<p class="sim" style="margin:0 0 10px">⏳ L'État te doit ${mk(v.salaireDu)} de salaire : la caisse publique était vide. Tu seras payé dès que les impôts rentrent.</p>` : "";
+  $("work").innerHTML = du + head + co + `<h2 style="font-size:16px;margin:16px 0 4px">Offres d'emploi en ville</h2>` + list;
 }
+let promoFor = null;
+const PROMO_SPOTS = [["bandeau", "Bandeau en bas de l'écran"], ["journal", "Journal de Kinshasa"], ["panneau", "Panneaux LED de la ville"], ["tous", "Partout"]];
+function promoForm(v, e) {
+  const P = v.promo || { prix: {}, maxJours: 7 };
+  return `<form class="promo" data-promo-form="${e.id}" novalidate style="margin-top:10px;border-top:1px solid var(--line);padding-top:10px">
+    <p style="font-size:13px;margin:0 0 6px">Ta publicité est payée en e-makuta à la Régie publicitaire de Kinshasa (société publique). Pas de lien ni de numéro de téléphone.</p>
+    <label for="pr-titre">Titre (24 caractères)</label><input id="pr-titre" maxlength="24" value="${esc(e.nom.slice(0, 24))}">
+    <label for="pr-texte">Texte (90 caractères)</label><input id="pr-texte" maxlength="90" placeholder="ex. Ouvert tous les jours, prix doux">
+    <label for="pr-place">Où ?</label><select id="pr-place">${PROMO_SPOTS.map(([id, l]) => `<option value="${id}">${l} · ${mk(P.prix[id])} / jour</option>`).join("")}</select>
+    <label for="pr-jours">Combien de jours ? (1 à ${P.maxJours})</label><input id="pr-jours" type="number" min="1" max="${P.maxJours}" value="2">
+    <button class="btn" type="submit">Payer et lancer la promotion</button></form>`;
+}
+let ambFor = null, ambList = null, recFor = null, recList = null;
+function campaignLine(v, e) {
+  const c = (v.campagnes ? v.campagnes.liste : []).find(x => x.entrepriseId === e.id && !x.moi);
+  return c ? `<p style="font-size:13px;margin:6px 0 0">🌟 Campagne en cours avec <b>${esc(c.ambassadeur)}</b> jusqu'au ${new Date(c.fin).toLocaleDateString("fr-FR")} : les habitants choisissent plus souvent ton entreprise pour leurs dépenses.</p>` : "";
+}
+function ambForm(v, e) {
+  const box = `<div style="margin-top:10px;border-top:1px solid var(--line);padding-top:10px">`;
+  if (!ambList) return box + `<p style="font-size:13px;margin:0">Recherche des personnalités disponibles…</p></div>`;
+  const max = (v.campagnes || {}).maxJours || 14;
+  return box + `<p style="font-size:13px;margin:0 0 6px">Paie un habitant (une star coûte plus cher) pour faire connaître ${esc(e.nom)}. Pendant la campagne, les habitants choisissent ton entreprise deux fois sur trois pour leurs dépenses, et le bandeau l'annonce. 5 % d'impôt sur le cachet de l'ambassadeur.</p>
+    <label for="amb-jours">Combien de jours ? (1 à ${max})</label><input id="amb-jours" type="number" min="1" max="${max}" value="3">
+    <label for="amb-slogan">Slogan (60 caractères, facultatif)</label><input id="amb-slogan" maxlength="60" placeholder="ex. Le meilleur pondu de la ville">` +
+    (ambList.length ? ambList.map(a => `<div class="item"><span class="sw">${a.star ? "⭐" : a.sexe === "F" ? "👩🏾" : "👨🏾"}</span><div class="t">${esc(a.nom)}<small>${a.star ? "Star du jour · " : ""}réputation ${a.rep} · tenue ${a.tenue} · ${mk(a.prix)} par jour</small></div>
+      <button class="mini fill" data-hire="${esc(a.id)}" type="button" ${dis(a.tenue < 50, "Sa tenue est trop négligée : cette personne refuse de poser pour une publicité.")}>Engager</button></div>`).join("") : `<p style="font-size:13px">Personne de disponible pour l'instant.</p>`) + `</div>`;
+}
+function recruitForm(v, e) {
+  const box = `<div style="margin-top:10px;border-top:1px solid var(--line);padding-top:10px">`;
+  if (!recList) return box + `<p style="font-size:13px;margin:0">Le recruteur fait le tour des terrains…</p></div>`;
+  return box + `<p style="font-size:13px;margin:0 0 6px">Chaque joueur décide seul : il signe si tu lui offres au moins 10 % de plus que son salaire actuel. Ses journées de travail (entraînements) sont payées par la caisse du club, et chaque match rapporte la billetterie.</p>` +
+    (recList.length ? recList.map(a => `<div class="item"><span class="sw">⚽</span><div class="t">${esc(a.nom)}, ${a.age} ans<small>${a.sport ? `talent sport découvert · niveau ${a.sport}` : "talent sport inconnu"}${a.poste ? " · " + esc(a.poste) : " · sans emploi"}</small></div>
+      <button class="mini fill" data-sign="${esc(a.id)}" type="button">Recruter · ${mk(a.demande)}/jour</button></div>`).join("") : `<p style="font-size:13px">Aucun joueur libre pour l'instant.</p>`) + `</div>`;
+}
+// ---- train de vie : dépenses du quotidien selon les moyens
+function renderTrain(v) {
+  const T = v.train, box = $("train"), p = v.perso; if (!T) { box.innerHTML = ""; return; }
+  if (!T.adulte) { box.innerHTML = `<p style="font-size:14px;margin:0">Avant ${T.minAge} ans, la vie de tous les jours de ${esc(p.prenom)} (repas, habits, école) est payée par ses parents : ${mk(v.entretienParJour)} d'entretien par jour.</p>`; return; }
+  const lv = T.niveaux, cur = lv.find(l => l.id === T.prevu), sign = n => (n > 0 ? "+" : "") + n;
+  const chips = [{ id: "auto", nom: "Automatique", icone: "🤖", cout: 0 }, ...lv].map(l => `<button class="tal${T.choix === l.id ? " on" : ""}" data-train="${l.id}" type="button">${l.icone} ${l.nom}${l.cout ? " · " + mk(l.cout) + "/j" : ""}</button>`).join("");
+  const L = v.logement && v.logement.actuel, bills = L ? Object.entries(BILLS).reduce((a, [, n]) => a + n, 0) + homeConso((v.inventaire || []).map(x => x.objet)) : 0;
+  const rows = cur ? T.postes.filter(x => cur.postes[x.id]).map(x => `<div class="row"><span>${x.icone} ${x.label}</span><span>${mk(cur.postes[x.id])}</span></div>`).join("") : "";
+  const fixed = `<div class="row"><span>🏠 Loyer</span><span>${L ? (L.statut === "proprio" ? "propriétaire : rien à payer" : mk(L.loyer) + " par semaine") : "chez les parents"}</span></div>` +
+    `<div class="row"><span>💡🚰 Électricité et eau (Mwinda, Mai ya Kin)</span><span>${L ? mk(bills) + " par jour" : "payées par les parents"}</span></div>`;
+  const why = T.choix === "auto" ? `En automatique, ${esc(p.prenom)} choisit le meilleur niveau qu'il peut tenir ${T.reserveJours} jours avec son argent.` : T.prevu !== T.choix ? `⚠️ L'argent manque : ${esc(p.prenom)} vivra au niveau « ${cur ? cur.nom : "rien"} » tant que ça ne va pas mieux.` : "";
+  const bar = (label, x, extra) => `<div class="need">${label} · ${x}${extra ? " · " + extra : ""}<div class="bar"><i class="${x < 25 ? "low" : x < 55 ? "mid" : ""}" style="width:${x}%"></i></div></div>`;
+  box.innerHTML = `<p style="font-size:14px;margin:0 0 8px">Chaque jour, ${esc(p.prenom)} paie sa vie selon ses moyens. Mieux vivre rend plus beau et en meilleure santé : on vit plus longtemps et on est embauché plus facilement. L'argent dépensé fait vivre les commerces des joueurs (TVA pour l'État).</p>
+    <div class="talents">${chips}</div>
+    ${why ? `<p style="font-size:13px;margin:8px 0 0">${why}</p>` : ""}
+    ${cur ? `<h2 style="font-size:16px;margin:14px 0 4px">${cur.icone} Aujourd'hui : ${cur.nom} · ${mk(cur.cout)} par jour</h2><p style="font-size:13px;margin:0 0 6px">${esc(cur.desc)} Faim ${sign(cur.effet.faim)}, santé ${sign(cur.effet.sante)}, bonheur ${sign(cur.effet.bonheur)} chaque jour.</p>${rows}`
+      : `<p class="sim" style="margin:12px 0 0">😣 Pas assez d'argent, même pour un repas : la santé et le moral baissent chaque jour. Un petit boulot peut aider.</p>`}
+    <h2 style="font-size:16px;margin:14px 0 4px">Prélevé à part</h2>${fixed}
+    <div class="grid2" style="margin-top:12px">${bar("Présentation", T.tenue, T.tenueLabel)}${bar("Vitalité", T.vitalite)}</div>
+    <div class="row" style="margin-top:8px"><span>❤️ Espérance de vie</span><span><b>${T.esperance} ans</b> (âge actuel : ${Math.floor(p.age)} ans)</span></div>
+    <p style="font-size:13px;margin:6px 0 0">Les métiers payés ${mk(250)} ou plus par journée, et ceux qui demandent un diplôme, exigent une présentation d'au moins 40. Après son espérance de vie, la santé baisse chaque jour.</p>
+    ${T.dernier ? `<p style="font-size:13px;margin:6px 0 0">Dernière journée (${T.dernier.jour}) : ${mk(T.dernier.depense)} dépensés${T.dernier.niveau ? ", niveau " + (lv.find(l => l.id === T.dernier.niveau) || {}).nom : ""}.</p>` : ""}`;
+}
+$("train").onclick = e => {
+  const b = e.target.closest("button"); if (!b || b.disabled || !b.dataset.train) return;
+  act("/api/train", { niveau: b.dataset.train }, () => b.dataset.train === "auto" ? "Ton personnage choisira lui-même son train de vie selon ses moyens." : "Nouveau train de vie : il s'applique dès la prochaine journée de dépenses.");
+};
+// ---- football : championnat de Kinshasa
+let footData = null;
+function renderFoot() {
+  const F = footData, box = $("foot");
+  if (!F) { box.innerHTML = `<p style="font-size:14px;margin:0 0 10px">Chaque jour, les clubs de la ville jouent un match : les clubs des joueurs (achète un « Club de football » dans tes entreprises) contre les clubs du jeu. Les présidents recrutent des joueurs et touchent la billetterie.</p><button class="mini fill" id="b-foot" type="button">⚽ Voir le classement</button>`; return; }
+  const tab = F.classement.length ? `<table style="width:100%;font-size:13px;border-collapse:collapse"><tr style="text-align:left"><th>#</th><th>Club</th><th>J</th><th>Diff.</th><th>Pts</th></tr>` +
+    F.classement.map((c, i) => `<tr${F.mesClubs.some(m => m.id === c.id) ? ' style="font-weight:700"' : ""}><td>${i + 1}</td><td>${esc(c.nom)}</td><td>${c.j}</td><td>${c.bp - c.bc > 0 ? "+" : ""}${c.bp - c.bc}</td><td>${c.pts}</td></tr>`).join("") + `</table>` : `<p style="font-size:13px">Pas encore de match ce mois-ci : la première journée se joue aujourd'hui.</p>`;
+  box.innerHTML = `<p style="font-size:13px;margin:0 0 6px">${esc(F.ligue)} · saison ${esc(F.saison)} (une saison = un mois). Billetterie : ${mk(F.gains.victoire)} la victoire, ${mk(F.gains.nul)} le nul, ${mk(F.gains.defaite)} la défaite.</p>` + tab +
+    (F.derniers.length ? `<h2 style="font-size:16px;margin:14px 0 4px">Derniers résultats</h2>` + F.derniers.map(m => `<div class="row"><span>${esc(m.dom)} <b>${m.bd}-${m.be}</b> ${esc(m.ext)}</span><span style="font-size:12px">${m.buteurs ? "⚽ " + esc(m.buteurs) : ""}</span></div>`).join("") : "") +
+    (F.mesClubs.length ? `<h2 style="font-size:16px;margin:14px 0 4px">Mes clubs</h2>` + F.mesClubs.map(c => `<div class="row"><span>${esc(c.nom)} · force ${c.force}</span><span>${c.joueurs.length ? c.joueurs.map(j => esc(j.nom)).join(", ") : "aucun joueur : recrute pour jouer"}</span></div>`).join("") : "") +
+    `<div class="two-btn" style="margin-top:10px"><button class="mini" id="b-foot" type="button">↻ Actualiser</button>${F.demo ? `<button class="mini" id="b-foot-next" type="button">⏩ Journée suivante (démo)</button>` : ""}</div>`;
+}
+$("foot").addEventListener("click", async e => {
+  const b = e.target.closest("button"); if (!b || b.disabled) return;
+  try {
+    if (b.id === "b-foot") { b.disabled = true; footData = await call("/api/foot", {}); renderFoot(); }
+    if (b.id === "b-foot-next") { b.disabled = true; footData = await call("/api/demo/foot", {}); renderFoot(); if (window.TWO_LIFE_BANDEAU) window.TWO_LIFE_BANDEAU.reload(); }
+  } catch (err) { toast(err.message); b.disabled = false; }
+});
 function renderCompanies(v) {
   const p = v.perso, E = v.entreprises;
   if (p.age < 18) { $("companies").innerHTML = `<p style="font-size:14px;margin:0">${p.prenom} pourra ouvrir ou racheter une entreprise à 18 ans.</p>`; return; }
@@ -912,19 +1280,39 @@ function renderCompanies(v) {
       <div class="item" style="border:0"><span class="sw">${e.icone || "🏢"}</span><div class="t">${esc(e.nom)}<small>${e.typeNom} · ${esc(e.quartier || "")} · ${e.employes || 0}/${t.places} employé(s) · gagne ${mk(t.recette)} par jour</small></div></div>
       <div class="row"><span>Caisse</span><span style="text-align:right"><b>${mk(e.caisse)}</b>${e.plein ? ` <small style="color:var(--warn)">pleine : encaisse vite</small>` : ""}</span></div>
       <div class="two-btn"><button class="mini fill" data-cash="${e.id}" type="button" ${dis(e.caisse < 1, "La caisse est vide pour l'instant : reviens plus tard.")}>Encaisser</button>
+      <button class="mini" data-promo="${e.id}" type="button">📣 Promouvoir</button>
+      <button class="mini" data-amb="${e.id}" type="button">🌟 Ambassadeur</button>
+      ${e.type === "club" ? `<button class="mini" data-recruit="${e.id}" type="button">⚽ Recruter</button>` : ""}
       ${e.en_vente ? `<button class="mini" data-unsell="${e.id}" type="button">Retirer de la vente (${mk(e.en_vente)})</button>` : `<button class="mini" data-sellco="${e.id}" data-price="${Math.round(t.prix * 1.2)}" type="button">Mettre en vente (${mk(Math.round(t.prix * 1.2))})</button>`}</div>
+      ${campaignLine(v, e)}
+      ${promoFor === e.id ? promoForm(v, e) : ""}
+      ${ambFor === e.id ? ambForm(v, e) : ""}
+      ${recFor === e.id ? recruitForm(v, e) : ""}
     </div>`; }).join("") + `<p style="font-size:13px;margin:8px 0 0">La caisse se remplit seule pendant ${E.plafondJours} jours, puis elle s'arrête : passe encaisser régulièrement. Chaque journée d'un employé rapporte son salaire plus 60 %.</p>`
     : `<p style="font-size:14px;margin:0 0 6px">Tu n'as pas encore d'entreprise. Ouvre un commerce ou rachète celui d'un autre joueur.</p>`;
   const market = E.aVendre.length ? E.aVendre.map(e => `<div class="item"><span class="sw">${e.icone || "🏢"}</span><div class="t">${esc(e.nom)} · ${mk(e.en_vente)}<small>${e.typeNom} · ${esc(e.quartier || "")} · vendu par ${esc(e.proprietaire || "un joueur")}</small></div>
     <button class="mini fill" data-buyco="${e.id}" type="button" ${dis(p.makuta < e.en_vente, `Il te manque ${mk(e.en_vente - p.makuta)}.`)}>Acheter</button></div>`).join("") : `<p style="font-size:14px;margin:0">Aucune entreprise à vendre pour l'instant.</p>`;
   const list = E.types.map(t => `<div class="item"><span class="sw">${t.icone}</span><div class="t">${t.nom} · ${mk(t.prix)}<small>${t.desc} Gagne ${mk(t.recette)} par jour.</small></div>
     <button class="mini fill" data-open="${t.id}" type="button" ${dis(p.makuta < t.prix, `Il te manque ${mk(t.prix - p.makuta)} pour ouvrir cette entreprise.`)}>Ouvrir</button></div>`).join("");
-  $("companies").innerHTML = mine +
+  const amb = (v.campagnes ? v.campagnes.liste : []).filter(x => x.moi).map(x => `<p class="sim" style="margin:0 0 10px">🌟 ${esc(p.prenom)} est ${p.sexe === "F" ? "l'ambassadrice" : "l'ambassadeur"} de ${esc(x.entreprise)} jusqu'au ${new Date(x.fin).toLocaleDateString("fr-FR")}${x.slogan ? ` · « ${esc(x.slogan)} »` : ""}.</p>`).join("");
+  $("companies").innerHTML = amb + mine +
     `<h2 style="font-size:16px;margin:16px 0 4px">À vendre par d'autres joueurs</h2>${market}` +
     `<h2 style="font-size:16px;margin:16px 0 4px">Ouvrir un commerce</h2><label for="co-name" style="margin-top:4px">Nom (facultatif)</label><input id="co-name" maxlength="40" placeholder="ex. Chez ${esc(p.prenom)}">${list}`;
 }
-$("companies").onclick = e => {
+$("companies").addEventListener("submit", e => {
+  const f = e.target.closest("[data-promo-form]"); if (!f) return; e.preventDefault();
+  const body = { entreprise: f.dataset.promoForm, titre: $("pr-titre").value, texte: $("pr-texte").value, emplacement: $("pr-place").value, jours: Number($("pr-jours").value) };
+  act("/api/promouvoir", body, () => { promoFor = null; if (window.TWO_LIFE_BANDEAU) window.TWO_LIFE_BANDEAU.reload(); return "Promotion lancée ! Elle passe dès maintenant pour tous les habitants."; });
+});
+$("companies").onclick = async e => {
   const b = e.target.closest("button"); if (!b || b.disabled) return;
+  if (b.dataset.amb) { ambFor = ambFor === b.dataset.amb ? null : b.dataset.amb; ambList = null; renderCompanies(state); if (ambFor) { try { ambList = (await call("/api/ambassadeurs", {})).ambassadeurs || []; } catch (err) { toast(err.message); ambList = []; } renderCompanies(state); } return; }
+  if (b.dataset.recruit) { recFor = recFor === b.dataset.recruit ? null : b.dataset.recruit; recList = null; renderCompanies(state); if (recFor) { try { recList = (await call("/api/club/marche", {})).joueurs || []; } catch (err) { toast(err.message); recList = []; } renderCompanies(state); } return; }
+  if (b.dataset.hire) { b.disabled = true; const x = (ambList || []).find(a => a.id === b.dataset.hire);
+    return act("/api/campagne", { entreprise: ambFor, ambassadeur: x.id, prix: x.prix, jours: Number(($("amb-jours") || {}).value || 3), slogan: ($("amb-slogan") || {}).value || "" }, v2 => { ambFor = null; if (window.TWO_LIFE_BANDEAU) window.TWO_LIFE_BANDEAU.reload(); return `${v2.ambassadeur} fait maintenant la publicité de ton entreprise (${mk(v2.cout)}). Les clients vont venir plus souvent.`; }); }
+  if (b.dataset.sign) { b.disabled = true; const x = (recList || []).find(a => a.id === b.dataset.sign);
+    return act("/api/club/recruter", { entreprise: recFor, joueur: x.id, salaire: x.demande }, v2 => { recList = recList.filter(a => a.id !== x.id); footData = null; return `${v2.recrue} signe dans ton club !`; }); }
+  if (b.dataset.promo) { promoFor = promoFor === b.dataset.promo ? null : b.dataset.promo; return renderCompanies(state); }
   if (b.dataset.open) { b.disabled = true; return act("/api/entreprise/ouvrir", { type: b.dataset.open, nom: ($("co-name") || {}).value }, v => `Ton entreprise « ${v.ouverte} » est ouverte !`); }
   if (b.dataset.cash) return act("/api/entreprise/encaisser", { entreprise: b.dataset.cash }, v => `Tu as encaissé ${mk(v.encaisse)}.`);
   if (b.dataset.sellco) return act("/api/entreprise/vendre", { entreprise: b.dataset.sellco, prix: Number(b.dataset.price) }, () => "Ton entreprise est en vente. Les autres joueurs la voient au marché.");
@@ -932,7 +1320,7 @@ $("companies").onclick = e => {
   if (b.dataset.buyco) { b.disabled = true; return act("/api/entreprise/acheter", { entreprise: b.dataset.buyco }, v => `Bravo, « ${v.achetee} » est à toi !`); }
 };
 let stateTab = "institutions";
-const STATE_TABS = [["institutions", "🏛️ Institutions"], ["banque", "🏦 Banques"], ["assurance", "🩺 Santé"], ["telephone", "📱 Téléphone"], ["elections", "🗳️ Élections"], ["police", "🚓 Police"], ["impots", "🧾 Impôts"]];
+const STATE_TABS = [["institutions", "🏛️ Institutions"], ["banque", "🏦 Banques"], ["assurance", "🩺 Santé"], ["telephone", "📱 Téléphone"], ["elections", "🗳️ Élections"], ["parlement", "⚖️ Parlement"], ["police", "🚓 Police"], ["societes", "🏭 Sociétés publiques"], ["impots", "🧾 Budget et impôts"]];
 const dt = t => new Date(t).toLocaleString("fr-FR", { day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" });
 function renderState(v) {
   const p = v.perso, S = v.etat;
@@ -940,21 +1328,71 @@ function renderState(v) {
   let h = "";
   if (stateTab === "institutions") {
     h = S.institutions.map(i => `<div class="item"><span class="sw">${i.icone}</span><div class="t">${i.nom}<small>${i.role}</small></div></div>`).join("") +
-`<h2 style="font-size:16px;margin:16px 0 4px">L'État recrute</h2>` + S.metiersPublics.map(j => `<div class="item"><span class="sw">🎖️</span><div class="t">${j.nom}<small>${mk(j.salaire)} par journée, payé par le Trésor${j.diplome ? " · diplôme : " + j.diplome : ""} · dès ${j.minAge} ans</small></div>
+`<h2 style="font-size:16px;margin:16px 0 4px">L'État recrute</h2>` + S.metiersPublics.map(j => `<div class="item"><span class="sw">🎖️</span><div class="t">${j.nom}<small>${mk(j.salaire)} par journée, payé par ${j.societe ? "sa société publique (ou le Trésor)" : "le Trésor"}${j.diplome ? " · diplôme : " + j.diplome : ""} · dès ${j.minAge} ans</small></div>
         ${v.travail.metier === j.id ? `<span class="mini" style="border-color:var(--ok);color:var(--ok)">Ton métier</span>` : `<button class="mini fill" data-job="${j.id}" type="button" ${dis(p.age < j.minAge || (j.formation && !v.ecole.diplomes.includes(j.formation)), p.age < j.minAge ? `Ce poste est ouvert dès ${j.minAge} ans.` : `Il faut d'abord le diplôme : ${j.diplome}.`)}>Postuler</button>`}</div>`).join("");
   } else if (stateTab === "elections") {
-    const E = v.elections || {}, nomPoste = id => (S.postes.find(x => x.id === id) || {}).nom || id;
+    const E = v.elections || {}, nomPoste = id => (S.postes.find(x => x.id === id) || {}).nom || id, K = E.maCampagne, C = S.campagneElec || {};
+    const pct = x => String(x ?? 0).replace(".", ",") + " %";
     h = (E.prochaine ? `<div class="row"><span>Élection n° ${E.cycle}</span><span>${dt(E.prochaine)}</span></div>
         <p style="font-size:13px;margin:6px 0">${E.voteOuvert ? "<b>Le vote est ouvert.</b> Choisis un candidat pour chaque poste. Les voix seront comptées à la date de l'élection." : `Le vote ouvrira le ${dt(E.ouvertureVote)} et durera 7 jours. Ensuite, une élection tous les 6 mois.`}${p.age < 18 ? " Il faut avoir 18 ans pour voter." : ""}</p>`
       : `<p style="font-size:13px;margin:0 0 6px">La première élection aura lieu 6 mois après le démarrage du jeu, puis tous les 6 mois. Tu peux déjà te porter candidat.</p>`) +
-      `<h2 style="font-size:16px;margin:12px 0 4px">Se présenter</h2>` + S.postes.map(x => `<div class="item"><span class="sw">🗳️</span><div class="t">${x.nom}<small>${x.places} ${x.places > 1 ? "sièges" : "siège"} · dès ${x.minAge} ans · ${x.candidats} candidat(s)</small></div>
-        ${S.candidature === x.id ? `<button class="mini" data-cand="" type="button">Retirer</button>` : `<button class="mini fill" data-cand="${x.id}" type="button" ${dis(p.age < x.minAge, `Candidature possible dès ${x.minAge} ans.`)}>Candidater</button>`}</div>`).join("") +
-      `<h2 style="font-size:16px;margin:16px 0 4px">Candidats</h2>` +
+      `<p style="font-size:13px;margin:0 0 6px">Les habitants de la ville votent aussi : ils suivent les meetings et la réputation des candidats. Les joueurs ajoutent leurs voix.</p>` +
+      (K ? `<h2 style="font-size:16px;margin:12px 0 4px">📣 Ma campagne : ${esc(nomPoste(K.poste))}</h2>
+        <p style="font-size:14px;margin:0 0 6px">« ${esc(K.programme || "")} »</p>
+        <div class="row"><span>Soutien gagné aux meetings</span><span>${K.soutien} / ${C.maxSoutien || 100}</span></div>
+        <div class="row"><span>Sondage du jour</span><span><b>${pct(K.sondage)}</b> pour ce poste</span></div>
+        <div class="two-btn"><button class="mini fill" id="b-meeting" type="button" ${dis(K.faiteAujourdhui || p.besoins.energy < (C.energie || 20) || p.makuta < (C.cout || 0), K.faiteAujourdhui ? "Un meeting par jour : reviens demain." : p.makuta < (C.cout || 0) ? "Pas assez d'e-makuta pour les affiches." : "Trop fatigué pour un meeting.")}>Faire un meeting (${mk(C.cout || 0)}, −${C.energie || 20} énergie)</button>
+        <button class="mini" data-cand="" type="button">Retirer ma candidature</button></div>
+        <p style="font-size:12px;margin:6px 0 0">Un retrait est définitif pour cette élection : la caution n'est pas rendue.</p>`
+      : `<h2 style="font-size:16px;margin:12px 0 4px">Se présenter</h2>
+        <p style="font-size:13px;margin:0 0 6px">La CENI demande une caution non remboursable, versée au Trésor. Il faut un casier sans infraction depuis 30 jours et une réputation correcte.</p>
+        <label for="e-prog" style="font-size:13px">Mon programme, en une phrase</label><input id="e-prog" maxlength="${S.programmeMax || 140}" placeholder="Ex. : de l'eau potable et des routes pavées dans chaque commune">` +
+        S.postes.map(x => `<div class="item"><span class="sw">🗳️</span><div class="t">${x.nom}<small>${x.places} ${x.places > 1 ? "sièges" : "siège"} · dès ${x.minAge} ans · caution ${mk(x.caution || 0)} · ${x.candidats} candidat(s)</small></div>
+        <button class="mini fill" data-cand="${x.id}" type="button" ${dis(p.age < x.minAge || p.makuta < (x.caution || 0), p.age < x.minAge ? `Candidature possible dès ${x.minAge} ans.` : "Pas assez d'e-makuta pour la caution.")}>Candidater</button></div>`).join("")) +
+      `<h2 style="font-size:16px;margin:16px 0 4px">Candidats et sondage</h2>` +
       ((E.candidats || []).length ? E.candidats.map(c => { const mine = E.mesVotes && E.mesVotes[c.poste];
-        return `<div class="item"><span class="sw">🗳️</span><div class="t">${esc(c.nom)}<small>${nomPoste(c.poste)} · ${esc(c.quartier || "")} · ${c.voix} voix</small></div>
+        return `<div class="item"><span class="sw">🗳️</span><div class="t">${esc(c.nom)}${c.moi ? " (toi)" : ""}<small>${nomPoste(c.poste)} · ${esc(c.quartier || "")} · sondage ${pct(c.sondage)} · ${c.voix} voix de joueurs${c.programme ? `<br>« ${esc(c.programme)} »` : ""}</small></div>
         ${mine === c.id ? `<span class="mini" style="border-color:var(--ok);color:var(--ok)">Ton vote</span>` : `<button class="mini fill" data-vote="${c.id}" data-poste="${c.poste}" type="button" ${dis(!E.voteOuvert || mine || p.age < 18, !E.voteOuvert ? "Le vote n'est pas encore ouvert." : mine ? "Tu as déjà voté pour ce poste." : "Il faut avoir 18 ans pour voter.")}>Voter</button>`}</div>`; }).join("")
         : `<p style="font-size:13px;margin:0">Aucun candidat pour l'instant.</p>`) +
+      ((E.historique || []).length ? `<h2 style="font-size:16px;margin:16px 0 4px">Résultats de l'élection n° ${E.historique[0].cycle}</h2>` + E.historique.map(r => `<div class="row"><span>${r.elu ? "🎖️" : "▫️"} ${esc(r.nom)} · ${esc(nomPoste(r.poste))}</span><span>${r.voix} voix (${pct(r.pct)})${r.elu ? " · <b>élu</b>" : ""}</span></div>`).join("") : "") +
       ((E.elus || []).length ? `<h2 style="font-size:16px;margin:16px 0 4px">Élus en fonction</h2>` + E.elus.map(x => `<div class="item"><span class="sw">🎖️</span><div class="t">${esc(x.nom)}<small>${nomPoste(x.poste)} · élu avec ${x.voix} voix · payé par le Trésor</small></div></div>`).join("") : "");
+  } else if (stateTab === "parlement") {
+    const P = (v.elections || {}).parlement || {}, lig = P.lignes || [], val = (l, x) => l.unite === "%" ? `${x} %` : `${mk(x)} / jour`, R = P.regles || {}, o = P.loi;
+    const nomPoste = id => (S.postes.find(x => x.id === id) || {}).nom || id, prez = P.monPoste === "president", mp = ["depute", "senateur"].includes(P.monPoste);
+    const opts = (l, cur) => { const out = []; for (let x = l.min; x <= l.max; x += l.pas) out.push(`<option value="${x}" ${x === cur ? "selected" : ""}>${val(l, x)}</option>`); return out.join(""); };
+    h = `<p style="font-size:13px;margin:0 0 6px">Comme dans la vraie vie : le Président fixe la TVA par décret et son gouvernement dépose le budget. Le Président, les députés et les sénateurs proposent des lois (amendes, salaires publics), et le Parlement les vote. Un élu doit siéger : absent à plus de la moitié des séances, il perd son mandat.</p>
+      <h2 style="font-size:16px;margin:12px 0 4px">📜 Lois en vigueur</h2>
+      <div class="row"><span>🧾 TVA, comprise dans les prix</span><span><b>${P.tva ?? 16} %</b>${P.tvaLe ? ` · décret du ${new Date(P.tvaLe).toLocaleDateString("fr-FR")}` : ""}</span></div>` +
+      lig.map(l => `<div class="row"><span>${l.icone} ${l.nom}<small style="display:block;color:var(--muted)">${l.desc}</small></span><span><b>${val(l, (P.budget || {})[l.id] || 0)}</b></span></div>`).join("") +
+      (P.types || []).filter(t => t.id !== "budget").map(t => `<div class="row"><span>${t.icone} ${t.nom}<small style="display:block;color:var(--muted)">${t.desc}</small></span><span style="white-space:nowrap"><b>${P[t.id] ?? 100} %</b></span></div>`).join("") +
+      `<p style="font-size:12px;margin:4px 0 0">${P.budgetLe ? `Budget voté le ${new Date(P.budgetLe).toLocaleDateString("fr-FR")}.` : "Aucun budget voté pour l'instant : l'État ne paie que les salaires publics."} Les aides ne sont versées que si le Trésor a l'argent.</p>` +
+      (P.monPoste ? `<h2 style="font-size:16px;margin:16px 0 4px">🎖️ Mon mandat : ${esc(nomPoste(P.monPoste))}</h2>` : "") +
+      (mp && P.siege ? `<div class="row"><span>Présences (28 derniers jours)</span><span>${P.siege.presences} sur ${P.siege.seances}</span></div>
+        <div class="row"><span>Absences</span><span style="${P.siege.alerte ? "color:var(--bad, #d64545);font-weight:700" : ""}">${P.siege.taux} %${P.siege.alerte ? " ⚠️" : ""}</span></div>
+        <p style="font-size:12px;margin:4px 0 0">Siéger = faire ta journée de travail (bouton « Travailler » ou consigne du matin). Alerte à ${Math.round((R.alerte || .3) * 100)} % d'absences. Au-delà de ${Math.round((R.absenceMax || .5) * 100)} %, après ${R.graceJours || 14} jours de mandat, tu perds ton siège et ${R.repDechu || 20} points de réputation.</p>` : "") +
+      (prez ? `<div class="co"><p style="margin:0 0 6px;font-size:14px"><b>Décret sur la TVA</b> (entre ${P.limites.min} et ${P.limites.max} %, une fois par mois)</p>
+          <div class="two-btn"><select id="p-tva">${(() => { const a = []; for (let x = P.limites.min; x <= P.limites.max; x++) a.push(`<option value="${x}" ${x === P.tva ? "selected" : ""}>${x} %</option>`); return a.join(""); })()}</select>
+          <button class="mini fill" id="b-tva" type="button" ${dis(P.prochainTva && P.prochainTva > Date.now(), P.prochainTva ? "Prochain décret possible le " + new Date(P.prochainTva).toLocaleDateString("fr-FR") + "." : "")}>Signer le décret</button></div>
+          <p style="font-size:12px;margin:6px 0 0">Plus de TVA remplit le Trésor (salaires, budget), mais tout coûte plus cher pour les habitants.</p></div>
+        <div class="co"><p style="margin:0 0 6px;font-size:14px"><b>Projet de budget</b> à déposer au Parlement (vote pendant ${R.voteJours || 2} jours)</p>` +
+          lig.map(l => `<label style="font-size:13px;display:block;margin-top:6px">${l.icone} ${l.nom}<select data-bud="${l.id}" style="display:block;width:100%">${opts(l, (P.budget || {})[l.id] || 0)}</select></label>`).join("") +
+          `<button class="btn" id="b-budget" type="button" style="margin-top:8px" ${dis(!!o, "Un projet de loi est déjà en cours de vote.")}>Déposer le projet de budget</button></div>` : "") +
+      (prez || mp ? `<div class="co"><p style="margin:0 0 6px;font-size:14px"><b>Proposer une loi</b> (une seule loi en vote à la fois)</p>` +
+          (P.types || []).filter(t => t.id !== "budget").map(t => { const a = []; for (let x = t.min; x <= t.max; x += t.pas) a.push(`<option value="${x}" ${x === (P[t.id] ?? 100) ? "selected" : ""}>${x} %</option>`);
+            return `<label style="font-size:13px;display:block;margin-top:6px">${t.icone} ${t.nom} (aujourd'hui ${P[t.id] ?? 100} %)</label><div class="two-btn"><select id="lv-${t.id}">${a.join("")}</select><button class="mini fill" data-law="${t.id}" type="button" ${dis(!!o, "Un projet de loi est déjà en cours de vote.")}>Proposer</button></div>`; }).join("") +
+          `<p style="font-size:12px;margin:6px 0 0">Des amendes plus fortes rapportent au Trésor et découragent les fautes. Des salaires publics plus hauts coûtent au Trésor.</p></div>` : "") +
+      `<h2 style="font-size:16px;margin:16px 0 4px">🗳️ Projet en cours de vote</h2>` +
+      (o ? `<div class="co"><p style="margin:0 0 6px;font-size:14px"><b>${esc(o.titre)}</b> · déposée par ${esc(o.auteur || "le gouvernement")} · vote jusqu'au ${dt(o.finVote)}</p>` +
+          ((o.type || "budget") === "budget" ? lig.map(l => `<div class="row"><span>${l.icone} ${l.nom}</span><span>${val(l, o.contenu[l.id] || 0)}</span></div>`).join("")
+            : (t => `<div class="row"><span>${t.icone} ${t.nom}</span><span>${P[t.id] ?? 100} % → <b>${o.contenu.niveau} %</b></span></div>`)((P.types || []).find(x => x.id === o.type))) +
+          `<div class="row"><span>Assemblée nationale</span><span>${o.assemblee.oui} pour · ${o.assemblee.non} contre · quorum ${P.quorum}</span></div>
+          <div class="row"><span>Sénat</span><span>${o.senat.oui} pour · ${o.senat.non} contre</span></div>` +
+          (mp ? (o.monVote ? `<p style="font-size:13px;margin:6px 0 0">Ton vote : <b>${o.monVote === "oui" ? "pour" : "contre"}</b>.</p>`
+            : `<div class="two-btn"><button class="mini fill" data-loi="${o.id}" data-choix="oui" type="button">Voter pour</button><button class="mini" data-loi="${o.id}" data-choix="non" type="button">Voter contre</button></div>`)
+            : `<p style="font-size:12px;margin:6px 0 0">Seuls les députés et les sénateurs votent. Une loi passe si au moins la moitié des députés votent et que le « pour » l'emporte.</p>`) + `</div>`
+        : `<p style="font-size:13px;margin:0">Aucun projet en cours. Le budget est déposé par le gouvernement du Président ; les autres lois peuvent être proposées par les élus.</p>`) +
+      ((P.lois || []).length ? `<h2 style="font-size:16px;margin:16px 0 4px">Lois votées</h2>` + P.lois.map(l => `<div class="row"><span>${l.statut === "adoptee" ? "✅" : "❌"} ${esc(l.titre)} · ${new Date(l.depot).toLocaleDateString("fr-FR")}</span><span style="font-size:12px">${esc(l.raison)}</span></div>`).join("") : "") +
+      `<p style="font-size:12px;margin:10px 0 0">Élus en fonction : ${(P.sieges || {}).depute || 0} député(s), ${(P.sieges || {}).senateur || 0} sénateur(s), ${(P.sieges || {}).president ? "1 Président" : "pas encore de Président"}.</p>`;
   } else if (stateTab === "police") {
     const P = v.police;
     h = (P.prisonJusqu ? `<div class="co" style="border-color:var(--bad, #d64545)"><p style="margin:0 0 8px;font-size:14px">🔒 <b>Tu es en prison</b> jusqu'au ${dt(P.prisonJusqu)}. Pas de travail, d'école, de voyage ni d'affaires pendant ce temps.</p>
@@ -962,6 +1400,11 @@ function renderState(v) {
       `<p style="font-size:13px;margin:0 0 6px">La police fait respecter la loi. Si elle t'attrape, tu paies une amende au Trésor. Si tu ne peux pas payer, ou après ${P.recidive.fois} infractions en ${P.recidive.jours} jours, c'est la prison pour ${P.prisonHeures} heures (sortie plus tôt avec une caution de ${mk(P.caution)}).${P.policiers ? ` ${P.policiers} joueur(s) policier(s) patrouillent : le risque augmente.` : ""}</p>
       <h2 style="font-size:16px;margin:12px 0 4px">Tentations</h2>` +
       P.crimes.map(c => `<div class="item"><span class="sw">⚠️</span><div class="t">${c.nom}<small>${c.desc} Risque actuel : ${Math.round(c.chance * 100)} %. Amende : ${mk(c.amende)}.</small></div><button class="mini" data-crime="${c.id}" type="button" ${dis(P.prisonJusqu || p.age < 12, P.prisonJusqu ? "Impossible depuis la cellule." : "Pas avant 12 ans.")}>Tenter</button></div>`).join("") +
+      (() => { const K = v.permis; if (!K) return "";   // code de la route : permis à points
+        const etat = K.valide ? `<b style="color:var(--ok)">${K.points} / ${K.max} points</b>` : K.suspendu ? `<b style="color:var(--bad, #e2574c)">suspendu (0 point)</b>` : `<b>pas de permis</b>`;
+        return `<h2 style="font-size:16px;margin:16px 0 4px">🚗 Permis de conduire</h2><div class="row"><span>Mon permis</span><span>${etat}</span></div>
+          <p style="font-size:13px;margin:6px 0">Code de la route en ville : ${K.limite} km/h au plus, arrêt au feu rouge, permis obligatoire. Les agents et la police verbalisent : feu rouge grillé ${mk(1000)} et 4 points, excès de vitesse ${mk(600)} à ${mk(3000)} et 1 à 6 points, conduite sans permis valable ${mk(2000)}. Les points reviennent au bout d'un an.${K.a ? "" : " Le permis se passe à l'auto-école (onglet École), dès 18 ans."}</p>` +
+          ((K.contraventions || []).length ? K.contraventions.map(x => `<div class="row"><span>${new Date(x.le).toLocaleDateString("fr-FR")} · ${esc(x.nom || x.type)}</span><span>${x.amende ? mk(x.amende) : "—"}${x.points ? ` · −${x.points} pt` : ""}</span></div>`).join("") : `<p style="font-size:13px;margin:0">Aucune contravention.</p>`); })() +
       `<h2 style="font-size:16px;margin:16px 0 4px">Mon casier judiciaire</h2>` +
       (P.casier.length ? P.casier.map(x => `<div class="row"><span>${new Date(x.le).toLocaleDateString("fr-FR")} · ${esc(x.nom)}</span><span>${mk(x.amende)}${x.prison_heures ? " + prison" : ""}</span></div>`).join("") : `<p style="font-size:13px;margin:0">Casier vierge. Continue comme ça !</p>`);
   } else if (stateTab === "banque") {
@@ -971,7 +1414,8 @@ function renderState(v) {
       `<p style="font-size:13px;margin:6px 0 0">La Banque centrale émet l'e-makuta (1 $ = ${S.tauxUsd} e-makuta). Masse monétaire en circulation : ${mk(S.masse)}.</p>`;
   } else if (stateTab === "assurance") {
     h = `<div class="row"><span>Santé</span><span>${p.besoins.health} / 100</span></div><div class="row"><span>Assurance</span><span>${S.assurance ? `${S.assureurs.find(a => a.id === S.assurance.id).nom} jusqu'au ${new Date(S.assurance.jusqua).toLocaleDateString("fr-FR")}` : "aucune"}</span></div>
-      <button class="btn" id="b-care" type="button" ${dis(p.besoins.health >= 95, "Tu es déjà en bonne santé.")}>Se soigner au centre de santé (${mk(S.soins.prix)}${S.soins.assure ? ", assuré" : ""})</button>
+      ${v.blessure ? `<p class="err" style="margin:8px 0">🚑 Blessure d'un accident de la route (${v.blessure.vitesse} km/h) : pas de travail tant que tu n'es pas soigné·e.</p>` : ""}
+      <button class="btn" id="b-care" type="button" ${dis(p.besoins.health >= 95 && !v.blessure, "Tu es déjà en bonne santé.")}>Se soigner au centre de santé (${mk(S.soins.prix)}${S.soins.assure ? ", assuré" : ""})</button>
       <h2 style="font-size:16px;margin:16px 0 4px">Assurances santé</h2>` + S.assureurs.map(a => `<div class="item"><span class="sw">${a.icone}</span><div class="t">${a.nom} · ${mk(a.prime)} / semaine<small>${a.desc}</small></div><button class="mini fill" data-ins="${a.id}" type="button" ${dis(p.makuta < a.prime, `Il te manque ${mk(a.prime - p.makuta)}.`)}>${S.assurance && S.assurance.id === a.id ? "Prolonger" : "Souscrire"}</button></div>`).join("");
   } else if (stateTab === "telephone") {
     const hasPhone = (v.inventaire || []).some(x => (v.boutique.find(b => b.id === x.objet) || {}).type === "telephone");
@@ -979,19 +1423,32 @@ function renderState(v) {
       <button class="btn" id="b-call" type="button" ${dis(!hasPhone || S.credit < S.appel.prix, !hasPhone ? "Achète d'abord un téléphone au magasin." : "Crédit insuffisant : recharge chez un opérateur.")}>Appeler ma famille (${mk(S.appel.prix)}, +${S.appel.bonheur} bonheur)</button>
       ${hasPhone ? "" : `<p style="font-size:13px;margin:8px 0 0">Achète d'abord un téléphone au magasin.</p>`}
       <h2 style="font-size:16px;margin:16px 0 4px">Recharger chez un opérateur</h2>` + S.operateurs.map(o => `<div class="item"><span class="sw" style="background:${o.couleur}">📶</span><div class="t">${o.nom}</div><div class="two-btn" style="margin:0">${S.recharges.map(m => `<button class="mini fill" data-rech="${o.id}" data-m="${m}" type="button" ${dis(p.makuta < m, "Pas assez d'argent en poche.")}>${mk(m)}</button>`).join("")}</div></div>`).join("");
+  } else if (stateTab === "societes") {
+    const F = S.finances || { societes: [] };
+    h = `<p style="font-size:13px;margin:0 0 8px">Les entreprises de l'État encaissent leurs recettes, paient leurs agents et versent le surplus au Trésor. Si leur caisse est vide, le Trésor paie ; s'il est vide aussi, le salaire est dû (arriéré).</p>` +
+      F.societes.map(c => `<div class="co"><div class="item" style="border:0"><span class="sw">${c.icone}</span><div class="t">${esc(c.nom)}<small>${esc(c.tutelle)} · ${esc(c.recette)}</small><small>Caisse : <b>${mk(c.solde)}</b> · ${c.agents} agent(s)</small></div></div>` +
+        c.metiers.map(j => `<div class="item"><span class="sw">🎖️</span><div class="t">${esc(j.nom)}<small>${mk(j.salaire)} par journée · dès ${j.minAge} ans</small></div>${v.travail.metier === j.id ? `<span class="mini" style="border-color:var(--ok);color:var(--ok)">Ton métier</span>` : `<button class="mini fill" data-job="${j.id}" type="button" ${dis(p.age < j.minAge, `Ce poste est ouvert dès ${j.minAge} ans.`)}>Postuler</button>`}</div>`).join("") + `</div>`).join("");
   } else {
-    h = `<div class="row"><span>Trésor public</span><span>${mk(S.tresor)}</span></div>
+    const F = S.finances || {};
+    h = `<div class="row"><span>Trésor public</span><span>${mk(F.tresor ?? S.tresor)}</span></div>
+      ${F.tresor != null ? `<div class="row"><span>Impôts et taxes encaissés (24 h)</span><span>${mk(F.impotsJour)}</span></div><div class="row"><span>Salaires publics payés (24 h)</span><span>${mk(F.salairesJour)}</span></div><div class="row"><span>Agents qui attendent leur salaire</span><span>${F.arrieres}</span></div>` : ""}
+      <div class="row"><span>TVA (DGI), comprise dans les prix, fixée par le Président</span><span>${S.tva ?? 16} %</span></div>
       <div class="row"><span>Impôt sur le salaire (DGI)</span><span>${S.impots.salaire * 100} %</span></div>
       <div class="row"><span>Impôt sur les recettes des entreprises (DGI)</span><span>${S.impots.recettes * 100} %</span></div>
       <div class="row"><span>Droits de douane sur les téléphones (DGDA)</span><span>${S.impots.douane * 100} %</span></div>
-      <p style="font-size:13px;margin:8px 0 0">Les impôts sont prélevés automatiquement. Ils paient les salaires publics (policiers, agents) et, plus tard, les écoles et les routes. Les députés pourront voter d'autres taux.</p>`;
+      <p style="font-size:13px;margin:8px 0 0">Tous les impôts (TVA sur les achats, IPR sur les salaires, recettes des entreprises, douane, amendes, successions) vont au Trésor. Le Trésor paie les policiers, les agents de l'État et les élus. Les sociétés publiques vivent de leurs factures et versent leur surplus au Trésor.${F.demo ? " Démo : chiffres simulés." : ""}</p>`;
   }
   $("state").innerHTML = h;
 }
 $("state-tabs").onclick = e => { const b = e.target.closest("[data-st]"); if (!b) return; stateTab = b.dataset.st; renderState(state); };
 $("state").onclick = e => {
   const b = e.target.closest("button"); if (!b || b.disabled) return; const d = b.dataset;
-  if (d.cand !== undefined) return act("/api/candidature", { poste: d.cand || null }, () => d.cand ? "Candidature enregistrée. Bonne campagne !" : "Candidature retirée.");
+  if (b.id === "b-tva") return act("/api/presidence/tva", { taux: Number($("p-tva").value) }, v => `Décret signé : la TVA est maintenant de ${v.elections.parlement.tva} %.`);
+  if (b.id === "b-budget") return act("/api/parlement/projet", { type: "budget", budget: Object.fromEntries([...document.querySelectorAll("[data-bud]")].map(x => [x.dataset.bud, Number(x.value)])) }, () => "Projet de budget déposé : les députés et les sénateurs ont 2 jours pour voter.");
+  if (d.law) return act("/api/parlement/projet", { type: d.law, niveau: Number($("lv-" + d.law).value) }, () => "Loi déposée : les députés et les sénateurs ont 2 jours pour voter.");
+  if (d.loi) return act("/api/parlement/vote", { loi: d.loi, choix: d.choix }, () => `Vote enregistré : ${d.choix === "oui" ? "pour" : "contre"}.`);
+  if (b.id === "b-meeting") return act("/api/election/campagne", {}, v => `Meeting réussi : soutien ${v.elections.maCampagne.soutien}, sondage ${String(v.elections.maCampagne.sondage).replace(".", ",")} %.`);
+  if (d.cand !== undefined) return act("/api/candidature", { poste: d.cand || null, programme: ($("e-prog") || {}).value || "" }, () => d.cand ? "Candidature enregistrée : caution versée à la CENI. Bonne campagne !" : "Candidature retirée.");
   if (d.job) return act("/api/postuler", { metier: d.job }, v => `Embauché : ${v.travail.metiers.find(j => j.id === v.travail.metier).nom}.`);
   if (d.dep) return act("/api/banque/deposer", { banque: d.dep, montant: Number(d.m) }, () => `Dépôt de ${mk(Number(d.m))} effectué.`);
   if (d.wd) return act("/api/banque/retirer", { banque: d.wd, montant: Number(d.m) }, () => `Retrait de ${mk(Number(d.m))} effectué.`);
@@ -1018,6 +1475,9 @@ function tips(v) {
   const p = v.perso, n = p.besoins, out = [], adult = p.age >= 18, w = v.travail, E = v.elections || {};
   if (v.consignes && !v.consignes.liste.length && p.age >= 6) out.push(["📋", `Donne tes consignes du jour : ${p.prenom} les suivra même quand tu n'es pas là.`, "Donner mes consignes", "orders"]);
   if (v.police && v.police.prisonJusqu) out.push(["🔒", `Tu es en prison jusqu'au ${dt(v.police.prisonJusqu)}. Paie la caution pour sortir plus tôt.`, "Voir", "state:police"]);
+  const PL = E.parlement || {};
+  if (PL.loi && ["depute", "senateur"].includes(PL.monPoste) && !PL.loi.monVote) out.push(["⚖️", "Un projet de loi attend ton vote au Parlement.", "Voter la loi", "state:parlement"]);
+  if (PL.siege && PL.siege.alerte) out.push(["⚠️", `Trop d'absences au Parlement (${PL.siege.taux} %) : va siéger aujourd'hui ou tu perdras ton mandat.`, "Mon mandat", "state:parlement"]);
   if (E.voteOuvert && adult && (E.candidats || []).some(c => !(E.mesVotes || {})[c.poste])) out.push(["🗳️", "Le vote est ouvert : choisis tes élus avant la date de l'élection.", "Voter", "state:elections"]);
   const hasJob = !!(w.emploiEntreprise || w.metier), Ent = v.entreprises;
   if (n.hunger < 40) out.push(["🍲", "Tu as faim : va manger au maquis pour reprendre des forces.", "Manger au maquis", "eat"]);
@@ -1041,6 +1501,19 @@ function tips(v) {
 const SECTIONS = { moves: "moves", orders: "orders", state: "state", needs: "needs", work: "work", school: "school", companies: "companies", inv: "inv", travel: "travel", shop: "shop-tabs", wallet: "wallet", kids: "kids-card" };
 function goTo(id) { const el = $(id); if (el) (el.closest(".card") || el).scrollIntoView({ behavior: "smooth", block: "start" }); }
 // ---- pendant ton absence : ce que le personnage a fait depuis la dernière visite
+// ---- pensée du jour : ce que le personnage a en tête (texte seulement, ça ne change aucune règle)
+let thought = null;
+async function renderThought(v) {
+  const box = $("pensee-card"); if (!box || !v.perso || !v.perso.vivant) { if (box) box.hidden = true; return; }
+  const jour = dayKey();
+  if (!thought || thought.jour !== jour || thought.pid !== v.perso.id) {
+    thought = { jour, pid: v.perso.id, loading: true };
+    try { const t = await call("/api/pensee", {}); thought = { ...t, jour, pid: v.perso.id }; } catch (e) { thought = { jour, pid: v.perso.id, texte: null }; }
+  }
+  if (!thought.texte) { box.hidden = true; return; }
+  box.hidden = false;
+  $("pensee").innerHTML = `<p class="pensee-txt">« ${esc(thought.texte)} »</p><small style="opacity:.7">${esc(v.perso.prenom)}, ce matin${thought.ia ? " · écrit par une IA, ça ne change pas ses choix" : ""}</small>`;
+}
 function renderNight(v) {
   const R = v.resume, box = $("nuit-card");
   if (!R || !R.nouveau) { box.hidden = true; return; }
@@ -1059,13 +1532,50 @@ $("nuit-card").addEventListener("click", e => {
 });
 // ---- vie sociale : le journal de Kinshasa
 let journalTab = "commune", journalData = null;
+// ---- objectifs de vie : 3 en cours au plus, récompense en réputation
+function renderGoals(v) {
+  const G = v.objectifs; if (!G) { $("goals").innerHTML = ""; return; }
+  const enCours = G.mes.filter(m => !m.atteint), faits = G.mes.filter(m => m.atteint);
+  $("goals").innerHTML = `<p style="font-size:14px;margin:0 0 8px">Donne un sens à la vie de ${esc(v.perso.prenom)} : choisis jusqu'à ${G.max} objectifs. Chaque objectif atteint rapporte +${G.recompense} de réputation et entre dans l'album de sa vie.</p>` +
+    (enCours.length ? enCours.map(m => `<div class="item"><span class="sw">${m.icone}</span><div class="t">${esc(m.nom)}<div class="bar"><i class="${m.progres >= 60 ? "" : "mid"}" style="width:${m.progres}%"></i></div><small>${m.progres} %</small></div><button class="mini" data-goal-off="${m.id}" type="button">Abandonner</button></div>`).join("") : `<p style="font-size:13px;margin:0 0 6px">Aucun objectif en cours.</p>`) +
+    (faits.length ? `<h2 style="font-size:16px;margin:14px 0 4px">Objectifs atteints 🏆</h2>` + faits.map(m => `<div class="row"><span>${m.icone} ${esc(m.nom)}</span><span>${new Date(m.atteint).toLocaleDateString("fr-FR")}</span></div>`).join("") : "") +
+    `<h2 style="font-size:16px;margin:14px 0 4px">Choisir un objectif</h2><div class="talents">` +
+    G.catalogue.filter(g => !g.choisi).map(g => `<button class="tal" data-goal="${g.id}" type="button" ${dis(enCours.length >= G.max, `${G.max} objectifs en cours au plus : abandonne-en un d'abord.`)}>${g.icone} ${esc(g.nom)}</button>`).join("") + `</div>`;
+}
+$("goals").onclick = e => {
+  const b = e.target.closest("button"); if (!b || b.disabled) return;
+  if (b.dataset.goal) return act("/api/objectif", { id: b.dataset.goal }, () => "Objectif choisi. Ton personnage s'en souviendra chaque matin.");
+  if (b.dataset.goalOff) return act("/api/objectif", { id: b.dataset.goalOff, action: "abandonner" }, () => "Objectif abandonné.");
+};
+// ---- regarder : mon personnage ou une star choisie par le serveur
+let starsData = null, starOpen = null;
+function renderStars() {
+  const box = $("stars");
+  if (!starsData) { box.innerHTML = `<p style="font-size:14px;margin:0 0 10px">Tu regardes ${state ? esc(state.perso.prenom) : "ton personnage"}. Chaque jour, le serveur choisit aussi des stars de la ville (sport, musique, affaires, politique, cuisine) : tu peux suivre leur vie.</p><button class="mini fill" id="b-stars" type="button">⭐ Voir les stars du jour</button> <a class="mini" href="celebrites.html" style="text-decoration:none;display:inline-block">Les célébrités et leur histoire →</a>`; return; }
+  const S = starsData.find(x => x.id === starOpen);
+  if (S) {
+    box.innerHTML = `<div class="paper-head"><b>${S.icone} ${esc(S.prenom)} ${esc(S.nom)}</b><span>${esc(S.titre)} · ${S.age ? S.age + " ans · " : ""}${esc(S.quartier || "Kinshasa")}${S.joueur ? " · joueur" : ""}</span></div>` +
+      S.actualites.map(a => `<div class="news"><span class="ic">${a.icone}</span><div><p style="margin:0">${esc(a.texte)}</p></div></div>`).join("") +
+      `<div class="two-btn" style="margin-top:10px"><button class="mini" id="b-star-back" type="button">← Toutes les stars</button><button class="mini fill" id="b-star-me" type="button">👤 Revenir à mon personnage</button></div>`;
+    return;
+  }
+  box.innerHTML = `<p style="font-size:13px;margin:0 0 6px">Les stars du jour, choisies par le serveur. Touche « Regarder » pour suivre leur actualité.</p>` + starsData.map(x => `<div class="item"><span class="sw">${x.icone}</span><div class="t">${esc(x.prenom)} ${esc(x.nom)}<small>${esc(x.domaineNom)} · ${esc(x.titre)}${x.quartier ? " · " + esc(x.quartier) : ""}</small></div><button class="mini fill" data-star="${esc(x.id)}" type="button">Regarder</button></div>`).join("");
+}
+$("stars").addEventListener("click", async e => {
+  const b = e.target.closest("button"); if (!b || b.disabled) return;
+  if (b.id === "b-stars") { b.disabled = true; try { starsData = (await call("/api/stars", {})).stars || []; renderStars(); } catch (err) { toast(err.message); b.disabled = false; } }
+  if (b.dataset.star) { starOpen = b.dataset.star; renderStars(); goTo("stars"); }
+  if (b.id === "b-star-back") { starOpen = null; renderStars(); }
+  if (b.id === "b-star-me") { starOpen = null; renderStars(); window.scrollTo({ top: 0, behavior: "smooth" }); }
+});
 function renderJournal() {
   const J = journalData, box = $("journal");
   if (!J) { box.innerHTML = `<p style="font-size:14px;margin:0 0 10px">Chaque matin, le journal raconte ce qui s'est passé dans la ville : naissances, mariages, nouvelles entreprises, décès, élections… et la vie de ta commune.</p><button class="mini fill" id="b-journal" type="button">📰 Lire le journal du jour</button>`; return; }
   const R = J.rubriques.find(x => x.id === journalTab) || J.rubriques[0];
-  const it = x => `<div class="news"><span class="ic">${x.icone}</span><div><b>${esc(x.titre)}</b><p>${esc(x.texte)}</p></div></div>`;
+  const it = x => `<div class="news"><span class="ic">${x.icone}</span><div>${x.annonce ? `<small style="opacity:.7;display:block">Annonce</small>` : ""}<b>${esc(x.titre)}</b><p>${esc(x.texte)}</p></div></div>`;
   box.innerHTML = `<div class="paper-head"><b>${esc(J.titre)}</b><span>N° ${J.numero} · ${new Date(J.date + "T12:00:00Z").toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" })}${J.chiffres && J.chiffres.joueurs ? ` · ${J.chiffres.joueurs} habitants joueurs` : ""}</span></div>
     <div class="une"><span class="ic">${J.une.icone}</span><div><small>À la une</small><b>${esc(J.une.titre)}</b><p>${esc(J.une.texte)}</p></div></div>
+    ${J.sponsor ? `<div class="news ad" style="border-left:3px solid ${esc(J.sponsor.couleur || "#ffd23f")};padding-left:8px"><span class="ic">📣</span><div><small style="opacity:.7;display:block">Annonce</small><b>${esc(J.sponsor.titre)}</b><p>${esc(J.sponsor.texte)}</p></div></div>` : ""}
     <div class="tabs" style="margin:10px 0 6px">${J.rubriques.map(x => `<button class="tab ${x.id === R.id ? "on" : ""}" data-jtab="${x.id}" type="button">${esc(x.titre)}</button>`).join("")}</div>
     ${R.items.length ? R.items.map(it).join("") : `<p style="font-size:13px">${esc(R.vide)}</p>`}`;
 }
@@ -1082,7 +1592,7 @@ function renderNeighbors(v) {
     (M.nonLus ? `<button class="mini" id="b-mots-lus" type="button" style="margin:6px 0 10px">Tout marquer comme lu</button>` : "") : "";
   const list = !neighbors ? `<button class="mini fill" id="b-voisins" type="button">🏘️ Voir les joueurs de ma commune</button>`
     : `<p style="font-size:13px;margin:6px 0">${neighbors.joueurs} joueur${neighbors.joueurs > 1 ? "s" : ""} dans la ville${neighbors.demo ? " (démo : joueurs simulés)" : ""}. En premier, ceux de ${esc(neighbors.quartier || "ta commune")}.</p>` +
-      (neighbors.voisins.length ? neighbors.voisins.map(n => `<div class="item"><span class="sw">${n.sexe === "F" ? "👩🏾" : "👨🏾"}</span><div class="t">${esc(n.prenom)} ${esc(n.nom)}${n.memeCommune ? ` <span class="badge">voisin</span>` : ""}<small>${n.age} ans · ${esc(n.quartier || "")}${n.metier ? " · " + esc(n.metier) : ""} · ${esc(n.reputation)}${n.pseudo ? " · @" + esc(n.pseudo) : ""}</small></div><button class="mini" data-write="${n.id}" data-nom="${esc(n.prenom)} ${esc(n.nom)}" type="button">✉️ Écrire</button></div>`).join("")
+      (neighbors.voisins.length ? neighbors.voisins.map(n => `<div class="item"><span class="sw">${n.sexe === "F" ? "👩🏾" : "👨🏾"}</span><div class="t">${esc(n.prenom)} ${esc(n.nom)}${n.memeCommune ? ` <span class="badge">voisin</span>` : ""}${n.pionnier ? ` <span class="badge" title="Parmi les 100 premiers inscrits">🏅 pionnier</span>` : ""}<small>${n.age} ans · ${esc(n.quartier || "")}${n.metier ? " · " + esc(n.metier) : ""} · ${esc(n.reputation)}${n.pseudo ? " · @" + esc(n.pseudo) : ""}</small></div><button class="mini" data-write="${n.id}" data-nom="${esc(n.prenom)} ${esc(n.nom)}" type="button">✉️ Écrire</button></div>`).join("")
         : `<p style="font-size:13px">Tu es le premier joueur de la ville. Invite tes amis à s'inscrire !</p>`);
   const form = wordTo ? `<div class="g-row" style="margin-top:10px;display:block"><b style="font-size:14px">Mot pour ${esc(wordTo.nom)}</b>
       <div class="chips" style="margin:6px 0">${M.modeles.map((t, i) => `<button class="chip" data-tpl="${i}" type="button">${esc(t)}</button>`).join("")}</div>
@@ -1216,14 +1726,14 @@ $("work").onclick = e => {
   if (b) return act("/api/postuler", { metier: b.dataset.job }, v => `Embauché : ${v.travail.metiers.find(j => j.id === v.travail.metier).nom}.`);
   const c = e.target.closest("[data-cjob]");
   if (c) return act("/api/postuler", { entreprise: c.dataset.cjob }, v => `Embauché chez ${v.embauche} !`);
-  if (e.target.id === "b-work") act("/api/travailler", {}, v => `Journée terminée : +${mk(v.paie.montant - v.paie.famille)}${v.paie.bonus ? " (bonus talent)" : ""}, et ${mk(v.paie.famille)} pour tes parents.`);
+  if (e.target.id === "b-work") act("/api/travailler", {}, v => v.paie.arriere ? v.paie.message : `Journée terminée : +${mk(v.paie.montant - v.paie.famille)}${v.paie.bonus ? " (bonus talent)" : ""}, et ${mk(v.paie.famille)} pour tes parents.`);
 };
 $("shop-tabs").onclick = e => { const b = e.target.closest(".tab"); if (!b) return; shopTab = b.dataset.t; renderShop(state); };
 async function act(path, body, ok) { try { const v = await call(path, body); render(v); if (ok) toast(ok(v)); } catch (err) { toast(err.message); } }
 $("shop").onclick = e => {
   const b = e.target.closest("[data-buy]"); if (!b) return;
   const it = state.boutique.find(x => x.id === b.dataset.buy); b.disabled = true;
-  act("/api/acheter", { objet: it.id }, () => it.type === "nourriture" ? `Bon appétit : ${it.nom}.` : it.slot ? `${it.nom} acheté et porté.` : `${it.nom} acheté. Il est dans tes affaires.`);
+  act("/api/acheter", { objet: it.id }, () => it.type === "nourriture" ? `Bon appétit : ${it.nom}.` : it.jetable ? `C'est fait : ${it.nom.toLowerCase()}.` : it.slot ? `${it.nom} acheté et porté.` : `${it.nom} acheté. Il est dans tes affaires.`);
 };
 $("inv").onclick = e => {
   const b = e.target.closest("[data-wear]"); if (b) return act("/api/porter", { possession: b.dataset.wear });
@@ -1252,10 +1762,10 @@ async function showLaunch() {
     if (closed && i.checked) { i.checked = false; document.querySelector("input[name=formule][value=petit]").checked = true; }
   });
   if (!launch || launch.demarre) return;
-  box.innerHTML = `<b>Le jeu n'a pas encore démarré</b><p>La ville ouvre quand toutes les conditions sont réunies. En attendant, seuls les investisseurs peuvent s'inscrire.</p>` +
+  box.innerHTML = `<b>Le jeu n'a pas encore démarré</b><p>La ville ouvre quand 100 vraies personnes sont inscrites et 10 entreprises ouvertes : l'administrateur lance alors le jeu. Tu peux déjà t'inscrire.</p>` +
     launch.conditions.map(c => c.id === "date" ? `<div class="need">${c.label} <b style="float:right">${launch.dateOuverture ? new Date(launch.dateOuverture).toLocaleString("fr-FR", { dateStyle: "long", timeStyle: "short" }) : "à fixer"}</b></div>`
       : `<div class="need">${c.label} <b style="float:right">${c.actuel} / ${c.min}</b><div class="bar"><i class="${c.ok ? "" : "mid"}" style="width:${Math.min(100, c.actuel / c.min * 100)}%"></i></div></div>`).join("") +
-    (API ? "" : `<p class="sim" style="margin-top:12px">Démo : ouvre <a href="admin.html" style="color:inherit">l'espace administrateur</a> pour ajouter les parents fondateurs et démarrer le jeu.</p>`);
+    (API ? "" : `<p class="sim" style="margin-top:12px">Démo : ouvre <a href="admin.html" style="color:inherit">l'espace administrateur</a> pour remplir les conditions et lancer le jeu.</p>`);
   authLabel();
 }
 function authLabel() {

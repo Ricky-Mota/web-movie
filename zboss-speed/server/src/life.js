@@ -99,6 +99,7 @@ export function doActivity(act, talents, age, r) {
 // ---------------------------------------------------------------- besoins
 // valeurs 0..100, recalculées à la demande depuis la dernière mise à jour
 export function needsAt(c, now = Date.now()) {
+  if (CLOCK.pause) now = c.updatedAt;   // avant le lancement, le temps est arrêté : rien ne baisse
   const h = Math.max(0, (now - c.updatedAt) / 36e5);
   const hunger = Math.max(0, c.hunger - h * 4 * SET.faim); // la faim baisse de 4 points par heure réelle (réglable par l'admin)
   const energy = Math.min(100, c.energy + h * 12);       // l'énergie remonte au repos
@@ -137,6 +138,16 @@ export function newIdentity(r, sex) {
 export const BIRTH_USD = 15, ADMIN_FEE_USD = 5;
 export const BIRTH_GIFT = (BIRTH_USD - ADMIN_FEE_USD) * 100; // makuta (100 par $) : 1 000 makuta = 50 e-makuta
 
+// ---------------------------------------------------------------- horloge du jeu (règle du 26/11)
+// Avant que l'administrateur appuie sur « Lancer le jeu », le temps est arrêté : personne ne vieillit, n'a faim,
+// ne paie ni ne meurt. Les inscrits préparent seulement leur arrivée (dépôt, investissement, ouverture d'entreprise).
+// Au lancement, toutes les règles s'appliquent : rien n'est gratuit, tout s'achète pour survivre et réussir.
+export const CLOCK = { pause: false };
+export const PRELAUNCH_OK = ["/api/inscription", "/api/connexion", "/api/beta", "/api/support", "/api/paiement/notification", "/api/push/abonner", "/api/push/desabonner",
+  "/api/mots/lus", "/api/resume/vu", "/api/guichet/deposer", "/api/investir", "/api/entreprise/ouvrir", "/api/journal", "/api/voisins", "/api/pensee", "/api/stars", "/api/celebrites"];
+export const PRELAUNCH_TEXT = "Le jeu n'a pas encore commencé : le temps est arrêté jusqu'au lancement. Ton personnage t'attend chez lui. En attendant, tu peux déposer de l'argent, investir ou ouvrir une entreprise.";
+export function prelaunchBlocked(path, method) { return CLOCK.pause && method === "POST" && !path.startsWith("/api/admin/") && !PRELAUNCH_OK.includes(path) ? PRELAUNCH_TEXT : null; }
+
 // ---------------------------------------------------------------- magasin
 // prix en e-makuta ; les vêtements se portent et changent l'apparence 3D, la nourriture se mange tout de suite
 export const SHOP = [
@@ -156,15 +167,50 @@ export const SHOP = [
   { id: "pantalon-beige", nom: "Pantalon beige", type: "vetement", slot: "bas", prix: 130, couleur: "#c9b28c" },
   { id: "baskets-blanches", nom: "Baskets blanches", type: "vetement", slot: "pieds", prix: 180, couleur: "#eeeeee" },
   { id: "sandales", nom: "Sandales", type: "vetement", slot: "pieds", prix: 40, couleur: "#6b4a2f" },
+  // maillots de bain (26/11) : obligatoires pour nager à la piscine
+  { id: "maillot-bleu", nom: "Maillot de bain bleu", type: "vetement", slot: "bain", prix: 80, couleur: "#1f6fd1" },
+  { id: "maillot-wax", nom: "Maillot de bain en wax", type: "vetement", slot: "bain", prix: 150, couleur: "#e8a317" },
   // téléphones
   { id: "tel-simple", nom: "Téléphone simple", type: "telephone", prix: 300, effet: { bonheur: 8 }, minAge: 10 },
   { id: "smartphone", nom: "Smartphone", type: "telephone", prix: 1500, effet: { bonheur: 15 }, minAge: 12 },
   { id: "smartphone-pro", nom: "Smartphone haut de gamme", type: "telephone", prix: 6000, effet: { bonheur: 25 }, minAge: 12 },
+  // meubles et équipements (26/11) : ils apparaissent dans la maison 3D du personnage ; conso = électricité en plus par jour (makuta)
+  { id: "lit-king", nom: "Grand lit 2 places (king size)", type: "meuble", prix: 2000, effet: { bonheur: 8 }, minAge: 16, desc: "Remplace le petit lit de la chambre." },
+  { id: "tele-plasma", nom: "Télévision écran plat 55 pouces", type: "meuble", prix: 3000, effet: { bonheur: 10 }, minAge: 16, conso: 4, desc: "Grand écran au salon." },
+  { id: "clim", nom: "Climatiseur", type: "meuble", prix: 6000, effet: { bonheur: 12 }, minAge: 16, conso: 15, desc: "Chambre fraîche : il dort mieux." },
+  { id: "ventilo", nom: "Ventilateur sur pied", type: "meuble", prix: 600, effet: { bonheur: 4 }, minAge: 12, conso: 2, desc: "Un peu d'air pendant les fortes chaleurs." },
+  { id: "canape-cuir", nom: "Canapé en cuir", type: "meuble", prix: 2500, effet: { bonheur: 6 }, minAge: 16, desc: "Remplace le vieux canapé du salon." },
+  { id: "chauffe-eau", nom: "Chauffe-eau pour la douche", type: "meuble", prix: 1800, effet: { bonheur: 5 }, minAge: 16, conso: 6, desc: "Douche chaude le matin." },
+  // pharmacie (26/11) : rien n'est gratuit, la santé et l'énergie s'achètent aussi (argent versé aux pharmacies des joueurs)
+  { id: "boisson-energie", nom: "Boisson énergisante", type: "soin", prix: 30, effet: { energie: 20 }, minAge: 12, jetable: true, vers: "pharmacie", desc: "+20 d'énergie tout de suite." },
+  { id: "paracetamol", nom: "Paracétamol (maux de tête, fièvre)", type: "soin", prix: 40, effet: { sante: 8 }, jetable: true, vers: "pharmacie", desc: "+8 de santé." },
+  { id: "vitamines", nom: "Cure de vitamines", type: "soin", prix: 120, effet: { sante: 3, vitalite: 3 }, jetable: true, vers: "pharmacie", desc: "+3 de vitalité : il vivra plus longtemps." },
+  { id: "antipaludeen", nom: "Traitement contre le paludisme", type: "soin", prix: 160, effet: { sante: 25 }, jetable: true, vers: "pharmacie", desc: "+25 de santé." },
+  { id: "moustiquaire", nom: "Moustiquaire imprégnée", type: "soin", prix: 400, effet: { bonheur: 2 }, vers: "pharmacie", unique: true, desc: "Divise par trois le risque de paludisme." },
+  // sport : entretient la vitalité (espérance de vie) et ouvre les carrières sportives
+  { id: "seance-gym", nom: "Séance à la salle de sport", type: "sport", prix: 60, effet: { energie: -10, sante: 4, bonheur: 3, vitalite: 2 }, minAge: 14, jetable: true, desc: "+2 de vitalité, fatigue un peu." },
+  { id: "terrain-foot", nom: "Match de foot sur terrain loué", type: "sport", prix: 40, effet: { energie: -15, sante: 2, bonheur: 6, vitalite: 1 }, minAge: 8, jetable: true, desc: "Entre amis, +1 de vitalité." },
+  { id: "tenue-sport", nom: "Tenue et chaussures de sport", type: "sport", prix: 250, effet: { bonheur: 3 }, minAge: 8, unique: true, desc: "Demandée pour devenir footballeur." },
+  // véhicules : plus de taxi à payer (seulement le carburant), et des métiers qui demandent un véhicule
+  { id: "velo", nom: "Vélo", type: "vehicule", prix: 1200, effet: { bonheur: 4 }, minAge: 10, unique: true, trajet: 0, desc: "Gratuit à rouler, mais fatigant." },
+  { id: "moto", nom: "Moto 125 cm³", type: "vehicule", prix: 9000, effet: { bonheur: 8 }, minAge: 18, unique: true, trajet: 50, permis: true, desc: "Carburant 2,5 e-makuta par trajet. Permis obligatoire." },
+  { id: "voiture-occasion", nom: "Voiture d'occasion", type: "vehicule", prix: 40000, effet: { bonheur: 12 }, minAge: 18, unique: true, trajet: 120, permis: true, desc: "Carburant 6 e-makuta par trajet. Permis obligatoire." },
+  { id: "voiture-neuve", nom: "Voiture neuve (SUV)", type: "vehicule", prix: 120000, effet: { bonheur: 20 }, minAge: 18, unique: true, trajet: 150, permis: true, desc: "Confort et prestige. Carburant 7,5 e-makuta par trajet. Permis obligatoire." },
 ];
+// le meilleur véhicule que le personnage peut conduire (permis valide pour moto et voiture), sinon null = taxi
+export function ownVehicle(ids = [], permisValide = false) {
+  const v = SHOP.filter(x => x.type === "vehicule" && ids.includes(x.id) && (!x.permis || permisValide));
+  return v.sort((a, b) => b.prix - a.prix)[0] || null;
+}
+export const BIKE_ENERGY = 12;   // un trajet à vélo fatigue plus que le taxi
+// électricité consommée en plus par les équipements de la maison (makuta par jour)
+export const homeConso = ids => [...new Set(ids || [])].reduce((t, id) => t + ((SHOP.find(x => x.id === id) || {}).conso || 0), 0);
 
 // vérifie un achat : renvoie un message d'erreur ou null
-export function cannotBuy(item, makuta, age) {
+export function cannotBuy(item, makuta, age, owned = []) {
   if (!item) return "Article inconnu.";
+  if (item.type === "meuble" && owned.includes(item.id)) return "Tu l'as déjà dans ta maison.";
+  if (item.unique && owned.includes(item.id)) return "Tu l'as déjà.";
   if (item.minAge && age < item.minAge) return `Réservé aux ${item.minAge} ans et plus.`;
   if (item.maxAge && age > item.maxAge) return "Cet article est pour les tout-petits.";
   if (makuta < item.prix) return "Pas assez d'e-makuta.";
@@ -262,30 +308,46 @@ export const SHIFT_HOURS = 8;
 export const SHIFT_ENERGY = 35;
 export const JOBS = [
   { id: "vendeur", nom: "Vendeur au marché de la Liberté", talent: "commerce", salaire: 120, minAge: 16 },
-  { id: "taxi-moto", nom: "Chauffeur de taxi-moto", talent: "sport", salaire: 150, minAge: 18 },
+  { id: "taxi-moto", nom: "Chauffeur de taxi-moto", talent: "sport", salaire: 150, minAge: 18, besoin: "moto" },
+  { id: "livreur", nom: "Livreur à moto ou à vélo", talent: "commerce", salaire: 130, minAge: 16, besoin: "deux-roues" },
+  { id: "chauffeur-prive", nom: "Chauffeur de taxi avec sa voiture", talent: "technique", salaire: 260, minAge: 18, besoin: "voiture" },
   { id: "cuisinier", nom: "Cuisinier dans un maquis", talent: "cuisine", salaire: 140, minAge: 16 },
   { id: "aide-soignant", nom: "Aide-soignant au centre de santé", talent: "soin", salaire: 160, minAge: 18, etudesMin: "secondaire" },
   { id: "musicien", nom: "Musicien dans un orchestre", talent: "art", salaire: 130, minAge: 16 },
   { id: "mecanicien", nom: "Mécanicien au garage", talent: "technique", salaire: 170, minAge: 18, etudesMin: "primaire" },
-  { id: "animateur", nom: "Animateur à la radio", talent: "parole", salaire: 150, minAge: 18, etudesMin: "secondaire" },
+  { id: "animateur", nom: "Animateur à la radio", talent: "parole", salaire: 150, minAge: 18, etudesMin: "secondaire", besoin: "telephone" },
   { id: "repetiteur", nom: "Répétiteur (cours du soir)", talent: "etudes", salaire: 140, minAge: 16, etudesMin: "secondaire" },
+  // vie religieuse (25/11) : métiers d'église ouverts aux joueurs ; les plus connus deviennent des célébrités
+  { id: "chef-chorale", nom: "Chef de chorale à l'église", talent: "art", salaire: 150, minAge: 16, religion: true },
+  { id: "pasteur", nom: "Pasteur d'une église de quartier", talent: "parole", salaire: 240, minAge: 25, etudesMin: "secondaire", religion: true },
   // carrières qui demandent des études (ouvertes avec l'école et l'université)
   { id: "medecin", nom: "Médecin", talent: "soin", salaire: 600, minAge: 24, formation: "medecine", diplome: "Doctorat en médecine" },
   { id: "ingenieur", nom: "Ingénieur", talent: "technique", salaire: 500, minAge: 22, formation: "ingenieur", diplome: "Diplôme d'ingénieur civil" },
-  { id: "avocat", nom: "Avocat", talent: "parole", salaire: 550, minAge: 22, formation: "droit", diplome: "Licence en droit" },
+  { id: "avocat", nom: "Avocat", talent: "parole", salaire: 550, minAge: 22, formation: "droit", diplome: "Licence en droit", besoin: "telephone" },
   { id: "enseignant", nom: "Enseignant au secondaire", talent: "etudes", salaire: 260, minAge: 18, formation: "secondaire", diplome: "Diplôme d'État" },
   // carrières de talent : réservées à ceux dont le talent a été découvert par leurs parents
-  { id: "footballeur", nom: "Footballeur professionnel", talent: "sport", salaire: 420, minAge: 17, talentRequis: true },
+  { id: "footballeur", nom: "Footballeur professionnel", talent: "sport", salaire: 420, minAge: 17, talentRequis: true, besoin: "tenue-sport" },
   { id: "star-rumba", nom: "Chanteur de rumba (vedette)", talent: "art", salaire: 450, minAge: 18, talentRequis: true },
   { id: "chef", nom: "Grand chef cuisinier", talent: "cuisine", salaire: 340, minAge: 18, talentRequis: true },
-  { id: "grossiste", nom: "Commerçant grossiste", talent: "commerce", salaire: 380, minAge: 20, talentRequis: true },
-  { id: "journaliste", nom: "Journaliste vedette à la télé", talent: "parole", salaire: 380, minAge: 20, talentRequis: true },
+  { id: "grossiste", nom: "Commerçant grossiste", talent: "commerce", salaire: 380, minAge: 20, talentRequis: true, besoin: "telephone" },
+  { id: "journaliste", nom: "Journaliste vedette à la télé", talent: "parole", salaire: 380, minAge: 20, talentRequis: true, besoin: "telephone" },
   { id: "inventeur", nom: "Inventeur (atelier d'innovation)", talent: "technique", salaire: 400, minAge: 20, talentRequis: true },
   { id: "chercheur", nom: "Chercheur à l'université", talent: "etudes", salaire: 420, minAge: 22, talentRequis: true },
   { id: "infirmier-chef", nom: "Infirmier chef", talent: "soin", salaire: 360, minAge: 20, talentRequis: true },
+  { id: "grand-pasteur", nom: "Pasteur d'une grande église (vedette)", talent: "parole", salaire: 420, minAge: 28, talentRequis: true, religion: true },
 ];
-export function cannotApply(job, age, diplomas, talents = []) {
+const NEEDS = {
+  telephone: [ids => SHOP.some(x => x.type === "telephone" && ids.includes(x.id)), "Il faut un téléphone pour ce métier (boutique, onglet Téléphones)."],
+  moto: [ids => ids.includes("moto"), "Il faut acheter une moto pour ce métier (boutique, onglet Véhicules)."],
+  "deux-roues": [ids => ids.includes("moto") || ids.includes("velo"), "Il faut une moto ou un vélo pour livrer (boutique, onglet Véhicules)."],
+  voiture: [ids => ids.includes("voiture-occasion") || ids.includes("voiture-neuve"), "Il faut sa propre voiture pour ce métier (boutique, onglet Véhicules)."],
+  "tenue-sport": [ids => ids.includes("tenue-sport"), "Il faut une tenue de sport (boutique, onglet Sport)."],
+};
+// owned = identifiants des objets possédés (null = ne pas vérifier, pour les anciens appels)
+export function cannotApply(job, age, diplomas, talents = [], owned = null) {
   if (!job) return "Métier inconnu.";
+  if (job.besoin && owned && NEEDS[job.besoin] && !NEEDS[job.besoin][0](owned)) return NEEDS[job.besoin][1];
+  if (job.besoin && owned && (job.besoin === "moto" || job.besoin === "voiture") && !diplomas.includes("permis")) return "Il faut d'abord le permis de conduire (auto-école).";
   if (job.talentRequis && !talents.includes(job.talent)) return `Carrière réservée aux talents découverts : ${(TALENTS.find(t => t.id === job.talent) || {}).label || job.talent}.`;
   if (job.elu) return "Ce poste s'obtient par élection.";
   if (job.formation && !diplomas.includes(job.formation)) return `Il faut d'abord le diplôme : ${job.diplome}.`;
@@ -322,6 +384,7 @@ export const FORMATIONS = [
   { id: "ingenieur", nom: "Polytechnique", diplome: "Diplôme d'ingénieur civil", annees: 5, coursParAn: 10, minAge: 17, requis: "secondaire", fraisAn: 1800, talent: "technique" },
   { id: "droit", nom: "Faculté de droit", diplome: "Licence en droit", annees: 5, coursParAn: 10, minAge: 17, requis: "secondaire", fraisAn: 1500, talent: "parole" },
   { id: "commerce", nom: "Institut de commerce", diplome: "Graduat en gestion", annees: 3, coursParAn: 10, minAge: 17, requis: "secondaire", fraisAn: 1200, talent: "commerce" },
+  { id: "permis", nom: "Auto-école (code de la route et conduite)", diplome: "Permis de conduire", annees: 1, coursParAn: 4, minAge: 18, requis: null, fraisAn: 1000 },
 ];
 export const courseFee = f => Math.ceil(f.fraisAn / f.coursParAn);
 
@@ -335,10 +398,10 @@ export function cannotEnroll(f, age, diplomas, current) {
 }
 
 // un cours : renvoie la nouvelle inscription et, éventuellement, la fin d'année ou le diplôme
-export function attendCourse(f, enr, talents, makuta, energy, now, r) {
+export function attendCourse(f, enr, talents, makuta, energy, now, r, aide = LAWS.budget.ecole) {
   if (enr.dernier && now - enr.dernier < STUDY_HOURS * 36e5) return { error: `Prochain cours dans ${Math.ceil((enr.dernier + STUDY_HOURS * 36e5 - now) / 36e5)} h.` };
   if (energy < STUDY_ENERGY) return { error: "Trop fatigué pour aller en cours : repose-toi ou mange." };
-  const fee = f.parents ? 0 : courseFee(f);
+  const brut = f.parents ? 0 : courseFee(f), etat = stateShare(brut, aide), fee = brut - etat;   // une part payée par l'État si le budget voté le prévoit
   if (makuta < fee) return { error: `Pas assez d'argent pour les frais du cours (${fmtMakuta(fee)}).` };
   const has = id => talents.some(t => t.talent === id && t.discovered);
   const note = Math.min(100, Math.round(42 + r() * 40 + (has("etudes") ? 14 : 0) + (f.talent && has(f.talent) ? 8 : 0)));
@@ -352,7 +415,7 @@ export function attendCourse(f, enr, talents, makuta, energy, now, r) {
     } else message = `Année ${e.annee} ratée (${moy}/100) : il faut redoubler.`;
     e.cours = 0; e.points = 0;
   }
-  return { enr: e, fee, note, message, fin };
+  return { enr: e, fee, etat, note, message, fin };
 }
 
 export function schoolView(enr, diplomas, now = Date.now()) {
@@ -449,7 +512,8 @@ export const LIFE_EVENTS = [
 export const EVENT_EVERY_H = 20;
 export function drawEvent(r = Math.random, ctx = {}) {
   if (!(SET.destin > 0)) return null;
-  const Q = communeOf(ctx.quartier), mult = (Q && Q.risques) || {};
+  const Q = communeOf(ctx.quartier), mult = { ...((Q && Q.risques) || {}) };
+  if (ctx.moustiquaire) mult.paludisme = (mult.paludisme || 1) / 3;   // moustiquaire achetée à la pharmacie
   // le quartier change QUELS événements arrivent, pas leur fréquence totale
   const list = LIFE_EVENTS.filter(e => !e.camp || e.camp === ctx.camp);
   const base = list.reduce((t, e) => t + e.p, 0), w = list.map(e => e.p * (mult[e.id] || 1)), k = base / w.reduce((t, v) => t + v, 0);
@@ -487,8 +551,9 @@ export function splitEstate(total, heirs) {
   const pot = total - report - ville, each = heirs > 0 ? Math.floor(pot / heirs) : 0;
   return { report, ville: ville + (pot - each * heirs), each, heritiers: each * heirs };
 }
-export function deathCause(needs, neglectDays = 0) {
+export function deathCause(needs, neglectDays = 0, vieux = false) {
   if (needs.health > 0) return null;
+  if (vieux) return "vieillesse";
   if (neglectDays >= NEGLECT_DANGER_DAYS) return "négligé par sa famille";
   return needs.hunger < 15 ? "mort de faim" : "maladie non soignée";
 }
@@ -498,22 +563,21 @@ export function neglectStealChance(unpaidDays, hunger) {
 }
 
 // ---------------------------------------------------------------- lancement du jeu
-// Le jeu ne s'ouvre aux naissances qu'une fois toutes les conditions réunies ; l'administrateur appuie alors sur « Démarrer ».
+// Règle du 26/11 : le jeu démarre quand l'administrateur appuie sur « Lancer le jeu ». Le bouton n'est cliquable
+// qu'une fois 100 personnages réels inscrits par de vraies personnes et au moins 10 entreprises ouvertes (pas de démarrage automatique).
 // Pour ajouter une condition plus tard : une ligne ici, et son compteur côté serveur (launchCounts).
 export const LAUNCH_RULES = [
-  { id: "parents", label: "Parents fondateurs ajoutés par l'administrateur", min: 20 },
-  { id: "investisseurs", label: "Investisseurs inscrits", min: 10 },
-  { id: "entreprises", label: "Entreprises ouvertes", min: 20 },
-  { id: "date", label: "Date d'ouverture officielle", min: 1 },
+  { id: "joueurs", label: "Personnages réels inscrits par de vraies personnes", min: 100 },
+  { id: "entreprises", label: "Entreprises ouvertes", min: 10 },
 ];
 // counts : { parents, investisseurs, entreprises } ; openingDate : date fixée par l'administrateur (ms) ou null
 export function launchStatus(counts, startedAt, openingDate = null, now = Date.now()) {
-  const c = { ...counts, date: openingDate && now >= openingDate ? 1 : 0 };
+  const c = { ...counts };
   const conditions = LAUNCH_RULES.map(r => ({ ...r, actuel: c[r.id] || 0, ok: (c[r.id] || 0) >= r.min }));
-  return { demarre: !!startedAt, demarreLe: startedAt || null, dateOuverture: openingDate || null, pret: conditions.every(x => x.ok), conditions };
+  return { demarre: !!startedAt, demarreLe: startedAt || null, dateOuverture: openingDate || null, pret: conditions.every(x => x.ok), manuel: true, conditions };
 }
-// avant le lancement, seuls les investisseurs peuvent s'inscrire (les parents fondateurs sont créés par l'administrateur)
-export function canSignupBeforeLaunch(formule) { return OFFERS.some(o => o.id === formule && o.type === "investissement"); }
+// avant le lancement, tout le monde peut s'inscrire (pré-inscription) : il faut 100 vrais inscrits pour pouvoir lancer
+export function canSignupBeforeLaunch(formule) { return OFFERS.some(o => o.id === formule); }
 
 // ---------------------------------------------------------------- entreprises
 // prix en makuta (20 makuta = 1 e-makuta). Les recettes et les embauches viendront à l'étape suivante.
@@ -613,10 +677,16 @@ export const INSURERS = [
   { id: "kongo-sante", nom: "Kongo Santé", icone: "🩺", prime: 1400, jours: 7, couverture: 0.8, desc: "Assurance santé : 70 e-makuta la semaine, 80 % des soins remboursés." },
   { id: "mutuelle", nom: "Mutuelle des Travailleurs", icone: "🛡️", prime: 1000, jours: 7, couverture: 0.6, desc: "Moins chère : 50 e-makuta la semaine, 60 % des soins remboursés." },
 ];
-export const CARE = { prix: 2000, sante: 40 };    // consultation et médicaments au centre de santé
-export function careCost(insuredUntil, insurerId, now = Date.now()) {
+export const CARE = { prix: 2000, sante: 40 };
+// accident de la route (règle validée le 25/11) : un choc fort dans la ville 3D blesse le personnage. La blessure compte
+// dans sa santé côté serveur, et il ne peut plus travailler ni faire de petits boulots tant qu'il n'est pas soigné (soins payants).
+export const ACCIDENT = { minKmh: 25, maxKmh: 300, sante: 25, bonheur: 8, santeMin: 5, attenteMin: 10 };
+export const injuredBlocks = blessure => blessure ? "Tu es blessé (accident de la route) : va d'abord te soigner au centre de santé." : null;
+export function accidentText(prenom, kmh, fem) { const e = fem ? "e" : ""; return `Accident : ${prenom} a été renversé${e} par une voiture à ${kmh} km/h. Blessé${e}, ${fem ? "elle" : "il"} doit se soigner au centre de santé avant de reprendre le travail.`; }    // consultation et médicaments au centre de santé
+export function careCost(insuredUntil, insurerId, now = Date.now(), aide = LAWS.budget.sante) {
   const ins = insuredUntil && insuredUntil > now && INSURERS.find(x => x.id === insurerId);
-  return { prix: Math.round(CARE.prix * (ins ? 1 - ins.couverture : 1)), assure: !!ins };
+  const brut = Math.round(CARE.prix * (ins ? 1 - ins.couverture : 1)), etat = stateShare(brut, aide);   // part de l'État votée au budget (santé)
+  return { prix: brut - etat, etat, assure: !!ins };
 }
 // réseaux de communication : on achète du crédit chez un opérateur, un appel coûte 1 e-makuta et rend heureux
 export const OPERATORS = [
@@ -628,13 +698,13 @@ export const RECHARGES = [200, 1000, 2000];         // en makuta (10, 50, 100 e-
 export const CALL = { prix: 20, bonheur: 6 };
 export function stateView(me, pub, now = Date.now()) {
   return {
-    institutions: INSTITUTIONS, postes: POSTS.map(x => ({ ...x, candidats: (pub.candidats || {})[x.id] || 0 })), impots: TAX,
+    institutions: INSTITUTIONS, postes: POSTS.map(x => ({ ...x, caution: ELECTION_FEE[x.id], candidats: (pub.candidats || {})[x.id] || 0 })), campagneElec: ELECTION_CAMPAIGN, programmeMax: PROGRAMME_MAX, impots: TAX,
     tresor: pub.tresor || 0, masse: pub.masse || 0, tauxUsd: USD_TO_MAKUTA,
     banques: BANKS.map(b => { const a = (me.comptes || []).find(x => x.banque === b.id); return { ...b, solde: a ? bankAccrue(a, now) : 0 }; }),
     assureurs: INSURERS, assurance: me.assureJusqu && me.assureJusqu > now ? { id: me.assureur, jusqua: me.assureJusqu } : null,
     soins: { ...CARE, ...careCost(me.assureJusqu, me.assureur, now) },
     operateurs: OPERATORS, operateur: me.operateur || null, credit: me.credit || 0, recharges: RECHARGES, appel: CALL,
-    candidature: me.candidature || null, metiersPublics: PUBLIC_JOBS,
+    candidature: me.candidature || null, metiersPublics: PUBLIC_JOBS, tva: LAWS.tva,
   };
 }
 
@@ -661,6 +731,138 @@ export function tally(votes, candidates) {
   return out;
 }
 
+// ---- campagne électorale (vague « élections », 25/11) : comme dans la vraie vie
+// caution non remboursable versée à la CENI (Trésor), programme en une phrase, casier propre, réputation correcte
+export const ELECTION_FEE = { president: 100000, senateur: 40000, depute: 20000 };   // 5 000, 2 000 et 1 000 e-makuta
+export const PROGRAMME_MAX = 140;
+export function cannotRun({ poste, age, makuta, prison, infractionsRecentes, reputation, programme, dejaCandidat } = {}) {
+  const po = POSTS.find(x => x.id === poste); if (!po) return "Poste inconnu.";
+  if (dejaCandidat) return "Tu es déjà candidat : retire-toi d'abord (la caution n'est pas rendue).";
+  if (age < po.minAge) return `Il faut avoir ${po.minAge} ans pour être candidat au poste de ${po.nom.toLowerCase()}.`;
+  if (prison) return "Impossible de se présenter depuis la prison.";
+  if (infractionsRecentes > 0) return `Casier récent : il faut ${RECIDIVE.jours} jours sans infraction pour se présenter.`;
+  if (reputation <= REP_BAD) return "Ta réputation est trop mauvaise : la CENI refuse ta candidature.";
+  const t = String(programme || "").trim();
+  if (t.length < 10 || t.length > PROGRAMME_MAX) return `Écris ton programme en une phrase (10 à ${PROGRAMME_MAX} caractères).`;
+  if (/https?:|www\.|\d{6,}/i.test(t)) return "Pas de lien ni de numéro de téléphone dans le programme.";
+  if (makuta < ELECTION_FEE[po.id]) return `La caution électorale de la CENI coûte ${fmtMakuta(ELECTION_FEE[po.id])} (non remboursable).`;
+  return null;
+}
+// une fois par jour : meeting et affiches dans les quartiers (payés à la Régie). Le talent « parole » découvert aide.
+export const ELECTION_CAMPAIGN = { cout: 2000, energie: 20, soutien: 10, bonusParole: 5, maxSoutien: 100 };
+export function cannotCampaignElec({ candidat, energie, makuta, dejaAujourdhui, prison, voteFini } = {}) {
+  if (!candidat) return "Il faut d'abord être candidat.";
+  if (prison) return "Impossible de faire campagne depuis la prison.";
+  if (voteFini) return "L'élection est passée.";
+  if (dejaAujourdhui) return "Tu as déjà fait campagne aujourd'hui. Reviens demain.";
+  if (energie < ELECTION_CAMPAIGN.energie) return "Trop fatigué pour un meeting : repose-toi ou mange.";
+  if (makuta < ELECTION_CAMPAIGN.cout) return `Un meeting avec affiches coûte ${fmtMakuta(ELECTION_CAMPAIGN.cout)}.`;
+  return null;
+}
+// les habitants du jeu (non joueurs) votent aussi, selon la campagne et la réputation du candidat
+export const CITIZEN_WEIGHT = { president: 3, senateur: 2, depute: 1 };
+export const citizenVotes = (c, poste) => Math.round((4 + (c.soutien || 0) * 2 + Math.max(0, c.rep || 0)) * (CITIZEN_WEIGHT[poste] || 1));
+// résultat complet : voix des joueurs + voix des habitants, pourcentage par poste, élus
+export function electionScores(votes, candidates) {
+  const out = [];
+  for (const po of POSTS) {
+    const list = candidates.filter(x => x.poste === po.id).map(x => {
+      const vj = votes.filter(v => v.poste === po.id && v.candidat_id === x.personnage_id).length;
+      return { ...x, voixJoueurs: vj, voix: vj + citizenVotes(x, po.id) };
+    }).sort((a, b) => b.voix - a.voix || a.le - b.le);
+    const tot = list.reduce((t, x) => t + x.voix, 0) || 1;
+    list.forEach((x, i) => { x.pct = Math.round(x.voix * 1000 / tot) / 10; x.elu = i < po.places; });
+    out.push(...list);
+  }
+  return out;
+}
+export function resultLine(r, posteNom) { const e = r.sexe === "F" ? "e" : ""; return `${r.nom} ${r.elu ? "élu" + e : "battu" + e} (${posteNom.toLowerCase()}) avec ${r.voix} voix, soit ${String(r.pct).replace(".", ",")} %`; }
+
+// ---------------------------------------------------------------- pouvoirs des élus et Parlement (validé le 25/11)
+// Comme dans la vraie vie : le Président fixe la TVA par décret (dans des limites, au plus une fois par mois) et son
+// gouvernement dépose le budget ; les députés (et les sénateurs) le votent. Les élus proposent aussi des lois (amendes,
+// salaires publics). Un élu doit siéger : chaque journée de travail d'un député ou d'un sénateur est une séance au Parlement.
+// Règle assouplie (25/11) : alerte à 30 % d'absences, mandat perdu au-delà de la moitié des séances, après 14 jours de mandat.
+export const VAT_LIMITS = { min: 10, max: 20, delaiJours: 30 };
+export function cannotSetVat({ president, taux, actuel, dernier, now = Date.now() } = {}) {
+  if (!president) return "Seul le Président de la République fixe la TVA.";
+  if (!Number.isInteger(taux) || taux < VAT_LIMITS.min || taux > VAT_LIMITS.max) return `La TVA doit rester entre ${VAT_LIMITS.min} et ${VAT_LIMITS.max} %.`;
+  if (taux === actuel) return `La TVA est déjà de ${taux} %.`;
+  if (dernier && now - dernier < VAT_LIMITS.delaiJours * 864e5) return `Un seul décret sur la TVA par mois : prochain possible le ${new Date(dernier + VAT_LIMITS.delaiJours * 864e5).toLocaleDateString("fr-FR")}.`;
+  return null;
+}
+export const BUDGET_LINES = [
+  { id: "sante", nom: "Santé publique", icone: "🏥", desc: "Part du prix des soins payée par l'État", unite: "%", min: 0, max: 50, pas: 10 },
+  { id: "ecole", nom: "Éducation", icone: "📚", desc: "Part des frais de cours payée par l'État", unite: "%", min: 0, max: 50, pas: 10 },
+  { id: "voirie", nom: "Routes et propreté", icone: "🚧", desc: "Versé chaque jour à l'Office de la voirie", unite: "makuta", min: 0, max: 4000, pas: 500 },
+];
+export const stateShare = (prix, pct) => Math.min(prix, Math.round(prix * Math.max(0, pct || 0) / 100));
+export function cleanBudget(b = {}) {
+  const out = {};
+  for (const l of BUDGET_LINES) {
+    const v = Number(b[l.id] ?? 0);
+    if (!Number.isFinite(v) || v < l.min || v > l.max || v % l.pas) return { erreur: `${l.nom} : entre ${l.min} et ${l.max}${l.unite === "%" ? " %" : ""}, par pas de ${l.pas}.` };
+    out[l.id] = v;
+  }
+  return { budget: out };
+}
+export const budgetLine = (l, v) => l.unite === "%" ? `${v} %` : `${fmtMakuta(v)} par jour`;
+export const budgetText = b => BUDGET_LINES.map(l => `${l.nom.toLowerCase()} ${budgetLine(l, b[l.id] || 0)}`).join(", ");
+export const PARLIAMENT = { voteJours: 2, quorum: 0.5, absenceMax: 0.5, alerte: 0.3, fenetreJours: 28, graceJours: 14, repDechu: 20 };
+// lois que l'on peut voter : le budget (déposé par le gouvernement) et des lois simples (proposées par le Président ou un élu)
+export const LAW_TYPES = [
+  { id: "budget", titre: "La loi de finances", nom: "Budget de l'État", icone: "💰", auteurs: ["president"] },
+  { id: "amendes", titre: "La loi sur les amendes", nom: "Niveau des amendes", icone: "🚓", desc: "Toutes les amendes de la police et de la route", unite: "%", min: 50, max: 200, pas: 25, defaut: 100, auteurs: ["president", "depute", "senateur"] },
+  { id: "salaires", titre: "La loi sur les salaires publics", nom: "Salaires des agents publics", icone: "🎖️", desc: "Policiers, agents de l'État et des sociétés publiques (pas les élus)", unite: "%", min: 80, max: 150, pas: 10, defaut: 100, auteurs: ["president", "depute", "senateur"] },
+];
+export function cleanLaw(type, c = {}) {
+  const t = LAW_TYPES.find(x => x.id === type); if (!t) return { erreur: "Type de loi inconnu." };
+  if (t.id === "budget") { const b = cleanBudget(c); return b.erreur ? b : { contenu: b.budget }; }
+  const v = Number(c.niveau);
+  if (!Number.isFinite(v) || v < t.min || v > t.max || (v - t.min) % t.pas) return { erreur: `${t.nom} : entre ${t.min} et ${t.max} %, par pas de ${t.pas}.` };
+  if (v === LAWS[t.id]) return { erreur: `${t.nom} : c'est déjà ${v} %.` };
+  return { contenu: { niveau: v } };
+}
+export const lawText = (type, c) => type === "budget" ? budgetText(c) : `${(LAW_TYPES.find(x => x.id === type) || {}).nom.toLowerCase()} à ${c.niveau} % (aujourd'hui ${LAWS[type]} %)`;
+export const lawTitle = type => (LAW_TYPES.find(x => x.id === type) || {}).titre || "La loi";
+// pour la démo : ce que « coûte » une loi aux yeux des élus simulés (0 = facile à voter)
+export const lawCost = (type, c) => type === "budget" ? c.sante / 50 + c.ecole / 50 + c.voirie / 4000 : type === "salaires" ? (c.niveau - 80) / 35 : Math.abs(c.niveau - 100) / 50;
+// une amende est multipliée par le niveau voté par le Parlement
+export const fineOf = base => Math.round(base * (LAWS.amendes || 100) / 100);
+export const PARLIAMENT_SEATS = ["depute", "senateur"];
+export function cannotProposeLaw({ type, poste, enCours } = {}) {
+  const t = LAW_TYPES.find(x => x.id === type); if (!t) return "Type de loi inconnu.";
+  if (!t.auteurs.includes(poste)) return t.id === "budget" ? "Seul le gouvernement du Président dépose le projet de budget." : "Seuls le Président, les députés et les sénateurs proposent des lois.";
+  if (enCours) return "Un projet de loi est déjà en cours de vote au Parlement : attends la fin du vote.";
+  return null;
+}
+export function cannotVoteBill({ siege, loi, deja, now = Date.now() } = {}) {
+  if (!PARLIAMENT_SEATS.includes(siege)) return "Seuls les députés et les sénateurs votent les lois.";
+  if (!loi || loi.statut !== "vote" || loi.fin_vote <= now) return "Aucun projet de loi en cours de vote.";
+  if (deja) return "Tu as déjà voté ce projet de loi.";
+  return null;
+}
+// résultat d'un vote : à l'Assemblée, la moitié des députés en fonction doit voter (quorum) et le « oui » doit l'emporter ;
+// au Sénat, si des sénateurs ont voté, le « oui » doit au moins égaler le « non ». Sans aucun député élu, la loi passe par ordonnance.
+export function billOutcome(votes = [], sieges = {}) {
+  const ch = c => ({ oui: votes.filter(v => v.chambre === c && v.choix === "oui").length, non: votes.filter(v => v.chambre === c && v.choix === "non").length });
+  const A = ch("depute"), S = ch("senateur"), quorum = Math.max(1, Math.ceil((sieges.depute || 0) * PARLIAMENT.quorum));
+  if (!sieges.depute) return { adoptee: true, raison: "ordonnance du Président (aucun député en fonction)", assemblee: { ...A, quorum: 0 }, senat: S };
+  if (A.oui + A.non < quorum) return { adoptee: false, raison: `rejetée, quorum non atteint (${A.oui + A.non} votants sur ${quorum} nécessaires)`, assemblee: { ...A, quorum }, senat: S };
+  if (A.oui <= A.non) return { adoptee: false, raison: `rejetée par l'Assemblée (${A.oui} pour, ${A.non} contre)`, assemblee: { ...A, quorum }, senat: S };
+  if (S.oui + S.non > 0 && S.oui < S.non) return { adoptee: false, raison: `rejetée par le Sénat (${S.oui} pour, ${S.non} contre)`, assemblee: { ...A, quorum }, senat: S };
+  return { adoptee: true, raison: `adoptée (Assemblée : ${A.oui} pour, ${A.non} contre${S.oui + S.non ? ` · Sénat : ${S.oui} pour, ${S.non} contre` : ""})`, assemblee: { ...A, quorum }, senat: S };
+}
+// présence au Parlement : séances des jours passés (pas celle d'aujourd'hui) dans une fenêtre de 28 jours
+export function attendance(debut, joursPresents = [], now = Date.now()) {
+  const today = dayKey(now), start = Math.max(debut, now - PARLIAMENT.fenetreJours * 864e5), days = new Set();
+  for (let t = start; dayKey(t) !== today && t < now; t += 864e5) days.add(dayKey(t));
+  const seances = days.size, presences = [...new Set(joursPresents)].filter(j => days.has(j)).length, absences = seances - presences;
+  const taux = seances ? absences / seances : 0, actif = now - debut >= PARLIAMENT.graceJours * 864e5;
+  return { seances, presences, absences, taux: Math.round(taux * 100), alerte: actif && taux > PARLIAMENT.alerte, dechu: actif && taux > PARLIAMENT.absenceMax };
+}
+export const dechuText = (nom, poste, a) => `Le bureau du Parlement constate la déchéance de ${nom} (${poste.toLowerCase()}) : ${a.absences} absences sur ${a.seances} séances, plus de la moitié.`;
+
 // ---------------------------------------------------------------- police, amendes et prison
 export const CRIMES = [
   { id: "vol-marche", nom: "Voler au marché", gain: [400, 1600], risque: 0.4, amende: 2000, desc: "Rapporte de 20 à 80 e-makuta, mais la police attrape 4 voleurs sur 10." },
@@ -675,6 +877,58 @@ export function catchChance(crime, policiers) { return Math.min(0.95, (crime.ris
 export function sentence(crime, makuta, recentOffences) {
   const prison = recentOffences + 1 >= RECIDIVE.fois || makuta < crime.amende;
   return { amende: Math.min(makuta, crime.amende), prison, heures: prison ? PRISON_HOURS : 0 };
+}
+// fautes de conduite dans la ville 3D (règle validée le 25/11 : « tout ce qui est logique dans la vraie vie »).
+// Piéton blessé : amende au Trésor + frais médicaux de la victime + casier (compte pour la prison après 3 infractions en 30 jours).
+// Piéton bousculé : pas d'amende, mais les gens le voient (réputation).
+export const ROAD_FAULTS = [
+  { id: "accident-pieton", nom: "Piéton blessé en conduisant", amende: 3000, soins: 2000, rep: -10, casier: true },
+  { id: "bousculade-pieton", nom: "Piéton bousculé en conduisant", amende: 0, soins: 0, rep: -2, casier: false },
+];
+export function roadFaultText(f, kmh, r) {
+  if (!f.casier) return `Bousculade : un piéton a été poussé par ta voiture (${kmh} km/h). Les passants n'ont pas aimé (réputation ${f.rep}).`;
+  return `Accident : tu as blessé un piéton en conduisant à ${kmh} km/h. Amende ${fmtMakuta(r.amende)} et frais médicaux de la victime ${fmtMakuta(r.soins)}` + (r.prison ? `. Récidive ou impayé : ${PRISON_HOURS} h de prison.` : ".");
+}
+// code de la route (règle du 26/11 : « que les voitures, bus et camions ne soient pas conduits n'importe comment »).
+// En ville : 50 km/h. Feu rouge grillé, excès de vitesse vu par la police, contrôle du permis.
+// Ce sont des contraventions : amende au Trésor et points retirés du permis, pas de casier judiciaire.
+// Permis à points : 12 points, chaque point perdu revient au bout d'un an. À 0, le permis est suspendu :
+// conduire quand même compte comme une conduite sans permis.
+export const SPEED_LIMIT = 50;
+export const PERMIS = { points: 12, recuperationJours: 365, minAge: 18 };
+export const TRAFFIC_TICKETS = [
+  { id: "feu-rouge", nom: "Feu rouge grillé", amende: 1000, points: 4, rep: -3 },
+  { id: "exces-vitesse", nom: "Excès de vitesse", amende: 0, points: 0, rep: -2 },
+  { id: "controle", nom: "Contrôle de police", amende: 0, points: 0, rep: 0 },
+];
+export const NO_PERMIT_FINE = 2000;
+export function speedTicket(kmh, limit = SPEED_LIMIT) {
+  const over = Math.round(kmh) - limit;
+  if (over < 6) return null;   // marge de tolérance
+  if (over < 20) return { amende: 600, points: 1 };
+  if (over < 40) return { amende: 1500, points: 3 };
+  return { amende: 3000, points: 6 };
+}
+export function permitStatus(diplomas = [], pts = [], now = Date.now()) {
+  const a = diplomas.includes("permis");
+  const lost = pts.filter(x => x.le > now - PERMIS.recuperationJours * 864e5).reduce((t, x) => t + (x.points || 0), 0);
+  const points = a ? Math.max(0, PERMIS.points - lost) : 0;
+  return { a, points, max: PERMIS.points, valide: a && points > 0, suspendu: a && points <= 0, limite: SPEED_LIMIT };
+}
+// calcule la contravention ; null si l'événement est invalide (vitesse sous la limite…)
+export function trafficTicket(faute, kmh, st) {
+  const t = TRAFFIC_TICKETS.find(x => x.id === faute); if (!t) return null;
+  const base = faute === "exces-vitesse" ? speedTicket(kmh) : { amende: t.amende, points: t.points };
+  if (!base) return null;
+  const sans = !st.valide, amende = base.amende + (sans ? NO_PERMIT_FINE : 0), points = st.valide ? base.points : 0;
+  const reste = Math.max(0, st.points - points), rep = t.rep + (sans ? -5 : 0);
+  const permisTxt = sans ? (st.suspendu ? " Ton permis est suspendu (0 point) : conduite sans permis valable, amende en plus." : " Tu n'as pas de permis de conduire : amende en plus. Passe-le à l'auto-école.")
+    : points ? ` −${points} point${points > 1 ? "s" : ""} : il te reste ${reste}/${PERMIS.points}.${reste === 0 ? " Ton permis est suspendu." : ""}` : "";
+  let texte;
+  if (faute === "controle") texte = sans ? `👮 Contrôle de police : pas de permis valable. Amende ${fmtMakuta(amende)}.` : `👮 Contrôle de police : permis en règle (${st.points}/${PERMIS.points} points). Bonne route !`;
+  else if (faute === "feu-rouge") texte = `🚦 Feu rouge grillé, vu par l'agent de la circulation. Amende ${fmtMakuta(amende)}.` + permisTxt;
+  else texte = `📸 Excès de vitesse : ${Math.round(kmh)} km/h au lieu de ${SPEED_LIMIT}, vu par la police. Amende ${fmtMakuta(amende)}.` + permisTxt;
+  return { id: faute, nom: sans && faute === "controle" ? "Conduite sans permis" : t.nom, amende, points, rep, texte };
 }
 export function inPrison(until, now = Date.now()) { return !!until && until > now; }
 // en prison : pas de travail, d'école, de voyage, de magasin (sauf manger), ni d'affaires
@@ -712,7 +966,7 @@ export function ordersToRun(orders, v, now = Date.now(), doneToday = []) {
   if (v.police && v.police.prisonJusqu) return out.concat(orders.includes("manger") && n.hunger < 40 ? [["manger", "/api/manger", {}]] : []);
   for (const id of orders) {
     if (id === "manger" && n.hunger < 40) out.push([id, "/api/manger", {}]);
-    if (id === "soigner" && n.health < 50) out.push([id, "/api/soigner", {}]);
+    if (id === "soigner" && (n.health < 50 || v.blessure)) out.push([id, "/api/soigner", {}]);
     if (id === "appeler" && n.happiness < 50 && v.etat && v.etat.credit >= 20) out.push([id, "/api/telephone/appeler", {}]);
     if (id === "travailler" && (v.travail.metier || v.travail.emploiEntreprise) && (!v.travail.prochainTravail || v.travail.prochainTravail <= now) && n.energy >= v.travail.fatigueTravail) out.push([id, "/api/travailler", {}]);
     if (id === "etudier" && v.ecole.enCours && (!v.ecole.enCours.prochainCours || v.ecole.enCours.prochainCours <= now) && n.energy >= v.ecole.fatigueCours) out.push([id, "/api/ecole/cours", {}]);
@@ -752,7 +1006,12 @@ export function describeAction(path, body = {}, r = {}) {
     "/api/porter": () => ["👕", "A changé de tenue : " + nm(SHOP, body.objet)],
     "/api/revendre": () => ["🏷️", `A revendu ${r.vendu || "un objet"}${r.gain ? " pour " + fmtMakuta(r.gain) : ""}`],
     "/api/postuler": () => ["💼", body.entreprise ? "Embauché dans une entreprise" : "Nouveau métier : " + nm(JOBS, body.metier)],
-    "/api/travailler": () => ["🛠️", `Journée de travail${pay ? " : +" + pay : ""}`],
+    "/api/travailler": () => r.paie && r.paie.arriere ? ["⏳", `Journée de travail : salaire de ${fmtMakuta(r.paie.arriere)} dû par l'État (caisse vide)`] : ["🛠️", `Journée de travail${pay ? " : +" + pay : ""}`],
+    "/api/promouvoir": () => ["📣", "Promotion lancée pour son entreprise"],
+    "/api/train": () => ["🧺", "Nouveau train de vie : " + (body.niveau === "auto" ? "automatique (selon ses moyens)" : nm(LIFESTYLES, body.niveau))],
+    "/api/campagne": () => ["📣", `Campagne publicitaire avec ${r.ambassadeur || "un ambassadeur"} (${fmtMakuta(r.cout || 0)})`],
+    "/api/club/recruter": () => ["⚽", `A recruté ${r.recrue || "un joueur"} pour son club`],
+    "/api/objectif": () => body.action === "abandonner" ? null : ["🎯", "Nouvel objectif de vie : " + nm(GOALS, body.id)],
     "/api/ecole/inscription": () => ["🎓", "Inscrit à l'école : " + nm(FORMATIONS, body.formation)],
     "/api/ecole/cours": () => ["📚", "A suivi un cours"],
     "/api/entreprise/ouvrir": () => ["🏪", "A ouvert l'entreprise " + (r.ouverte || "")],
@@ -787,7 +1046,8 @@ export function describeAction(path, body = {}, r = {}) {
     "/api/annonce/acheter": () => ["🤝", "A acheté à un joueur : " + (r.achete || "un objet")],
   };
   const f = D[path]; if (!f) return null;
-  const [icone, texte] = f(); return { icone, texte };
+  const o = f(); if (!o) return null;
+  const [icone, texte] = o; return { icone, texte };
 }
 
 // ---------------------------------------------------------------- réglages en direct (page admin)
@@ -799,13 +1059,14 @@ export const SETTINGS = [
   { id: "vol", label: "Risque de vol", aide: "Chance qu'un enfant négligé vole.", min: 0, max: 3 },
   { id: "police", label: "Efficacité de la police", aide: "Chance d'être attrapé après un délit.", min: 0.25, max: 3 },
   { id: "destin", label: "Fréquence des événements", aide: "Paludisme, pluie, cadeaux… 0 = aucun.", min: 0, max: 3 },
+  { id: "ia", label: "Pensées écrites par l'IA", aide: "0 = textes écrits à la main seulement. 1 = une petite IA écrit la pensée du jour (elle ne décide rien).", min: 0, max: 1 },
 ];
 export const SET = Object.fromEntries(SETTINGS.map(s => [s.id, 1]));
-const BASE = { shop: SHOP.map(x => x.prix), jobs: JOBS.map(j => j.salaire) };
+const BASE = { shop: SHOP.map(x => x.prix) };
 export function applySettings(o = {}) {
   for (const s of SETTINGS) { const v = Number(o[s.id]); SET[s.id] = Number.isFinite(v) ? Math.min(s.max, Math.max(s.min, v)) : 1; }
   SHOP.forEach((x, i) => { x.prix = Math.max(1, Math.round(BASE.shop[i] * SET.prix)); });
-  JOBS.forEach((j, i) => { j.salaire = Math.max(1, Math.round(BASE.jobs[i] * SET.salaires)); });
+  JOBS.forEach(j => { if (j.base == null) j.base = j.salaire; j.salaire = Math.max(1, Math.round(j.base * SET.salaires)); });   // base gardée sur chaque métier (des métiers sont ajoutés plus bas)
   return { ...SET };
 }
 export const FOOD_BASE = { prix: 25, faim: 45 };
@@ -880,6 +1141,21 @@ export function dashboard({ makuta, banque = 0, biens = 0, entreprises = 0, mais
     role: roleOf(origine, seed),
     quartier: communeView(quartier),
   };
+}
+
+// atouts pour réussir sa vie (26/11) : ce qui s'achète (études, téléphone, véhicule, tenue, sport) ouvre des portes
+export function opportunities({ ids = [], diplomas = [], tenue = 40, vitalite = 50, reputation = 0 } = {}) {
+  const has = t => SHOP.some(x => x.type === t && ids.includes(x.id));
+  const atouts = [
+    { id: "etudes", icone: "🎓", label: "Études", ok: eduRank(eduLevel(diplomas)) >= 2, aide: "Diplôme d'État ou plus : métiers mieux payés." },
+    { id: "telephone", icone: "📱", label: "Téléphone", ok: has("telephone"), aide: "Demandé pour les métiers de contact (radio, commerce, droit)." },
+    { id: "vehicule", icone: "🛵", label: "Véhicule", ok: has("vehicule"), aide: "Plus de taxi à payer, métiers de chauffeur et de livreur." },
+    { id: "permis", icone: "🪪", label: "Permis", ok: diplomas.includes("permis"), aide: "Obligatoire pour conduire moto et voiture." },
+    { id: "tenue", icone: "👔", label: "Belle tenue", ok: tenue >= 60, aide: "Les bons employeurs regardent la présentation." },
+    { id: "forme", icone: "💪", label: "En forme", ok: vitalite >= 60, aide: "Sport, vitamines et bon train de vie : vie plus longue." },
+    { id: "reputation", icone: "⭐", label: "Réputation", ok: reputation >= 10, aide: "Les gens respectés trouvent plus facilement." },
+  ];
+  return { score: Math.round(100 * atouts.filter(a => a.ok).length / atouts.length), atouts };
 }
 
 // ---------------------------------------------------------------- guichet : dépôt et retrait d'argent
@@ -1042,7 +1318,8 @@ export function newspaper(facts = {}, now = Date.now(), quartier = null) {
   for (const m of facts.mariages || []) add("💍", 80, "Mariage", `${m.a} et ${m.b} se sont dit oui. La dot a été versée, les deux familles sont en fête.`, m.quartier, m.le);
   for (const e of facts.entreprises || []) add((COMPANY_TYPES.find(t => t.id === e.type) || {}).icone || "🏪", 70, `Nouveau à ${e.quartier || "Kinshasa"} : ${e.nom}`, `${e.proprio} ouvre un${e.type === "boutique" ? "e" : ""} ${((COMPANY_TYPES.find(t => t.id === e.type) || {}).nom || "commerce").toLowerCase()}. Allez y faire un tour !`, e.quartier, e.le);
   for (const n of facts.naissances || []) add("👶", 60, `Bienvenue à ${n.prenom}`, `${n.prenom} ${n.nom} est arrivé${n.sexe === "F" ? "e" : ""} à ${n.quartier || "Kinshasa"}. Nouvelle vie, nouveau destin.`, n.quartier, n.le);
-  for (const m of facts.elus || []) add("🗳️", 85, "Résultat des élections", `${m.nom} est élu${m.sexe === "F" ? "e" : ""} ${m.poste} avec ${m.voix} voix.`, null, m.le);
+  for (const m of facts.elus || []) add("🗳️", 85, "Résultat des élections", `${m.nom} est élu${m.sexe === "F" ? "e" : ""} ${((POSTS.find(x => x.id === m.poste) || {}).nom || m.poste).toLowerCase()} avec ${m.voix} voix.`, null, m.le);
+  for (const o of facts.offrandes || []) add("🙏", 45, "Reçu d'église", o.texte, o.quartier, o.le);
   for (const a of facts.arrestations || []) if (a.n) add("🚔", 40, `Police : ${a.n} arrestation${a.n > 1 ? "s" : ""} à ${a.quartier}`, `Les patrouilles ont été actives à ${a.quartier} ces dernières 24 heures. Restez prudents.`, a.quartier);
   // la vie de la ville
   const C = pick(COMMUNES), C2 = pick(COMMUNES);
@@ -1061,11 +1338,14 @@ export function newspaper(facts = {}, now = Date.now(), quartier = null) {
   const une = reel[0] || { ...vie[0], reel: false };
   const ma = quartier ? reel.filter(x => x.commune === quartier) : [];
   const numero = Math.max(1, Math.round((Date.parse(jour) - Date.parse(JOURNAL_START)) / 864e5) + 1);
-  return { titre: "Le Journal de Kinshasa", date: jour, numero, une,
+  const pubs = (facts.pubs || []).slice().sort((a, b) => (b.commune === quartier) - (a.commune === quartier));
+  const annonces = pubs.map(a => ({ icone: "📣", titre: `${a.titre} · ${a.annonceur}`, texte: [a.texte, a.commune && `(${a.commune})`].filter(Boolean).join(" "), annonce: true, couleur: a.couleur }));
+  return { titre: "Le Journal de Kinshasa", date: jour, numero, une, sponsor: annonces[0] || null,
     rubriques: [
       { id: "commune", titre: quartier ? `Dans ta commune · ${quartier}` : "Dans ta commune", items: ma.slice(0, 12), vide: "Rien de neuf dans ta commune aujourd'hui. Et si ton personnage faisait parler de lui ?" },
       { id: "ville", titre: "Kinshasa", items: reel.slice(0, 20), vide: "La ville se réveille : les premières nouvelles arrivent avec les premiers joueurs." },
       { id: "vie", titre: "La vie à Kin", items: vie, vide: "" },
+      { id: "annonces", titre: "Annonces", items: annonces, vide: "Commerçant ? Ton annonce ici : écris au bureau Zboss Sarlu (rubrique Publicité)." },
     ],
     chiffres: facts.chiffres || null };
 }
@@ -1085,5 +1365,573 @@ export function cannotSendWord(texte, sentToday, toSelf) {
 export function neighborView(n, now = Date.now()) {
   const age = ageYears(n.ne_le, now);
   return { id: n.id, prenom: n.prenom, nom: n.nom, sexe: n.sexe, pseudo: n.pseudo || null, quartier: n.quartier, age: Math.floor(age), etape: stageOf(age).label,
-    metier: n.metier ? (JOBS.find(j => j.id === n.metier) || {}).nom || n.metier : null, reputation: repLabel(n.reputation || 0), memeCommune: !!n.memeCommune };
+    metier: n.metier ? (JOBS.find(j => j.id === n.metier) || {}).nom || n.metier : null, reputation: repLabel(n.reputation || 0), memeCommune: !!n.memeCommune, pionnier: n.rang > 0 && n.rang <= PIONEERS };
+}
+
+// ---------------------------------------------------------------- annonces payantes des commerçants partenaires
+// Comme dans la vraie vie : le commerçant paie (hors jeu pour l'instant), l'administrateur publie l'annonce.
+// Nom réel d'un commerce seulement avec un accord écrit signé (case obligatoire).
+export const AD_SPOTS = [
+  { id: "journal", nom: "Journal de Kinshasa", prixJourUsd: 2, prixMoisUsd: 50 },
+  { id: "panneau", nom: "Panneaux LED de la ville 3D", prixJourUsd: 3, prixMoisUsd: 75 },
+  { id: "bandeau", nom: "Bandeau défilant en bas de l'écran", prixJourUsd: 1, prixMoisUsd: 25 },
+  { id: "tous", nom: "Journal + panneaux LED + bandeau", prixJourUsd: 5, prixMoisUsd: 95 },
+];
+// onglet des logos à côté de « EN DIRECT » : vendu à part. Avec « tous », cela fait le Pack Partenaire (6 $/jour, 120 $/mois),
+// les mêmes tarifs que la lettre de proposition envoyée aux entreprises.
+export const LOGO_SPOT = { id: "logo", nom: "Onglet des logos (à côté de « EN DIRECT »)", prixJourUsd: 1, prixMoisUsd: 25 };
+// où chaque emplacement est montré
+export const AD_SHOWN = { journal: ["journal", "tous"], panneau: ["panneau", "tous"], bandeau: ["bandeau", "tous"] };
+export const adShownIn = (a, support) => (AD_SHOWN[support] || []).includes(a.emplacement);
+// prix : chaque bloc de 30 jours au tarif mensuel (moins cher), les jours restants au tarif du jour, jamais plus que le mois suivant
+const spotPrice = (s, jours) => { const j = Math.max(1, Math.round(jours || 1)), mois = Math.floor(j / 30); return mois * s.prixMoisUsd + Math.min((j % 30) * s.prixJourUsd, s.prixMoisUsd); };
+export function adPrice(emplacement, jours) { const s = AD_SPOTS.find(x => x.id === emplacement); return s ? spotPrice(s, jours) : 0; }
+export const logoPrice = jours => spotPrice(LOGO_SPOT, jours);
+export const AD_COLORS = ["#ffd23f", "#18e0ff", "#ff5a1f", "#7dff8a", "#ff2bd6", "#3fa9ff"];
+export function cannotCreateAd(a = {}) {
+  const t = k => String(a[k] ?? "").trim();
+  if (t("annonceur").length < 2 || t("annonceur").length > 40) return "Nom du commerçant : 2 à 40 caractères.";
+  if (t("titre").length < 2 || t("titre").length > 24) return "Titre (panneau) : 2 à 24 caractères.";
+  if (t("texte").length > 90) return "Texte : 90 caractères au plus.";
+  if (!AD_SPOTS.some(s => s.id === a.emplacement)) return "Choisis un emplacement.";
+  const j = Number(a.jours); if (!Number.isInteger(j) || j < 1 || j > 365) return "Durée : 1 à 365 jours.";
+  if (t("commune") && !COMMUNES.some(c => c.nom === t("commune"))) return "Commune inconnue.";
+  if (!a.accord) return "Coche « Accord écrit signé » : pas de nom de commerce réel sans contrat.";
+  return null;
+}
+export const adActive = (a, now = Date.now()) => !!a.actif && a.debut <= now && a.fin > now;
+export function adView(a) { return { id: a.id, annonceur: a.annonceur, titre: a.titre, texte: a.texte || "", commune: a.commune || null, emplacement: a.emplacement, couleur: a.couleur || AD_COLORS[0], fin: a.fin }; }
+
+// ---------------------------------------------------------------- sociétés publiques
+// Entreprises de l'État (noms inventés, inspirés des secteurs publics du Congo). Elles encaissent des recettes,
+// embauchent des personnages et paient leurs agents ; au-delà de leur réserve, le surplus va au Trésor.
+export const PUBLIC_COMPANIES = [
+  { id: "sp-mwinda", nom: "Mwinda, électricité publique", icone: "💡", tutelle: "Ministère de l'Énergie", recette: "Factures d'électricité des logements (1 e-makuta par jour)" },
+  { id: "sp-mai", nom: "Mai ya Kin, eau potable", icone: "🚰", tutelle: "Ministère des Ressources hydrauliques", recette: "Factures d'eau des logements (0,5 e-makuta par jour)" },
+  { id: "sp-regie", nom: "Régie publicitaire de Kinshasa", icone: "📣", tutelle: "Ministère de la Communication", recette: "Promotions achetées par les entreprises du jeu" },
+  { id: "sp-voirie", nom: "Office de la voirie et de la propreté", icone: "🚧", tutelle: "Ministère des Infrastructures", recette: "Budget de l'État (routes, propreté des marchés)" },
+];
+export const BILLS = { "sp-mwinda": 20, "sp-mai": 10 };    // makuta par jour et par logement
+export const SOE_RESERVE = 100000;                          // 5 000 e-makuta gardés en caisse, le reste va au Trésor
+export const STATE_SEED = 400000;                           // budget de départ de l'État (20 000 e-makuta, une seule fois)
+export const VAT = 0.16;                                    // TVA de départ (DGI), comprise dans les prix des magasins et des maquis
+// lois en vigueur (TVA fixée par le Président, budget voté par le Parlement) : chargées par le serveur ou la démo
+export const LAWS = { tva: 16, budget: { sante: 0, ecole: 0, voirie: 0 }, amendes: 100, salaires: 100 };
+export const vatOf = (prix, taux = LAWS.tva) => Math.round(prix * taux / (100 + taux));
+const SOE_JOBS = [
+  { id: "electricien", nom: "Électricien (Mwinda)", talent: "technique", salaire: 210, minAge: 18, societe: "sp-mwinda" },
+  { id: "agent-eau", nom: "Agent d'eau potable (Mai ya Kin)", talent: "technique", salaire: 190, minAge: 18, societe: "sp-mai" },
+  { id: "commercial-regie", nom: "Commercial de la Régie publicitaire", talent: "parole", salaire: 230, minAge: 20, societe: "sp-regie" },
+  { id: "cantonnier", nom: "Cantonnier (Office de la voirie)", talent: "sport", salaire: 160, minAge: 18, societe: "sp-voirie" },
+];
+PUBLIC_JOBS.push(...SOE_JOBS); JOBS.push(...SOE_JOBS);
+// qui paie un agent public : sa société publique (si elle a l'argent), sinon le Trésor ; sinon le salaire est dû (arriéré)
+export function publicPayer(job, soldes = {}) {
+  const amount = job.salaire, soe = job.societe;
+  if (soe && (soldes[soe] || 0) >= amount) return { payeur: soe, ok: true };
+  if ((soldes[STATE_ID] || 0) >= amount) return { payeur: STATE_ID, ok: true, subvention: !!soe };
+  return { payeur: soe || STATE_ID, ok: false };
+}
+export function billsFor(makuta, conso = 0) {   // factures du jour : on paie ce qu'on peut, l'électricité d'abord (+ clim, télé… achetés)
+  let left = makuta; const out = [];
+  for (const [id, m0] of Object.entries(BILLS)) { const m = m0 + (id === "sp-mwinda" ? conso : 0); const paid = Math.max(0, Math.min(left, m)); left -= paid; out.push({ societe: id, du: m, paye: paid }); }
+  return out;
+}
+export function soeView(soldes = {}, agents = {}) {
+  return PUBLIC_COMPANIES.map(c => ({ ...c, solde: soldes[c.id] || 0, agents: agents[c.id] || 0, metiers: SOE_JOBS.filter(j => j.societe === c.id) }));
+}
+
+// ---------------------------------------------------------------- promotion des entreprises du jeu (payée en e-makuta)
+export const PROMO_PRICE = { bandeau: 400, journal: 600, panneau: 800, tous: 1400 };   // makuta par jour
+export const PROMO_MAX_DAYS = 7;
+export function promoPrice(emplacement, jours) { return (PROMO_PRICE[emplacement] || 0) * Math.max(1, Math.round(jours || 1)); }
+export function cannotPromote(a = {}, makuta = 0, owns = false, active = false) {
+  if (!owns) return "Seul le propriétaire peut promouvoir son entreprise.";
+  if (active) return "Cette entreprise a déjà une promotion en cours.";
+  const t = k => String(a[k] ?? "").trim();
+  if (t("titre").length < 2 || t("titre").length > 24) return "Titre : 2 à 24 caractères.";
+  if (t("texte").length > 90) return "Texte : 90 caractères au plus.";
+  if (/https?:|www\.|\d{8,}/i.test(t("titre") + " " + t("texte"))) return "Pas de lien ni de numéro de téléphone dans une promotion.";
+  if (!PROMO_PRICE[a.emplacement]) return "Choisis où passer la promotion.";
+  const j = Number(a.jours); if (!Number.isInteger(j) || j < 1 || j > PROMO_MAX_DAYS) return `Durée : 1 à ${PROMO_MAX_DAYS} jours.`;
+  if (makuta < promoPrice(a.emplacement, j)) return `Il faut ${fmtMakuta(promoPrice(a.emplacement, j))} pour cette promotion.`;
+  return null;
+}
+
+// ---------------------------------------------------------------- bandeau défilant (bas de l'écran)
+export function tickerItems({ pubs = [], tresor = 0, impotsJour = 0, salairesJour = 0, arrieres = 0, elec = null, une = null, communiques = [], campagnes = [], matchs = [] } = {}, now = Date.now()) {
+  const out = [];
+  pubs.forEach(a => out.push({ type: "pub", icone: "📣", texte: `${a.titre} · ${a.annonceur}${a.texte ? " : " + a.texte : ""}`, couleur: a.couleur }));
+  campagnes.forEach(c => out.push({ type: "pub", icone: "🌟", texte: `${c.entreprise} : ${c.ambassadeur} ${c.fem ? "est la nouvelle ambassadrice" : "est le nouvel ambassadeur"}${c.slogan ? " · « " + c.slogan + " »" : ""}`, couleur: "#7dff8a" }));
+  if (matchs.length) out.push({ type: "sport", icone: "⚽", texte: `${LEAGUE_NAME} : ` + matchs.slice(0, 6).map(m => `${m.dom_nom} ${m.buts_dom}-${m.buts_ext} ${m.ext_nom}`).join(" · ") });
+  communiques.forEach(c => out.push({ type: "communique", icone: "📢", texte: `${c.auteur} : ${c.texte}` }));
+  out.push({ type: "etat", icone: "🏛️", texte: `Trésor public : ${fmtMakuta(tresor)} · impôts et taxes du jour : ${fmtMakuta(impotsJour)} · salaires publics payés : ${fmtMakuta(salairesJour)}` });
+  if (arrieres > 0) out.push({ type: "etat", icone: "⚠️", texte: `${arrieres} agent${arrieres > 1 ? "s" : ""} de l'État attend${arrieres > 1 ? "ent" : ""} leur salaire : le Trésor manque d'impôts.` });
+  out.push({ type: "etat", icone: "🧾", texte: `Décision de l'État : TVA de ${LAWS.tva} % comprise dans les prix, 5 % d'IPR sur les salaires, 10 % sur les recettes des entreprises. Ces impôts paient les agents publics.` });
+  if (elec && elec.prochaine) {
+    const d = Math.ceil((elec.prochaine - now) / 864e5);
+    out.push({ type: "etat", icone: "🗳️", texte: elec.voteOuvert ? "Le vote est ouvert : chaque habitant de 18 ans et plus choisit ses élus." : `Prochaine élection dans ${d} jour${d > 1 ? "s" : ""}. Les candidatures sont ouvertes.` });
+  }
+  if (une) out.push({ type: "journal", icone: une.icone || "📰", texte: `À la une : ${une.titre}. ${une.texte || ""}`.trim() });
+  return out.slice(0, 30);
+}
+export const COMMUNIQUE_MAX = 140;
+export function cannotCreateCommunique(c = {}) {
+  const t = k => String(c[k] ?? "").trim();
+  if (t("auteur").length < 2 || t("auteur").length > 40) return "Auteur : 2 à 40 caractères.";
+  if (t("texte").length < 5 || t("texte").length > COMMUNIQUE_MAX) return `Texte : 5 à ${COMMUNIQUE_MAX} caractères.`;
+  const j = Number(c.jours); if (!Number.isInteger(j) || j < 1 || j > 60) return "Durée : 1 à 60 jours.";
+  const inst = INSTITUTIONS.some(i => i.nom === t("auteur")) || PUBLIC_COMPANIES.some(i => i.nom === t("auteur")) || t("auteur") === "Mairie de Kinshasa";
+  if (!inst && !c.accord) return "Un partenaire réel (banque, opérateur, brasserie…) n'apparaît qu'avec un accord écrit signé : coche la case.";
+  return null;
+}
+
+// ---------------------------------------------------------------- objectifs de vie
+export const GOALS = [
+  { id: "entrepreneur", nom: "Fonder une entreprise", icone: "🏪", prog: f => Math.min(1, f.entreprises) },
+  { id: "proprietaire", nom: "Acheter sa maison", icone: "🏠", prog: f => (f.proprio ? 1 : 0) },
+  { id: "mariage", nom: "Se marier", icone: "💍", prog: f => (f.marie ? 1 : 0) },
+  { id: "parent", nom: "Avoir un enfant", icone: "👶", prog: f => Math.min(1, f.enfants) },
+  { id: "fortune", nom: "Réunir 5 000 e-makuta", icone: "💰", prog: f => Math.min(1, f.fortune / 100000) },
+  { id: "diplome", nom: "Obtenir un diplôme", icone: "🎓", prog: f => Math.min(1, f.diplomes) },
+  { id: "talents", nom: "Découvrir 3 talents", icone: "✨", prog: f => Math.min(1, f.talents / 3) },
+  { id: "service", nom: "Servir l'État (emploi public)", icone: "🏛️", prog: f => (f.public ? 1 : 0) },
+  { id: "elu", nom: "Être élu par les habitants", icone: "🗳️", prog: f => (f.elu ? 1 : 0) },
+  { id: "star", nom: "Devenir une star (réputation 60)", icone: "⭐", prog: f => Math.max(0, Math.min(1, f.rep / 60)) },
+];
+export const GOALS_MAX = 3, GOAL_REP = 15;
+export function goalsView(rows = [], f = {}) {
+  const mine = rows.map(r => { const g = GOALS.find(x => x.id === r.objectif_id); if (!g) return null; const pr = g.prog(f); return { id: g.id, nom: g.nom, icone: g.icone, progres: Math.round(pr * 100), atteint: r.atteint_le || null, choisi: r.choisi_le }; }).filter(Boolean);
+  return { mes: mine, catalogue: GOALS.map(g => ({ id: g.id, nom: g.nom, icone: g.icone, choisi: mine.some(m => m.id === g.id) })), max: GOALS_MAX, recompense: GOAL_REP };
+}
+export function newlyReached(rows = [], f = {}) { return rows.filter(r => !r.atteint_le && (GOALS.find(g => g.id === r.objectif_id) || { prog: () => 0 }).prog(f) >= 1).map(r => r.objectif_id); }
+export function cannotChooseGoal(id, rows = []) {
+  if (!GOALS.some(g => g.id === id)) return "Objectif inconnu.";
+  if (rows.some(r => r.objectif_id === id)) return "Cet objectif est déjà choisi.";
+  if (rows.filter(r => !r.atteint_le).length >= GOALS_MAX) return `${GOALS_MAX} objectifs en cours au plus : abandonne-en un d'abord.`;
+  return null;
+}
+
+// ---------------------------------------------------------------- les stars de la ville (choisies par le serveur chaque jour)
+export const STAR_DOMAINS = [
+  { id: "sport", nom: "Sport", icone: "⚽", talent: "sport", titres: [["Footballeur", "Footballeuse"], ["Basketteur", "Basketteuse"], ["Boxeur", "Boxeuse"]] },
+  { id: "musique", nom: "Musique", icone: "🎤", talent: "art", titres: [["Chanteur de rumba", "Chanteuse de rumba"], ["Guitariste", "Guitariste"], ["Danseur", "Danseuse"]] },
+  { id: "affaires", nom: "Affaires", icone: "💼", titres: [["Entrepreneur", "Entrepreneuse"], ["Commerçant", "Commerçante"], ["Patron", "Patronne"]] },
+  { id: "politique", nom: "Politique", icone: "🏛️", titres: [["Homme politique", "Femme politique"], ["Candidat", "Candidate"]] },
+  { id: "cuisine", nom: "Cuisine", icone: "🍲", talent: "cuisine", titres: [["Chef de maquis", "Cheffe de maquis"], ["Cuisinier", "Cuisinière"]] },
+];
+const STAR_NEWS = {
+  sport: ["a gagné son dernier match devant tout le quartier", "s'entraîne chaque matin au terrain de la Gombe", "a signé avec un nouveau club du jeu", "a offert des ballons aux enfants du quartier"],
+  musique: ["a rempli la salle de concert hier soir", "prépare un nouvel album de rumba", "a chanté au mariage d'un habitant", "tourne un clip au bord du fleuve"],
+  affaires: ["ouvre une nouvelle boutique", "a embauché trois habitants cette semaine", "investit dans les transports", "a payé ses impôts en avance"],
+  politique: ["a visité le marché pour écouter les commerçants", "défend une loi sur les salaires publics", "a inauguré une route réparée par la voirie", "fait campagne dans sa commune"],
+  cuisine: ["sert le meilleur liboke de la ville", "a gagné le concours de cuisine du quartier", "ouvre son maquis jusqu'à minuit", "apprend la cuisine aux jeunes"],
+};
+// choisit une star par domaine parmi les meilleurs candidats ; le choix change chaque jour
+export function pickStars(cands = {}, now = Date.now(), seedNames = null) {
+  const day = dayKey(now), used = new Set();
+  return STAR_DOMAINS.map(d => {
+    const list = (cands[d.id] || []).slice(0, 3);
+    const h = hashStr(day + d.id);
+    let s = list.length ? list[h % list.length] : null;
+    if (!s && seedNames) { let n = seedNames(h, d.id), k = 1; while (used.has(n.prenom) && k < 6) n = seedNames(h + k++ * 7919, d.id); used.add(n.prenom); s = { id: "pnj-" + d.id + "-" + day, prenom: n.prenom, nom: n.nom, sexe: n.sexe, quartier: n.quartier, age: 22 + h % 20, pnj: true }; }
+    if (!s) return null;
+    const news = STAR_NEWS[d.id], titre = d.titres[(h >>> 3) % d.titres.length][s.sexe === "F" ? 1 : 0];
+    return { ...s, domaine: d.id, domaineNom: d.nom, icone: d.icone, titre: s.titre || titre,
+      actualites: s.actualites && s.actualites.length ? s.actualites : [0, 1, 2].map(i => ({ icone: d.icone, texte: `${s.prenom} ${news[(h + i * 7) % news.length]}.` })) };
+  }).filter(Boolean);
+}
+
+// ---------------------------------------------------------------- train de vie : les dépenses du quotidien (v46)
+// Chaque jour (heure de Kinshasa), un personnage adulte dépense pour vivre, selon ses moyens. Le loyer et les factures
+// d'eau et d'électricité sont prélevés à part (logement, sociétés publiques). L'argent va aux entreprises des joueurs
+// (TVA au Trésor) : les entreprises qui font de la publicité attirent plus de clients.
+export const BUDGET_POSTS = [
+  { id: "nourriture", icone: "🍚", label: "Nourriture à la maison", vers: ["supermarche", "boutique", "maquis"] },
+  { id: "habits", icone: "👕", label: "Habits, coiffure et entretien", vers: ["boutique", "salon"] },
+  { id: "transport", icone: "🚕", label: "Déplacements (taxi, bus, moto)", vers: ["taxi"] },
+  { id: "sante", icone: "💊", label: "Santé, hygiène et savon", vers: ["pharmacie"] },
+  { id: "telephone", icone: "📱", label: "Crédit téléphone et internet", vers: [] },
+  { id: "formation", icone: "📚", label: "Livres, journaux et formation", vers: ["ecole"] },
+  { id: "loisirs", icone: "🎉", label: "Sorties, fêtes et loisirs", vers: ["maquis", "hotel", "club"] },
+  { id: "entraide", icone: "🤝", label: "Likelemba, église et entraide", vers: [] },
+];
+// montants en makuta par jour réel ; effets appliqués une fois par jour
+export const LIFESTYLES = [
+  { id: "survie", nom: "Survie", icone: "🥣", desc: "Un repas simple par jour, rien d'autre.", postes: { nourriture: 20 },
+    effet: { faim: 35, sante: -2, bonheur: -4 }, tenue: 10, vitalite: 20 },
+  { id: "modeste", nom: "Modeste", icone: "🍲", desc: "Deux repas, savon, un peu de transport et de crédit.", postes: { nourriture: 40, habits: 10, transport: 15, sante: 5, telephone: 5, entraide: 5 },
+    effet: { faim: 55, sante: 1, bonheur: 0 }, tenue: 45, vitalite: 50 },
+  { id: "confort", nom: "Confort", icone: "🏡", desc: "Bien manger, de beaux habits, taxi, soins et sorties.", postes: { nourriture: 70, habits: 30, transport: 30, sante: 15, telephone: 10, formation: 10, loisirs: 20, entraide: 10 },
+    effet: { faim: 70, sante: 2, bonheur: 4 }, tenue: 75, vitalite: 75 },
+  { id: "aise", nom: "Aisé", icone: "💎", desc: "Le meilleur : tenue soignée, médecin privé, voyages et fêtes.", postes: { nourriture: 120, habits: 80, transport: 60, sante: 30, telephone: 20, formation: 20, loisirs: 60, entraide: 20 },
+    effet: { faim: 85, sante: 3, bonheur: 8 }, tenue: 95, vitalite: 95 },
+];
+export const LIFESTYLE_MIN_AGE = 18;          // avant 18 ans, l'entretien payé par les parents couvre tout
+export const LIFESTYLE_RESERVE_DAYS = 10;     // en automatique, le personnage garde de quoi tenir 10 jours à ce niveau
+export const lifestyleCost = id => { const l = LIFESTYLES.find(x => x.id === id); return l ? Object.values(l.postes).reduce((a, b) => a + b, 0) : 0; };
+// le niveau réellement payé aujourd'hui : celui choisi, ou moins si l'argent manque ; "auto" = le personnage décide selon ses moyens
+export function lifestyleFor(choice, makuta) {
+  const order = LIFESTYLES.map(l => l.id);
+  let i = choice && choice !== "auto" ? order.indexOf(choice) : order.length - 1;
+  if (i < 0) i = 1;
+  const reserve = !choice || choice === "auto" ? LIFESTYLE_RESERVE_DAYS : 1;
+  while (i > 0 && lifestyleCost(order[i]) * reserve > makuta) i--;
+  const l = LIFESTYLES[i];
+  return lifestyleCost(l.id) <= makuta ? l : null;   // null : même la survie est trop chère (pas de repas)
+}
+// présentation (tenue) et vitalité : se rapprochent chaque jour du niveau de vie
+export const TENUE_STEP = 10, VITALITE_STEP = 3;
+const toward = (x, t, s) => x < t ? Math.min(t, x + s) : Math.max(t, x - s);
+export function lifestyleStep(st = {}, l) {
+  const t = st.tenue ?? 40, v = st.vitalite ?? 50;
+  return l ? { tenue: toward(t, l.tenue, TENUE_STEP), vitalite: toward(v, l.vitalite, VITALITE_STEP) } : { tenue: toward(t, 0, TENUE_STEP), vitalite: toward(v, 0, VITALITE_STEP) };
+}
+// espérance de vie : de 55 à 80 ans selon la vitalité (bien manger, se soigner, ne pas manquer)
+export const LIFE_BASE = 55, LIFE_RANGE = 25;
+export const lifeExpectancy = vitalite => Math.round(LIFE_BASE + LIFE_RANGE * Math.max(0, Math.min(100, vitalite ?? 50)) / 100);
+export const OLD_AGE_HEALTH = 8;              // au-delà de son espérance de vie, la santé baisse de 8 points par jour
+// présentation : les postes bien payés demandent une tenue correcte
+export const TENUE_JOB_MIN = 40, TENUE_JOB_PAY = 250;
+export const tenueLabel = t => t >= 80 ? "très soignée" : t >= 55 ? "soignée" : t >= TENUE_JOB_MIN ? "correcte" : t >= 20 ? "négligée" : "en haillons";
+export function tenueBlocks(job, tenue) {
+  if (!job || tenue == null) return null;
+  if ((job.salaire >= TENUE_JOB_PAY || job.formation) && tenue < TENUE_JOB_MIN)
+    return `Le recruteur trouve ta tenue ${tenueLabel(tenue)} : il faut une présentation correcte (${TENUE_JOB_MIN}). Passe au train de vie « Modeste » ou mieux quelques jours.`;
+  return null;
+}
+export function livingView(st = {}, makuta = 0, age = 30) {
+  const choice = st.niveau || "auto", today = lifestyleFor(choice, makuta);
+  return {
+    choix: choice, minAge: LIFESTYLE_MIN_AGE, adulte: age >= LIFESTYLE_MIN_AGE,
+    niveaux: LIFESTYLES.map(l => ({ id: l.id, nom: l.nom, icone: l.icone, desc: l.desc, cout: lifestyleCost(l.id), postes: l.postes, tenue: l.tenue, vitalite: l.vitalite, effet: l.effet })),
+    postes: BUDGET_POSTS.map(p => ({ id: p.id, icone: p.icone, label: p.label })),
+    prevu: today ? today.id : null, prevuCout: today ? lifestyleCost(today.id) : 0,
+    tenue: st.tenue ?? 40, tenueLabel: tenueLabel(st.tenue ?? 40), vitalite: st.vitalite ?? 50, esperance: lifeExpectancy(st.vitalite ?? 50),
+    dernier: st.dernier_jour ? { jour: st.dernier_jour, niveau: st.dernier_niveau, depense: st.depense_jour || 0 } : null,
+    reserveJours: LIFESTYLE_RESERVE_DAYS,
+  };
+}
+
+// ---------------------------------------------------------------- campagnes publicitaires avec un ambassadeur
+// Une entreprise de joueur paie un personnage (souvent une star) pour la faire connaître. Tant que la campagne dure,
+// les habitants choisissent plus souvent cette entreprise pour leurs dépenses, et le bandeau l'annonce.
+export const CAMPAIGN_MAX_DAYS = 14, AMBASSADOR_MIN_AGE = 18, AMBASSADOR_TENUE = 50;
+export function ambassadorFee(rep = 0, star = false) { return Math.round((100 + 8 * Math.max(0, rep)) * (star ? 3 : 1)); }   // makuta par jour
+export function cannotHireAmbassador({ owns, active, self, age, rep, tenue, star, prix, jours, makuta, slogan } = {}) {
+  if (!owns) return "Cette entreprise n'est pas à toi.";
+  if (self) return "Tu ne peux pas être ton propre ambassadeur.";
+  if (active) return "Cette entreprise a déjà une campagne en cours.";
+  const j = Number(jours); if (!Number.isInteger(j) || j < 1 || j > CAMPAIGN_MAX_DAYS) return `Durée : 1 à ${CAMPAIGN_MAX_DAYS} jours.`;
+  const s = String(slogan || "").trim(); if (s.length > 60) return "Slogan : 60 caractères au plus.";
+  if (/https?:|www\.|\.com|\d{6,}/i.test(s.replace(/\s/g, ""))) return "Pas de lien ni de numéro de téléphone dans le slogan.";
+  if (age < AMBASSADOR_MIN_AGE) return `Un ambassadeur doit avoir au moins ${AMBASSADOR_MIN_AGE} ans.`;
+  if (rep <= REP_BAD) return "Cette personne a trop mauvaise réputation : elle ferait fuir tes clients.";
+  if ((tenue ?? 50) < AMBASSADOR_TENUE) return "Sa tenue est trop négligée pour une publicité : elle refuse de poser comme ça.";
+  const fee = ambassadorFee(rep, star);
+  if (!Number.isInteger(Number(prix)) || Number(prix) < fee) return `Offre refusée : cette personne demande au moins ${fmtMakuta(fee)} par jour.`;
+  if (makuta < Number(prix) * j) return `Il te faut ${fmtMakuta(Number(prix) * j)} pour payer toute la campagne.`;
+  return null;
+}
+
+// ---------------------------------------------------------------- football : clubs, recrutement, championnat
+// Les clubs des joueurs (type d'entreprise « club ») recrutent des personnages et jouent un match par jour contre les
+// autres clubs de la ville. Noms des clubs du jeu inventés (aucun vrai club).
+COMPANY_TYPES.push({ id: "club", nom: "Club de football", icone: "⚽", prix: 300000, recette: 4000, job: "joueur-club", poste: "Joueur de football", talent: "sport", salaire: 220, places: 18,
+  desc: "Recrute des joueurs, joue le championnat de Kinshasa et vend des billets les jours de match." });
+export const LEAGUE_NAME = "Championnat de Kinshasa";
+export const NPC_CLUBS = [
+  { id: "pnj-simba", nom: "Simba ya Kin", force: 62 }, { id: "pnj-ndjili", nom: "Étoile de Ndjili", force: 55 },
+  { id: "pnj-kinkole", nom: "Pirogues de Kinkole", force: 50 }, { id: "pnj-lemba", nom: "Lemba Sporting", force: 58 },
+  { id: "pnj-matete", nom: "Jeunesse de Matete", force: 52 }, { id: "pnj-kimbanseke", nom: "Kimbanseke United", force: 47 },
+  { id: "pnj-ngaliema", nom: "Colline de Ngaliema", force: 60 }, { id: "pnj-bandal", nom: "Bandal Olympique", force: 54 },
+];
+export const CLUB_MIN_AGE = 16, CLUB_MAX_AGE = 38, CLUB_MIN_PLAYERS = 1, CLUB_CONTRACT_DAYS = 30;
+export const MATCH_GATE = { victoire: 2500, nul: 1200, defaite: 600 };   // billetterie (makuta) versée à la caisse du club
+// force d'un club de joueurs : effectif et niveau en sport (talent découvert) de ses joueurs
+export function clubStrength(players = []) {
+  if (!players.length) return 30;
+  const lv = players.map(p => p.niveau || 25).sort((a, b) => b - a).slice(0, 11);
+  return Math.round(30 + Math.min(11, players.length) * 2.5 + lv.reduce((a, b) => a + b, 0) / lv.length * 0.25);
+}
+// un match : la force décide en moyenne, la chance fait le reste
+export function playMatch(fa, fb, r = Math.random) {
+  const goals = f => { const lam = Math.max(0.3, 1.3 * f / 55); let k = 0, p = Math.exp(-lam), s = p, u = r(); while (u > s && k < 7) { k++; p *= lam / k; s += p; } return k; };
+  return [goals(fa * 1.05), goals(fb)];   // petit avantage à domicile
+}
+export function pairClubs(clubs, day = "") {
+  const list = clubs.slice().sort((a, b) => hashStr(day + a.id) - hashStr(day + b.id)), out = [];
+  if (list.length % 2) { const i = list.map(c => String(c.id).startsWith("pnj-")).lastIndexOf(true); list.splice(i >= 0 ? i : list.length - 1, 1); }   // nombre impair : un club du jeu se repose
+  for (let i = 0; i + 1 < list.length; i += 2) out.push([list[i], list[i + 1]]);
+  return out;
+}
+export function standings(matches = []) {
+  const t = {};
+  const row = (id, nom) => (t[id] = t[id] || { id, nom, j: 0, g: 0, n: 0, p: 0, bp: 0, bc: 0, pts: 0 });
+  for (const m of matches) {
+    const a = row(m.dom_id, m.dom_nom), b = row(m.ext_id, m.ext_nom);
+    a.j++; b.j++; a.bp += m.buts_dom; a.bc += m.buts_ext; b.bp += m.buts_ext; b.bc += m.buts_dom;
+    if (m.buts_dom > m.buts_ext) { a.g++; b.p++; a.pts += 3; } else if (m.buts_dom < m.buts_ext) { b.g++; a.p++; b.pts += 3; } else { a.n++; b.n++; a.pts++; b.pts++; }
+  }
+  return Object.values(t).sort((x, y) => y.pts - x.pts || (y.bp - y.bc) - (x.bp - x.bc) || y.bp - x.bp);
+}
+export function scorersText(names = []) { const c = {}; names.forEach(n => c[n] = (c[n] || 0) + 1); return Object.entries(c).map(([n, k]) => k > 1 ? `${n} (${k})` : n).join(", ") || null; }
+export const seasonKey = (now = Date.now()) => dayKey(now).slice(0, 7);   // une saison = un mois
+// le joueur accepte-t-il l'offre du club ? (le personnage décide seul, comme un vrai joueur)
+export function cannotRecruit({ owns, isClub, self, age, prix, current = 0, places, used, prison } = {}) {
+  if (!owns) return "Ce club n'est pas à toi.";
+  if (!isClub) return "Seul un club de football peut recruter des joueurs.";
+  if (self) return "Tu es le président du club : recrute quelqu'un d'autre.";
+  if (used >= places) return "L'effectif est complet.";
+  if (prison) return "Ce joueur est en prison.";
+  if (age < CLUB_MIN_AGE || age > CLUB_MAX_AGE) return `Un joueur doit avoir entre ${CLUB_MIN_AGE} et ${CLUB_MAX_AGE} ans.`;
+  const min = Math.max(150, Math.round(current * 1.1));
+  if (!Number.isInteger(Number(prix)) || Number(prix) < min) return `Le joueur refuse : il veut au moins ${fmtMakuta(min)} par journée (10 % de plus que son salaire actuel).`;
+  if (Number(prix) > 2000) return "Salaire trop élevé : 100 e-makuta par journée au plus.";
+  return null;
+}
+
+// ---------------------------------------------------------------- logos des partenaires (onglet défilant du bandeau)
+// Un logo est la marque d'un vrai partenaire : il n'apparaît qu'avec un accord écrit signé. Image réduite par la page
+// admin (160 × 80 au plus) et gardée en base sous forme de data URL.
+export const LOGO_MAX_CHARS = 60000, LOGOS_MAX_SHOWN = 12;
+export function cannotAddLogo(l = {}) {
+  const nom = String(l.nom ?? "").trim();
+  if (nom.length < 2 || nom.length > 40) return "Nom du partenaire : 2 à 40 caractères.";
+  const s = String(l.logo || "");
+  if (!/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(s)) return "Choisis une image (PNG, JPEG ou WebP).";
+  if (s.length > LOGO_MAX_CHARS) return "Image trop lourde : choisis un logo plus simple.";
+  const j = Number(l.jours); if (!Number.isInteger(j) || j < 1 || j > 365) return "Durée : 1 à 365 jours.";
+  if (!l.accord) return "Le logo d'un partenaire n'apparaît qu'avec un accord écrit signé : coche la case.";
+  return null;
+}
+
+// les amendes suivent la loi votée par le Parlement (niveau en %, 100 = montant de base)
+for (const c of [...CRIMES, ...ROAD_FAULTS]) { const base = c.amende; Object.defineProperty(c, "amende", { get: () => fineOf(base), enumerable: true }); }
+
+// ---------------------------------------------------------------- célébrités (25/11) : les personnalités publiques du jeu
+// Le serveur choisit chaque jour les célébrités (vrais joueurs d'abord, sinon des personnages du jeu) et raconte
+// leur parcours et leurs difficultés. Les noms des personnages du jeu sont inventés.
+export const CELEB_DOMAINS = [
+  { id: "politique", nom: "Politique", icone: "🏛️", couleur: "#e0603a", titres: [["Député national", "Députée nationale"], ["Sénateur", "Sénatrice"], ["Bourgmestre", "Bourgmestre"], ["Ministre", "Ministre"]],
+    chiffres: [["voix aux élections", 800, 9000], ["lois votées", 3, 40], ["meetings", 20, 150]] },
+  { id: "sport", nom: "Sport", icone: "⚽", couleur: "#4fc58a", titres: [["Footballeur", "Footballeuse"], ["Basketteur", "Basketteuse"], ["Boxeur", "Boxeuse"], ["Athlète", "Athlète"]],
+    chiffres: [["matchs joués", 40, 300], ["buts ou victoires", 10, 120], ["trophées", 1, 9]] },
+  { id: "musique", nom: "Musique", icone: "🎤", couleur: "#c084fc", titres: [["Chanteur de rumba", "Chanteuse de rumba"], ["Guitariste solo", "Guitariste solo"], ["Atalaku", "Atalaku"], ["Danseur", "Danseuse"]],
+    chiffres: [["concerts", 30, 400], ["albums", 1, 8], ["musiciens dans l'orchestre", 4, 25]] },
+  { id: "religion", nom: "Religion", icone: "⛪", couleur: "#f2c94c", titres: [["Pasteur", "Pasteure"], ["Prêtre", "Religieuse"], ["Chef de chorale", "Cheffe de chorale"], ["Imam", "Prédicatrice"]],
+    chiffres: [["fidèles chaque dimanche", 80, 3000], ["années de service", 3, 35], ["familles aidées", 20, 600]] },
+  { id: "academique", nom: "Académique", icone: "🎓", couleur: "#2d7bff", titres: [["Professeur d'université", "Professeure d'université"], ["Médecin chercheur", "Médecin chercheuse"], ["Doyen de faculté", "Doyenne de faculté"], ["Préfet des études", "Préfète des études"]],
+    chiffres: [["étudiants formés", 200, 6000], ["livres et articles", 2, 60], ["années d'études", 12, 24]] },
+  { id: "autres", nom: "Affaires et autres", icone: "💼", couleur: "#f2a33a", titres: [["Entrepreneur", "Entrepreneuse"], ["Chef de maquis réputé", "Cheffe de maquis réputée"], ["Couturier", "Couturière"], ["Animateur radio", "Animatrice radio"]],
+    chiffres: [["employés", 3, 80], ["années d'activité", 2, 30], ["clients par jour", 30, 900]] },
+];
+const g = (sexe, m, f) => sexe === "F" ? f : m;
+// étapes du parcours, par domaine : [âge relatif (0 = naissance, 1 = aujourd'hui), texte]
+const CELEB_PATH = {
+  politique: [[.15, "fait ses premiers discours au comité des élèves de son école"], [.35, "milite dans une association de jeunes de {q}"], [.5, "perd sa première élection de quelques voix, puis reprend la route des marchés"], [.7, "est {e} après une campagne de porte-à-porte dans toutes les rues"], [.9, "défend au Parlement l'eau potable et les routes de sa commune"]],
+  sport: [[.2, "joue pieds nus sur le terrain de sable de {q}"], [.35, "est {r} par un entraîneur lors d'un tournoi de quartier"], [.5, "signe son premier contrat dans un club de la ville"], [.7, "marque le but de la victoire en finale du championnat"], [.9, "entraîne gratuitement les enfants du quartier le samedi"]],
+  musique: [[.15, "chante à la chorale de l'église chaque dimanche"], [.35, "apprend la guitare sur un instrument prêté par un voisin"], [.5, "donne son premier concert dans un bar de Matonge, devant 30 personnes"], [.7, "voit son titre passer en boucle dans les taxis de Kinshasa"], [.9, "remplit la grande salle de la Gombe pour la première fois"]],
+  religion: [[.2, "sert la messe et chante à la chorale dès l'enfance"], [.4, "étudie les textes sacrés le soir, après les cours"], [.55, "ouvre une petite communauté dans une salle de classe louée"], [.75, "organise des repas pour les familles sinistrées des inondations"], [.9, "réunit des milliers de fidèles pour une veillée de prière"]],
+  academique: [[.15, "lit à la lumière d'une bougie pendant les délestages"], [.35, "décroche son Diplôme d'État avec mention"], [.5, "obtient une bourse et part étudier loin de sa famille"], [.7, "revient enseigner à l'université de Kinshasa"], [.9, "publie un livre étudié dans toutes les écoles du pays"]],
+  autres: [[.2, "vend des beignets devant l'école pour aider sa mère"], [.4, "économise chaque franc dans une likelemba de quartier"], [.55, "ouvre un petit commerce dans un conteneur à {q}"], [.75, "embauche ses premiers employés, tous du quartier"], [.9, "devient un nom connu de toute la ville"]],
+};
+// difficultés : ce que la célébrité a traversé (vie réelle à Kinshasa)
+const CELEB_HARD = {
+  commun: [["💡", "Les délestages", "Des années à travailler sans électricité, avec une lampe torche et un groupe électrogène emprunté."], ["🌧️", "L'inondation", "Une nuit de pluie a emporté la maison familiale : il a fallu tout recommencer chez un oncle."], ["💸", "Le manque d'argent", "Les frais scolaires impayés ont failli tout arrêter. Un voisin a payé une année entière."], ["🚕", "Les embouteillages", "Trois heures de route chaque jour pour aller travailler, en taxi-bus ou à pied."], ["🩺", "La maladie", "Un paludisme grave l'a cloué au lit pendant des semaines, loin de ses projets."]],
+  politique: [["📢", "La rue en colère", "Une loi impopulaire a fait descendre les habitants dans la rue : il a fallu écouter et corriger."], ["🗳️", "La défaite", "Après une défaite à sa première élection, il a fallu un an pour reconstruire sa réputation."], ["📰", "Les rumeurs", "Des accusations sans preuve dans les journaux ont fait douter ses propres électeurs."]],
+  sport: [["🦵", "La blessure", "Une blessure au genou : toute une saison loin des terrains, à se soigner sans salaire."], ["👟", "Le matériel", "Pas de chaussures de sport pendant des années : il jouait pieds nus ou avec des chaussures trop grandes."], ["🧳", "L'exil", "Un club étranger a promis beaucoup puis n'a rien payé : retour à Kinshasa sans argent."]],
+  musique: [["🎸", "Les producteurs", "Un producteur est parti avec l'argent du premier album. Tout a été réenregistré."], ["🔇", "Le piratage", "Ses chansons ont circulé partout sans qu'il ne touche un franc."], ["🎤", "La concurrence", "Des mois à chanter dans des salles vides avant que le public ne vienne."]],
+  religion: [["🏚️", "Le lieu de culte", "Expulsée trois fois de salles louées, la communauté a prié sous une bâche."], ["🤲", "La confiance", "Il a fallu prouver chaque jour que l'argent des dons allait vraiment aux familles."]],
+  academique: [["📚", "Les livres", "Pas de bibliothèque près de chez lui : il recopiait les livres des autres à la main."], ["✈️", "Le départ", "Partir étudier loin, c'était laisser sa famille sans aide pendant des années."], ["🧾", "Les salaires", "Des mois de salaire en retard à l'université, comme beaucoup d'enseignants."]],
+  autres: [["🏪", "La faillite", "Un premier commerce a fermé au bout d'un an : trop de crédits jamais remboursés."], ["🧾", "Les taxes", "Les tracasseries et les taxes ont failli étouffer l'entreprise naissante."], ["🔥", "L'incendie", "Un incendie au marché a détruit tout le stock en une nuit."]],
+};
+const CELEB_QUOTES = ["« Kinshasa ne donne rien, mais elle n'oublie jamais ceux qui se battent. »", "« Je suis parti de rien, alors je n'ai jamais eu peur de tout perdre. »", "« Le talent ouvre la porte, le travail fait entrer. »", "« Chaque délestage m'a appris la patience. »", "« Ma mère disait : le fleuve ne remonte jamais, avance. »", "« On ne réussit jamais seul : tout le quartier était derrière moi. »"];
+export function celebStory(c, seed = 1) {
+  let h = seed >>> 0 || 1; const r = () => ((h = (h * 1103515245 + 12345) >>> 0) / 4294967296);
+  const d = c.domaine, age = Math.max(18, c.age || 30), sx = c.sexe;
+  const fill = t => t.replace("{q}", c.quartier || "Kinshasa").replace("{e}", g(sx, "élu", "élue")).replace("{r}", g(sx, "repéré", "repérée"));
+  const parcours = [{ age: 0, icone: "👶", texte: `Naît à ${c.quartier || "Kinshasa"}, dans une famille de ${2 + Math.floor(r() * 6)} enfants.` }]
+    .concat((CELEB_PATH[d] || CELEB_PATH.autres).map(([k, t]) => ({ age: Math.round(age * k), icone: (CELEB_DOMAINS.find(x => x.id === d) || {}).icone || "⭐", texte: `${c.prenom} ${fill(t)}.` })));
+  const pool = [...(CELEB_HARD[d] || []), ...CELEB_HARD.commun], difficultes = [];
+  while (difficultes.length < 3 && pool.length) { const [icone, titre, texte] = pool.splice(Math.floor(r() * pool.length), 1)[0]; difficultes.push({ icone, titre, texte: texte.replace(/\bil\b(?! a fallu| fallait)/g, g(sx, "il", "elle")).replace(/\blui\b/g, g(sx, "lui", "elle")).replace("cloué", g(sx, "cloué", "clouée")) }); }
+  const D = CELEB_DOMAINS.find(x => x.id === d) || CELEB_DOMAINS[5];
+  const chiffres = D.chiffres.map(([label, a, b]) => ({ label, valeur: Math.round(a + r() * (b - a)) }));
+  return { parcours, difficultes, chiffres, citation: CELEB_QUOTES[Math.floor(r() * CELEB_QUOTES.length)] };
+}
+// mouvements d'un vrai joueur : ce qui le grandit, et ce qui l'a mis à l'épreuve
+const HARD_ICONS = ["🚑", "🚔", "⚖️", "🔒", "😢", "🕯️", "🚪", "⚠️", "📢", "🆘", "💔"];
+const PROUD_ICONS = ["🎖️", "🏆", "🎓", "💼", "⚽", "📜", "🏛️", "📣", "🌟", "🏠", "💍"];
+export const celebClean = (t, argent = false) => String(t).replace(argent ? /$^/ : /\d[\d\s.,]*\s*e-makuta/g, "de l'argent").replace(/^Ton projet : /, "").replace(/\s*\((réputation|popularité)[^)]*\)/g, "")
+  .replace(/ (Ta|Ton|Tes|Tu|Félicitations)\b[^.!]*[.!]/g, "").replace(/(?<!\p{L})ta(?!\p{L})/gu, "sa").replace(/(?<!\p{L})ton(?!\p{L})/gu, "son").replace(/(?<!\p{L})tes(?!\p{L})/gu, "ses").trim();   // texte public : pas de montants privés ni de « tu »
+export function celebFromMoves(c, moves = [], now = Date.now()) {
+  const clean = (t, ic) => celebClean(t, ["📜", "🏛️", "🎖️", "🗳️"].includes(ic));   // les décisions publiques gardent leurs montants
+  const base = celebStory(c, hashStr(c.id || c.prenom));
+  const proud = moves.filter(m => PROUD_ICONS.includes(m.icone)).slice(0, 5).map(m => ({ age: c.age != null ? Math.max(0, c.age - Math.floor((now - m.le) / (365.25 * 864e5))) : null, icone: m.icone, texte: clean(m.texte, m.icone), le: m.le }));
+  const hard = moves.filter(m => HARD_ICONS.includes(m.icone)).slice(0, 4).map(m => ({ icone: m.icone, titre: new Date(m.le).toLocaleDateString("fr-FR"), texte: clean(m.texte, m.icone), date: true }));
+  return { ...base, parcours: [{ age: 0, icone: "👶", texte: `Naît à ${c.quartier || "Kinshasa"}.` }, ...proud.reverse()], difficultes: hard, vraieVie: true };
+}
+// liste du jour : 3 célébrités par domaine au plus ; les joueurs d'abord, complétés par des personnages du jeu
+export function pickCelebrities(cands = {}, now = Date.now(), nameOf = null) {
+  const day = dayKey(now), out = [];
+  for (const D of CELEB_DOMAINS) {
+    const list = (cands[D.id] || []).slice(0, 3).map(x => ({ ...x, domaine: D.id, joueur: true }));
+    for (let i = list.length; i < 3; i++) {
+      let h = hashStr(day.slice(0, 7) + D.id + i); const r = () => ((h = (h * 1103515245 + 12345) >>> 0) / 4294967296);
+      const sx = r() < .5 ? "F" : "M", n = nameOf ? nameOf(r, sx) : newIdentity(r, sx);
+      list.push({ id: `pnj-${D.id}-${i}`, prenom: n.firstName, nom: n.lastName, sexe: sx, quartier: n.quartier, age: 28 + Math.floor(r() * 40), domaine: D.id, pnj: true, rep: 20 + Math.floor(r() * 70) });
+    }
+    list.forEach((x, i) => { x.titre = x.titre || D.titres[(hashStr(x.id) + i) % D.titres.length][x.sexe === "F" ? 1 : 0]; x.icone = D.icone; x.domaineNom = D.nom; x.couleur = D.couleur; });
+    out.push(...list);
+  }
+  const players = out.filter(x => x.joueur), pool = players.length ? players : out;
+  return { domaines: CELEB_DOMAINS.map(({ id, nom, icone, couleur }) => ({ id, nom, icone, couleur })), celebrites: out, aLaUne: pool[hashStr(day) % pool.length].id, jour: day };
+}
+
+// ---------------------------------------------------------------- réactions de la rue (le serveur décide des scénarios)
+// Une décision impopulaire peut faire descendre les habitants dans la rue : l'auteur perd de la réputation.
+export function protestChance(type, valeur) {
+  if (type === "tva") return valeur >= 18 ? Math.min(.9, (valeur - 16) * .15) : 0;
+  if (type === "amendes") return valeur >= 150 ? (valeur - 100) / 250 : 0;
+  if (type === "salaires") return valeur < 100 ? (100 - valeur) / 40 : 0;
+  if (type === "budget") return (valeur.sante || 0) + (valeur.ecole || 0) === 0 ? .25 : 0;
+  return 0;
+}
+const PROTEST_PLACES = ["au rond-point Victoire", "devant le Palais du peuple", "au marché de la Gombe", "sur le boulevard du 30 Juin", "au rond-point Ngaba", "devant la maison communale de Kalamu"];
+export function protestText(type, valeur, seed = 1) {
+  const lieu = PROTEST_PLACES[seed % PROTEST_PLACES.length];
+  const why = { tva: `contre la TVA à ${valeur} % : « tout est devenu trop cher »`, amendes: `contre des amendes à ${valeur} % : « la police nous ruine »`, salaires: `des agents publics contre la baisse de leurs salaires (${valeur} %)`, budget: "contre un budget sans argent pour la santé ni l'école" }[type];
+  return `Manifestation ${lieu} ${why}.`;
+}
+export const PROTEST_REP = 5;
+
+// ---- la vie en direct d'une célébrité (26/11) : où elle habite, ce qu'elle fait à l'heure de Kinshasa, son entourage
+// lieux : type de scène dessinée à l'écran
+const AGENDAS = {
+  politique: [[5, 7, "maison", "Prière et lecture des journaux à la maison"], [7, 8, "route", "En route vers le Palais du peuple, escorté"], [8, 13, "parlement", "En séance au Palais du peuple"], [13, 14, "maquis", "Déjeuner de travail avec des collègues"], [14, 17, "quartier", "Visite d'un chantier dans sa commune"], [17, 19, "bureau", "Reçoit les habitants de sa commune"], [19, 22, "maison", "En famille, dîner à la maison"], [22, 29, "nuit", "Dort chez lui"]],
+  sport: [[5, 7, "quartier", "Footing au bord du fleuve"], [7, 8, "maison", "Petit-déjeuner et soins"], [8, 11, "stade", "Entraînement au stade"], [11, 13, "salle", "Musculation et récupération"], [13, 15, "maison", "Repas et sieste"], [15, 17, "stade", "Séance tactique avec l'équipe"], [17, 19, "quartier", "Signe des autographes pour les enfants"], [19, 22, "maison", "Soirée tranquille à la maison"], [22, 29, "nuit", "Dort (le repos, c'est sacré)"]],
+  musique: [[5, 11, "nuit", "Dort après le concert de la nuit"], [11, 13, "maison", "Écrit une nouvelle chanson"], [13, 16, "studio", "Répétition avec l'orchestre au studio"], [16, 18, "radio", "Interview à la radio"], [18, 20, "maison", "Se prépare : tenue de scène et coiffure"], [20, 24, "scene", "En concert dans une salle de Matonge"], [24, 29, "maquis", "Fête avec les musiciens après le concert"]],
+  religion: [[5, 7, "eglise", "Prière du matin à l'église"], [7, 9, "maison", "Petit-déjeuner en famille"], [9, 12, "quartier", "Visite les malades et les familles en difficulté"], [12, 14, "maison", "Repas et méditation"], [14, 17, "eglise", "Répétition de la chorale et préparation du culte"], [17, 20, "eglise", "Culte du soir devant les fidèles"], [20, 22, "maison", "Conseille des couples à la maison"], [22, 29, "nuit", "Dort chez lui"]],
+  academique: [[5, 7, "maison", "Lecture et préparation des cours"], [7, 8, "route", "Route vers l'université"], [8, 12, "universite", "Donne cours à l'université"], [12, 13, "maquis", "Déjeuner avec des étudiants"], [13, 16, "bibliotheque", "Recherche à la bibliothèque"], [16, 18, "universite", "Corrige les copies et reçoit les étudiants"], [18, 22, "maison", "Écrit son prochain livre à la maison"], [22, 29, "nuit", "Dort chez lui"]],
+  autres: [[5, 7, "maison", "Se lève tôt, prière et café"], [7, 12, "boutique", "Ouvre et dirige son commerce"], [12, 13, "maquis", "Déjeuner rapide au maquis"], [13, 17, "marche", "Négocie avec les fournisseurs au marché"], [17, 19, "boutique", "Fait la caisse avec ses employés"], [19, 22, "maison", "Dîner en famille"], [22, 29, "nuit", "Dort chez lui"]],
+};
+const HOMES = [[0, "Maison familiale de trois pièces"], [30, "Belle maison avec cour et manguier"], [55, "Villa avec groupe électrogène et gardien"], [80, "Grande villa avec piscine et vue sur le fleuve"]];
+const RIDES = [[0, "les taxis-bus et la moto"], [30, "une voiture d'occasion"], [55, "un 4x4 avec chauffeur"], [80, "un convoi de 4x4 avec chauffeur et escorte"]];
+const ENTOURAGE = {
+  politique: ["un chef de cabinet", "deux gardes du corps", "une attachée de presse"], sport: ["un entraîneur personnel", "un agent", "un kiné"], musique: ["un orchestre de 12 musiciens", "un manager", "des danseuses"],
+  religion: ["les diacres de l'église", "la chorale", "un comité de femmes"], academique: ["des assistants de recherche", "des doctorants"], autres: ["des employés du quartier", "un comptable", "un chauffeur"],
+};
+export function celebLive(c, now = Date.now()) {
+  const h = kinHour(now), m = new Date(now + 36e5).getUTCMinutes(), d = c.domaine in AGENDAS ? c.domaine : "autres";
+  const dimanche = new Date(now + 36e5).getUTCDay() === 0;
+  const src = d === "religion" && dimanche ? AGENDAS.religion.map(x => x[0] === 9 ? [9, 12, "eglise", "Grand culte du dimanche devant les fidèles"] : x) : AGENDAS[d];
+  const ag = src.map(([a, b, lieu, texte]) => ({ de: a % 24, a: b % 24, lieu, texte: texte.replace("chez lui", g(c.sexe, "chez lui", "chez elle")).replace("escorté", g(c.sexe, "escorté", "escortée")) }));
+  const hh = h < 5 ? h + 24 : h;   // la nuit continue après minuit
+  let i = src.findIndex(([a, b]) => hh >= a && hh < b); if (i < 0) i = 0;
+  let maintenant = { ...ag[i] };
+  if (c.prison) maintenant = { lieu: "prison", texte: "En cellule au commissariat (24 h)" };
+  else if (c.blesse) maintenant = { lieu: "hopital", texte: "Au centre de santé après un accident" };
+  const rep = Math.max(0, c.rep || 0), lvl = a => [...a].reverse().find(([min]) => rep >= min)[1];
+  const quartier = (c.logement && c.logement.quartier) || c.quartier || "Gombe";
+  const cv = communeView(quartier);
+  const maison = c.logement ? `${c.logement.statut === "proprio" ? "Propriétaire" : "Locataire"} d'une maison à ${quartier}` : lvl(HOMES) + " à " + quartier;
+  let s = hashStr(c.id || c.prenom); const r = () => ((s = (s * 1103515245 + 12345) >>> 0) / 4294967296);
+  const enfants = c.age > 25 ? Math.floor(r() * 5) : 0, marie = c.age > 24 && r() < .7;
+  return {
+    heure: `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`, nuit: h >= 19 || h < 6, maintenant, agenda: ag, indice: i,
+    maison, commune: cv ? { nom: cv.nom, zone: cv.zone, bon: cv.bon, mauvais: cv.mauvais } : { nom: quartier },
+    transport: /Président|Ministre|Gouverneur/.test(c.titre || "") ? "Se déplace en cortège officiel de l'État, avec escorte" : `Se déplace avec ${lvl(RIDES)}`, train: c.train || null,
+    famille: c.vraieVie ? null : `${marie ? g(c.sexe, "Marié", "Mariée") : "Célibataire"}${enfants ? `, ${enfants} enfant${enfants > 1 ? "s" : ""}` : ", pas d'enfant"}`,
+    entourage: ENTOURAGE[d],
+  };
+}
+
+// ---------------------------------------------------------------- dîme, offrandes et visites sur place
+// Comme dans la vraie vie : la dîme = 10 % des revenus du mois, une fois par mois ; l'offrande est libre.
+// Chaque don à un pasteur joueur publie un reçu dans le Journal de Kinshasa (transparence).
+export const OFFERING = { minMakuta: 20, maxMakuta: 20000, dimeTaux: .1, dimeJours: 30, metiers: ["pasteur", "grand-pasteur", "chef-chorale"] };
+// les 100 premiers inscrits (« pionniers ») entrent vraiment dans les bâtiments en 3D : pièces meublées, personnel qui sert
+export const PIONEERS = 100;
+export const pioneerView = (rang, inscrits) => ({ pionnier: rang > 0 && rang <= PIONEERS, rang, places: Math.max(0, PIONEERS - (inscrits || 0)), max: PIONEERS });
+// comme toute recette : l'église paie l'impôt sur les dons reçus (10 %, retenu à la source et versé au Trésor)
+export const offeringTax = montant => Math.round(montant * TAX.recettes);
+export const titheOf = revenus30 => Math.max(OFFERING.minMakuta, Math.round((revenus30 || 0) * OFFERING.dimeTaux));
+export function cannotGiveOffering({ type, montant, solde, toSelf, dimeDuMois, religieux }) {
+  if (!religieux) return "Les dons vont seulement aux pasteurs, aux églises et aux chorales.";
+  if (toSelf) return "Tu ne peux pas te faire un don à toi-même.";
+  if (!["dime", "offrande"].includes(type)) return "Choisis la dîme ou une offrande.";
+  if (type === "dime" && dimeDuMois) return "Tu as déjà payé ta dîme ce mois-ci. Tu peux encore donner une offrande.";
+  if (!Number.isInteger(montant) || montant < OFFERING.minMakuta) return "Le don minimum est de 1 e-makuta.";
+  if (montant > OFFERING.maxMakuta) return "Le don maximum est de 1 000 e-makuta à la fois.";
+  if (solde < montant) return "Pas assez d'argent pour ce don.";
+  return null;
+}
+export function offeringReceipt({ de, vers, titre, type, montant, numero }) {
+  const impot = offeringTax(montant);
+  return `Reçu n° ${numero} · ${de} a ${type === "dime" ? "versé sa dîme" : "donné une offrande"} de ${fmtMakuta(montant)} à ${vers}${titre ? " (" + titre.toLowerCase() + ")" : ""}, dont ${fmtMakuta(impot)} d'impôt versé au Trésor.`;
+}
+// ce qu'on peut aller voir sur place selon ce que fait la célébrité en ce moment : [titre, prix en makuta, bonheur gagné]
+export const PUBLIC_EVENTS = {
+  eglise: ["⛪ Culte", 0, 8], scene: ["🎤 Concert", 100, 14], stade: ["⚽ Match ou entraînement ouvert", 40, 10], parlement: ["🏛️ Séance publique, depuis la tribune", 0, 4],
+  universite: ["🎓 Cours public", 0, 5], radio: ["📻 Émission en public", 0, 4], boutique: ["🏪 Visite de sa boutique", 0, 3], marche: ["🧺 Rencontre au marché", 0, 3], quartier: ["👋 Rencontre dans le quartier", 0, 4],
+};
+export function celebEvent(live) {
+  const L = live && live.maintenant, E = L && PUBLIC_EVENTS[L.lieu];
+  if (!E || live.nuit && L.lieu === "quartier") return null;
+  return { lieu: L.lieu, titre: E[0], prix: E[1], bonheur: E[2], texte: L.texte };
+}
+export const CELEB_VISITS_PER_DAY = 3;
+
+// ---------------------------------------------------------------- pensée du jour (IA facultative)
+// Une petite IA peut écrire ce que le personnage pense aujourd'hui. Elle ne décide RIEN : les règles du jeu
+// (besoins, caractère, consignes, argent) restent seules à agir. Sans IA (démo, panne, quota), un texte
+// écrit à la main prend le relais. Une seule pensée par personnage et par jour.
+export const THOUGHT_MAX = 220;
+export const THOUGHT_MODEL = "@cf/meta/llama-3.1-8b-instruct";
+const THOUGHT_BANNED = /https?:|www\.|@|\b(sexe?|sexuel|nu(e|es)?|tuer|meurtre|suicide|drogue|cocaïne|arme|fusil|pistolet|viol)\b/i;
+const lc1 = s => s ? s.charAt(0).toLowerCase() + s.slice(1) : s;
+export function thoughtFacts(v, caractere = null) {
+  const p = (v && v.perso) || {}, b = p.besoins || {};
+  const car = CARACTERES.find(c => c.id === caractere);
+  const job = v && v.travail && (v.travail.emploiEntreprise ? v.travail.emploiEntreprise.poste || v.travail.emploiEntreprise.nom : (JOBS.find(j => j.id === v.travail.metier) || {}).nom);
+  return { prenom: p.prenom || "Il", fem: p.sexe === "F", age: Math.floor(p.age || 0), quartier: p.quartier || "Kinshasa", caractere: car ? car.nom : null,
+    metier: job || null, faim: b.hunger, energie: b.energy, moral: b.happiness, sante: b.health, makuta: p.makuta || 0,
+    faits: ((v && v.mouvements) || []).slice(0, 4).map(m => m.texte).filter(Boolean) };
+}
+// texte écrit à la main : le besoin le plus urgent d'abord, puis l'humeur selon le caractère
+export function thoughtFallback(F, now = Date.now()) {
+  const r = rng(hashStr("pensee" + dayKey(now) + F.prenom)), pick = a => a[Math.floor(r() * a.length)], e = F.fem ? "e" : "";
+  if (F.age < 3) return pick(["Maman, papa… j'ai envie de jouer.", "Tout est grand et bruyant dehors. J'aime regarder les gens."]);
+  if (F.sante !== undefined && F.sante < 40) return pick([`Je ne me sens pas bien. Si personne ne m'emmène au centre de santé, ça va empirer.`, `J'ai mal partout aujourd'hui. Il faut que je me soigne avant d'aller où que ce soit.`]);
+  if (F.faim !== undefined && F.faim < 30) return pick([`J'ai le ventre vide. Un bon plat de fumbwa au maquis, voilà tout ce que je demande.`, `La faim me tient depuis ce matin. Je ne pense qu'à manger.`]);
+  if (F.energie !== undefined && F.energie < 20) return pick([`Je suis épuisé${e}. Aujourd'hui, je rentre tôt dormir.`, `Mes jambes ne me portent plus. Un peu de repos, sinon je vais tomber.`]);
+  if (F.makuta < 100) return pick([`Les poches sont vides. Il faut que je trouve un petit boulot à ${F.quartier}.`, `Pas un makuta en trop. Je compte chaque dépense aujourd'hui.`]);
+  const byCar = {
+    "Travailleur": [`Le travail, c'est la seule route qui mène quelque part. Je commence tôt aujourd'hui.`],
+    "Paresseux": [`Pourquoi courir ? La journée est longue, je verrai bien.`],
+    "Généreux": [`Si je gagne un peu plus aujourd'hui, j'aiderai un voisin.`],
+    "Avare": [`Chaque makuta gardé est un makuta gagné. Pas de dépenses inutiles.`],
+    "Colérique": [`Que personne ne me cherche aujourd'hui, je n'ai pas la patience.`],
+    "Jaloux": [`Le voisin a encore acheté quelque chose de neuf… et moi alors ?`],
+    "Honnête": [`Je préfère peu gagner mais dormir tranquille.`],
+    "Rusé et malhonnête": [`Il y a toujours une affaire à faire pour qui garde les yeux ouverts.`],
+  };
+  const base = [`Kinshasa bouge déjà. Aujourd'hui, je veux avancer un peu plus qu'hier.`, `Il fait chaud à ${F.quartier}. Je vais voir ce que la journée me réserve.`,
+    F.metier ? `Encore une journée comme ${lc1(F.metier)}. Un jour, j'aurai mieux.` : `Je cherche encore ma voie. Peut-être une formation, peut-être un commerce.`];
+  return pick((F.caractere && byCar[F.caractere] || []).concat(base));
+}
+export function thoughtPrompt(F) {
+  const etat = [F.faim !== undefined && `faim ${100 - F.faim}/100`, F.energie !== undefined && `énergie ${F.energie}/100`, F.moral !== undefined && `moral ${F.moral}/100`, F.sante !== undefined && `santé ${F.sante}/100`].filter(Boolean).join(", ");
+  return [
+    { role: "system", content: "Tu écris la pensée intime du jour d'un personnage d'un jeu de simulation de vie à Kinshasa (RDC). Réponds en français simple, à la première personne, en une ou deux phrases courtes (moins de 200 caractères), sans guillemets. Tu peux glisser un mot de lingala courant. N'invente aucun événement, aucune somme d'argent, aucune personne réelle et aucune marque. Rien de violent, sexuel, haineux ou illégal. Ne donne aucun conseil réel." },
+    { role: "user", content: `Personnage : ${F.prenom}, ${F.fem ? "femme" : "homme"}, ${F.age} ans, quartier ${F.quartier}${F.caractere ? `, caractère ${F.caractere.toLowerCase()}` : ""}${F.metier ? `, métier ${lc1(F.metier)}` : ""}. État : ${etat || "normal"}. Ce qui lui est arrivé récemment : ${F.faits.length ? F.faits.join(" ; ") : "rien de spécial"}. Écris sa pensée du jour.` },
+  ];
+}
+// filtre de sortie : texte court, propre ; sinon null (le texte écrit à la main est utilisé)
+export function cleanThought(t) {
+  if (typeof t !== "string") return null;
+  let s = t.replace(/[\r\n]+/g, " ").replace(/^[\s"«“'*-]+|[\s"»”'*]+$/g, "").replace(/\s+/g, " ").trim();
+  if (s.length < 12 || THOUGHT_BANNED.test(s)) return null;
+  if (s.length > THOUGHT_MAX) { const cut = s.slice(0, THOUGHT_MAX), i = Math.max(cut.lastIndexOf(". "), cut.lastIndexOf("! "), cut.lastIndexOf("? ")); s = i > 40 ? cut.slice(0, i + 1) : cut.replace(/\s+\S*$/, "") + "…"; }
+  return s;
 }

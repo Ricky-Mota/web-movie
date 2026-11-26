@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>2 Life — Célébrités</title>
+  <meta name="description" content="Les célébrités de 2 Life : politiques, sportifs, musiciens, religieux, universitaires. Leur parcours et leurs difficultés, racontés par le jeu.">
+  <meta name="theme-color" content="#07080c">
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@600;700&family=Inter:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/styles.css">
+  <style>
+    body { min-height: 100dvh; }
+    .screen-ov { position: fixed; inset: 0; z-index: 10; display: grid; place-items: center; padding: 56px 16px 24px; overflow-y: auto; background: radial-gradient(80% 80% at 50% 0%, rgba(255,90,31,.18), transparent 60%), rgba(5,6,10,.96); }
+    .card { width: min(980px, 100%); text-align: center; }
+    .card h1 { font-family: var(--font-display); text-transform: uppercase; font-size: clamp(32px, 6vw, 60px); margin: 6px 0 8px; line-height: 1; }
+    .card h1 b { color: var(--accent); }
+    .card p { color: var(--muted); margin: 0 auto 18px; max-width: 640px; }
+    .tag { display: inline-flex; align-items: center; gap: 8px; font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: var(--accent-2); border: 1px solid rgba(255,178,31,.35); border-radius: 99px; padding: 5px 12px; }
+    .tag .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); }
+    .pick { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 18px 0; }
+    @media (max-width: 720px) { .pick { grid-template-columns: repeat(2, 1fr); } }
+    .dom { background: var(--panel); border: 2px solid var(--line); border-radius: 14px; padding: 12px 10px; color: var(--text); cursor: pointer; display: grid; gap: 2px; text-align: center; font: inherit; }
+    .dom[aria-pressed="true"] { border-color: var(--accent); box-shadow: 0 0 0 4px rgba(255,90,31,.18); }
+    .dom .ic { font-size: 28px; line-height: 1.2; }
+    .dom b { font-family: var(--font-display); text-transform: uppercase; font-size: 15px; }
+    .dom small { color: var(--muted); font-size: 12px; }
+    .btn { display: inline-flex; justify-content: center; align-items: center; gap: 8px; border: 0; border-radius: 12px; padding: 14px 22px; font: 700 15px var(--font-display); text-transform: uppercase; letter-spacing: .04em; cursor: pointer; text-decoration: none; }
+    .btn-primary { background: var(--accent); color: #fff; }
+    .btn-ghost { background: transparent; color: var(--text); border: 1px solid var(--line); }
+    .back { position: fixed; top: 14px; left: 14px; z-index: 11; font-size: 14px; color: var(--muted); text-decoration: none; background: none; border: 0; cursor: pointer; font-family: inherit; padding: 6px 0; }
+    .note { font-size: 12px; color: var(--muted); margin-top: 14px; }
+
+    /* écrans de contenu */
+    .page { width: min(980px, 100% - 32px); margin: 0 auto; padding: 58px 0 40px; }
+    .page h2 { font-family: var(--font-display); text-transform: uppercase; font-size: 22px; margin: 26px 0 10px; letter-spacing: .02em; }
+    .une { display: grid; grid-template-columns: 120px 1fr; gap: 18px; align-items: center; background: linear-gradient(135deg, rgba(255,90,31,.16), rgba(18,21,31,.9)); border: 1px solid rgba(255,90,31,.35); border-radius: 18px; padding: 18px; }
+    @media (max-width: 560px) { .une { grid-template-columns: 1fr; text-align: center; } .une .av { margin: 0 auto; } }
+    .une .kicker { font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: var(--accent-2); }
+    .une h3 { font-family: var(--font-display); font-size: 26px; margin: 2px 0 2px; }
+    .une q { display: block; color: var(--text); font-style: italic; margin: 8px 0; }
+    .une p { color: var(--muted); margin: 0 0 12px; font-size: 14px; }
+    .av { width: 96px; height: 96px; border-radius: 50%; display: grid; place-items: center; font: 700 30px var(--font-display); color: #0b0c12; position: relative; flex: none; }
+    .av.sm { width: 52px; height: 52px; font-size: 18px; }
+    .av i { position: absolute; right: -2px; bottom: -2px; font-style: normal; font-size: 22px; background: var(--bg); border-radius: 50%; width: 34px; height: 34px; display: grid; place-items: center; border: 1px solid var(--line); }
+    .av.sm i { font-size: 13px; width: 22px; height: 22px; }
+    .chips { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; margin: 6px 0 12px; }
+    .chip { flex: none; border: 1px solid var(--line); background: var(--panel); color: var(--text); border-radius: 99px; padding: 7px 13px; font: 600 13px var(--font-body); cursor: pointer; }
+    .chip[aria-pressed="true"] { border-color: var(--accent); background: rgba(255,90,31,.15); }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
+    .celeb { display: flex; gap: 12px; align-items: center; text-align: left; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 12px; color: var(--text); cursor: pointer; font: inherit; width: 100%; }
+    .celeb:hover { border-color: rgba(255,90,31,.5); }
+    .celeb b { display: block; font-size: 15px; }
+    .celeb small { display: block; color: var(--muted); font-size: 12.5px; line-height: 1.4; }
+    .badge { display: inline-block; font-size: 11px; border-radius: 99px; padding: 1px 8px; margin-top: 4px; border: 1px solid var(--line); color: var(--muted); }
+    .badge.real { border-color: rgba(47,210,122,.5); color: var(--ok); }
+    .head { display: flex; gap: 18px; align-items: center; flex-wrap: wrap; }
+    .head h1 { font-family: var(--font-display); font-size: clamp(26px, 5vw, 40px); margin: 0; line-height: 1.05; }
+    .head .sub { color: var(--muted); font-size: 14px; }
+    .tabs { display: flex; gap: 6px; border-bottom: 1px solid var(--line); margin: 20px 0 14px; overflow-x: auto; }
+    .tab { flex: none; background: none; border: 0; border-bottom: 3px solid transparent; color: var(--muted); padding: 10px 12px; font: 700 14px var(--font-display); text-transform: uppercase; cursor: pointer; }
+    .tab[aria-selected="true"] { color: var(--text); border-bottom-color: var(--accent); }
+    .tl { list-style: none; margin: 0; padding: 0 0 0 18px; border-left: 2px solid var(--line); }
+    .tl li { position: relative; padding: 0 0 16px 14px; }
+    .tl li::before { content: ""; position: absolute; left: -25px; top: 6px; width: 12px; height: 12px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 4px rgba(255,90,31,.18); }
+    .tl .age { font: 700 12px var(--font-display); color: var(--accent-2); letter-spacing: .08em; text-transform: uppercase; }
+    .hard { display: grid; gap: 10px; }
+    .hard div { background: var(--panel); border: 1px solid var(--line); border-left: 4px solid var(--siren-red); border-radius: 12px; padding: 12px 14px; }
+    .hard b { display: block; margin-bottom: 2px; }
+    .hard p, .news p { margin: 0; color: var(--muted); font-size: 14px; }
+    .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+    .stats div { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 12px; }
+    .stats b { display: block; font: 700 26px var(--font-display); color: var(--accent-2); }
+    .stats span { color: var(--muted); font-size: 13px; }
+    .news { display: flex; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+    .quote { font-style: italic; color: var(--text); border-left: 3px solid var(--accent); padding: 4px 0 4px 12px; margin: 16px 0 0; }
+    .foot { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 22px; }
+    .empty { color: var(--muted); font-size: 14px; }
+    /* vie en direct */
+    .scene { position: relative; border-radius: 18px; overflow: hidden; border: 1px solid var(--line); }
+    .scene svg { width: 100%; height: auto; }
+    .live { position: absolute; left: 12px; top: 12px; display: flex; gap: 8px; align-items: center; font: 700 12px var(--font-display); letter-spacing: .12em; text-transform: uppercase; }
+    .live .rec { background: var(--siren-red); color: #fff; border-radius: 6px; padding: 3px 8px; }
+    .live .clock { background: rgba(0,0,0,.55); color: #fff; border-radius: 6px; padding: 3px 8px; }
+    .now { background: var(--panel); border: 1px solid rgba(255,90,31,.45); border-radius: 14px; padding: 14px 16px; margin: 12px 0; }
+    .now small { display: block; color: var(--accent-2); font: 700 12px var(--font-display); letter-spacing: .12em; text-transform: uppercase; }
+    .now b { font-size: 18px; }
+    .agenda { display: grid; gap: 6px; }
+    .agenda div { display: grid; grid-template-columns: 92px 1fr; gap: 10px; padding: 8px 12px; border-radius: 10px; background: var(--panel); border: 1px solid var(--line); font-size: 14px; color: var(--muted); }
+    .agenda div.on { border-color: var(--accent); color: var(--text); background: rgba(255,90,31,.12); }
+    .agenda div.done { opacity: .6; }
+    .agenda time { font: 700 13px var(--font-display); color: var(--accent-2); }
+    .cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
+    .acts { display: grid; gap: 12px; margin: 14px 0; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
+    .acts .box h3 { margin: 0 0 6px; } .acts .box p { margin: 0 0 10px; color: var(--muted, #b9c0cc); font-size: 14px; }
+    .acts .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+    .acts .btn { padding: 10px 14px; font-size: 13px; background: var(--accent); color: #fff; }
+    .acts .btn.ghost { background: transparent; color: var(--text); border: 1px solid var(--line); }
+    .acts .amt { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; }
+    .acts input { width: 72px; padding: 8px; border-radius: 10px; border: 1px solid var(--line); background: transparent; color: var(--text); font: inherit; }
+    .act-msg { padding: 10px 12px; border-radius: 10px; font-size: 14px; } .act-msg.ok { background: rgba(79,197,138,.14); } .act-msg.ko { background: rgba(229,72,77,.14); }
+    .box { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; }
+    .box h3 { font-family: var(--font-display); text-transform: uppercase; font-size: 15px; margin: 0 0 8px; }
+    .box p, .box li { color: var(--muted); font-size: 14px; margin: 0 0 6px; }
+    .box ul { margin: 0; padding-left: 18px; }
+  </style>
+</head>
+<body>
+  <!-- écran d'accueil (comme la visite de Kinshasa) -->
+  <section class="screen-ov" id="menu">
+    <nav data-site-tabs></nav>
+    <div class="card">
+      <span class="tag"><span class="dot"></span> Célébrités · personnalités publiques</span>
+      <h1>2<b> LIFE</b> · Célébrités</h1>
+      <p>Politiques, sportifs, musiciens, religieux, universitaires et entrepreneurs : chaque jour, le jeu choisit les personnalités de la ville et raconte leur parcours, leurs réussites et les difficultés qu'elles ont traversées.</p>
+      <div class="pick" id="pick"></div>
+      <button class="btn btn-primary" id="go" type="button">Découvrir leurs histoires</button>
+      <p class="note" id="menu-note">Les vrais joueurs devenus célèbres passent en premier. Les autres sont des personnages du jeu, aux noms inventés.</p>
+    </div>
+  </section>
+
+  <!-- liste des célébrités -->
+  <main class="page" id="list" hidden>
+    <button class="back" id="to-menu" type="button">← Accueil</button>
+    <h2 style="margin-top:0">⭐ À la une aujourd'hui</h2>
+    <div id="une"></div>
+    <h2>Toutes les célébrités</h2>
+    <div class="chips" id="chips"></div>
+    <div class="grid" id="grid"></div>
+  </main>
+
+  <!-- fiche d'une célébrité -->
+  <main class="page" id="fiche" hidden>
+    <button class="back" id="to-list" type="button">← Toutes les célébrités</button>
+    <div class="head" id="f-head"></div>
+    <div class="tabs" role="tablist" id="f-tabs"></div>
+    <div id="f-body"></div>
+    <div class="foot"><button class="btn btn-primary" id="f-live" type="button">👁️ Sa vie en direct</button><button class="btn btn-ghost" id="f-prev" type="button">← Précédente</button><button class="btn btn-ghost" id="f-next" type="button">Suivante →</button><button class="btn btn-primary" id="f-follow" type="button">☆ Suivre</button></div>
+  </main>
+
+  <!-- la vie en direct d'une célébrité -->
+  <main class="page" id="direct" hidden>
+    <button class="back" id="to-fiche" type="button">← Sa fiche</button>
+    <div id="d-body"></div>
+  </main>
+
+  <script src="config.js"></script>
+  <script src="assets/nav.js"></script>
+  <script type="module" src="assets/celebrites.js"></script>
+</body>
+</html>

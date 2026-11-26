@@ -170,6 +170,8 @@
     { id: "basket", type: "basket", nom: "Terrain de basket", icone: "🏀", w: 320, d: 210, open: true, statut: "Un match de basket est en cours." },
     { id: "club1", type: "club", nom: "Mokili Club", icone: "🪩", w: 240, d: 190, h: 70, statut: "Boîte de nuit : réservée aux joueurs de 18 ans et plus, ouvre après le lancement." },
     { id: "club2", type: "club", nom: "Kin Lumière Lounge", icone: "🪩", w: 220, d: 180, h: 60, statut: "Boîte de nuit : réservée aux joueurs de 18 ans et plus, ouvre après le lancement." },
+    { id: "concert", type: "concert", nom: "Kin Show Arena", icone: "🎤", w: 320, d: 240, h: 90, statut: "Salle de concert : un orchestre de rumba et de ndombolo joue chaque soir de 19 h à 1 h. Entrée 8 e-makuta." },
+    { id: "piscine", type: "piscine", nom: "Piscine Kin Oasis", icone: "🏊", w: 290, d: 230, h: 30, statut: "Piscine en plein air : baignade, transats, bar à cocktails et DJ. Ouverte de 9 h à 19 h. Entrée 4 e-makuta." },
     { id: "alim1", type: "alim", nom: "Alimentation Mama Kitoko", icone: "🛒", w: 220, d: 170, h: 80, statut: "Alimentation : nourriture et boissons pour ton personnage." },
     { id: "alim2", type: "alim", nom: "Super Alimentation du Boulevard", icone: "🛒", w: 260, d: 190, h: 85, statut: "Alimentation : nourriture et boissons pour ton personnage." },
     { id: "mode", type: "magasin", nom: "Galerie Mode Kin", icone: "👗", w: 260, d: 190, h: 75, statut: "Magasin de vêtements : habille ton personnage." },
@@ -189,6 +191,7 @@
     { id: "marche", type: "marche", nom: "Marché de la Gombe", icone: "🧺", w: 360, d: 240, open: true, near: "alim1", statut: "Marché : légumes, poisson, pagnes, téléphones. Ouvert de 6 h à 18 h." },
     { id: "park1", type: "parking", nom: "Parking du centre-ville", icone: "🅿️", w: 310, d: 180, open: true, near: "zboss", statut: "Parking public : les voitures des habitants y sont garées." },
     { id: "park2", type: "parking", nom: "Parking du stade", icone: "🅿️", w: 310, d: 180, open: true, near: "foot", statut: "Parking public : les supporters s'y garent les jours de match." },
+    { id: "eglise", type: "eglise", nom: "Église du Réveil de la Gombe", icone: "⛪", w: 300, d: 220, h: 95, statut: "Église : culte le dimanche matin, prière en semaine. Les pasteurs et chorales des joueurs y officient." },
     { id: "park3", type: "parking", nom: "Parking des institutions", icone: "🅿️", w: 310, d: 180, open: true, near: "mairie", statut: "Parking public réservé aux visiteurs des institutions." },
   ];
   // textes du guide (mode Tourisme)
@@ -205,6 +208,9 @@
     dgi: "La DGI collecte les impôts qui financent la ville.",
     jeux: "L'aire de jeux, le lieu préféré des bébés et des enfants de 2 Life.",
     club1: "Le Mokili Club, une des boîtes de nuit les plus animées de Kin.",
+    concert: "Kin Show Arena : les orchestres de rumba et de ndombolo y font danser la ville tous les soirs.",
+    piscine: "La Piscine Kin Oasis : on y nage, on bronze sur les transats et on boit un cocktail au son de la rumba.",
+    eglise: "L'Église du Réveil : cultes, chorales et prières, comme dans toutes les communes de Kinshasa.",
   };
   const PLACES = [], BILLBOARDS = [], BENCHES = [], PARKED = [], LIGHTS = [], LIGHT_AT = new Map();
   (function () {
@@ -254,6 +260,7 @@
         const m = o.open ? 4 : 2;
         for (let v = -o.d / 2; v <= o.d / 2; v += C / 2) for (let u = -o.w / 2; u <= o.w / 2; u += C / 2) { const k = ((o.y + o.uy * u + o.ny * v) / C | 0) * MW + ((o.x + o.ux * u + o.nx * v) / C | 0); mask[k] = m; }
         o.door = { x: o.x - o.nx * (o.d / 2 + 30), y: o.y - o.ny * (o.d / 2 + 30) };
+        if (o.resto) o.terrace = [-1, 1].map(k => ({ u: k * o.w * .3, v: -(o.d / 2 + 16) }));
       });
     }
     PLACES.inPlace = inPlace;
@@ -316,12 +323,42 @@
       LIGHT_AT.set(i, L); LIGHTS.push(L);
     });
   })();
+  // habitations périphériques (26/11) : les parcelles des quartiers populaires bordent les rues hors de la Gombe,
+  // puis un second rang remplit les terrains nus. Posées après les lieux, bancs et parkings : rien d'existant ne bouge.
+  (function () {
+    const pr = rng(9091), y0 = H * .28, MAXN = 22000; let n = 0;
+    const free = (xa, ya, xb, yb) => { if (xa < 0 || ya < 0 || xb >= W || yb >= H) return false; for (let y = ya; y <= yb; y += C) for (let x = xa; x <= xb; x += C) if (mask[(y / C | 0) * MW + (x / C | 0)] !== 0) return false; return true; };
+    const near = (A, x, y, r) => A.some(o => Math.abs(o.x - x) < r && Math.abs(o.y - y) < r);
+    const put = (x, y, w, d) => {
+      if (n >= MAXN || y < y0 || !free(x - w / 2 - 14, y - d / 2 - 14, x + w / 2 + 14, y + d / 2 + 14)) return false;
+      if (near(PLACES, x, y, 420) || near(PARKED, x, y, 90) || near(BENCHES, x, y, 70) || near(BILLBOARDS, x, y, 90) || near(LIGHTS, x, y, 160) || near(SHOPS, x, y, 400)) return false;
+      FILL.push({ x, y, w, d, h: 26 + pr() * 14, c: (pr() * 12) | 0, peri: true }); n++;
+      for (let yy = y - d / 2; yy < y + d / 2; yy += C) for (let xx = x - w / 2; xx < x + w / 2; xx += C) mask[(yy / C | 0) * MW + (xx / C | 0)] = 2;
+      return true;
+    };
+    ROADS.forEach(r => {
+      if (!["residential", "tertiary", "unclassified", "secondary", "living_street"].includes(r.cls)) return;
+      for (let k = 2; k < r.p.length; k += 2) {
+        const ax = r.p[k - 2], ay = r.p[k - 1], bx = r.p[k], by = r.p[k + 1], L = Math.hypot(bx - ax, by - ay); if (L < 140) continue;
+        const ux = (bx - ax) / L, uy = (by - ay) / L;
+        for (let t = 60; t < L - 60; t += 115 + pr() * 35) for (const sd of [-1, 1]) {
+          const w = 78 + pr() * 40, d = 70 + pr() * 34, off = r.w / 2 + 34 + Math.max(w, d) / 2;
+          put(ax + ux * t - uy * off * sd, ay + uy * t + ux * off * sd, w, d);
+        }
+      }
+    });
+    for (let gy = y0; gy < H - 160; gy += 165) for (let gx = 160; gx < W - 160; gx += 165) put(gx + (pr() - .5) * 40, gy + (pr() - .5) * 40, 74 + pr() * 36, 66 + pr() * 30);
+    FILL.periN = n;
+  })();
   // cycle de 24 s : axe A vert 10 s, orange 2 s, puis axe B
   function lightState(L, t) { const k = ((t + L.ph) % 24 + 24) % 24; return { a: k < 10 ? "g" : k < 12 ? "y" : "r", b: k < 12 ? "r" : k < 22 ? "g" : "y" }; }
   function redFor(L, a, t) { const s = lightState(L, t); return Math.abs(Math.cos(a - L.ax)) > .7 ? s.a : s.b; }
   // heures d'ouverture des lieux
-  const HOURS = { alim: [7, 21], magasin: [9, 19], partenaire: [8, 17], etat: [8, 16], bureau: [7, 18], club: [20, 4], marche: [6, 18] };
-  function isOpen(o, h) { const H = HOURS[o.type]; if (!H || h === undefined) return true; return H[0] < H[1] ? h >= H[0] && h < H[1] : h >= H[0] || h < H[1]; }
+  const HOURS = { alim: [7, 21], magasin: [9, 19], partenaire: [8, 17], etat: [8, 16], bureau: [7, 18], club: [20, 4], marche: [6, 18], eglise: [6, 21], concert: [19, 1], piscine: [9, 19] };
+  // exceptions réalistes : l'hôpital et la police ne ferment jamais
+  const HOURS_ID = { hopital: [0, 24], police: [0, 24] };
+  const hoursOf = o => HOURS_ID[o.id] || HOURS[o.type];
+  function isOpen(o, h) { const H = hoursOf(o); if (!H || h === undefined) return true; return H[0] < H[1] ? h >= H[0] && h < H[1] : h >= H[0] || h < H[1]; }
   // déplacement à pied : murs du showroom (porte côté rue), bâtiments et eau
   function walkBlocked(x, y) {
     const g = (x < 0 || y < 0 || x >= W || y >= H) ? 2 : mask[(y / C | 0) * MW + (x / C | 0)];
@@ -439,8 +476,29 @@
       const s = ctx.createBufferSource(); s.buffer = buf; const f = ctx.createBiquadFilter(); f.type = "lowpass"; f.frequency.value = freq || 900;
       const g = ctx.createGain(); g.gain.value = vol; s.connect(f); f.connect(g); g.connect(master); s.start();
     }
+    // ---- musique congolaise composée par le jeu (aucun enregistrement d'artiste) : rumba lente ou ndombolo rapide.
+    // Batterie (grosse caisse, caisse claire, charleston « tcha-tcha »), basse, guitare solo « sebene » en arpèges rapides.
+    let mus = null, NOISE = null;
+    const PROG = [[0, 4, 7], [5, 9, 12], [7, 11, 14], [5, 9, 12]];   // I – IV – V – IV, la grille classique de la rumba
+    const STY = { ndombolo: { bpm: 132, kick: [0, 4, 8, 12], snare: [4, 12, 14], hat: 1, bass: [[0, 0], [6, 7], [8, 12], [11, 7], [14, 4]], lead: 1 }, rumba: { bpm: 104, kick: [0, 10], snare: [8], hat: 2, bass: [[0, 0], [6, 7], [10, 12], [12, 7]], lead: 2 } };
+    function tone(f, t, dur, type, vol, dest) { const o = ctx.createOscillator(), g = ctx.createGain(); o.type = type; o.frequency.value = f; g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(vol, t + .006); g.gain.exponentialRampToValueAtTime(.0005, t + dur); o.connect(g); g.connect(dest); o.start(t); o.stop(t + dur + .05); }
+    function hit(t, vol, dur, f, type, dest) { if (!NOISE) { const n = ctx.sampleRate; NOISE = ctx.createBuffer(1, n, n); const d = NOISE.getChannelData(0); for (let i = 0; i < n; i++) d[i] = Math.random() * 2 - 1; } const s = ctx.createBufferSource(); s.buffer = NOISE; const fl = ctx.createBiquadFilter(); fl.type = type; fl.frequency.value = f; const g = ctx.createGain(); g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(.0005, t + dur); s.connect(fl); fl.connect(g); g.connect(dest); s.start(t, Math.random() * .5); s.stop(t + dur + .02); }
+    function kick(t, vol, dest) { const o = ctx.createOscillator(), g = ctx.createGain(); o.frequency.setValueAtTime(140, t); o.frequency.exponentialRampToValueAtTime(42, t + .13); g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(.0005, t + .22); o.connect(g); g.connect(dest); o.start(t); o.stop(t + .25); }
+    function musStep(st, i, t) {
+      const bar = Math.floor(i / 16) % 4, k = i % 16, ch = PROG[bar], root = 196, d = mus.bus, semi = n => Math.pow(2, n / 12);
+      if (st.kick.includes(k)) kick(t, .5, d);
+      if (st.snare.includes(k)) hit(t, k === 14 ? .12 : .22, .12, 1800, "bandpass", d);
+      if (k % st.hat === 0) hit(t, (k % 4 === 2 ? .09 : .05), .045, 8000, "highpass", d);
+      const b = st.bass.find(x => x[0] === k); if (b) tone(root / 2 * semi(ch[0] + b[1]), t, .28, "triangle", .32, d);
+      if (k % st.lead === 0) {   // sebene : la guitare solo tourne sur les notes de l'accord, une octave plus haut
+        const arp = [0, 1, 2, 1, 2, 0, 1, 2], n = ch[arp[(k / st.lead) % 8]] + (k >= 8 && st.lead === 1 ? 12 : 0);
+        tone(root * 2 * semi(n), t, .14, "triangle", .07, d); tone(root * 2 * semi(n) * 1.003, t, .09, "square", .012, d);
+      }
+      if (st.lead === 2 && k === 0) ch.forEach(n => tone(root * semi(n), t, 2.2, "sine", .035, d));   // rumba : nappe douce, comme les chœurs
+    }
     return {
       init, get muted() { return muted; },
+
       toggle() { muted = !muted; if (master) master.gain.setTargetAtTime(muted ? 0 : .55, ctx.currentTime, .05); return muted; },
       update(speedRatio, throttle, sirenLevel, running) {
         if (!ctx) return; const t = ctx.currentTime;
@@ -453,6 +511,16 @@
       crash(v) { if (v > 0 && v < 1e5) noiseBurst(Math.min(.6, v / 900), .35, 700); },
       boost() { noiseBurst(.12, .5, 2500); },
       suspend() { if (ctx) ctx.suspend(); }, resume() { if (ctx) ctx.resume(); },
+      // style : "ndombolo" | "rumba" | null ; level 0–1 ; muffle : entendue de dehors (à travers les murs)
+      music(style, level, muffle) {
+        if (!ctx) return; const t = ctx.currentTime;
+        if (!style) { if (mus) { mus.out.gain.setTargetAtTime(0, t, .4); if (mus.out.gain.value < .01) { mus.out.disconnect(); mus = null; } } return; }
+        if (!mus || mus.style !== style) { if (mus) mus.out.disconnect(); const out = ctx.createGain(); out.gain.value = 0; const fl = ctx.createBiquadFilter(); fl.type = "lowpass"; fl.frequency.value = 16000; const bus = ctx.createGain(); bus.gain.value = .55; bus.connect(fl); fl.connect(out); out.connect(master); mus = { style, out, fl, bus, i: 0, next: t + .05 }; }
+        mus.out.gain.setTargetAtTime(muted ? 0 : level, t, .3); mus.fl.frequency.setTargetAtTime(muffle ? 650 : 16000, t, .3);
+        const st = STY[style], dt = 60 / st.bpm / 4;
+        if (mus.next < t - .5) mus.next = t + .02;
+        while (mus.next < t + .25) { musStep(st, mus.i++, mus.next); mus.next += dt; }
+      },
     };
   })();
 
@@ -504,6 +572,10 @@
       let x = player.x + rx * 30, y = player.y + ry * 30; if (walkBlocked(x, y)) { x = player.x - rx * 30; y = player.y - ry * 30; }
       G.foot = { x, y, a: player.a, v: 0, t: 0 };
       const hm = HOME(); if (hm) { const n = nearestNode(hm.door.x, hm.door.y), N = nodes[n], m = N.nb[0] ?? n, pt = edgePoint(m, n, Math.min(30, N.w * .22)); player.x = pt.x; player.y = pt.y; player.a = Math.atan2(N.y - nodes[m].y, N.x - nodes[m].x) || 0; }
+      // venu d'une fiche célébrité (« aller le voir sur place ») : on arrive devant le lieu
+      let lieu = null; try { lieu = new URLSearchParams(location.search).get("lieu"); } catch (e) { }
+      const LP = lieu && PLACES.find(o => o.id === lieu);
+      if (LP) { G.foot.x = LP.door.x - LP.nx * 25; G.foot.y = LP.door.y - LP.ny * 25; G.foot.a = Math.atan2(LP.ny, LP.nx); msg("📍 Ton personnage arrive devant : " + LP.nom + ".", 5, "ok"); }
     } else msg("Roule. Les patrouilles te repèrent si tu dépasses 170 km/h devant elles.", 4.5);
   }
   function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
@@ -521,8 +593,10 @@
       const off = Math.min(30, T.w * .22), x = F.x - Math.sin(a) * off, y = F.y + Math.cos(a) * off;
       if (solidAt(x, y)) continue;
       if ([...G.traffic, ...G.parked, ...G.cops].some(o => Math.abs(o.x - x) < 50 && Math.abs(o.y - y) < 50)) continue;   // jamais sur une autre voiture
-      const c = makeCar("traffic", x, y, a, { maxSpeed: 150 + rand() * 90, accel: 260, steerMax: 2.2, dmgMul: 1, mass: .8, grip: 9 });
+      const c = makeCar("traffic", x, y, a, { maxSpeed: WALK ? ROAD.npc() : 150 + rand() * 90, accel: 260, steerMax: 2.2, dmgMul: 1, mass: .8, grip: 9 });
       c.from = from; c.to = to; c.tIdx = (rand() * TRAFFIC_SPRITES.length) | 0; c.sprite = TRAFFIC_SPRITES[c.tIdx]; c.bus = rand() < .12; c.taxi = !c.bus && rand() < .38; if (c.bus) { c.maxSpeed *= .8; Object.assign(c, { hl: BUS_HL, hw: BUS_HW, offs: BUS_OFF, mass: 3 }); }
+      // camions (benne, bâché, citerne) et motos (dont les motos-taxis « wewa ») : mêmes feux, même code de la route
+      if (WALK && !c.bus) { const k = rand(); if (k < .09 && !truckBanned(x, y)) { c.taxi = false; c.truck = ["benne", "bache", "citerne"][(rand() * 3) | 0]; c.maxSpeed = ROAD.truck(); Object.assign(c, { hl: 30, hw: 11, offs: [-20, 0, 20], mass: 3.5, accel: 150 }); } else if (k < .3) { c.taxi = false; c.moto = true; c.wewa = !wewaBanned(x, y) && rand() < .6; c.pass = c.wewa && rand() < .6; c.helmet = c.tIdx % 3 !== 0; Object.assign(c, { hl: 10, hw: 4, offs: [0], mass: .35, accel: 300 }); } }
       const sp = c.maxSpeed * .7; c.vx = Math.cos(a) * sp; c.vy = Math.sin(a) * sp;
       G.traffic.push(c); return;
     }
@@ -676,10 +750,20 @@
     c.inp.nitro = c.mode === "chase" && sees && dist > 380 && G.heat >= 4 ? 1 : 0;
     if (c.mode === "chase" && dist < 85 && Math.hypot(p.vx, p.vy) < 200) { c.inp.gas = 0; c.inp.brake = 1; c.inp.hand = 0; c.inp.nitro = 0; } // encercle au lieu de pousser
   }
+  // feu rouge (ou orange trop tard) devant le véhicule
+  // (tous les feux devant lui, pas seulement celui du prochain nœud : un carrefour peut être traversé « en passant »)
+  function redAhead(c) {
+    const fx = Math.cos(c.a), fy = Math.sin(c.a);
+    for (const L of LIGHTS) {
+      const dx = L.x - c.x, dy = L.y - c.y; if (Math.abs(dx) > 400 || Math.abs(dy) > 400) continue;
+      const d = Math.hypot(dx, dy); if (d >= L.w / 2 + 95 || d <= L.w / 2 + 2 || dx * fx + dy * fy < d * .3) continue;
+      const st = redFor(L, Math.atan2(dy, dx), G.t); if (st === "r" || (st === "y" && d > L.w / 2 + 40)) return true;   // axe d'arrivée = direction vers le carrefour
+    }
+    return false;
+  }
   // feu rouge devant, ou voiture arrêtée juste devant : on freine
   function stopHere(c, to) {
-    const L = LIGHT_AT.get(to);
-    if (L) { const d = Math.hypot(L.x - c.x, L.y - c.y); if (d < L.w / 2 + 95 && d > L.w / 2 + 8) { const st = redFor(L, c.a, G.t); if (st === "r" || (st === "y" && d > L.w / 2 + 40)) return true; } }
+    if (redAhead(c)) return true;
     const fx = Math.cos(c.a), fy = Math.sin(c.a);
     for (const o of G.buses ? G.traffic.concat(G.buses) : G.traffic) { if (o === c) continue; const dx = o.x - c.x, dy = o.y - c.y, ah = dx * fx + dy * fy; if (ah > 0 && ah < (c.hl || CAR_HL) + (o.hl || CAR_HL) + 20 && Math.abs(-dx * fy + dy * fx) < (o.hw || CAR_HW) + 7 && Math.hypot(o.vx, o.vy) < Math.hypot(c.vx, c.vy) + 20) return true; }
     // un piéton (ou le personnage) sur la chaussée juste devant : on le laisse passer
@@ -695,6 +779,7 @@
     const sp = Math.hypot(c.vx, c.vy), ang = Math.abs(angDiff(c.a, Math.atan2(t.y - c.y, t.x - c.x)));
     c.inp.gas = sp < c.maxSpeed * (ang > .5 ? .45 : 1) ? 1 : 0; c.inp.brake = ang > .8 && sp > 200 ? 1 : 0;
     if (WALK && stopHere(c, c.to)) { c.inp.gas = 0; c.inp.brake = 1; }
+    if (WALK && c.taxi) taxiDrive(c, G.dt || 1 / 30);
     if (c.x < 30 || c.x > W - 30 || c.y < 30 || c.y > H - 30) c.dead = true;
   }
 
@@ -806,7 +891,17 @@
   function pedStep(q, dt, cars) {
     if (q.play) return;
     if (q.bus) { busPed(q, dt); return; }
+    if (q.serve) { serveStep(q, dt); return; }
+    if (q.crewOf) { if (q.talk) q.talk = Math.max(0, q.talk - dt); return; }
+    if (q.goIn) { goInStep(q, dt); return; }
+    if (q.hail) return;   // il attend un taxi, la main levée (taxiLife)
+    if (q.emerge) { // il sort du lieu et rejoint le trottoir
+      const e = q.emerge, dx = e.x - q.x, dy = e.y - q.y, d = Math.hypot(dx, dy); q.t += dt; q.state = "walk";
+      if (d < 4) { q.emerge = null; return; }
+      q.a += angDiff(q.a, Math.atan2(dy, dx)) * Math.min(1, dt * 6); const v = Math.min(d, q.v * dt); q.x += dx / d * v; q.y += dy / d * v; return;
+    }
     q.t += dt;
+    if (q.state === "down") { q.st -= dt; if (q.st <= 0) { q.state = "cower"; q.st = 2; q.hurt = false; } return; }   // blessé au sol, puis se relève
     if (q.talk) { // le joueur lui parle : il s'arrête et le regarde
       q.talk -= dt; q.state = "idle"; const f = G.foot; if (f) { const da = angDiff(q.a, Math.atan2(f.y - q.y, f.x - q.x)); q.a += Math.max(-4 * dt, Math.min(4 * dt, da)); }
       if (q.talk <= 0) { q.talk = 0; q.state = q.staff ? "idle" : "walk"; } return;
@@ -901,14 +996,94 @@
   // voiture (boîte orientée) contre piéton : le piéton est repoussé hors de la carrosserie
   function pushFromCar(c, x, y, r) { return pushOut({ x: c.x, y: c.y, ux: Math.cos(c.a), uy: Math.sin(c.a), hw: c.hl || CAR_HL, hh: c.hw || CAR_HW }, x, y, r); }
   function moveBody(q, d) { const nx = q.x + d[0], ny = q.y + d[1]; if (!walkBlocked(nx, ny)) { q.x = nx; q.y = ny; return true; } if (!walkBlocked(nx, q.y)) { q.x = nx; return true; } if (!walkBlocked(q.x, ny)) { q.y = ny; return true; } return false; }
+  // voiture contre piéton (règle validée le 25/11) : choc fort = accident avec blessure, choc léger = simple bousculade.
+  // Vitesse en unités du jeu (x 0,45 = km/h) : au-dessus de 55 (environ 25 km/h), c'est un accident.
+  const BUMP_MIN = 8, CRASH_SPEED = 55, HURT_SECONDS = 25;
+  function carHitsPed(c, q) {
+    const sp = Math.hypot(c.vx || 0, c.vy || 0); if (sp < BUMP_MIN || (q.hitCd || 0) > G.t) return;
+    q.hitCd = G.t + 3;
+    const riding = G.auto && G.auto.phase === "ride";   // dans un taxi, c'est le chauffeur qui conduit, pas le personnage
+    const me = q === G.foot, mine = c === G.player && !riding, near = me || mine || (G.foot && Math.hypot(q.x - G.foot.x, q.y - G.foot.y) < 500);
+    const who = me ? "Ton personnage" : q.cop ? "Un policier" : ident(q).nom, kmh = Math.round(sp * .45);
+    const ux = sp ? c.vx / sp : 0, uy = sp ? c.vy / sp : 0;
+    c.stun = Math.max(c.stun || 0, sp >= CRASH_SPEED ? 3 : 1);   // le conducteur s'arrête
+    if (sp >= CRASH_SPEED) {   // accident : le piéton tombe et reste au sol, blessé
+      moveBody(q, [ux * 14, uy * 14]);
+      if (me) { G.energy = Math.max(0, G.energy - 35); const t = `🚑 Accident : ton personnage a été renversé par une voiture à ${kmh} km/h. Blessé, il doit aller se soigner au centre de santé.`; if (G.me && G.me.journal) note(t, "alert"); else msg(t, 5, "alert"); reportInjury(kmh); return; }
+      q.chat = null; q.talk = 0; q.greet = null; q.state = "down"; q.st = HURT_SECONDS; q.hurt = true;
+      if (near) msg(`🚑 Accident : ${who} est ${ident(q).woman ? "blessée" : "blessé"} par une voiture (${kmh} km/h). Les secours arrivent.`, 5, "alert");
+      if (mine) { msg("🚓 Tu as blessé un piéton : amende, frais médicaux de la victime et casier judiciaire.", 5, "alert"); if (WALK) reportFault("accident-pieton", kmh); }
+      return;
+    }
+    // bousculade : le piéton est poussé, a peur un instant, puis repart
+    moveBody(q, [ux * 6, uy * 6]);
+    if (me) { G.energy = Math.max(0, G.energy - 3); msg("😬 Bousculade : une voiture a frôlé ton personnage, plus de peur que de mal.", 3); return; }
+    if (q.state !== "down") { q.state = "cower"; q.st = 1.5; }
+    if (near) msg(`😬 Bousculade : ${who} a été légèrement ${ident(q).woman ? "poussée" : "poussé"} par une voiture.`, 3);
+    if (mine && WALK && kmh >= 3) { msg("😠 Les passants te regardent de travers : ta réputation baisse un peu.", 3); reportFault("bousculade-pieton", kmh); }
+  }
+  // la blessure compte aussi dans la santé du personnage (serveur, ou données de démo de « Ma vie ») : soins payants obligatoires
+  function reportInjury(kmh) {
+    const API = (window.TWO_LIFE_API || "").replace(/\/$/, "");
+    if (API) {
+      let t = null; try { t = JSON.parse(localStorage.getItem("twolife_token")); } catch (e) { }
+      if (t) fetch(API + "/api/accident", { method: "POST", headers: { "Content-Type": "application/json", Authorization: "Bearer " + t }, body: JSON.stringify({ kmh }) }).catch(() => { });
+      return;
+    }
+    demoEvent("/api/accident", { kmh });
+  }
+  // démo : l'événement attend dans ce navigateur, « Ma vie » l'applique avec les mêmes règles que le serveur
+  function demoEvent(path, body) {
+    try { const q = JSON.parse(localStorage.getItem("twolife_demo_ville") || "[]"); q.push({ path, body, le: Date.now() }); localStorage.setItem("twolife_demo_ville", JSON.stringify(q.slice(-20))); } catch (e) { }
+  }
+  // ---------------------------------------------------------------- code de la route (26/11)
+  // En ville : 50 km/h (x 0,45 = km/h dans les unités du jeu), arrêt au feu rouge, priorité aux piétons, distance de sécurité.
+  // Les voitures, taxis et bus du jeu respectent ces règles. Le joueur qui conduit lui-même est verbalisé :
+  // feu rouge grillé (agent de la circulation à chaque feu), excès de vitesse vu par la police, contrôle du permis.
+  // les poids lourds sont interdits dans la Gombe de 6 h à 20 h (comme dans beaucoup de grandes villes)
+  const GOMBE_Y = H * .33, truckBanned = (x, y) => WALK && y < GOMBE_Y && G.hour >= 6 && G.hour < 20;
+  const wewaBanned = (x, y) => WALK && y < GOMBE_Y;   // motos-taxis interdites dans la Gombe
+  // casque obligatoire : un policier qui voit un motard sans casque l'arrête et lui donne une amende
+  function helmetCheck(dt) {
+    if (!WALK) return; const f = G.foot || G.player;
+    for (const c of G.traffic) {
+      if (!c.moto || c.helmet || c.fined) continue;
+      const cop = G.peds.find(q => q.cop && !q.gone && Math.abs(q.x - c.x) < 260 && Math.abs(q.y - c.y) < 260) || G.cops.find(k => Math.abs(k.x - c.x) < 300 && Math.abs(k.y - c.y) < 300);
+      if (!cop) continue;
+      c.fined = true; c.stopT = 6;
+      if (Math.hypot(c.x - f.x, c.y - f.y) < 700) msg("🚓 Contrôle : un motard roulait sans casque. Amende de 10 e-makuta, et il doit acheter un casque.", 3.5);
+    }
+  }
+  const ROAD = { limitKmh: 50, limitU: 50 / .45, bus: 42 / .45, npc: () => (44 + rand() * 6) / .45, truck: () => (36 + rand() * 4) / .45 };   // poids lourds : 40 km/h en ville
+  function roadRules(dt) {
+    const p = G.player; if (!WALK || G.foot || G.auto || !p) return;
+    const sp = Math.hypot(p.vx, p.vy), kmh = Math.round(sp * .45), R = G.road || (G.road = { inL: new Set(), cdV: 0, cdC: 0, cdF: 0, hint: 0 });
+    if (!R.hint) { R.hint = 1; msg("🚦 Code de la route : 50 km/h en ville, arrêt au feu rouge, permis obligatoire.", 4); }
+    R.cdV -= dt; R.cdC -= dt; R.cdF -= dt;
+    for (const L of LIGHTS) {   // feu rouge grillé : on entre dans le carrefour alors que le feu de son axe est rouge
+      const d = Math.hypot(L.x - p.x, L.y - p.y), inside = d < L.w / 2;
+      if (inside && !R.inL.has(L)) { R.inL.add(L); if (kmh > 8 && redFor(L, p.a, G.t) === "r" && R.cdF <= 0) { R.cdF = 60; msg("🚦 Feu rouge grillé ! L'agent de la circulation te verbalise.", 4, "alert"); reportFault("feu-rouge", kmh); } }
+      else if (!inside && d > L.w / 2 + 30) R.inL.delete(L);
+    }
+    const cops = G.peds.filter(q => q.cop && !q.gone && Math.hypot(q.x - p.x, q.y - p.y) < 650);
+    if (kmh > ROAD.limitKmh + 5 && cops.length && R.cdV <= 0) { R.cdV = 60; msg(`📸 ${kmh} km/h au lieu de ${ROAD.limitKmh} : un policier t'a vu. Contravention.`, 4, "alert"); reportFault("exces-vitesse", kmh); }
+    else if (kmh < 40 && R.cdC <= 0 && cops.some(q => Math.hypot(q.x - p.x, q.y - p.y) < 260)) { R.cdC = 600; if (rand() < .35) { msg("👮 Contrôle de police : « Permis de conduire, s'il vous plaît. »", 4); reportFault("controle", 0); } }
+  }
+  // faute de conduite : le joueur au volant qui blesse ou bouscule un piéton est puni (amende, casier, réputation)
+  function reportFault(faute, kmh) {
+    const API = (window.TWO_LIFE_API || "").replace(/\/$/, "");
+    if (!API) return demoEvent("/api/conduite/faute", { faute, kmh });
+    let t = null; try { t = JSON.parse(localStorage.getItem("twolife_token")); } catch (e) { }
+    if (t) fetch(API + "/api/conduite/faute", { method: "POST", headers: { "Content-Type": "application/json", Authorization: "Bearer " + t }, body: JSON.stringify({ faute, kmh }) }).catch(() => { });
+  }
   // piétons et personnage : contre les obstacles fixes, les voitures et entre eux
   function resolveBodies(cars) {
     const f = G.foot, bodies = G.peds.filter(q => !q.play && !q.gone && !q.enter && !(q.bus && q.bus.phase === "board"));
-    if (f && !f.sit && !f.inBus) bodies.push(f);
+    if (f && !f.sit && !f.inBus && !f.inside) bodies.push(f);
     const grid = new Map(), gk = (x, y) => ogKey(Math.floor(x / 32), Math.floor(y / 32));
     for (const q of bodies) {
       for (const o of obstNear(q.x, q.y)) { const d = pushOut(o, q.x, q.y, PED_R); if (d) moveBody(q, d); }
-      for (const c of cars) { if (Math.abs(c.x - q.x) > 60 || Math.abs(c.y - q.y) > 60) continue; const d = pushFromCar(c, q.x, q.y, PED_R); if (d) moveBody(q, d); }
+      for (const c of cars) { if (Math.abs(c.x - q.x) > 60 || Math.abs(c.y - q.y) > 60) continue; const d = pushFromCar(c, q.x, q.y, PED_R); if (d) { moveBody(q, d); carHitsPed(c, q); } }
       const k = gk(q.x, q.y); if (!grid.has(k)) grid.set(k, []); grid.get(k).push(q);
     }
     const min = PED_R * 2;
@@ -1000,12 +1175,14 @@
       <p><b>Caractère</b><br>${esc(I.car.t)}</p><p><b>Aime</b><br>${esc(I.gouts.join(" et "))}</p>
       <p><b>Point fort</b><br>${esc(I.forte)}</p><p><b>Point faible</b><br>${esc(I.faible)}</p></div>
       ${bar(I.intel, "Intelligence")}${bar(I.force, "Force")}${bar(I.charisme, "Charisme")}
+      ${!q.tourist && I.home ? '<p style="margin-top:12px"><button type="button" class="btn btn-primary pp-home">🏠 Voir sa maison</button></p>' : ""}
       <p style="font-size:12px;opacity:.7;margin-top:12px">Habitant non joueur. Les personnages des vrais joueurs auront aussi leur fiche, avec leurs talents découverts.</p></div>`;
     document.body.appendChild(d);
     const close = () => { d.remove(); if (G) G.paused = wasPaused; };
     d.querySelector(".bureau-x").onclick = close; d.addEventListener("click", e => { if (e.target === d) close(); });
     d.addEventListener("keydown", e => { e.stopPropagation(); if (e.key === "Escape") close(); });
     d.querySelector(".bureau-x").focus();
+    const hb = d.querySelector(".pp-home"); if (hb) hb.onclick = () => { const o = homeOf(q); close(); if (!o) return; if (G.pionnier) openRoom(o, true); else openInterior(o); };
   }
   function updatePrompt() {
     const p = G.player, sp = Math.hypot(p.vx, p.vy);
@@ -1025,7 +1202,7 @@
       else if (bench) { txt = "🪑 S'asseoir sur le banc"; act = "sit"; }
       else if (WALK && (G.talkQ = nearPed())) { const I = ident(G.talkQ); txt = (G.talkQ.cop ? "🚓 Parler à l'agent " : "💬 Parler à ") + I.nom.split(" ")[0] + " (" + I.car.t + ")"; act = "talk"; }
       else if (WALK && (np = nearPlace(G.foot.x, G.foot.y)) && np.bureau) { txt = np.icone + " " + np.nom + " · entrer au guichet d'aide"; act = "bureau"; }
-      else if (WALK && np) txt = np.icone + " " + np.nom + " · " + (isOpen(np, G.hour) ? np.statut : "Fermé à cette heure (ouvre à " + HOURS[np.type][0] + " h)");
+      else if (WALK && np) txt = np.icone + " " + np.nom + " · " + (isOpen(np, G.hour) ? np.statut : "Fermé à cette heure (ouvre à " + hoursOf(np)[0] + " h)");
       else if (WALK) txt = "Promenade à pied dans la Gombe. Le taxi jaune est sur la carte.";
       else if (ns) { txt = ns.car.id === p.carDef.id ? ns.car.name + " : c'est déjà ta voiture" : "Prendre la " + ns.car.name + " (" + ns.car.cls + ")"; act = ns.car.id === p.carDef.id ? null : "pick"; }
       else if (Math.hypot(G.foot.x - p.x, G.foot.y - p.y) < 50) { txt = "Monter dans la voiture"; act = "enter"; }
@@ -1152,7 +1329,8 @@
     { id: "footing", ic: "🏃", nom: "Footing", txt: "Il court d'un banc à l'autre. Bon pour la santé, mais fatigant." },
     { id: "match", ic: "⚽", nom: "Voir un match", txt: "Il va au stade ou au terrain de basket et regarde le match depuis un banc." },
     { id: "courses", ic: "🛒", nom: "Courses", txt: "Alimentations et magasins : il fait le tour des boutiques." },
-    { id: "soiree", ic: "🪩", nom: "Soirée", txt: "Il sort en boîte de nuit (réservé aux 18 ans et plus)." },
+    { id: "soiree", ic: "🪩", nom: "Soirée", txt: "Il sort en boîte de nuit ou au concert (réservé aux 18 ans et plus)." },
+    { id: "piscine", ic: "🏊", nom: "Piscine", txt: "Il va nager et bronzer à la piscine (9 h – 19 h)." },
     { id: "maison", ic: "🏠", nom: "Rentrer à la maison", txt: "Il rentre chez lui et se repose." },
   ];
   const SORTIE = id => SORTIES.find(o => o.id === id) || { id, ic: id === "travail" ? "💼" : "🪑", nom: id === "travail" ? "Travail" : "Rencontres" };
@@ -1241,12 +1419,13 @@
       if (g) { A.seen.push(g.id); return toPlace(g); }
     }
     if (mode === "courses" || mode === "soiree") {
-      const types = mode === "courses" ? ["alim", "magasin", "marche"] : ["club"];
+      const types = mode === "courses" ? ["alim", "magasin", "marche"] : rand() < (starNight() ? .85 : .45) ? ["concert"] : ["club"];
       let list = PLACES.filter(o => types.includes(o.type) && !A.seen.includes(o.id) && isOpen(o, G.hour));
       if (!list.length) { A.seen = []; list = PLACES.filter(o => types.includes(o.type) && isOpen(o, G.hour)); }
       const o = list.sort((a, b) => Math.hypot(a.x - f.x, a.y - f.y) - Math.hypot(b.x - f.x, b.y - f.y))[0];
       if (o) { A.seen.push(o.id); return toPlace(o); }
     }
+    if (mode === "piscine") { const o = nearestOpen(["piscine"]); if (o) return toPlace(o); A.mode = "promenade"; }
     if (mode === "footing") {
       const bs = BENCHES.filter(b => !b.taken && Math.hypot(b.x - f.x, b.y - f.y) > 500 && Math.hypot(b.x - f.x, b.y - f.y) < 2200);
       if (bs.length) { const b = bs[(rand() * bs.length) | 0]; return { x: b.x, y: b.y, nom: "un banc (pause footing)", bench: b }; }
@@ -1303,7 +1482,7 @@
     }
     if (d.bench && d.flirt) { /* traité plus haut */ }
     if (d.home && d.eat) { G.me.faim = 15; note(G.me.conjoint ? "🍲 Il dîne à la maison avec sa femme, " + G.me.conjoint.split(" ")[0] + "." : "🍲 Il mange à la maison avec la famille (gratuit)."); }
-    if (d.home) { A.phase = "home"; A.doing = "À la maison : il se repose"; msg("🏠 Ton personnage est rentré à la maison. Il se repose.", 3.5, "ok"); return; }
+    if (d.home) { A.phase = "home"; A.doing = "À la maison : il se repose"; msg("🏠 Ton personnage est rentré à la maison. Il se repose.", 3.5, "ok"); enterHome(); return; }
     const o = d.place, t = o && o.type;
     if (d.work) { note("💼 Il arrive au travail : " + d.nom + ".");
       if ((G.me.rep || 0) <= -30) earn(15, "salaire réduit : son patron se méfie de lui (mauvaise réputation)"); else earn(25, "salaire de la journée à " + d.nom);
@@ -1358,6 +1537,14 @@
       if (d.flirt || rand() < .5) flirt();
       A.phase = "visit"; A.wait = 1e9; A.doing = "🪩 Il danse au " + d.nom; return;
     }
+    if ((t === "concert" || t === "piscine") && isOpen(o, G.hour) && A.mode !== "vol") {
+      const star = t === "concert" && starNight(), tk = t === "concert" ? (star ? STAR_PRICE : CONCERT_PRICE) : 4, drink = (rand() * 6) | 0;
+      if (!pay(tk + drink, (t === "concert" ? (star ? "billet soirée star (" + starName() + ") à " : "billet de concert à ") : "entrée à la ") + d.nom + (drink ? " et boissons" : ""))) { note((t === "concert" ? "🎤 " : "🏊 ") + "Pas assez d'argent pour entrer à " + d.nom + ".", "alert"); A.phase = "visit"; A.wait = 3; return; }
+      if (t === "concert" && rand() < .4) flirt();
+      if (star) note("⭐ Soirée star : " + starName() + " chante ce soir à " + d.nom + " ! Billet " + STAR_PRICE + " e-makuta.", "ok");
+      if (t === "piscine" && !hasSwimsuit()) note("🩱 Pas de maillot de bain : il ne peut pas nager, il reste au bord (maillot en vente dans la boutique de « Ma vie »).", "alert");
+      A.phase = "visit"; A.wait = 1e9; A.doing = t === "concert" ? (star ? "⭐ Soirée star : " + starName() + " en concert" : "🎤 Il danse au concert à " + d.nom) : hasSwimsuit() ? "🏊 Il nage et bronze à " + d.nom : "🏊 Il bronze au bord de la piscine (pas de maillot)"; return;
+    }
     if (t === "marche") { msg("🧺 Au marché : il compare les prix des légumes et du poisson, puis discute avec les commerçantes.", 4.5); A.phase = "visit"; A.wait = 10 + rand() * 6; A.doing = "Courses au marché"; return; }
     if (d.guide) { msg("📸 " + d.icone + " " + d.nom + " : " + d.guide, 6, "ok"); A.phase = "visit"; A.wait = 6 + rand() * 3; A.doing = "Tourisme : " + d.nom; return; }
     if (A.mode === "courses" && t) { const what = t === "alim" ? ["du pain et du lait", "du riz et du poisson salé", "des fruits et de l'eau"] : o.id === "phones" ? ["un nouvel étui de téléphone", "un chargeur"] : ["une chemise en wax", "une paire de baskets"]; msg(d.icone + " Courses à " + d.nom + " : il regarde " + what[(rand() * what.length) | 0] + ". (Achats réels dans la Boutique de Ma vie.)", 4.5); A.phase = "visit"; A.wait = 6 + rand() * 4; A.doing = "Courses : " + d.nom; return; }
@@ -1367,7 +1554,10 @@
   }
   function callTaxi(forceHome, bus) {
     const A = G.auto, f = G.foot, p = G.player;
-    if (!forceHome && G.me && !pay(5, "taxi")) { A.phase = "walk"; A.path = null; A.tired = true; return; }
+    // moto-taxi « wewa » : moins chère que le taxi (2 au lieu de 5 e-makuta) mais plus risquée ; on la prend surtout quand on a peu d'argent
+    A.moto = !forceHome && !bus && WALK && !wewaBanned(f.x, f.y) && (G.me && G.me.argent < 15 ? rand() < .8 : rand() < .35);
+    if (!forceHome && G.me && !pay(A.moto ? 2 : 5, A.moto ? "moto-taxi (wewa)" : "taxi")) { if (!A.moto && !wewaBanned(f.x, f.y) && pay(2, "moto-taxi (wewa), le taxi est trop cher")) A.moto = true; else { A.phase = "walk"; A.path = null; A.tired = true; return; } }
+    A.crash = A.moto && rand() < .07;
     const goHome = forceHome || A.mode === "maison" || A.mode === "footing" || rand() < .5 || !PLACES.length, far = PLACES.filter(o => o.id !== "maison" && Math.hypot(o.x - f.x, o.y - f.y) > 900);
     const next = A.mode === "tourisme" && A.tour && A.tour[0];
     const o = next || (goHome ? HOME() : far[(rand() * far.length) | 0] || HOME());
@@ -1377,9 +1567,11 @@
     const n = nearestNode(f.x, f.y), N = nodes[n], m = N.nb.length ? N.nb[0] : n, pt = edgePoint(m, n, Math.min(30, N.w * .22));
     p.x = pt.x; p.y = pt.y; p.a = Math.atan2(N.y - nodes[m].y, N.x - nodes[m].x) || 0; p.vx = p.vy = 0;
     A.phase = "board"; A.wait = 1.6; A.taxiTo = o; A.home = o.id === "maison";
-    A.doing = (forceHome ? (bus ? "🚌 En bus" : "🚕 En taxi") + " vers la maison" : "Fatigué : il prend un taxi vers " + (A.home ? "la maison" : o.nom));
-    if (!forceHome) msg("😮‍💨 Ton personnage est fatigué : il appelle un taxi " + (A.home ? "pour rentrer à la maison." : "pour aller à " + o.nom + "."), 4);
+    const veh = A.moto ? "une moto-taxi" : "un taxi";
+    A.doing = (forceHome ? (bus ? "🚌 En bus" : "🚕 En taxi") + " vers la maison" : "Fatigué : il prend " + veh + " vers " + (A.home ? "la maison" : o.nom));
+    if (!forceHome) msg("😮‍💨 Ton personnage est fatigué : il hèle " + veh + (A.moto ? " (2 e-makuta, moins cher mais plus risqué) " : " ") + (A.home ? "pour rentrer à la maison." : "pour aller à " + o.nom + "."), 4);
   }
+  function motoOff(p) { if (!p.moto) return; const s0 = p.save || {}; p.moto = p.wewa = p.pass = false; p.hl = s0.hl; p.hw = s0.hw; p.offs = s0.offs; }
   function autoRide(dt) {
     const A = G.auto, p = G.player, P = A.path;
     let t;
@@ -1388,14 +1580,23 @@
     const sp = Math.hypot(p.vx, p.vy), dist = Math.hypot(t.x - p.x, t.y - p.y), ang = Math.abs(angDiff(p.a, Math.atan2(t.y - p.y, t.x - p.x)));
     steerTo(p, t.x, t.y);
     const lastLeg = A.i >= P.length - 1;
-    p.inp.gas = sp < (lastLeg ? Math.min(220, dist * 1.2) : 330) * (ang > .5 ? .5 : 1) ? 1 : 0;
+    p.inp.gas = sp < (lastLeg ? Math.min(ROAD.limitU, dist * 1.2) : ROAD.limitU * .97) * (ang > .5 ? .5 : 1) ? 1 : 0;   // le taxi respecte les 50 km/h
     p.inp.brake = (ang > .8 && sp > 180) || (lastLeg && dist < 90 && sp > 60) ? 1 : 0; p.inp.hand = 0; p.inp.nitro = 0;
     if (!lastLeg && stopHere(p, P[A.i + 1])) { p.inp.gas = 0; p.inp.brake = 1; }
+    if (A.crash && A.i >= P.length / 2) {   // la moto dérape : blessure, soins payants, il finit à pied
+      A.crash = false; p.vx = p.vy = 0; motoOff(p);
+      G.foot = { x: p.x + Math.sin(p.a) * 26, y: p.y - Math.cos(p.a) * 26, a: p.a, v: 0, t: 0 }; if (walkBlocked(G.foot.x, G.foot.y)) { G.foot.x = p.x - Math.sin(p.a) * 26; G.foot.y = p.y + Math.cos(p.a) * 26; }
+      G.energy = Math.max(0, G.energy - 25); reportInjury(32);
+      if (G.me) note("💥 La moto-taxi a dérapé sur le boulevard : ton personnage est blessé. Les soins sont payants (voir « Ma vie »). Il finit le trajet à pied.", "alert");
+      const o = A.taxiTo; A.phase = "walk"; planWalk({ x: o.door.x, y: o.door.y, nom: A.home ? "la maison" : o.nom, icone: o.icone, home: A.home, place: o });
+      return;
+    }
     if (lastLeg && dist < 70 && sp < 70) { // arrivée : on descend devant le lieu
+      motoOff(p);
       p.inp.gas = 0; p.inp.brake = 1; p.vx = p.vy = 0;
       const rx = Math.sin(p.a), ry = -Math.cos(p.a); let x = p.x + rx * 26, y = p.y + ry * 26; if (walkBlocked(x, y)) { x = p.x - rx * 26; y = p.y - ry * 26; }
       G.foot = { x, y, a: p.a, v: 0, t: 0 };
-      const o = A.taxiTo; msg("🚕 Arrivé" + (A.home ? " à la maison." : " : " + o.nom + "."), 2.5, "ok");
+      const o = A.taxiTo; msg((A.moto ? "🏍️ Arrivé" : "🚕 Arrivé") + (A.home ? " à la maison." : " : " + o.nom + "."), 2.5, "ok");
       A.phase = "walk"; planWalk({ x: o.door.x, y: o.door.y, nom: A.home ? "la maison" : o.nom, icone: o.icone, home: A.home, place: o });
       return;
     }
@@ -1409,7 +1610,11 @@
       if (G.energy < 22 && !A.tired && G.phase !== "nuit" && A.dest && Math.hypot(A.dest.x - G.foot.x, A.dest.y - G.foot.y) > 900) { callTaxi(); return; }
       if (!A.path) { const d = pickDestination(); if (!d) return; planWalk(d); }
       autoWalk(dt);
-    } else if (A.phase === "visit") { A.wait -= dt; if (A.wait <= 0) { A.phase = "walk"; A.path = null; } }
+    } else if (A.phase === "visit") {
+      // il entre vraiment : la porte s'ouvre, il disparaît à l'intérieur, on le sert, puis il ressort
+      if (!A.inTried && A.dest && A.dest.place && !A.dest.street && !A.dest.help) { A.inTried = true; if (enterPlace(A.dest.place)) note("🚪 Il entre à " + A.dest.place.nom + " : " + (A.dest.eat ? "on le sert à table." : "on l'accueille.")); }
+      A.wait -= dt; if (A.wait <= 0) { leavePlace(); A.phase = "walk"; A.path = null; A.inTried = false; }
+    }
     else if (A.phase === "sit") { A.sitT -= dt; if (A.sitT <= 0 || (G.energy > 98 && A.sitT < 8)) { standUp(true); A.phase = "walk"; A.path = null; } }
     else if (A.phase === "home") { if (A.mode === "prison") { A.doing = G.lifeMsg; } else if (G.phase === "nuit") { A.doing = "😴 Il dort à la maison"; } else if (G.energy >= 100 && A.mode !== "maison") { msg("Ton personnage est reposé et repart se promener.", 3, "ok"); A.phase = "walk"; A.path = null; } }
     else if (A.phase === "board") {
@@ -1418,6 +1623,7 @@
         const p = G.player, o = A.taxiTo, a = nearestNode(p.x, p.y), b = nearestNode(o.door.x, o.door.y);
         const nb = nodes[b], drop = { x: nb.x + (o.door.x - nb.x) * .5, y: nb.y + (o.door.y - nb.y) * .5 };
         A.path = findPath(a, b) || [a, b]; A.i = 0; A.stuck = 0; A.dropAt = drop; G.foot = null; A.phase = "ride";
+        if (A.moto) { p.save = { hl: p.hl, hw: p.hw, offs: p.offs }; Object.assign(p, { moto: true, wewa: true, pass: true, helmet: true, tIdx: 1, hl: 10, hw: 4, offs: [0] }); A.doing = "🏍️ En moto-taxi vers " + (A.home ? "la maison" : o.nom); }
       }
     } else if (A.phase === "ride") autoRide(dt);
     else if (A.phase === "waitbus" || A.phase === "boardbus" || A.phase === "inbus") busRider(dt);
@@ -1617,6 +1823,7 @@
     { id: "promenade", ic: "🚶", nom: "Se promener", dur: 1.5, mode: "promenade" },
     { id: "repos", ic: "🏠", nom: "Se reposer à la maison", dur: 2, mode: "maison" },
     { id: "soiree", ic: "🪩", nom: "Sortir le soir (après 20 h)", dur: 2, mode: "soiree", soir: true },
+    { id: "piscine", ic: "🏊", nom: "Aller à la piscine", dur: 2, mode: "piscine" },
     { id: "manger", ic: "🍲", nom: "Aller manger", dur: .8, mode: "manger" },
     { id: "business", ic: "💹", nom: "Faire du business", dur: 2.5, mode: "business" },
     { id: "draguer", ic: "💘", nom: "Draguer", dur: 1.5, mode: "draguer", hidden: true },
@@ -1702,10 +1909,11 @@
   function atHome(doing) {
     const h = HOME(); if (!h) return;
     if (G.foot && G.foot.sit) standUp(true);
-    const k = h.d / 2 + 14;   // dans la cour, entre la maison et le portail
-    G.foot = { x: h.x - h.nx * k, y: h.y - h.ny * k, a: Math.atan2(h.ny, h.nx), v: 0, t: 0 };   // tourné vers sa maison
+    const k = h.d / 2 + 14, bag = !!(G.foot && G.foot.shopBag);   // dans la cour, entre la maison et le portail ; il garde ses courses
+    G.foot = { x: h.x - h.nx * k, y: h.y - h.ny * k, a: Math.atan2(h.ny, h.nx), v: 0, t: 0, shopBag: bag };   // tourné vers sa maison
     G.auto = { phase: "home", path: null, mode: "maison", seen: [], doing, dest: { home: true } };
     const b = $("autobtn"); if (b) b.setAttribute("aria-pressed", "true");
+    enterHome();
   }
   function clockStep(dt) {
     const h0 = G.hour;
@@ -1819,7 +2027,9 @@
     if (h >= 11 && (me.charisme >= 6 || ["drôle", "fier", "bavard"].includes(me.car))) add("draguer", (me.conjoint ? (me.honnete < 40 ? .8 : .2) : 2.5) / (1 + 2 * relations.get().filter(r => r.amour && !r.epouse).length), relations.get().some(r => r.amour) ? "il a déjà quelqu'un, mais il aime plaire" : "il veut séduire quelqu'un");
     { const lv = lover(); if (lv && h >= 12) add("rendezvous", lv.epouse ? 2 : lv.fiance ? 6 : 4, lv.epouse ? "il veut passer du temps avec sa femme" : lv.fiance ? "il pense à son mariage avec " + lv.nom.split(" ")[0] : "il est amoureux de " + lv.nom.split(" ")[0]); }
     if ((me.honnete >= 60 || me.car === "généreux") && me.argent >= 30) add("aider", me.car === "généreux" ? 4 : 1.5, "il a bon cœur et un peu d'argent");
+    if (h >= 19 && starNight() && me.argent >= STAR_PRICE + 2) add("soiree", likes("rumba") || likes("danse") ? 9 : 4, "c'est la soirée star : " + starName() + " chante ce soir");
     if (h >= 20 && me.argent >= 10) { add("soiree", likes("rumba") || likes("danse") || ["drôle", "bavard", "fier"].includes(me.car) ? 6 : 1.5, likes("rumba") ? "il aime la rumba" : "c'est le soir, il a envie de sortir"); add("repos", 2, "la journée a été longue"); }
+    if (h >= 11 && h < 17 && me.argent >= 10) add("piscine", me.force >= 6 || likes("sport") ? 3 : 1.2, G.hour >= 12 && G.hour < 16 ? "il fait chaud : il va se rafraîchir à la piscine" : "il a envie de nager");
     if (h >= 7 && h < 12 && me.car === "ambitieux") add("travail", 5, "il est ambitieux : il va travailler");
     if (likes("football") || likes("basket")) add("match", 5, "il aime " + (likes("football") ? "le football" : "le basket"));
     if (["bavard", "curieux", "généreux", "drôle"].includes(me.car)) add("rencontres", 4, "il est " + me.car + " : il a envie de parler aux gens");
@@ -1984,7 +2194,7 @@
     const n = N.stops.length, nb = Math.min(3, n);
     for (let j = 0; j < nb; j++) {
       const st = N.stops[Math.floor(j * n / nb)];
-      const c = makeCar("traffic", st.x, st.y, st.a, { maxSpeed: 165, accel: 190, steerMax: 1.9, dmgMul: .4, mass: 3, grip: 10 });
+      const c = makeCar("traffic", st.x, st.y, st.a, { maxSpeed: ROAD.bus, accel: 190, steerMax: 1.9, dmgMul: .4, mass: 3, grip: 10 });
       Object.assign(c, { bus: true, line: 1, num: j + 1, hl: BUS_HL, hw: BUS_HW, offs: BUS_OFF, tIdx: 0, sprite: TRAFFIC_SPRITES[0],
         ri: st.ri, at: st.k, next: (st.k + 1) % n, state: "stop", wait: 3 + j * 2, door: 0, closing: false, pax: [], stuck: 0 });
       // des passagers sont déjà à bord
@@ -2012,11 +2222,12 @@
     const st = N.stops[c.next], i = c.ri, j = (i + 1) % L, b = N.route[j], toStop = j === st.ri;
     const t = toStop ? st : edgePoint(N.route[i], b, Math.min(30, nodes[b].w * .22));
     const dx = t.x - c.x, dy = t.y - c.y, d = Math.hypot(dx, dy);
-    let want = 120;
+    let want = ROAD.bus;   // 42 km/h : le bus respecte la limitation en ville
     if (toStop) want = Math.min(want, 16 + d * .8);
     else { const nb = nodes[b], na = nodes[N.route[i]], nc = nodes[N.route[(j + 1) % L]], turn = Math.abs(angDiff(Math.atan2(nb.y - na.y, nb.x - na.x), Math.atan2(nc.y - nb.y, nc.x - nb.x))); if (turn > .5 && d < 170) want = 42; }
     c.blockT = c.blockT || 0;
-    if (c.blockT < 4 && stopHere(c, b)) { want = 0; c.blockT += dt; }
+    if (redAhead(c, b)) { want = 0; c.blockT = 0; }   // feu rouge : le bus attend toujours, sans exception
+    else if (c.blockT < 4 && stopHere(c, b)) { want = 0; c.blockT += dt; }
     else if (c.blockT >= 4) { c.blockT += dt; if (c.blockT > 7) c.blockT = 0; }
     else c.blockT = 0;
     c.spd = c.spd || 0; c.spd += Math.max(-220 * dt, Math.min(80 * dt, want - c.spd));
@@ -2106,8 +2317,709 @@
     }
     if (A.phase === "inbus") { const c = f.inBus; if (!c) { A.phase = "walk"; A.path = null; return; } f.x = c.x; f.y = c.y; f.a = c.a; f.v = 0; }
   }
+  // ---------------------------------------------------------------- les lieux vivent : portes qui s'ouvrent, clients qui entrent, sont servis et ressortent
+  // [séjour min (s), séjour max (s), clients par seconde, ressort avec un sac, ce qu'on y fait]
+  const LIFE_T = {
+    alim: [18, 45, .45, true, ["achète du riz et de l'huile", "achète du pain et du lait", "achète de l'eau et du sucre"]],
+    magasin: [30, 80, .3, true, ["essaie une chemise", "achète un pagne wax", "fait réparer son téléphone"]],
+    club: [70, 180, .5, false, ["danse sur la rumba", "commande une bière", "fête un anniversaire"]],
+    bureau: [40, 120, .25, false, ["règle un problème au guichet", "dépose un dossier"]],
+    etat: [40, 120, .3, false, ["fait la queue au guichet", "dépose un dossier", "paie une taxe"]],
+    eglise: [60, 160, .35, false, ["prie", "chante avec la chorale", "écoute la prédication"]],
+    concert: [120, 300, .8, false, ["danse le ndombolo devant la scène", "filme le chanteur avec son téléphone", "chante en chœur avec l'orchestre"]],
+    piscine: [60, 200, .45, false, ["nage dans la piscine", "bronze sur un transat", "boit un cocktail au bar"]],
+  };
+  const CAP = { club: 26, concert: 40, piscine: 20 };   // clients à l'intérieur en même temps (ambiance)
+  const capOf = o => o.type === "concert" && starNight() ? 55 : CAP[o.type];
+  // ---- soirée star (26/11) : chaque samedi soir, une célébrité de la musique du jeu chante à la salle de concert ; billet plus cher
+  const STAR_PRICE = 20, CONCERT_PRICE = 8;
+  let STAR = null, starLoading = false;
+  function starNight() { const dow = ((G.day + 4) % 7 + 7) % 7; return (dow === 6 && G.hour >= 12) || (dow === 0 && G.hour < 1); }
+  function loadStar() {
+    if (STAR || starLoading) return; starLoading = true;
+    const pickM = list => { const m = list.filter(c => c.domaine === "musique"); const wk = Math.floor(Date.now() / 6048e5); const c = m.find(x => x.joueur) || m[wk % Math.max(1, m.length)]; if (c) STAR = { nom: c.prenom + " " + c.nom, titre: c.titre || "Chanteur de rumba", joueur: !!c.joueur, fem: c.sexe === "F" }; };
+    const API = (window.TWO_LIFE_API || "").replace(/\/$/, "");
+    (API ? fetch(API + "/api/celebrites").then(r => r.json()).then(j => pickM(j.celebrites || [])) : import("../server/src/life.js").then(m => pickM(m.pickCelebrities({}, Date.now()).celebrites)))
+      .catch(() => { STAR = { nom: "Fally Mbuta", titre: "Chanteur de rumba" }; });
+  }
+  const starName = () => (STAR || { nom: "la star de la semaine" }).nom;
+  const RESTO_T = [25, 60, .5, false, ["mange du poulet mayo", "mange du pondu avec de la chikwangue", "boit un jus de gingembre"]];
+  const lifeT = o => o.resto ? RESTO_T : LIFE_T[o.type];
+  const lifeOf = o => o.life || (o.life = { inside: [], door: 0, hold: 0, open: true, queue: [], crew: [] });
+  const facade = (o, k) => ({ x: o.x - o.nx * (o.d / 2 + k), y: o.y - o.ny * (o.d / 2 + k) });
+  const atPlace = (o, u, v) => ({ x: o.x + o.ux * u + o.nx * v, y: o.y + o.uy * u + o.ny * v });
+  function joinStreet(q) { const n = nearestNode(q.x, q.y), nb = nodes[n].nb; q.from = n; q.to = nb.length ? nb[(rand() * nb.length) | 0] : n; q.side = 1; q.off = nodes[n].w / 2 + 14; }
+  function exitPlace(o, x, bag) {
+    const fd = facade(o, 1), sd = o.door;
+    const q = { x: fd.x, y: fd.y, a: Math.atan2(-o.ny, -o.nx), v: 11 + rand() * 5, t: rand() * 9, state: "walk", st: 0, look: x.look, id: x.id, idn: x.idn, tourist: x.tourist, emerge: { x: sd.x + o.ux * (rand() - .5) * 30, y: sd.y + o.uy * (rand() - .5) * 30 }, shopBag: bag && rand() < .8 };
+    joinStreet(q); G.peds.push(q); lifeOf(o).hold = 1.4; return q;
+  }
+  // l'équipe du lieu : serveuse et clients assis au maquis, videur et file d'attente à la boîte de nuit, accueil de l'église
+  function crewUpdate(o, L, open) {
+    const want = open && (o.resto || o.type === "club" || o.type === "eglise" || o.type === "concert" || o.type === "piscine");
+    if (!want) { if (L.crew.length) { L.crew.forEach(q => { q.gone = true; }); L.crew = []; L.queue.forEach(q => { q.gone = true; }); L.queue = []; } return; }
+    if (L.crew.length) { L.crew = L.crew.filter(q => !q.gone); return; }
+    const add = (u, v, extra) => { const p = atPlace(o, u, v); const q = Object.assign({ x: p.x, y: p.y, a: Math.atan2(o.ny, o.nx), v: 0, t: rand() * 9, state: "idle", st: 0, look: (rand() * 7) | 0, id: ++pedSeq, staff: true, crewOf: o }, extra || {}); G.peds.push(q); L.crew.push(q); return q; };
+    if (o.resto) {
+      (o.terrace || []).forEach(tb => {
+        const n = 1 + ((rand() * 3) | 0);
+        [[-12, 0], [12, 0], [0, -10]].slice(0, n).forEach(([du, dv]) => add(tb.u + du, tb.v + dv, { state: "sit", a: Math.atan2(-(o.uy * du + o.ny * dv), -(o.ux * du + o.nx * dv)), diner: true }));
+      });
+      const w = add(0, -(o.d / 2 + 6), { state: "walk", v: 9, waiter: true });
+      w.serve = { pts: [{ u: 0, v: -(o.d / 2 + 4) }].concat((o.terrace || []).map(tb => ({ u: tb.u, v: tb.v - 14 }))), i: 1, wait: 0 };
+    } else if (o.type === "club") {
+      add(-26, -(o.d / 2 + 18), { bouncer: true, a: Math.atan2(-o.ny, -o.nx) });
+    } else if (o.type === "eglise") {
+      add(-30, -(o.d / 2 + 8), { usher: true, a: Math.atan2(-o.ny, -o.nx) });
+    } else if (o.type === "concert") {
+      add(-30, -(o.d / 2 + 14), { bouncer: true, a: Math.atan2(-o.ny, -o.nx) }); add(30, -(o.d / 2 + 14), { bouncer: true, a: Math.atan2(-o.ny, -o.nx) });
+    } else if (o.type === "piscine") {
+      add(-28, -(o.d / 2 + 8), { usher: true, a: Math.atan2(-o.ny, -o.nx) });
+    }
+  }
+  function serveStep(q, dt) {
+    const S2 = q.serve, o = q.crewOf, p = S2.pts[S2.i], tg = atPlace(o, p.u, p.v), dx = tg.x - q.x, dy = tg.y - q.y, d = Math.hypot(dx, dy);
+    if (S2.wait > 0) { S2.wait -= dt; q.state = "idle"; return; }
+    if (d < 3) { S2.wait = S2.i === 0 ? 3 + rand() * 2 : 2.5 + rand() * 3; S2.i = (S2.i + 1) % S2.pts.length; if (S2.i === 0) lifeOf(o).hold = 1.5; q.talk = 0; return; }
+    q.state = "walk"; q.v = 9; q.a += angDiff(q.a, Math.atan2(dy, dx)) * Math.min(1, dt * 6); const v = Math.min(d, q.v * dt); q.x += dx / d * v; q.y += dy / d * v; q.t += dt;
+    if (S2.i === 0 && d < 16) lifeOf(o).hold = 1.2;
+  }
+  // un passant décide d'entrer : il va à la porte, attend qu'elle s'ouvre, entre
+  function goInStep(q, dt) {
+    const o = q.goIn, L = lifeOf(o);
+    if (!L.open) { q.goIn = null; q.goStage = 0; q.state = "walk"; return; }
+    const tg = q.goStage ? facade(o, 0) : q.queueAt || o.door, dx = tg.x - q.x, dy = tg.y - q.y, d = Math.hypot(dx, dy);
+    if (q.queueAt) { if (d > 2) { q.state = "walk"; q.a = Math.atan2(dy, dx); const v = Math.min(d, 12 * dt); q.x += dx / d * v; q.y += dy / d * v; q.t += dt; } else { q.state = "idle"; q.a = Math.atan2(-o.ny * 0 + (facade(o, 0).y - q.y), facade(o, 0).x - q.x); } return; }
+    if (q.goStage && d < 18) L.hold = 1.2;
+    if (q.goStage && d < 16 && L.door < .75) { q.state = "idle"; return; }   // la porte s'ouvre
+    if (d < (q.goStage ? 4 : 6)) {
+      if (!q.goStage) { q.goStage = 1; return; }
+      const T = lifeT(o); q.gone = true;
+      L.inside.push({ id: q.id, look: q.look, idn: q.idn, tourist: q.tourist, doing: T[4][(rand() * T[4].length) | 0], until: G.t + T[0] + rand() * (T[1] - T[0]) });
+      return;
+    }
+    q.state = "walk"; q.a += angDiff(q.a, Math.atan2(dy, dx)) * Math.min(1, dt * 6); const v = Math.min(d, q.v * dt); q.x += dx / d * v; q.y += dy / d * v; q.t += dt;
+  }
+  function placesLife(dt) {
+    const f = G.foot || G.player;
+    for (const o of PLACES) {
+      const T = lifeT(o); if (!T || o.id === "maison") continue;
+      const L = lifeOf(o), open = isOpen(o, G.hour) && o.type !== "partenaire";
+      L.open = open; L.hold -= dt;
+      const pin = G.foot && G.foot.inside === o && (G.foot.inT || 0) > 0;
+      L.door += Math.max(-dt * 1.6, Math.min(dt * 1.6, (L.hold > 0 || pin ? 1 : 0) - L.door));
+      if (Math.abs(o.x - f.x) > 1500 || Math.abs(o.y - f.y) > 1500) continue;
+      crewUpdate(o, L, open);
+      if (!L.init) { L.init = true; if (open) for (let k = capOf(o) ? (capOf(o) * (.45 + rand() * .25)) | 0 : (rand() * 4) | 0; k > 0; k--) L.inside.push({ id: ++pedSeq, look: (rand() * 7) | 0, doing: T[4][(rand() * T[4].length) | 0], until: G.t + 4 + rand() * T[1] }); }
+      // à la fermeture, tout le monde sort ; sinon chacun sort quand il a fini
+      for (let i = 0; i < L.inside.length; i++) {
+        const x = L.inside[i]; if (!open && !x.kick) x.kick = G.t + 2 + rand() * 12;
+        if (G.t >= (x.kick || x.until)) { if (L.door > .8) { L.inside.splice(i, 1); exitPlace(o, x, T[3]); } else L.hold = 1.4; break; }
+      }
+      if (!open) continue;
+      // file d'attente devant la boîte de nuit : le videur fait entrer un par un
+      if (o.type === "club") {
+        L.queue = L.queue.filter(q => !q.gone && q.queueAt && G.peds.includes(q));
+        L.queue.forEach((q, k) => { const p = atPlace(o, -40 - k * 9, -(o.d / 2 + 22)); q.queueAt = p; });
+        L.qT = (L.qT || 0) - dt;
+        if (L.queue.length && L.qT <= 0) { const q = L.queue.shift(); q.queueAt = null; q.goStage = 1; L.qT = 5 + rand() * 5; const b = L.crew.find(c => c.bouncer); if (b) { b.talk = 1.5; } }
+      }
+      if (rand() < dt * T[2] && L.inside.length < (capOf(o) || 10) && (o.type !== "club" || L.queue.length < 6)) {
+        let best = null, bd = 260;
+        for (const q of G.peds) { if (q.staff || q.cop || q.bus || q.enter || q.chat || q.talk || q.greet || q.goIn || q.emerge || q.hail || q.vendor || q.play || q.state !== "walk") continue; const d = Math.hypot(q.x - o.door.x, q.y - o.door.y); if (d < bd) { bd = d; best = q; } }
+        if (best) { best.goIn = o; best.goStage = 0; best.route = null; if (o.type === "club") { best.queueAt = atPlace(o, -40 - L.queue.length * 9, -(o.d / 2 + 22)); L.queue.push(best); } }
+      }
+    }
+  }
+  // ---------------------------------------------------------------- taxis : on lève la main, le taxi s'arrête, le client monte, puis descend plus loin
+  function taxiLife(dt) {
+    const f = G.foot || G.player;
+    if (rand() < dt * .08) {
+      const cand = G.peds.filter(q => !q.staff && !q.cop && !q.bus && !q.goIn && !q.emerge && !q.hail && !q.enter && !q.chat && !q.vendor && q.state === "walk" && Math.hypot(q.x - f.x, q.y - f.y) < 700);
+      const q = cand[(rand() * cand.length) | 0]; if (q && G.peds.filter(p => p.hail).length < 3) { q.hail = { t: 0 }; q.state = "idle"; }
+    }
+    for (const q of G.peds) {
+      if (!q.hail) continue;
+      const H2 = q.hail; H2.t += dt;
+      if (H2.car) {
+        const c = H2.car; if (c.dead || c.pick !== q) { q.hail = null; q.state = "walk"; continue; }
+        const dx = c.x - q.x, dy = c.y - q.y, d = Math.hypot(dx, dy);
+        if (Math.hypot(c.vx, c.vy) > 25 || d > 200) { q.state = "idle"; continue; }
+        if (d < 16) { q.gone = true; c.pick = null; c.fare = { id: q.id, look: q.look, idn: q.idn, at: G.t + 18 + rand() * 35 }; if (Math.hypot(q.x - f.x, q.y - f.y) < 300) msg("🚕 " + ident(q).nom.split(" ")[0] + " monte dans un taxi jaune.", 2.5); continue; }
+        q.state = "walk"; q.v = 16; q.a = Math.atan2(dy, dx); const v = Math.min(d, 16 * dt); q.x += dx / d * v; q.y += dy / d * v; q.t += dt; continue;
+      }
+      q.state = "idle";
+      if (H2.t > 45) { q.hail = null; q.state = "walk"; continue; }
+      for (const c of G.traffic) {
+        if (!c.taxi || c.fare || c.pick || c.stun > 0) continue;
+        const dx = q.x - c.x, dy = q.y - c.y, d = Math.hypot(dx, dy); if (d > 260 || d < 50) continue;
+        if (dx * Math.cos(c.a) + dy * Math.sin(c.a) < d * .6) continue;   // il arrive vers lui
+        if (Math.abs(-dx * Math.sin(c.a) + dy * Math.cos(c.a)) > 90) continue;   // de son côté de la rue
+        c.pick = q; c.pickT = 0; H2.car = c; q.a = Math.atan2(-dy, -dx); break;
+      }
+    }
+  }
+  // dans trafficAI : le taxi freine pour prendre ou déposer un client
+  function taxiDrive(c, dt) {
+    if (c.pick) {
+      const q = c.pick; c.pickT = (c.pickT || 0) + dt;
+      if (q.gone || !q.hail || c.pickT > 25) { if (q.hail) { q.hail = null; q.state = "walk"; } c.pick = null; return; }
+      // il ralentit à l'approche et s'arrête à hauteur du client
+      const fx = Math.cos(c.a), fy = Math.sin(c.a), ah = (q.x - c.x) * fx + (q.y - c.y) * fy, sp = Math.hypot(c.vx, c.vy);
+      if (ah < -40 && sp > 60) { q.hail = null; q.state = "walk"; c.pick = null; return; }   // trop tard : il est passé
+      if (ah < 260) { c.inp.gas = sp < 70 && ah > 70 ? 1 : 0; c.inp.nitro = 0; c.inp.brake = 0; c.inp.hand = 0; }   // il ralentit en roue libre
+      if (ah < 70) { c.inp.gas = 0; c.inp.brake = sp > 12 ? 1 : 0; c.inp.hand = 1; if (sp <= 12) { c.vx *= .5; c.vy *= .5; } }   // arrêt à hauteur du client, sans marche arrière
+      return;
+    }
+    if (c.fare && G.t > c.fare.at) {
+      const sp2 = Math.hypot(c.vx, c.vy); c.inp.gas = 0; c.inp.brake = sp2 > 12 ? 1 : 0; c.inp.hand = 1;
+      if (sp2 < 15) {
+        const s = rand() < .5 ? 1 : -1, x = c.x - Math.sin(c.a) * 30 * s, y = c.y + Math.cos(c.a) * 30 * s;
+        if (!walkBlocked(x, y)) { const q = { x, y, a: c.a + Math.PI / 2 * s, v: 12 + rand() * 4, t: 0, state: "walk", st: 0, look: c.fare.look, id: c.fare.id, idn: c.fare.idn }; joinStreet(q); G.peds.push(q); const f = G.foot || G.player; if (Math.hypot(x - f.x, y - f.y) < 300) msg("🚕 Un client paie et descend du taxi.", 2.5); }
+        c.fare = null; c.fareGone = G.t + 8;
+      }
+    }
+  }
+  // la musique de l'ambiance : à fond dans la boîte ou au concert, douce à la piscine, étouffée quand on passe devant
+  function musicFor() {
+    if (!WALK || !G || G.over || G.paused) return [null];
+    const R = G.room;
+    if (R) return R.kind === "club" || R.kind === "concert" ? ["ndombolo", R.kind === "concert" ? .95 : .8, false] : R.kind === "piscine" ? ["rumba", .55, false] : [null];
+    const f = G.foot || G.player; let best = null, bd = 420;
+    for (const o of PLACES) if ((o.type === "club" || o.type === "concert" || o.type === "piscine") && isOpen(o, G.hour)) { const d = Math.hypot(o.x - f.x, o.y - f.y); if (d < bd) { bd = d; best = o; } }
+    if (!best) return [null];
+    const inside = G.foot && G.foot.inside === best;
+    return [best.type === "piscine" ? "rumba" : "ndombolo", inside ? .6 : .45 * (1 - bd / 420), !inside];
+  }
+  // le personnage du joueur entre vraiment dans le lieu (il disparaît derrière la porte), puis ressort
+  function enterPlace(o) {
+    const f = G.foot; if (!f || !lifeT(o) || o.id === "maison" || !isOpen(o, G.hour)) return false;
+    f.inside = o; f.inT = 1.2; lifeOf(o).hold = 2; const d = o.door; f.x = d.x; f.y = d.y; f.v = 0;
+    const btn = document.getElementById("insidebtn"); if (btn) btn.hidden = false;
+    if (G.pionnier && openRoom(o)) { if (G.auto && G.auto.wait < 35) G.auto.wait = 35 + rand() * 20; }   // on prend le temps d'être servi
+    return true;
+  }
+  function leavePlace() {
+    const f = G.foot; if (!f || !f.inside) return; const o = f.inside; lifeOf(o).hold = 2; f.inside = null;
+    if (G.room && !G.room.watch) { if (G.room.me && G.room.me.shopBag) f.shopBag = true; closeRoom(); }
+    const btn = document.getElementById("insidebtn"); if (btn) btn.hidden = true;
+    const w = document.getElementById("interior"); if (w) w.hidden = true;
+  }
+  // écran « à l'intérieur » : qui est là, qui sert qui
+  const STAFF_T = { concert: "l'orchestre, les danseuses et la sécurité", piscine: "le maître-nageur, le DJ et le barman", alim: "la caissière", magasin: "la vendeuse", club: "le DJ et le barman", bureau: "l'agent d'accueil", etat: "l'agent au guichet", eglise: "le pasteur et la chorale" };
+  const SCENE_T = { concert: "🎤", piscine: "🏊", alim: "🛒", magasin: "👗", club: "🪩", bureau: "🏢", etat: "🏛️", eglise: "⛪" };
+  function openInterior(o) {
+    o = o || (G.foot && G.foot.inside); if (!o) return;
+    if (o.virt) {   // maison d'une famille ou bureaux : qui est là, ce qu'on y trouve
+      const w = document.getElementById("interior"); if (!w) return; const h = Math.floor(G.hour), esc = t => String(t).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+      let body;
+      if (o.virt === "openspace") { const st = officeNow(o, h); body = '<p class="in-h">' + (st.open ? "🟢 Ouvert · 7 h – 18 h" : "🔴 Fermé (ouvert du lundi au samedi, 7 h – 18 h)") + "</p><p>" + (st.open ? st.n + " employés à leur poste, une réceptionniste à l'accueil et le directeur qui passe entre les bureaux." : "Les employés sont rentrés chez eux ; le gardien surveille l'immeuble.") + "</p><h4>Dans les bureaux</h4><p>Postes de travail avec ordinateurs, salle de réunion vitrée avec tableau blanc, imprimante, fontaine à eau, armoires à dossiers.</p>"; }
+      else {
+        const M = houseNow(o, h), all = houseHold(o);
+        body = "<p>Ici vit la famille " + esc(o.fam) + " : " + all.length + " personne" + (all.length > 1 ? "s" : "") + ".</p>" +
+          (M.length ? "<h4>À la maison en ce moment</h4><ul>" + M.map(m => "<li>" + esc(m.nom) + " (" + m.role + ") " + esc(m.act) + "</li>").join("") + "</ul>" : "<p>Personne à la maison pour l'instant : chacun est au travail ou à l'école.</p>") +
+          (o.owner && !M.some(m => m.owner) ? "<p>👤 " + esc(o.owner.nom) + " est dehors en ce moment.</p>" : "") +
+          "<h4>Dans la maison</h4><p>Salon avec télévision, canapé et table basse · salle à manger · cuisine avec réchaud à gaz, frigo et bidons d'eau · chambre des parents · chambre des enfants" + (o.rich ? " · climatiseur" : "") + ".</p>";
+      }
+      w.querySelector(".in-body").innerHTML = '<div class="in-scene">' + o.icone + "</div><h3>" + o.icone + " " + esc(o.nom) + "</h3>" + body +
+        (G.pionnier ? "" : '<p class="in-pio">🏅 Entrer vraiment dans la pièce en 3D est réservé aux 100 premiers inscrits (les pionniers).</p>');
+      w.hidden = false; return;
+    }
+    const L = lifeOf(o), T = lifeT(o), w = document.getElementById("interior"); if (!w) return;
+    const staff = o.resto ? "la serveuse et la cuisinière" : o.id === "hopital" ? "les infirmières et un médecin" : o.id === "police" ? "l'agent de permanence" : STAFF_T[o.type] || "le personnel";
+    const me = G.foot && G.foot.inside === o, A = G.auto;
+    const who = L.inside.slice(0, 8).map(x => { const I = ident({ id: x.id, look: x.look, idn: x.idn, x: o.x, y: o.y }); return "<li>" + I.nom + " " + x.doing + "</li>"; }).join("");
+    const H = hoursOf(o);
+    w.querySelector(".in-body").innerHTML = '<div class="in-scene">' + (o.resto ? "🍲" : SCENE_T[o.type] || o.icone) + "</div><h3>" + o.icone + " " + o.nom + "</h3>" +
+      '<p class="in-h">' + (L.open ? "🟢 Ouvert" : "🔴 Fermé") + (H ? " · " + (H[1] - H[0] >= 24 ? "jour et nuit" : H[0] + " h – " + H[1] + " h") : "") + "</p>" +
+      (me ? '<p class="in-me">👤 Ton personnage est à l\'intérieur : ' + (A && A.doing ? A.doing : "il est servi") + ".</p>" : "") +
+      "<p>Sur place, " + staff + " accueille" + (/^(les|le DJ)/.test(staff) ? "nt" : "") + " et sert les clients.</p>" +
+      (who ? "<h4>À l'intérieur en ce moment</h4><ul>" + who + "</ul>" : "<p>Personne d'autre à l'intérieur pour l'instant.</p>") +
+      (G.pionnier ? "" : '<p class="in-pio">🏅 Entrer vraiment dans la pièce en 3D est réservé aux 100 premiers inscrits (les pionniers).</p>') +
+      (o.type === "club" && L.queue.length ? "<p>🧍 " + L.queue.length + " personne" + (L.queue.length > 1 ? "s font" : " fait") + " la queue dehors.</p>" : "");
+    w.hidden = false;
+  }
+  function insideBtn() {
+    const b = document.getElementById("insidebtn"); if (!b) return; const f = G.foot;
+    let o = f && f.inside;
+    if (!o && f && !f.inBus) { let bd = 160; for (const p of PLACES) { if (!lifeT(p) || p.id === "maison") continue; const d = Math.hypot(p.door.x - f.x, p.door.y - f.y); if (d < bd) { bd = d; o = p; } } }
+    if (!o && f && !f.inBus && WALK) { if (G.t - (G.bldT || 0) > .5) { G.bldT = G.t; G.bldNear = bldNear(f.x, f.y, 90); } o = G.bldNear; }
+    G.nearLife = o || null; b.hidden = !o;
+    if (o) { const t = (f.inside ? "👁️ À l'intérieur : " : "👁️ Regarder dans ") + o.nom; if (b.textContent !== t) b.textContent = t; }
+  }
+  // ---------------------------------------------------------------- tous les bâtiments de la ville sont habités ou occupés
+  // Chaque maison du quartier abrite une famille (lits, cuisine, salon, télé…), chaque immeuble de bureaux a ses employés.
+  // Ces lieux « virtuels » se créent à la demande, une fois pour toutes (même famille, mêmes meubles à chaque visite).
+  const VBLD = new Map(), SURNOMS = ["Mbuyi", "Kabila", "Tshibanda", "Lukusa", "Nsimba", "Mukendi", "Ilunga", "Kanku", "Makiese", "Bokele", "Matondo", "Ngalula", "Mpiana", "Lokwa"];
+  const BUREAUX = ["Cabinet d'avocats", "Agence de voyages", "Société de transport", "Bureau d'études", "Banque commerciale", "Agence de communication", "ONG de santé", "Cabinet comptable", "Société minière", "Assurance", "Agence immobilière", "Société de télécoms"];
+  const hash2 = (a, b) => (Math.imul((a | 0) ^ 0x9e3779b9, 2654435761) ^ Math.imul((b | 0) + 7, 40503)) >>> 0;
+  function virtPlace(key, x, y, door, kind, seed) {
+    let o = VBLD.get(key); if (o) return o;
+    const r = rng(seed), pick = L => L[(r() * L.length) | 0], fam = pick(SURNOMS);
+    o = { id: "bat-" + key, virt: kind, seed, x, y, door, fam, rich: r() < (kind === "appart" ? .5 : .25), nRooms: 2 };
+    if (kind === "openspace") { o.nom = pick(BUREAUX) + " " + fam; o.icone = "🏢"; o.type = "bureau"; }
+    else { o.nom = (kind === "appart" ? "Appartement de la famille " : "Maison de la famille ") + fam; o.icone = kind === "appart" ? "🏬" : "🏠"; o.type = "maison"; }
+    VBLD.set(key, o); return o;
+  }
+  // la maison d'un habitant (sa « home » sur la carte) : il y vit avec sa famille
+  function homeOf(q) {
+    const I = ident(q); if (!I.home || q.tourist) return null; const f = I.home, k = FILL.indexOf(f);
+    const o = virtPlace("f" + k, f.x, f.y, { x: f.x, y: f.y + f.d / 2 + 14 }, "maison", hash2(k, 31));
+    if (!o.owner) { o.owner = { id: q.id, nom: I.nom, woman: I.woman, age: I.age, metier: I.metier }; o.fam = I.nom.split(" ").pop(); o.nom = "Maison de la famille " + o.fam; }
+    return o;
+  }
+  // le bâtiment le plus proche du personnage (petites maisons du quartier et bâtiments de la carte)
+  const OSM_BB = [];
+  function bldNear(x, y, R) {
+    let best = null, bd = R;
+    FILL.forEach((f, k) => { const dx = Math.max(0, Math.abs(x - f.x) - f.w / 2), dy = Math.max(0, Math.abs(y - f.y) - f.d / 2), d = Math.hypot(dx, dy); if (d < bd) { bd = d; best = { k: "f" + k, f, kind: "maison", seed: hash2(k, 31) }; } });
+    if (!OSM_BB.length) MAP.buildings.forEach((b, k) => { if (b[0] < 0) return; let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9; for (let i = 1; i < b.length; i += 2) { x0 = Math.min(x0, b[i]); x1 = Math.max(x1, b[i]); y0 = Math.min(y0, b[i + 1]); y1 = Math.max(y1, b[i + 1]); } OSM_BB.push([k, x0, y0, x1, y1]); });
+    for (const [k, x0, y0, x1, y1] of OSM_BB) {
+      const dx = Math.max(0, x0 - x, x - x1), dy = Math.max(0, y0 - y, y - y1), d = Math.hypot(dx, dy); if (d >= bd) continue;
+      const b = MAP.buildings[k], tall = b[0] > 200, s = hash2(k, 77), u = (s % 100) / 100;
+      bd = d; best = { k: "b" + k, bb: [x0, y0, x1, y1], kind: tall ? (u < .7 ? "openspace" : "appart") : (u < .3 ? "openspace" : "maison"), seed: s };
+    }
+    if (!best) return null;
+    const cx = best.f ? best.f.x : (best.bb[0] + best.bb[2]) / 2, cy = best.f ? best.f.y : (best.bb[1] + best.bb[3]) / 2;
+    return virtPlace(best.k, cx, cy, { x, y }, best.kind, best.seed);
+  }
+  // qui est là, selon l'heure : la nuit tout le monde dort ; le jour, les enfants vont à l'école et les parents au travail
+  function houseHold(o) {
+    if (o.mine) {   // chez toi : ta femme si ton personnage est marié ; sinon il vit seul
+      const me = G.me || {}, M = me.conjoint ? [{ woman: true, nom: me.conjoint, role: "épouse", id: 699001, look: 2 }] : [];
+      return M;
+    }
+    if (o.members) return o.members;
+    const r = rng(o.seed + 5), M = [], fam = o.fam, ow = o.owner;
+    const adult = (woman, role) => ({ woman, nom: (woman ? NOMS_F : NOMS_H)[(r() * 12) | 0] + " " + fam, role });
+    const pere = ow && !ow.woman ? Object.assign(adult(false, "père"), { nom: ow.nom, owner: true }) : adult(false, "père");
+    const mere = ow && ow.woman ? Object.assign(adult(true, "mère"), { nom: ow.nom, owner: true }) : adult(true, "mère");
+    if (r() < .85 || (ow && !ow.woman)) M.push(pere);
+    M.push(mere);
+    const kids = (r() * 4) | 0; for (let k = 0; k < kids; k++) { const w = r() < .5; M.push({ woman: w, nom: (w ? NOMS_F : NOMS_H)[(r() * 12) | 0] + " " + fam, role: w ? "fille" : "fils", kid: .6 + r() * .2 }); }
+    if (r() < .35) M.push(Object.assign(adult(true, "grand-mère"), { old: true }));
+    M.forEach((m, i) => { m.id = 700000 + (o.seed % 90000) * 8 + i; m.look = (o.seed + i * 3) % 7; });
+    return (o.members = M);
+  }
+  // où est chaque membre de la famille maintenant
+  function houseNow(o, h) {
+    const M = houseHold(o), out = [];
+    M.forEach((m, i) => {
+      if (m.owner && G.peds.some(q => q.id === o.owner.id && !q.gone)) return;   // il est dehors, dans la rue
+      if (o.mine) { const night = h >= 22 || h < 5; out.push(Object.assign({}, m, { act: night ? "dort" : h < 9 ? "prépare le petit déjeuner" : h >= 17 ? "prépare le dîner" : "regarde la télévision" })); return; }
+      const night = h >= 22 || h < 5, morning = h >= 5 && h < 8, day = h >= 8 && h < 16;
+      let act;
+      if (night) act = "dort";
+      else if (morning) act = m.role === "mère" ? "prépare le petit déjeuner" : m.kid ? (i % 2 ? "prend sa douche avant l'école" : "prend son petit déjeuner avant l'école") : "boit son café à table";
+      else if (day) { if (m.kid && (i + h) % 3) return; if (!m.kid && !m.old && m.role !== "mère") return; if (m.role === "mère" && (o.seed + h) % 2) return; act = m.old ? "regarde la télévision" : m.kid ? "fait ses devoirs" : "fait le ménage et la cuisine"; }
+      else act = m.role === "mère" ? "prépare le dîner" : m.kid ? (i % 2 ? "joue dans le salon" : "fait ses devoirs à table") : "regarde le journal télévisé";
+      out.push(Object.assign({}, m, { act }));
+    });
+    return out;
+  }
+  // ta maison : un vrai intérieur où ton personnage entre, range ses courses, mange, regarde la télé et dort
+  function myHome() {
+    const h = HOME(); if (!h) return null;
+    const o = virtPlace("moi", h.x, h.y, h.door, "maison", 424242); o.mine = true; o.nom = "Ta maison"; o.icone = "🏠"; o.rich = !!(G.me && G.me.argent > 500);
+    o.meubles = myMeubles(); o.sig = [...o.meubles].sort().join(",");
+    return o;
+  }
+  // meubles achetés dans la boutique de « Ma vie » (liste posée par vie.js dans ce navigateur)
+  function hasSwimsuit() { let L = []; try { L = JSON.parse(lsGet("twolife_objets") || "[]"); } catch (e) { } return Array.isArray(L) && L.some(id => /^maillot/.test(id)); }
+  function myMeubles() { let L = []; try { L = JSON.parse(lsGet("twolife_meubles") || "[]"); } catch (e) { } return new Set(Array.isArray(L) ? L : []); }
+  function enterHome() {
+    const A = G.auto, f = G.foot; if (!f || !A || A.mode === "prison") return;
+    const o = myHome(); if (!o) return; f.inside = o; f.inT = 1;
+    if (G.pionnier && openRoom(o, false, true)) (G.me ? note : msg)("🏠 " + (G.me && G.me.prenom || "Ton personnage") + " entre chez lui : salon, télé, cuisine, chambre… tout est là.", G.me ? "ok" : 4);
+  }
+  function homePlan(R, q) {
+    const h = G.hour, night = h >= 22 || h < 5, A = G.auto, hungry = G.me && G.me.faim > 55;
+    q.z = 0;
+    const go = (x, y, a, then) => roomGo(q, x, y, () => { q.a = a; then(); });
+    if (q.shopBag) { q.doing = "range ses courses dans le frigo"; go(21, -57, -Math.PI / 2, () => { q.state = "idle"; q.talk = 1; q.wait = 5; q.shopBag = false; q.bagNew = true; }); return; }
+    const M = (R.o && R.o.meubles) || new Set(), me = G.me;
+    if (night) {
+      const cool = M.has("clim") ? "au frais, clim allumée" : M.has("ventilo") ? "avec le ventilateur" : "";
+      q.doing = "dort dans sa chambre" + (cool ? " " + cool : "");
+      go(-61, -40, Math.PI / 2, () => { q.state = "down"; q.z = 2; q.wait = 1e9; if (cool && me && me.frais !== G.day) { me.frais = G.day; G.energy = Math.min(100, G.energy + (M.has("clim") ? 12 : 5)); } }); return;
+    }
+    // le matin : la douche d'abord (chaude avec le chauffe-eau, sinon à l'eau froide avec le seau)
+    if (h >= 5 && h < 10 && me && me.douche !== G.day) {
+      q.doing = M.has("chauffe-eau") ? "prend une douche chaude" : "se lave à l'eau froide, au seau et au gobelet";
+      go(84, -4, Math.PI, () => { q.state = "idle"; q.wait = 14; me.douche = G.day; G.energy = Math.min(100, G.energy + (M.has("chauffe-eau") ? 6 : 3)); }); return;
+    }
+    if (hungry || (A && A.dest && A.dest.eat)) { q.doing = "mange à table"; go(32, 13, Math.PI / 2, () => { q.state = "sit"; q.wait = 25 + rand() * 15; if (G.me) G.me.faim = Math.min(G.me.faim, 15); if (A && A.dest) A.dest.eat = false; }); return; }
+    const k = (q.n = (q.n || 0) + 1) % 6;
+    if (k === 4) { q.doing = "va aux toilettes"; go(76, 8, -Math.PI / 2, () => { q.state = "sit"; q.wait = 10; }); return; }
+    if (k === 1) { q.doing = "regarde la télé dans le salon"; go(-48, 20, Math.PI, () => { q.state = "sit"; q.wait = 30 + rand() * 20; }); }
+    else if (k === 2) { q.doing = "se repose sur son lit"; go(-61, -40, Math.PI / 2, () => { q.state = "down"; q.z = 2; q.wait = 25 + rand() * 15; }); }
+    else if (k === 3) { q.doing = "se lave les mains au lavabo"; go(71, -4, -Math.PI / 2, () => { q.state = "idle"; q.wait = 6; }); }
+    else if (k === 5) { q.doing = "boit de l'eau fraîche à la cuisine"; go(-2, -57, -Math.PI / 2, () => { q.state = "idle"; q.wait = 8; }); }
+    else { q.doing = "range ses habits dans l'armoire"; go(-36, -62, -Math.PI / 2, () => { q.state = "idle"; q.wait = 8; }); }
+  }
+  function officeNow(o, h) {
+    const open = h >= 7 && h < 18 && ((G.day + 4) % 7 + 7) % 7 !== 0;
+    return { open, n: open ? 6 + (o.seed % 4) : 0 };
+  }
+  // ---------------------------------------------------------------- intérieurs 3D (pionniers : les 100 premiers inscrits)
+  // On entre vraiment dans la pièce : meubles, personnel qui accueille et sert, clients qui font leurs courses, mangent, dansent, prient…
+  // La pièce est construite hors de la carte (ROOM_O) ; la simulation tourne ici, game3d.js la dessine.
+  const ROOM_O = { x: -40000, y: -40000 }, UPA = -Math.PI / 2;
+  const roomKind = o => o.virt ? o.virt : o.resto ? "resto" : o.id === "phones" ? "phones" : o.id === "hopital" ? "hopital" : o.id === "police" ? "police" : o.id === "justice" || o.id === "assemblee" ? "salle" : o.type === "bureau" || o.type === "etat" ? "office" : o.type;
+  function roomLayout(o) {
+    const kind = roomKind(o), it = [], seats = [], spots = { browse: [], pay: [], dance: [], guichet: [], staff: [] };
+    let W = 170, D = 130, H = 32;
+    const add = (t, x, y, w, d, ex) => { const r = Object.assign({ t, x, y, w, d, a: Math.PI / 2, solid: true }, ex || {}); it.push(r); return r; };
+    const seat = (x, y, a, ex) => { const s = Object.assign({ x, y, a, who: null }, ex || {}); seats.push(s); return s; };
+    const staff = (role, x, y, a, ex) => spots.staff.push(Object.assign({ role, x, y, a }, ex || {}));
+    const UP = -Math.PI / 2, DOWN = Math.PI / 2;   // regarder vers le fond / vers la porte
+    if (kind === "alim" || kind === "magasin" || kind === "phones") {
+      W = kind === "alim" ? 170 : 160; D = 130;
+      const cy = D / 2 - 30;
+      add("counter", 52, cy, 42, 12, { label: "CAISSE" }); staff("cashier", 58, cy - 13, DOWN);
+      for (let k = 0; k < 4; k++) spots.pay.push({ x: 48 - k * 12, y: cy + 14, a: UP });
+      if (kind === "alim") {
+        add("fridges", 0, -D / 2 + 5, 140, 9, { solid: true });
+        [-55, -18, 19].forEach(x => { add("shelf", x, -12, 11, 62); [-30, 0, 18].forEach(y => { spots.browse.push({ x: x - 13, y, a: 0 }); spots.browse.push({ x: x + 13, y, a: Math.PI }); }); });
+        [-50, -10, 30].forEach(x => spots.browse.push({ x, y: -D / 2 + 18, a: UP }));
+        add("crates", -66, cy + 6, 22, 14);
+      } else if (kind === "magasin") {
+        [-50, -10, 30].forEach(x => { add("rack", x, -18, 34, 6); spots.browse.push({ x, y: -6, a: UP }); spots.browse.push({ x, y: -30, a: DOWN }); });
+        add("mirror", -W / 2 + 2, 10, 26, 3, { a: 0 }); spots.browse.push({ x: -W / 2 + 16, y: 10, a: Math.PI });
+        add("cabin", W / 2 - 14, -D / 2 + 16, 24, 26); spots.browse.push({ x: W / 2 - 14, y: -D / 2 + 36, a: UP });
+        add("mannequin", -60, cy + 8, 8, 8); add("mannequin", -44, cy + 8, 8, 8);
+        add("shelf", 0, -D / 2 + 5, 120, 8, { shoes: true });
+      } else {
+        [-50, -5].forEach(x => { add("vitrine", x, -10, 30, 12); spots.browse.push({ x, y: 4, a: UP }); spots.browse.push({ x, y: -24, a: DOWN }); });
+        add("poster", 0, -D / 2 + 1, 70, 2, { solid: false, label: "📱 SMARTPHONES · ACCESSOIRES · RÉPARATION" });
+        add("desk", 40, -D / 2 + 22, 30, 12, { a: DOWN, pc: true }); staff("tech", 40, -D / 2 + 12, DOWN, { sit: true }); spots.browse.push({ x: 40, y: -D / 2 + 36, a: UP });
+      }
+      add("plant", -W / 2 + 8, D / 2 - 8, 8, 8);
+    } else if (kind === "resto") {
+      W = 170; D = 140;
+      add("bar", 0, -D / 2 + 14, 100, 12, { label: "CUISINE · BOISSONS" }); staff("cook", -20, -D / 2 + 5, DOWN); staff("waiter", 0, -D / 2 + 28, DOWN);
+      add("fridge", W / 2 - 10, -D / 2 + 8, 14, 10);
+      [-52, 0, 52].forEach(x => [-14, 30].forEach(y => {
+        add("table", x, y, 16, 16);
+        [[0, -13, DOWN], [0, 13, UP], [-13, 0, 0], [13, 0, Math.PI]].forEach(([dx, dy, a]) => { add("chair", x + dx, y + dy, 6, 6, { a, solid: false }); seat(x + dx, y + dy, a, { table: { x, y } }); });
+      }));
+      add("tv", -W / 2 + 1, -10, 34, 2, { a: 0, solid: false }); add("plant", W / 2 - 8, D / 2 - 8, 8, 8);
+    } else if (kind === "club") {
+      W = 190; D = 160;
+      add("dj", 0, -D / 2 + 13, 44, 12); staff("dj", 0, -D / 2 + 4, DOWN, { dance: true });
+      add("speaker", -36, -D / 2 + 8, 12, 10); add("speaker", 36, -D / 2 + 8, 12, 10);
+      add("dancefloor", 10, -14, 80, 66, { solid: false });
+      for (let i = 0; i < 5; i++) for (let j = 0; j < 4; j++) spots.dance.push({ x: -24 + i * 17, y: -40 + j * 18, a: UP });
+      // ambiance chaude : mur LED, lasers, podiums avec danseuses, animateur (atalaku) et une piste déjà pleine
+      add("ledwall", 0, -D / 2 + 1, 90, 2, { solid: false, a: DOWN, label: o.nom.toUpperCase() }); add("lasers", 0, -D / 2 + 20, 10, 4, { solid: false });
+      [[-50, -56], [66, -58]].forEach(([x, y]) => { add("podium", x, y, 14, 14); staff("gogo", x, y, DOWN, { dance: true, z: 7, fem: true }); });
+      staff("atalaku", 0, -D / 2 + 24, DOWN, { pace: 16, preach: true });
+      for (let k = 0; k < 10; k++) { const d = spots.dance[(k * 7) % spots.dance.length]; staff("fan", d.x + (rand() - .5) * 10, d.y + (rand() - .5) * 8, UP + (rand() - .5) * 2, { dance: true, fem: rand() < .5 }); }
+      add("bar", -W / 2 + 14, 4, 70, 12, { a: 0, label: "BAR" }); staff("barman", -W / 2 + 5, 4, 0, { pace: 24 });
+      for (let k = 0; k < 5; k++) { add("stool", -W / 2 + 28, -24 + k * 14, 6, 6, { solid: false }); seat(-W / 2 + 28, -24 + k * 14, Math.PI, { bar: true }); }
+      [-36, 16].forEach(y => { add("sofa", W / 2 - 10, y, 36, 14, { a: Math.PI }); add("lowtable", W / 2 - 28, y, 18, 12, { a: Math.PI }); [-10, 10].forEach(dy => seat(W / 2 - 14, y + dy, Math.PI, { sofa: true })); });
+      staff("guard", -24, D / 2 - 12, UP);
+    } else if (kind === "concert") {   // concert : scène, orchestre, danseuses, écran géant, foule qui danse
+      W = 280; D = 240; H = 80;
+      const sy = -D / 2 + 30;
+      const star = starNight(); o.sig = star ? "star:" + starName() : "";
+      add("stage", 0, sy, 230, 58, { solid: true, low: true }); add("ledwall", 0, -D / 2 + 1, 170, 2, { solid: false, a: DOWN, big: true, label: star ? "⭐ " + starName().toUpperCase() : o.nom.toUpperCase(), sub: star ? "SOIRÉE STAR · EN CONCERT CE SOIR" : null });
+      add("truss", 0, sy + 22, 236, 4, { solid: false }); add("lasers", 0, sy - 10, 10, 4, { solid: false });
+      [-128, 128].forEach(x => { add("speaker", x, sy + 6, 18, 14); add("speaker", x, sy + 24, 18, 14); });
+      add("drums", 0, -D / 2 + 12, 24, 16, { solid: false }); staff("musician", 0, -D / 2 + 6, DOWN, { z: 6, dance: true });
+      add("keyboard", -70, -D / 2 + 18, 18, 8, { solid: false }); staff("musician", -70, -D / 2 + 10, DOWN, { z: 6 });
+      [[-36, -D / 2 + 26], [36, -D / 2 + 26], [72, -D / 2 + 20]].forEach(([x, y]) => { add("amp", x, y - 10, 10, 7, { solid: false }); staff("guitar", x, y, DOWN, { z: 6, pace: 6 }); });
+      add("mic", 0, sy + 18, 3, 3, { solid: false }); staff("singer", 0, sy + 16, DOWN, { z: 6, pace: 34, preach: true, biz: true, nom: star ? starName() : null, fem: star && STAR && STAR.fem, doing: star ? "chante en tête d'affiche (soirée star)" : "chante avec l'orchestre" });
+      staff("atalaku", -54, sy + 18, DOWN, { z: 6, pace: 16, preach: true });
+      [-96, -80, 80, 96].forEach((x, k) => staff("gogo", x, sy + 8 + (k % 2) * 8, DOWN, { z: 6, dance: true, fem: true }));
+      add("barrier", 0, sy + 36, 230, 3); [-60, 60].forEach(x => staff("guard", x, sy + 42, UP));
+      for (let i = 0; i < 8; i++) for (let j = 0; j < 5; j++) spots.dance.push({ x: -105 + i * 30, y: sy + 54 + j * 20, a: UP });
+      for (let k = 0; k < (star ? 30 : 18); k++) { const d = spots.dance[(k * 11) % spots.dance.length]; staff("fan", d.x + (rand() - .5) * 14, d.y + (rand() - .5) * 10, UP + (rand() - .5) * .9, { dance: rand() < .8, fem: rand() < .5 }); }
+      add("bar", W / 2 - 12, 60, 60, 12, { a: Math.PI, label: "BAR" }); staff("barman", W / 2 - 4, 60, Math.PI, { pace: 20 });
+      for (let k = 0; k < 4; k++) { add("stool", W / 2 - 26, 42 + k * 12, 6, 6, { solid: false }); seat(W / 2 - 26, 42 + k * 12, 0, { bar: true }); }
+      staff("guard", -30, D / 2 - 12, UP);
+    } else if (kind === "piscine") {   // piscine en plein air : bassin, nageurs, transats et parasols, bar à cocktails, DJ, maître-nageur
+      W = 270; D = 220; H = 40;
+      const px = -25, py = -22;
+      add("pool", px, py, 160, 90); 
+      for (let k = 0; k < 9; k++) { const x = px - 62 + (k * 37) % 124, y = py - 34 + ((k * 23) % 68); staff("swimmer", x, y, k % 2 ? 0 : Math.PI, { pace: 26, z: -10, fem: k % 3 === 0 }); }
+      add("lifechair", px + 92, py - 30, 8, 8); staff("lifeguard", px + 92, py - 30, Math.PI, { z: 15, sit: true });
+      for (let k = 0; k < 8; k++) { const x = -112 + k * 24; add("transat", x, 54, 8, 18, { solid: false, a: UP, color: ["#ff6b6b", "#ffd23f", "#2fb6e0", "#ffffff"][k % 4] }); seat(x, 54, UP, { transat: true }); if (k % 2) add("parasol", x + 12, 46, 4, 4, { solid: false, color: ["#ff4f9a", "#2fb6e0", "#ffd23f", "#2ecc71"][(k >> 1) % 4] }); }
+      [[-106, 36, DOWN], [-60, 36, DOWN], [-10, 36, DOWN], [40, 36, DOWN], [74, -10, Math.PI], [-114, -22, 0]].forEach(([x, y, a]) => spots.browse.push({ x, y, a }));
+      add("bar", W / 2 - 14, -50, 60, 12, { a: Math.PI, label: "BAR · COCKTAILS" }); staff("barman", W / 2 - 5, -50, Math.PI, { pace: 20 });
+      for (let k = 0; k < 4; k++) { add("stool", W / 2 - 28, -68 + k * 12, 6, 6, { solid: false }); seat(W / 2 - 28, -68 + k * 12, 0, { bar: true }); }
+      add("dj", W / 2 - 16, 30, 26, 10, { a: Math.PI }); staff("dj", W / 2 - 6, 30, Math.PI, { dance: true }); add("speaker", W / 2 - 10, 50, 10, 8, { a: Math.PI });
+      [[-W / 2 + 10, -D / 2 + 10], [W / 2 - 10, -D / 2 + 10], [-W / 2 + 10, D / 2 - 26], [W / 2 - 12, D / 2 - 26]].forEach(([x, y]) => add("palm", x, y, 10, 10));
+      staff("guard", -30, D / 2 - 12, UP);
+    } else if (kind === "eglise") {
+      W = 210; D = 270; H = 62;
+      add("stage", 0, -D / 2 + 26, 150, 44, { solid: true, low: true }); add("cross", 0, -D / 2 + 1, 30, 2, { solid: false });
+      add("pulpit", 0, -D / 2 + 40, 16, 10, { solid: false }); staff("pastor", 0, -D / 2 + 30, DOWN, { pace: 26, preach: true, z: 6 });
+      [-58, -46, -34, -22].forEach((x, k) => staff("choir", x, -D / 2 + 14 + (k % 2) * 7, DOWN, { dance: true, slow: true, z: 6 }));
+      add("drums", 52, -D / 2 + 16, 18, 14, { solid: false }); add("keyboard", 30, -D / 2 + 18, 18, 8, { solid: false }); staff("musician", 30, -D / 2 + 10, DOWN, { z: 6 });
+      for (let r = 0; r < 7; r++) { const y = -D / 2 + 74 + r * 24; [-52, 52].forEach(x => { add("pew", x, y, 76, 7, { a: UP }); for (let s = -2; s <= 2; s++) seat(x + s * 14, y, UP, { pew: true }); }); }
+      staff("usher", 30, D / 2 - 14, UP);
+    } else if (kind === "hopital") {
+      W = 200; D = 160;
+      add("counter", 40, D / 2 - 34, 50, 12); staff("reception", 40, D / 2 - 47, DOWN, { sit: true });
+      for (let k = 0; k < 4; k++) spots.guichet.push({ x: 40, y: D / 2 - 20, a: UP, agent: 0 });
+      for (let k = 0; k < 4; k++) { const y = -D / 2 + 18 + k * 30; add("bed", -W / 2 + 26, y, 40, 18); add("curtain", -W / 2 + 26, y + 14, 44, 2, { solid: false }); spots.staff.push({ role: "patient", x: -W / 2 + 27, y, a: Math.PI / 2, lie: true, z: 5 }); }
+      staff("nurse", -40, 0, Math.PI, { rounds: true });
+      [0, 24].forEach(y => { for (let s = 0; s < 5; s++) { add("chair", 20 + s * 12, -20 + y, 6, 6, { a: UP, solid: false }); seat(20 + s * 12, -20 + y, UP); } });
+      add("plant", W / 2 - 8, D / 2 - 8, 8, 8); add("poster", 40, -D / 2 + 1, 60, 2, { solid: false, label: "✚ HÔPITAL GÉNÉRAL · SOINS 24 H / 24" });
+    } else if (kind === "salle") {
+      W = 210; D = 180; H = 46;
+      const ass = o.id === "assemblee";
+      add("tribune", 0, -D / 2 + 20, 90, 22, { label: ass ? "ASSEMBLÉE NATIONALE" : "PALAIS DE JUSTICE" }); staff(ass ? "president" : "judge", 0, -D / 2 + 10, DOWN, { sit: true });
+      staff("clerk", 36, -D / 2 + 12, DOWN, { sit: true }); add("flag", -W / 2 + 10, -D / 2 + 10, 6, 6, { solid: false });
+      for (let r = 0; r < 4; r++) { const y = -D / 2 + 60 + r * 26; [-55, 55].forEach(x => { if (ass) { add("desk", x, y, 70, 7, { a: DOWN }); for (let s = -2; s <= 2; s++) seat(x + s * 13, y + 8, UP); } else { add("pew", x, y, 70, 7, { a: UP }); for (let s = -2; s <= 2; s++) seat(x + s * 13, y, UP); } }); }
+      if (!ass) { add("box", -60, -D / 2 + 40, 20, 8, { solid: false, label: "PARTIE CIVILE" }); add("box", 60, -D / 2 + 40, 20, 8, { solid: false, label: "DÉFENSE" }); }
+      staff("guard", -30, D / 2 - 12, UP);
+    } else if (kind === "maison" || kind === "appart") {   // une vraie maison kinoise : salon, salle à manger, cuisine, deux chambres
+      W = 180; D = 150; H = 30;
+      const rich = o.rich, wall = (x, y, w, d) => add("wall", x, y, w, d, { a: DOWN }), M = (o.mine && o.meubles) || new Set();
+      // chambre des parents (fond à gauche) et chambre des enfants (fond à droite), cloisons à mi-hauteur côté caméra
+      wall(-70, -15, 40, 3); wall(-26, -15, 12, 3); add("curtain", -41, -15, 18, 2, { solid: false, color: "#c0392b" }); wall(-20, -45, 3, 60);
+      wall(36, -15, 12, 3); wall(75, -15, 30, 3); add("curtain", 51, -15, 18, 2, { solid: false, color: "#2b6cb0" }); wall(30, -45, 3, 60);
+      if (M.has("lit-king")) add("homebed", -64, -45, 44, 38, { double: true, king: true, sheet: "#f4f2ee" });
+      else add("homebed", -62, -48, 40, 34, { double: true, sheet: rich ? "#f4f2ee" : "#e8a317" });
+      add("wardrobe", -36, -69, 24, 9);
+      add("homebed", 68, -62, 36, 16, { a: -DOWN, sheet: "#3fa9ff" }); add("homebed", 68, -30, 36, 16, { a: -DOWN, sheet: "#ff4f9a" });
+      add("frame", -62, -73, 20, 2, { solid: false, a: DOWN, cross: true });
+      // cuisine : plan de travail, réchaud à gaz, frigo, bidons d'eau
+      add("kitchen", -2, -69, 30, 10); add("fridge", 21, -69, 12, 10); add("jerrycans", 20, -26, 14, 8);
+      // salon : télé, canapé, table basse, tapis
+      add("rug", -60, 28, 52, 44, { solid: false }); add("tvstand", -85, 28, 30, 8, { a: 0, big: rich || M.has("tele-plasma"), huge: M.has("tele-plasma") }); add("sofa", -44, 28, 40, 14, { a: Math.PI, color: M.has("canape-cuir") ? "#24160c" : rich ? "#3d2b1f" : "#7a1f2b", leather: M.has("canape-cuir") }); add("lowtable", -64, 28, 18, 12, { a: Math.PI });
+      add("frame", -55, -13, 22, 2, { solid: false, a: DOWN }); add("plant", -84, 68, 8, 8);
+      // salle à manger
+      add("dtable", 42, 26, 34, 18);
+      [[32, 13, DOWN], [52, 13, DOWN], [32, 39, UP], [52, 39, UP]].forEach(([x, y, a]) => { add("chair", x, y, 6, 6, { a, solid: false, white: !rich }); seat(x, y, a, { table: { x: 42, y: 26 } }); });
+      if (rich || M.has("clim")) add("clim", -55, -73, 24, 3, { solid: false, a: DOWN });   // au-dessus du lit, dans la chambre
+      if (M.has("ventilo")) add("standfan", -84, 2, 8, 8, { solid: false, a: 0 });
+      // salle de bain (côté droit, entre la chambre des enfants et la salle à manger) : douche, WC, lavabo ; porte rideau
+      wall(64, -6, 3, 15); add("curtain", 64, 7, 10, 2, { solid: false, color: "#2f8f8f", a: 0 }); wall(64, 14.5, 3, 5); wall(77, 17.5, 26, 3);
+      add("shower", 83.5, -4, 18, 13, { solid: false, a: Math.PI, hot: M.has("chauffe-eau") }); add("toilet", 76, 11, 8, 10, { solid: false, a: UP }); add("lavabo", 71, -11, 9, 5, { solid: false, a: DOWN });
+      if (M.has("chauffe-eau")) add("boiler", 88.5, 9, 9, 4, { solid: false, a: Math.PI });
+      // la famille, selon l'heure
+      const sofa = [[-48, 20, Math.PI], [-48, 36, Math.PI]], tab = [[32, 13, DOWN], [52, 13, DOWN], [32, 39, UP], [52, 39, UP]];
+      const bedP = [[-61, -56], [-61, -40]], bedK = [[67, -62], [67, -30], [67, -59], [67, -27]];
+      let nP = 0, nK = 0, nS = 0, nT = 0, nB = 0;
+      (o.nowM || []).forEach(m => {
+        const sp = { role: "famille", who: m };
+        if (m.act === "dort") {
+          const kidBed = m.kid && nK < bedK.length, b = kidBed ? bedK[nK++] : !m.kid && !m.old && nP < 2 ? bedP[nP++] : null;
+          if (b) Object.assign(sp, { x: b[0], y: b[1], a: kidBed ? -DOWN : DOWN, lie: true, z: 2 }); else Object.assign(sp, { x: -44, y: 28, a: 0, lie: true, z: 1 });
+        } else if (/prépare|cuisine/.test(m.act)) Object.assign(sp, { x: -2, y: -58, a: UP, role: "cook" });
+        else if (/douche/.test(m.act) && !nB++) Object.assign(sp, { x: 84, y: -4, a: Math.PI });
+        else if (/télé/.test(m.act) && nS < sofa.length) { const s = sofa[nS++]; Object.assign(sp, { x: s[0], y: s[1], a: s[2], sit: true }); }
+        else if (/table|devoirs|café|déjeuner/.test(m.act) && nT < tab.length) { const s = tab[nT++]; Object.assign(sp, { x: s[0], y: s[1], a: s[2], sit: true }); }
+        else Object.assign(sp, { x: -30 + (nS + nT) * 6, y: 52, a: UP, pace: 18 });
+        spots.staff.push(sp);
+      });
+    } else if (kind === "openspace") {   // bureaux : postes de travail, salle de réunion, accueil
+      W = 200; D = 160; H = 32;
+      const gl = (x, y, w, d) => add("glasswall", x, y, w, d, { a: DOWN });
+      add("counter", 55, 46, 40, 12, { label: "ACCUEIL" }); spots.guichet.push({ x: 55, y: 60, a: UP, agent: 0 });
+      gl(40, -54, 3, 52); gl(40, -14, 3, 8); gl(52, -10, 24, 3); gl(88, -10, 24, 3);
+      add("dtable", 70, -45, 40, 20, { office: true }); add("whiteboard", 70, -79, 36, 2, { solid: false, a: DOWN, label: o.nom.split(" ").slice(0, 3).join(" ").toUpperCase() });
+      [[60, -59, DOWN], [80, -59, DOWN], [60, -31, UP], [80, -31, UP]].forEach(([x, y, a]) => { add("chair", x, y, 6, 6, { a, solid: false }); seat(x, y, a); });
+      const desks = []; [-50, -18].forEach(y => [-80, -50, -20, 10].forEach(x => { add("desk", x, y, 24, 11, { a: DOWN, pc: true }); add("chair", x, y - 9, 6, 6, { a: DOWN, solid: false }); desks.push([x, y - 9]); }));
+      add("cooler", -94, 42, 8, 8); add("printer", -60, 22, 14, 10); add("cabinet", -96, -64, 22, 7, { a: 0 }); add("cabinet", -96, -36, 22, 7, { a: 0 });
+      add("plant", 94, 72, 8, 8); add("plant", -94, 72, 8, 8); add("plant", 34, -74, 8, 8);
+      const st = o.officeNow || { open: false, n: 0 };
+      if (st.open) {
+        staff("reception", 60, 34, DOWN, { sit: true });
+        desks.slice(0, Math.min(desks.length, st.n)).forEach(([x, y]) => staff("worker", x, y, DOWN, { sit: true }));
+        if (st.n > 6) { [[60, -59, DOWN], [80, -59, DOWN], [60, -31, UP]].forEach(([x, y, a]) => staff("worker", x, y, a, { sit: true, meet: true })); staff("presenter", 70, -70, DOWN, { pace: 10, preach: true }); }
+        staff("boss", -35, 6, DOWN, { pace: 40, biz: true });
+      } else if (G.hour >= 18 && G.hour < 21) staff("cleaner", -20, 6, DOWN, { pace: 50 });
+      staff("guard", 26, D / 2 - 12, UP);
+    } else {   // bureaux, administrations, commissariat : guichets et salle d'attente
+      W = 180; D = 150;
+      const gy = -D / 2 + 32;
+      add("guichets", 0, gy, 150, 10, { label: o.id === "zboss" ? "ZBOSS SARLU · ACCUEIL" : o.id === "police" ? "POLICE NATIONALE · PLAINTES" : o.nom.toUpperCase().slice(0, 34) });
+      [-50, 0, 50].forEach((x, k) => { add("desk", x, gy - 15, 26, 10, { a: DOWN, pc: true, solid: false }); staff("agent", x, gy - 22, DOWN, { sit: true, desk: k }); spots.guichet.push({ x, y: gy + 13, a: UP, agent: k }); });
+      for (let r = 0; r < 2; r++) for (let s = 0; s < 6; s++) { const x = -45 + s * 18, y = 12 + r * 24; add("chair", x, y, 6, 6, { a: UP, solid: false }); seat(x, y, UP); }
+      if (kind === "police") { add("cell", W / 2 - 20, 20, 44, 40, { a: Math.PI }); spots.staff.push({ role: "prisoner", x: W / 2 - 12, y: 20, a: Math.PI }); }
+      else add("plant", W / 2 - 10, 20, 8, 8);
+      if (o.type === "etat") add("flag", -W / 2 + 10, -D / 2 + 10, 6, 6, { solid: false });
+      add("ticket", -W / 2 + 12, D / 2 - 22, 8, 8); staff("guard", 26, D / 2 - 12, UP);
+    }
+    if (kind !== "piscine" && kind !== "concert" && kind !== "club") add("fan", 0, 0, 1, 1, { solid: false, ceil: true });
+    return { o, kind, W, D, H, it, seats, spots, door: { x: 0, y: D / 2 - 6 } };
+  }
+  // petite grille de déplacement (1 case = 0,5 m) : on contourne les meubles
+  function roomGrid(R) {
+    const c = 5, nx = Math.ceil(R.W / c), ny = Math.ceil(R.D / c), b = new Uint8Array(nx * ny), tall = new Uint8Array(nx * ny), pad = 3, TALL = ["shelf", "fridges", "fridge", "cell", "speaker", "cabin", "rack", "wall", "wardrobe", "cabinet", "glasswall"];
+    for (let i = 0; i < nx; i++) for (let j = 0; j < ny; j++) {
+      const x = -R.W / 2 + (i + .5) * c, y = -R.D / 2 + (j + .5) * c;
+      if (Math.abs(x) > R.W / 2 - 4 || Math.abs(y) > R.D / 2 - 4) { b[j * nx + i] = tall[j * nx + i] = 1; continue; }
+      for (const m of R.it) { if (!m.solid) continue; const hw = (m.a === 0 || m.a === Math.PI ? m.d : m.w) / 2 + pad, hd = (m.a === 0 || m.a === Math.PI ? m.w : m.d) / 2 + pad; if (Math.abs(x - m.x) < hw && Math.abs(y - m.y) < hd) { b[j * nx + i] = 1; if (TALL.includes(m.t)) tall[j * nx + i] = 1; break; } }
+    }
+    R.grid = { c, nx, ny, b, tall };
+  }
+  function roomPath(R, x0, y0, x1, y1) {
+    const g = R.grid, cell = (x, y) => [Math.max(0, Math.min(g.nx - 1, Math.floor((x + R.W / 2) / g.c))), Math.max(0, Math.min(g.ny - 1, Math.floor((y + R.D / 2) / g.c)))];
+    const free = (i, j) => i >= 0 && j >= 0 && i < g.nx && j < g.ny && !g.b[j * g.nx + i];
+    const near = (i, j) => { if (free(i, j)) return [i, j]; for (let r = 1; r < 8; r++) for (let di = -r; di <= r; di++) for (let dj = -r; dj <= r; dj++) if (free(i + di, j + dj)) return [i + di, j + dj]; return [i, j]; };
+    const [si, sj] = near(...cell(x0, y0)), [ti, tj] = near(...cell(x1, y1)), S0 = sj * g.nx + si, T = tj * g.nx + ti;
+    const prev = new Int32Array(g.nx * g.ny).fill(-1), seen = new Uint8Array(g.nx * g.ny), Q = [S0]; seen[S0] = 1;
+    for (let h = 0; h < Q.length && !seen[T]; h++) {
+      const k = Q[h], i = k % g.nx, j = (k / g.nx) | 0;
+      for (const [di, dj] of [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]]) {
+        const a = i + di, b2 = j + dj; if (!free(a, b2) || (di && dj && (!free(i + di, j) || !free(i, j + dj)))) continue;
+        const n = b2 * g.nx + a; if (seen[n]) continue; seen[n] = 1; prev[n] = k; Q.push(n);
+      }
+    }
+    const end = { x: x1, y: y1 }; if (!seen[T]) return [end];
+    const cells = []; for (let k = T; k >= 0 && k !== S0; k = prev[k]) cells.unshift(k);
+    const pts = []; let dir = null;
+    cells.forEach((k, n) => { const d = n ? k - cells[n - 1] : null; if (n && d === dir) pts[pts.length - 1] = k; else pts.push(k); dir = d; });
+    return pts.map(k => ({ x: -R.W / 2 + (k % g.nx + .5) * g.c, y: -R.D / 2 + (((k / g.nx) | 0) + .5) * g.c })).concat([end]);
+  }
+  function roomGo(q, x, y, then) { q.path = roomPath(G.room, q.x, q.y, x, y); q.then = then || null; q.state = "walk"; }
+  // ce que fait un client à l'intérieur, selon le lieu
+  function roomPlan(R, q) {
+    const S2 = R.spots, pick = a => a[(rand() * a.length) | 0], freeSeat = f => { const s = R.seats.filter(x => !x.who && (!f || f(x))); return s.length ? pick(s) : null; };
+    const sitAt = s => { if (q.seat) q.seat.who = null; s.who = q; q.seat = s; roomGo(q, s.x, s.y, () => { q.state = "sit"; q.a = s.a; q.wait = S2.guichet.length ? 3 + rand() * 4 : 1e9; q.doing = q.doing || "est assis"; }); };
+    if (q.seat && q.state === "sit" && R.kind !== "club" && R.kind !== "piscine" && R.kind !== "concert" && (!S2.guichet.length || q.served)) { q.wait = 1e9; return; }
+    if (R.kind === "concert") {   // devant la scène : on danse, on filme, on chante ; parfois un verre au bar
+      if (q.seat) { q.seat.who = null; q.seat = null; } q.z = 0;
+      if (rand() < .8 || q.mustDance) { const d = pick(S2.dance); q.doing = pick(["danse le ndombolo devant la scène", "chante en chœur avec l'orchestre", "filme le chanteur avec son téléphone"]); roomGo(q, d.x + (rand() - .5) * 10, d.y + (rand() - .5) * 8, () => { q.state = /filme/.test(q.doing) ? "idle" : "dance"; q.a = UPA + (rand() - .5) * .8; q.wait = 25 + rand() * 30; }); return; }
+      const s = freeSeat(x => x.bar); if (s) { q.doing = "boit une bière au bar"; s.who = q; q.seat = s; roomGo(q, s.x, s.y, () => { q.state = "sit"; q.a = s.a; q.wait = 15 + rand() * 15; }); } else q.wait = 5;
+      return;
+    }
+    if (R.kind === "piscine") {   // transat au soleil, bar à cocktails, discussion au bord de l'eau ; on nage seulement avec un maillot
+      if (q.seat) { q.seat.who = null; q.seat = null; }
+      if (q.swimming) { q.swimming = false; q.x = Math.max(-100, Math.min(50, q.x)); q.y = 30; }   // il sort de l'eau par l'échelle
+      q.z = 0;
+      if (q.player && hasSwimsuit() && rand() < .6) {
+        q.doing = "nage dans la piscine";
+        roomGo(q, -90 + rand() * 120, 30, () => { q.z = -10; q.y = 16; q.swimming = true; q.path = [{ x: Math.max(-95, Math.min(45, q.x + (rand() < .5 ? -1 : 1) * (40 + rand() * 40))), y: -60 + rand() * 70 }]; q.then = () => { q.state = "idle"; q.wait = 10 + rand() * 12; }; });
+        return;
+      }
+      const r = rand();
+      if (r < .5) { const s = freeSeat(x => x.transat); if (s) { q.doing = pick(["bronze sur un transat", "se repose au soleil", "lit un magazine sur son transat"]); s.who = q; q.seat = s; roomGo(q, s.x, s.y + 6, () => { q.x = s.x; q.y = s.y; q.state = "down"; q.z = 3; q.a = s.a; q.wait = 30 + rand() * 30; }); return; } }
+      if (r < .75) { const s = freeSeat(x => x.bar); if (s) { q.doing = "boit un cocktail au bar"; s.who = q; q.seat = s; roomGo(q, s.x, s.y, () => { q.state = "sit"; q.a = s.a; q.wait = 15 + rand() * 20; }); return; } }
+      const e = pick(S2.browse); q.doing = pick(["discute au bord de l'eau", "regarde les nageurs", "prend des photos au bord de la piscine"]); roomGo(q, e.x + (rand() - .5) * 10, e.y, () => { q.state = "idle"; q.a = e.a; q.wait = 12 + rand() * 15; if (rand() < .5) q.talk = 1.5; });
+      return;
+    }
+    if (R.kind === "alim" || R.kind === "magasin" || R.kind === "phones") {
+      if ((q.n || 0) < 2) { const b = pick(S2.browse); q.n = (q.n || 0) + 1; q.doing = R.kind === "alim" ? "choisit ses produits" : R.kind === "phones" ? "regarde les téléphones" : "essaie des vêtements"; roomGo(q, b.x, b.y, () => { q.a = b.a; q.wait = 4 + rand() * 5; q.state = "idle"; }); return; }
+      const k = R.people.filter(p => p.paying).length, p = S2.pay[Math.min(k, S2.pay.length - 1)]; q.paying = true; q.doing = "fait la queue à la caisse";
+      roomGo(q, p.x, p.y, () => { q.a = p.a; q.state = "idle"; q.wait = 1e9; q.inQueue = true; });
+      return;
+    }
+    if (R.kind === "maison" || R.kind === "appart") { if (q.player) homePlan(R, q); else q.wait = 1e9; return; }
+    if (R.kind === "resto") { const s = freeSeat(); if (s) { q.doing = "attend son plat"; sitAt(s); } else { q.doing = "attend une table"; roomGo(q, R.door.x + 20, R.door.y - 8, () => { q.wait = 6; q.state = "idle"; }); } return; }
+    if (R.kind === "club") {
+      if (q.seat) { q.seat.who = null; q.seat = null; }
+      const r = rand();
+      if (r < .6 || q.mustDance) { const d = pick(S2.dance); q.doing = "danse sur la rumba"; roomGo(q, d.x + (rand() - .5) * 8, d.y + (rand() - .5) * 8, () => { q.state = "dance"; q.a = UPA + (rand() - .5) * 2; q.wait = 18 + rand() * 25; }); return; }
+      const s = freeSeat(r < .8 ? x => x.bar : x => x.sofa) || freeSeat(); if (s) { q.doing = s.bar ? "boit un verre au bar" : "discute dans le salon"; if (q.seat) q.seat.who = null; s.who = q; q.seat = s; roomGo(q, s.x, s.y, () => { q.state = "sit"; q.a = s.a; q.wait = 15 + rand() * 20; }); }
+      return;
+    }
+    if (R.kind === "eglise" || R.kind === "salle") { const s = freeSeat(x => R.kind !== "eglise" || !q.player || x.y < 0) || freeSeat(); if (s) { q.doing = R.kind === "eglise" ? "prie et écoute la prédication" : R.o.id === "assemblee" ? "suit la séance depuis la tribune" : "assiste à l'audience"; sitAt(s); } return; }
+    // guichets : on s'assoit, on attend son tour, puis on est reçu
+    if (!q.served && S2.guichet.length) {
+      const busy = new Set(R.people.filter(p => p.atG).map(p => p.atG)), g = S2.guichet.find(x => !busy.has(x));
+      const waiting = R.people.filter(p => p.seat && !p.served && p !== q && (p.since || 0) < (q.since || 0));
+      if (g && !waiting.length && q.seat) { q.seat.who = null; q.seat = null; q.atG = g; q.doing = R.kind === "hopital" ? "explique ses symptômes à l'accueil" : R.kind === "police" ? "dépose une plainte" : "est reçu au guichet"; roomGo(q, g.x, g.y, () => { q.a = g.a; q.state = "idle"; q.wait = 7 + rand() * 6; q.talk = 2; }); return; }
+      if (q.atG) { q.atG = null; q.served = true; }
+    }
+    q.wait = 3 + rand() * 3;
+    if (!q.seat) { const s = freeSeat(); q.since = q.since || G.t; q.doing = q.served ? "attend ses papiers" : "attend son tour"; if (s) sitAt(s); else roomGo(q, R.door.x - 20, R.door.y - 10, () => { q.wait = 5; q.state = "idle"; }); }
+  }
+  function roomMove(q, dt) {
+    if (!q.path || !q.path.length) return true;
+    const p = q.path[0], dx = p.x - q.x, dy = p.y - q.y, d = Math.hypot(dx, dy), sp = q.player ? 13 : q.staff ? 10 : 11;
+    if (d < 1.5) { q.path.shift(); if (!q.path.length) { q.state = "idle"; const f = q.then; q.then = null; if (f) f(); return true; } return false; }
+    q.state = "walk"; q.v = sp; q.a += angDiff(q.a, Math.atan2(dy, dx)) * Math.min(1, dt * 8); const v = Math.min(d, sp * dt); q.x += dx / d * v; q.y += dy / d * v; q.t += dt;
+    return false;
+  }
+  function roomPerson(R, x, staffSpot) {
+    const q = { x: R.door.x + (rand() - .5) * 8, y: R.door.y, a: UPA, v: 0, t: rand() * 9, state: "idle", look: x ? x.look : (rand() * 7) | 0, id: x ? x.id : ++pedSeq, idn: x && x.idn, tourist: x && x.tourist, wait: 0, room: true };
+    if (staffSpot) Object.assign(q, { x: staffSpot.x, y: staffSpot.y, a: staffSpot.a, staff: true, role: staffSpot.role, home: staffSpot, state: staffSpot.lie ? "down" : staffSpot.sit ? "sit" : staffSpot.dance ? "dance" : "idle", z: staffSpot.z || 0, kit: staffSpot.role === "agent" || staffSpot.role === "guard" || staffSpot.role === "judge" || staffSpot.role === "president" || staffSpot.role === "clerk" });
+    if (staffSpot && staffSpot.role === "guard") q.cop = R.o.id === "police" || R.o.type === "etat";
+    if (staffSpot && staffSpot.role === "prisoner") q.state = "idle";
+    if (staffSpot && staffSpot.who) { const m = staffSpot.who; Object.assign(q, { id: m.id, look: m.look, fem: m.woman, kid: m.kid, doing: m.act, nom: m.nom, lookBiz: false }); }
+    if (staffSpot && staffSpot.biz) q.lookBiz = true;
+    if (staffSpot && staffSpot.fem) q.fem = true;
+    if (staffSpot && staffSpot.nom) { q.nom = staffSpot.nom; q.doing = staffSpot.doing; q.star = true; }
+    if (staffSpot && (staffSpot.role === "worker" || staffSpot.role === "presenter")) q.lookBiz = rand() < .6;
+    R.people.push(q); return q;
+  }
+  function openRoom(o, watch, quiet) {
+    if (!o || (!o.virt && (!lifeT(o) || o.id === "maison"))) return false;
+    if (o.virt) { const h = Math.floor(G.hour); if (o.virt === "openspace") o.officeNow = officeNow(o, h); else o.nowM = houseNow(o, h); }
+    const R = roomLayout(o); R.h0 = Math.floor(G.hour); roomGrid(R); R.people = []; R.watch = !!watch; R.t = 0; R.ox = ROOM_O.x; R.oy = ROOM_O.y; R.plates = []; if (G.room) closeRoom(); G.room = R;
+    R.spots.staff.forEach(s => roomPerson(R, null, s));
+    // les clients déjà à l'intérieur sont à leur place
+    lifeOf(o).inside.forEach(x => { const q = roomPerson(R, x); q.src = x; const D2 = R.door; q.x = D2.x + (rand() - .5) * R.W * .6; q.y = D2.y - 10 - rand() * R.D * .5; const [i, j] = [Math.floor((q.x + R.W / 2) / R.grid.c), Math.floor((q.y + R.D / 2) / R.grid.c)]; if (R.grid.b[j * R.grid.nx + i]) { q.x = D2.x; q.y = D2.y - 6; } roomPlan(R, q); if (q.path && q.path.length) { const e = q.path[q.path.length - 1]; q.x = e.x; q.y = e.y; q.path = [e]; } });
+    if (!watch && G.foot) { const me = roomPerson(R, { look: 0, id: "moi" }); me.player = true; if (o.mine && G.foot.shopBag) { me.shopBag = true; G.foot.shopBag = false; } me.x = R.door.x; me.y = R.door.y; R.me = me; if (R.kind === "club" || R.kind === "concert") me.mustDance = true; roomPlan(R, me); }
+    document.body.classList.add("in-room");
+    const b = document.getElementById("roombar"); if (b) { b.hidden = false; b.querySelector(".rb-t").textContent = o.icone + " " + o.nom; }
+    if (o.virt) { if (!quiet) msg("🏅 Pionnier : tu regardes à l'intérieur. " + (o.virt === "openspace" ? (o.officeNow.open ? "Les employés sont à leur poste." : "Les bureaux sont fermés à cette heure : seul le gardien est là.") : (o.nowM.length ? (o.nowM.some(m => m.act === "dort") ? "Toute la famille dort." : "La famille est à la maison.") : "Personne à la maison pour l'instant.") + (o.owner && !o.nowM.some(m => m.owner) && o.virt !== "openspace" ? " " + o.owner.nom.split(" ")[0] + " est dehors." : "")), 4.5, "ok"); return true; }
+    msg("🏅 Pionnier : tu entres vraiment dans " + o.nom + ". " + (watch ? "Ton personnage reste dehors, tu regardes à l'intérieur." : "Regarde comment on l'accueille et le sert."), 4.5, "ok");
+    return true;
+  }
+  function closeRoom() {
+    const R = G.room; if (!R) return; R.seats.forEach(s => { s.who = null; }); G.room = null; document.body.classList.remove("in-room");
+    const b = document.getElementById("roombar"); if (b) b.hidden = true;
+  }
+  function roomStep(dt) {
+    const R = G.room; if (!R) return;
+    R.t += dt; R.people.forEach(q => { if (q.talk > 0) q.talk -= dt; }); const L = lifeOf(R.o), ids = new Set(L.inside.map(x => x.id));
+    if (!R.watch && !(G.foot && G.foot.inside === R.o)) { closeRoom(); return; }
+    if (R.o.virt && Math.floor(G.hour) !== R.h0) { if (R.me && R.me.shopBag && G.foot) G.foot.shopBag = true; openRoom(R.o, R.watch, true); return; }
+    if (R.watch && !L.open && !L.inside.length) { closeRoom(); msg("🔒 " + R.o.nom + " a fermé ses portes.", 3); return; }
+    // nouveaux clients qui entrent, clients qui sortent par la porte
+    const have = new Set(R.people.filter(q => q.src).map(q => q.src.id));
+    L.inside.forEach(x => { if (!have.has(x.id)) { const q = roomPerson(R, x); q.src = x; roomPlan(R, q); } });
+    for (const q of R.people) {
+      if (q.src && !ids.has(q.src.id) && !q.leaving) { q.leaving = true; if (q.seat) { q.seat.who = null; q.seat = null; } q.paying = q.inQueue = false; q.atG = null; roomGo(q, R.door.x, R.door.y + 4, () => { q.gone = true; }); }
+    }
+    R.people = R.people.filter(q => !q.gone);
+    // la caisse : le premier de la file paie, la caissière l'encaisse
+    if (R.spots.pay.length) {
+      const queue = R.people.filter(q => q.inQueue).sort((a, b) => Math.hypot(a.x - R.spots.pay[0].x, a.y - R.spots.pay[0].y) - Math.hypot(b.x - R.spots.pay[0].x, b.y - R.spots.pay[0].y));
+      queue.forEach((q, k) => { const p = R.spots.pay[Math.min(k, R.spots.pay.length - 1)]; if (Math.hypot(q.x - p.x, q.y - p.y) > 3 && !(q.path && q.path.length)) roomGo(q, p.x, p.y, () => { q.a = p.a; q.state = "idle"; }); });
+      const first = queue[0], cash = R.people.find(q => q.role === "cashier");
+      if (first && !(first.path && first.path.length) && Math.hypot(first.x - R.spots.pay[0].x, first.y - R.spots.pay[0].y) < 3) {
+        first.payT = (first.payT || 0) + dt; if (cash) cash.talk = 1; first.doing = "paie à la caisse";
+        if (first.payT > 3.5) { first.inQueue = first.paying = false; first.payT = 0; first.n = 0; first.shopBag = true; first.bagNew = true; if (first.player) { msg("🛍️ " + (G.me && G.me.prenom || "Ton personnage") + " a payé à la caisse : la caissière lui tend son sac.", 3.5, "ok"); } roomGo(first, R.door.x - 14, R.door.y - 14, () => { first.state = "idle"; first.wait = 8 + rand() * 6; first.doing = "range ses courses"; }); }
+      }
+    }
+    for (const q of R.people) {
+      if (q.staff) { roomStaff(R, q, dt); continue; }
+      if (q.leaving) { roomMove(q, dt); continue; }
+      if (q.path && q.path.length) { roomMove(q, dt); continue; }
+      if (q.inQueue) continue;
+      q.wait -= dt; if (q.wait <= 0) roomPlan(R, q);
+    }
+    if (R.me && G.auto) G.auto.doing = "🏠 " + R.o.nom + " : il " + (R.me.doing || "regarde autour de lui");
+  }
+  // le personnel : caissière, serveuse qui apporte les plats, DJ, barman, pasteur qui prêche, agents aux guichets, infirmière…
+  function roomStaff(R, q, dt) {
+    const h = q.home;
+    if (q.path && q.path.length) { roomMove(q, dt); return; }
+    if (q.role === "waiter") {
+      if (q.carry) { const s = q.carry; if (!s.who) { q.carry = null; return; } const t = s.table; roomGo(q, t.x + (s.x - t.x) * 1.8, t.y + (s.y - t.y) * 1.8, () => { s.plate = true; R.plates.push(s); q.carry = null; q.talk = 1.5; if (s.who) { s.who.doing = "mange son plat"; if (s.who.player) msg("🍲 La serveuse apporte le plat : poulet mayo et chikwangue. Bon appétit !", 3.5, "ok"); } q.wait = 1.5; }); return; }
+      q.wait = (q.wait || 0) - dt; if (q.wait > 0) return;
+      const s = R.seats.find(x => x.who && !x.plate && !x.ordered && x.who.state === "sit");
+      if (s) { s.ordered = true; roomGo(q, h.x, h.y, () => { q.a = UPA; q.wait = 2.5; q.carry = s; const cook = R.people.find(p => p.role === "cook"); if (cook) cook.talk = 1.5; }); return; }
+      R.seats.forEach(x => { if (!x.who) { x.plate = false; x.ordered = false; } });
+      if (Math.hypot(q.x - h.x, q.y - h.y) > 3) roomGo(q, h.x, h.y, () => { q.a = h.a; }); else { q.state = "idle"; q.wait = 1; }
+      return;
+    }
+    if (h.pace) { q.wait = (q.wait || 0) - dt; if (q.wait <= 0) { const tx = h.x + (rand() - .5) * 2 * h.pace; q.path = [{ x: tx, y: h.y }]; q.then = () => { q.a = h.a; q.state = h.preach ? "idle" : "idle"; q.wait = 3 + rand() * 4; if (h.preach) q.talk = 2.5; }; } return; }
+    if (h.rounds) { q.wait = (q.wait || 0) - dt; if (q.wait <= 0) { const b = R.spots.staff.filter(s => s.lie); const t = b[(rand() * b.length) | 0]; if (t) roomGo(q, t.x + 26, t.y, () => { q.a = Math.PI; q.state = "idle"; q.wait = 5 + rand() * 4; q.talk = 1.5; }); } return; }
+    if (q.role === "worker" || q.role === "famille" || q.role === "cook") { if (rand() < dt * (h.meet ? .25 : .06)) q.talk = 1.4; return; }
+    if (q.role === "agent") { const c = R.people.find(p => p.atG && p.atG.agent === h.desk && !(p.path && p.path.length)); if (c && rand() < dt * .6) q.talk = 1.2; }
+    if (q.role === "reception") { const c = R.people.find(p => p.atG && !(p.path && p.path.length)); if (c && rand() < dt * .6) q.talk = 1.2; }
+  }
   function update(dt) {
-    const p = G.player; G.t += dt;
+    const p = G.player; G.t += dt; G.dt = dt;
     if (WALK) clockStep(dt);
     const locked = WALK;   // 2 Life : le personnage est autonome, le joueur ne le pilote pas
     // entrées joueur
@@ -2129,9 +3041,10 @@
       p.inp.steer = kSteer;
       p.inp.hand = keys.Space || touch.hand ? 1 : 0;
       const wantN = keys.ShiftLeft || keys.ShiftRight || keys.KeyN || touch.nitro;
-      if (wantN && G.nitro > 0 && p.inp.gas) { if (!p.inp.nitro) Audio.boost(); p.inp.nitro = 1; G.nitro = Math.max(0, G.nitro - 28 * dt); } else p.inp.nitro = 0;
+      if (wantN && !WALK && G.nitro > 0 && p.inp.gas) { if (!p.inp.nitro) Audio.boost(); p.inp.nitro = 1; G.nitro = Math.max(0, G.nitro - 28 * dt); } else p.inp.nitro = 0;
     }
     if (actPressed) { actPressed = false; doAction(); }
+    roadRules(dt);
     if (WALK) {
       // énergie : la marche fatigue, s'asseoir, le taxi et la maison reposent
       const fv = G.foot ? Math.abs(G.foot.v) : 0, home = G.auto && G.auto.phase === "home";
@@ -2142,6 +3055,9 @@
       if (G.foot && G.foot.sit) sitUpdate(dt);
       if (G.hour >= 7 && G.hour <= 21) G.games.forEach(g => gameStep(g, dt));
       chatUpdate(dt);
+      placesLife(dt); taxiLife(dt); roomStep(dt);
+      if (G.foot && G.foot.inside) { G.foot.inT -= dt; if (!G.auto || (G.auto.phase !== "visit" && !(G.auto.phase === "home" && G.foot.inside.mine))) leavePlace(); }
+      insideBtn();
       lifeUpdate();
       // le soir, les habitants rentrent chez eux
       if (G.hour >= 17 && G.hour < 23) for (const q of G.peds) if (!q.staff && !q.route && !q.enter && !q.chat && !q.cop && q.state === "walk" && rand() < dt * .012) planHome(q);
@@ -2185,7 +3101,8 @@
       !(c.mode === "leave" && Math.hypot(c.x - p.x, c.y - p.y) > 1500) && !(WALK && c.mode === "patrol" && Math.hypot(c.x - fcp.x, c.y - fcp.y) > 2800));
 
     // traffic renouvelé
-    G.traffic = G.traffic.filter(c => !c.dead && Math.hypot(c.x - fcar.x, c.y - fcar.y) < 2600);
+    G.traffic = G.traffic.filter(c => !c.dead && Math.hypot(c.x - fcar.x, c.y - fcar.y) < 2600 && !((c.truck && truckBanned(c.x, c.y) || c.wewa && wewaBanned(c.x, c.y)) && Math.hypot(c.x - fcar.x, c.y - fcar.y) > 700));
+    helmetCheck(dt); G.traffic.forEach(c => { if (c.stopT > 0) { c.stopT -= dt; c.vx *= .8; c.vy *= .8; if (c.stopT <= 0) c.helmet = true; } });   // un camion entré dans la Gombe en journée fait demi-tour hors de vue
     const dn = WALK ? dens(G.hour) : 1, nTraf = Math.round(44 * (WALK ? Math.max(.3, dn) : 1));
     while (G.traffic.length < nTraf) spawnTraffic(false);
     if (G.traffic.length > nTraf + 3) { const c = G.traffic.find(c => Math.hypot(c.x - fcar.x, c.y - fcar.y) > 1500); if (c) c.dead = true; }
@@ -2194,7 +3111,7 @@
     G.peds = G.peds.filter(q => !q.gone && (q.staff || Math.hypot(q.x - fc.x, q.y - fc.y) < 1900));
     const nPed = Math.round(PED_N * dn), walkers = G.peds.filter(q => !q.staff);
     for (let k = walkers.length; k < nPed; k++) spawnPed(false);
-    if (walkers.length > nPed + 3) { const q = walkers.find(q => !q.route && !q.enter && !q.bus && Math.hypot(q.x - fc.x, q.y - fc.y) > 700); if (q) planHome(q); if (q && !q.route) q.gone = true; }
+    if (walkers.length > nPed + 3) { const q = walkers.find(q => !q.route && !q.enter && !q.bus && !q.goIn && !q.hail && !q.emerge && Math.hypot(q.x - fc.x, q.y - fc.y) > 700); if (q) planHome(q); if (q && !q.route) q.gone = true; }
     G.peds.forEach(q => pedStep(q, dt, near));
     resolveBodies(near.concat(pk));
     updatePrompt();
@@ -2262,6 +3179,8 @@
 
     const sirenNear = G.cops.reduce((m, c) => c.alive && c.mode === "chase" ? Math.max(m, 1 - Math.hypot(c.x - p.x, c.y - p.y) / 1400) : m, 0);
     Audio.update(Math.min(1.2, sp / p.maxSpeed), p.inp.gas, Math.max(0, sirenNear), !G.over && !G.paused);
+    { const m = musicFor(); Audio.music(m[0], m[1], m[2]); }
+    if (WALK && G.hour >= 17 && starNight() && G.starTold !== G.day && STAR) { G.starTold = G.day; msg("⭐ Soirée star ce soir à Kin Show Arena : " + starName() + " en concert de 19 h à 1 h. Billet " + STAR_PRICE + " e-makuta.", 6, "ok"); }
   }
   function sparks(x, y, n) { for (let k = 0; k < n; k++) { const a = rand() * 6.28, v = 80 + rand() * 260; G.parts.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, life: .35, max: .35, kind: "spark", r: 2 }); } }
 
@@ -2377,9 +3296,10 @@
     const X = x => ox + x * s, Y = y => oy + y * s;
     G.blocks.forEach(b => { mctx.fillStyle = "#c9ccd6"; mctx.fillRect(X(b.x) - 2, Y(b.y) - 2, 4, 4); });
     SHOPS.forEach(o => { const x = Math.max(6, Math.min(MM - 6, X(o.x))), y = Math.max(6, Math.min(MM - 6, Y(o.y))); mctx.fillStyle = "#ff5a1f"; mctx.fillRect(x - 5, y - 5, 10, 10); mctx.fillStyle = "#fff"; mctx.font = "bold 8px sans-serif"; mctx.textAlign = "center"; mctx.fillText("Z", x, y + 3); });
-    const PCOL = { foot: "#3fbf5a", jeux: "#3fbf5a", basket: "#3fbf5a", club: "#c04bff", alim: "#ffb21f", magasin: "#ffb21f", partenaire: "#2fa8ff", etat: "#f2f2f2", bureau: "#ff5a1f" };
+    const PCOL = { concert: "#ff3b6b", piscine: "#2fb6e0", eglise: "#f2c94c", foot: "#3fbf5a", jeux: "#3fbf5a", basket: "#3fbf5a", club: "#c04bff", alim: "#ffb21f", magasin: "#ffb21f", partenaire: "#2fa8ff", etat: "#f2f2f2", bureau: "#ff5a1f" };
     PLACES.forEach(o => { const x = X(o.x), y = Y(o.y); if (x < -4 || y < -4 || x > MM + 4 || y > MM + 4) return; mctx.fillStyle = PCOL[o.type] || "#fff"; mctx.beginPath(); mctx.arc(x, y, o.bureau ? 5.2 : 3.4, 0, 6.283); mctx.fill(); mctx.strokeStyle = "rgba(0,0,0,.6)"; mctx.lineWidth = 1; mctx.stroke(); });
     if (G.foot) { mctx.fillStyle = "#7ff0a8"; mctx.beginPath(); mctx.arc(X(G.foot.x), Y(G.foot.y), 3, 0, 6.283); mctx.fill(); }
+    (G.others || []).forEach(o => { if (o.x === undefined) return; const x = X(o.x), y = Y(o.y); if (x < -4 || y < -4 || x > MM + 4 || y > MM + 4) return; mctx.fillStyle = "#18e0ff"; mctx.strokeStyle = "#04161c"; mctx.lineWidth = 1.5; mctx.beginPath(); mctx.arc(x, y, 3.6, 0, 6.283); mctx.fill(); mctx.stroke(); });
     G.cops.forEach(c => { if (!c.alive || c.mode === "leave") return; mctx.fillStyle = c.mode === "patrol" ? "#8a93a8" : (Math.floor(G.t * 4) % 2 ? "#ff2d4a" : "#2d7bff"); const x = Math.max(4, Math.min(MM - 4, X(c.x))), y = Math.max(4, Math.min(MM - 4, Y(c.y))); mctx.beginPath(); mctx.arc(x, y, 3.2, 0, 6.283); mctx.fill(); });
     if (G.heli) { mctx.strokeStyle = "rgba(220,235,255,.8)"; mctx.beginPath(); mctx.arc(X(G.heli.x), Y(G.heli.y), 170 * s + 2, 0, 6.283); mctx.stroke(); }
     mctx.save(); mctx.translate(MM / 2, MM / 2); mctx.rotate(p.a); mctx.fillStyle = "#ffb21f"; mctx.beginPath(); mctx.moveTo(7, 0); mctx.lineTo(-5, -5); mctx.lineTo(-5, 5); mctx.closePath(); mctx.fill(); mctx.restore();
@@ -2409,7 +3329,7 @@
       } else ev.hidden = true;
       $("h-msgs").innerHTML = G.msgs.map(m => `<div class="m ${m.kind}">${m.text}</div>`).join("");
       const pr = $("h-prompt"); pr.hidden = !G.prompt; if (G.prompt) { pr.querySelector("span").textContent = G.prompt; $("actbtn").hidden = !G.act; $("actbtn").innerHTML = "<kbd>E</kbd>" + ({ exit: "Descendre", enter: "Monter", pick: "Prendre", sit: "S'asseoir", stand: "Se lever", autostop: "Reprendre la main", bureau: "Entrer" }[G.act] || "OK"); }
-      if (WALK && $("h-clock")) { const ph = G.phase === "matin" ? "☀️ consignes possibles" : G.phase === "nuit" ? "🌙 il dort" : "🧠 il agit seul"; $("h-clock").textContent = hh(G.hour) + " · " + ph; }
+      if (WALK && $("h-clock")) { const ph = G.phase === "matin" ? "☀️ consignes possibles" : G.phase === "nuit" ? (G.auto && G.auto.phase !== "home" ? "🌙 il rentre dormir" : "🌙 il dort") : "🧠 il agit seul"; $("h-clock").textContent = hh(G.hour) + " · " + ph; }
       if (WALK && G.me && $("h-faim")) { const fa = Math.round(G.me.faim); $("h-faim").style.width = fa + "%"; $("h-faim").className = fa > 70 ? "low" : ""; $("h-faim-n").textContent = fa + " %"; $("h-money").textContent = "💰 " + G.me.argent + " e-makuta"; }
       if (WALK && $("h-energy")) { const e = Math.round(G.energy); $("h-energy").style.width = e + "%"; $("h-energy").className = e < 25 ? "low" : ""; $("h-energy-n").textContent = e + " %"; }
       if (G.foot) $("h-speed").textContent = Math.round(Math.abs(G.foot.v) * .36);
@@ -2436,13 +3356,87 @@
       acc += dt;
       while (acc >= STEP) { if (!G.over || G.t < 1e9) update(STEP); acc -= STEP; if (G.over) { acc = 0; break; } }
       UI.hud(dt);
+      liveStep(dt);
     }
     if (window.ZBOSS_3D && window.ZBOSS_3D.ok) window.ZBOSS_3D.render(G, dt); else render();
     requestAnimationFrame(loop);
   }
+  // ---------------------------------------------------------------- Ville en direct
+  // les vrais joueurs connectés apparaissent dans la ville 3D (prénom au-dessus de la tête).
+  // Mode réel : WebSocket vers le serveur, position envoyée toutes les 2 s. Démo : quelques habitants simulés.
+  const LIVE = { ws: null, sendAt: 0, retry: 0, retryAt: 0, map: new Map(), online: 0, told: false };
+  const LIVE_DEMO = [["Grâce", true], ["Patrick", false], ["Bénédicte", true], ["Junior", false], ["Merveille", true]];
+  function livePos() {
+    const f = G.foot, b = f && f.inBus, o = b || f || G.player;
+    return { x: o.x, y: o.y, a: o.a, m: b ? "bus" : f ? "pied" : "auto" };
+  }
+  function liveConnect(API) {
+    let tok = null; try { tok = JSON.parse(localStorage.getItem("twolife_token")); } catch (e) { }
+    if (!tok || typeof WebSocket === "undefined") { LIVE.retryAt = performance.now() + 30000; return; }
+    let ws; try { ws = new WebSocket(API.replace(/^http/, "ws") + "/api/ville/direct", ["twolife", tok]); } catch (e) { LIVE.retryAt = performance.now() + 30000; return; }
+    LIVE.ws = ws;
+    ws.onopen = () => { LIVE.retry = 0; LIVE.sendAt = 0; };
+    ws.onmessage = e => { let d; try { d = JSON.parse(e.data); } catch (er) { return; } if (d && Array.isArray(d.joueurs)) liveSnapshot(d); };
+    ws.onclose = e => { LIVE.ws = null; LIVE.retryAt = performance.now() + (e.code === 4000 ? 6e5 : Math.min(60000, 3000 * 2 ** LIVE.retry++)); LIVE.map.clear(); };
+  }
+  function liveSnapshot(d) {
+    const now = performance.now(), seen = new Set();
+    d.joueurs.forEach(j => {
+      let o = LIVE.map.get(j.id);
+      if (!o) { o = { id: j.id, nom: j.nom, fem: !!j.fem, pio: !!j.pio, x: j.x, y: j.y, a: j.a, v: 0, look: (parseInt(String(j.id).slice(0, 6), 16) || 7) % 997, other: true }; LIVE.map.set(j.id, o); }
+      o.tx = j.x; o.ty = j.y; o.ta = j.a; o.m = j.m; o.seen = now; seen.add(j.id);
+    });
+    for (const id of [...LIVE.map.keys()]) if (!seen.has(id)) LIVE.map.delete(id);
+    LIVE.online = d.en_ligne || seen.size + 1;
+    if (!LIVE.told && seen.size) { LIVE.told = true; msg(`👥 Ville en direct : ${seen.size} autre${seen.size > 1 ? "s" : ""} joueur${seen.size > 1 ? "s" : ""} près de toi. Leur prénom flotte au-dessus d'eux.`, 5); }
+  }
+  function liveStep(dt) {
+    if (!WALK || !G) return;
+    const API = (window.TWO_LIFE_API || "").replace(/\/$/, ""), now = performance.now();
+    if (!API) return liveDemo();
+    if (!LIVE.ws) { if (now > LIVE.retryAt) liveConnect(API); }
+    else if (LIVE.ws.readyState === 1 && now > LIVE.sendAt) { LIVE.sendAt = now + 2000; try { LIVE.ws.send(JSON.stringify(livePos())); } catch (e) { } }
+    // glisse doucement vers la dernière position reçue
+    const k = Math.min(1, dt * 1.6);
+    for (const o of LIVE.map.values()) {
+      if (Math.hypot(o.tx - o.x, o.ty - o.y) > 600) { o.x = o.tx; o.y = o.ty; }
+      const nx = o.x + (o.tx - o.x) * k, ny = o.y + (o.ty - o.y) * k;
+      o.v = dt > 0 ? Math.hypot(nx - o.x, ny - o.y) / dt : 0; o.x = nx; o.y = ny;
+      let da = o.ta - o.a; da = Math.atan2(Math.sin(da), Math.cos(da)); o.a += da * k;
+      o.state = o.v > 4 ? "walk" : "idle";
+    }
+    G.others = [...LIVE.map.values()];
+  }
+  // démo : quelques passants deviennent des « joueurs » simulés pour montrer à quoi ressemble la ville en direct
+  function liveDemo() {
+    const me = livePos(); G.others = G.others || [];
+    LIVE_DEMO.forEach(([nom, fem], i) => {
+      let o = G.others[i];
+      if (!o) o = G.others[i] = { id: "demo" + i, nom, fem, pio: i < 2, demo: true, other: true };
+      const q = o.ped;
+      if (!q || !G.peds.includes(q) || Math.hypot(q.x - me.x, q.y - me.y) > 1800) {
+        const free = G.peds.filter(p => !p.joueur && !p.kit && !p.cop && !p.vendor && !p.bus && Math.hypot(p.x - me.x, p.y - me.y) < 700);
+        if (q) q.joueur = null;
+        o.ped = free.length ? free[(Math.random() * free.length) | 0] : null; if (o.ped) o.ped.joueur = o;
+      }
+      if (o.ped) { o.x = o.ped.x; o.y = o.ped.y; o.a = o.ped.a; o.m = "pied"; }
+    });
+    if (!LIVE.told && G.others.some(o => o.ped)) { LIVE.told = true; msg("👥 Démo : les prénoms au-dessus de certains passants montrent les vrais joueurs. En ligne, ce seront les autres inscrits.", 5); }
+  }
   function start(car) {
     Audio.init(); Audio.resume(); resize(); newGame(car); show(null);
+    if (WALK) { pioneerCheck(); loadStar(); }
     if (!running) { running = true; last = performance.now(); requestAnimationFrame(loop); }
+  }
+  // pionnier ? (les 100 premiers inscrits) : demandé au serveur ; en démo, tout le monde l'est pour essayer
+  let PIO = null;
+  function pioneerCheck() {
+    const apply = j => { PIO = j; if (G) G.pionnier = !!j.pionnier; const b = $("piobadge"); if (b) { b.hidden = !j.pionnier; if (j.pionnier) b.textContent = "🏅 Pionnier" + (j.rang ? " n° " + j.rang : " (démo)"); } };
+    if (PIO) return apply(PIO);
+    const API = (window.TWO_LIFE_API || "").replace(/\/$/, ""); let tok = null; try { tok = JSON.parse(localStorage.getItem("twolife_token")); } catch (e) { }
+    if (!API) return apply({ pionnier: true, demo: true });
+    if (!tok) return apply({ pionnier: false });
+    fetch(API + "/api/pionnier", { headers: { Authorization: "Bearer " + tok } }).then(r => r.ok ? r.json() : { pionnier: false }).then(apply).catch(() => apply({ pionnier: false }));
   }
   function setPause(v) { if (!G || G.over) return; G.paused = v; show(v ? "pause" : null); v ? Audio.suspend() : Audio.resume(); }
 
@@ -2496,6 +3490,15 @@
   if ($("mebtn")) $("mebtn").addEventListener("click", () => showMe());
   if ($("speedbtn")) { if (WALK && window.TWO_LIFE_API) $("speedbtn").hidden = true; $("speedbtn").addEventListener("click", () => { if (!G) return; G.speed = G.speed === 1 ? 10 : G.speed === 10 ? 60 : 1; $("speedbtn").textContent = "⏩ ×" + G.speed; }); }
   $("actbtn").addEventListener("click", () => { if (G && !G.over) actPressed = true; });
+  $("insidebtn").addEventListener("click", () => {
+    if (!G || !G.nearLife) return;
+    if (G.pionnier && !(G.room && G.room.o === G.nearLife)) { const inside = G.foot && G.foot.inside === G.nearLife; if (G.nearLife.virt || isOpen(G.nearLife, G.hour) || inside) { openRoom(G.nearLife, !inside); return; } }
+    openInterior(G.nearLife);
+  });
+  $("rb-who").addEventListener("click", () => { if (G && G.room) openInterior(G.room.o); });
+  $("rb-out").addEventListener("click", () => { if (!G || !G.room) return; const w = G.room.watch; closeRoom(); if (!w) msg("🚶 Ton personnage ressortira tout seul quand il aura fini. Tu regardes la rue en attendant.", 3.5); });
+  document.querySelector("#interior .in-close").addEventListener("click", () => { $("interior").hidden = true; });
+  $("interior").addEventListener("click", e => { if (e.target.id === "interior") $("interior").hidden = true; });
   const camLabel = () => { $("cambtn").textContent = "Caméra : " + (window.ZBOSS_3D && window.ZBOSS_3D.ok ? window.ZBOSS_3D.camLabel() : (camMode === "chase" ? "poursuite" : "dessus")); };
   $("cambtn").addEventListener("click", () => {
     if (window.ZBOSS_3D && window.ZBOSS_3D.ok) window.ZBOSS_3D.cycleCam();
@@ -2510,5 +3513,7 @@
 
   // Accès pour les tests automatisés
   window.ZBOSS_WORLD = { busNet, addObst, OBST, W, H, C, MW, MH, mask, MAP, ROADS, FILL, walkBlocked, SHOPS, PLACES, BILLBOARDS, BENCHES, LIGHTS, lightState, isOpen, SHOP_W, SHOP_D, SHOP_DOOR, nodes, nodesNear, nearestNode, solidAt, groundAt, angDiff, rand };
-  window.__zboss = { get state() { return G; }, start: () => start(chosen), spawnCop, keys, touch, act: () => { actPressed = true; }, sortie: m => autoToggle(true, m), auto: m => autoToggle(true, m, true), sorties: openSorties, plan: openPlan, me: showMe, setHour: h => { G.hour = h; }, step: (n, dt) => { for (let i = 0; i < n && G && !G.paused; i++) update(dt || 1 / 30); } };
+  // outil d'aperçu : réseau routier et tracé d'une ligne de bus passant devant une liste de lieux
+  const lineRoute = ids => { const st = ids.map(id => PLACES.find(o => o.id === id)).filter(Boolean).map(o => nearestNode(o.door.x, o.door.y)), out = []; st.forEach((n, k) => { const P = findPath(n, st[(k + 1) % st.length]) || []; P.forEach(i => out.push([nodes[i].x, nodes[i].y])); }); return out; };
+  window.__zboss = { redAhead: c => redAhead(c), lightOf: i => LIGHTS[i], roadAudit: () => G.traffic.concat(G.buses || []).map(c => { const L = LIGHTS.find(L => Math.hypot(L.x - c.x, L.y - c.y) < L.w / 2); return { c, L: L ? LIGHTS.indexOf(L) : -1, red: L ? redFor(L, c.a, G.t) === "r" && redFor(L, c.a, G.t - 1.5) === "r" : false, to: c.to, lt: L ? L.n : -1 }; }), interior: o => openInterior(o || G.nearLife), roads: () => nodes.map(n => [n.x, n.y, n.nb]), lineRoute, line1: () => busNet().route.map(i => [nodes[i].x, nodes[i].y]), places: () => PLACES.map(o => [o.id, o.nom, o.icone, o.x, o.y]), room: (id, watch) => { const o = PLACES.find(x => x.id === id); return o ? openRoom(o, watch) : false; }, get roomState() { const R = G.room; return R && { kind: R.kind, n: R.people.length, people: R.people.map(q => ({ role: q.role || (q.player ? "moi" : "client"), s: q.state, d: q.doing || "", x: Math.round(q.x), y: Math.round(q.y) })) }; }, closeRoom: () => closeRoom(), atHome: d => atHome(d || "🏠 test"), taxi: (moto, crash) => { callTaxi(); if (G.auto) { G.auto.moto = moto; G.auto.crash = crash; } return G.auto && G.auto.phase; }, gombeY: () => GOMBE_Y, home: q => { const o = homeOf(q || G.peds.find(p => !p.staff && !p.tourist)); return o && openRoom(o, true) && o; }, bld: (x, y, r) => bldNear(x, y, r || 90), virt: o => openRoom(o, true), talk: q => talkTo(q), get state() { return G; }, start: () => start(chosen), spawnCop, keys, touch, act: () => { actPressed = true; }, sortie: m => autoToggle(true, m), auto: m => autoToggle(true, m, true), sorties: openSorties, plan: openPlan, me: showMe, setHour: h => { G.hour = h; }, live: () => ({ others: (G && G.others || []).map(o => ({ nom: o.nom, x: Math.round(o.x), y: Math.round(o.y), m: o.m, ped: !!o.ped })), ws: LIVE.ws ? LIVE.ws.readyState : -1, online: LIVE.online }), liveStep: dt => liveStep(dt || 1 / 30), step: (n, dt) => { for (let i = 0; i < n && G && !G.paused; i++) update(dt || 1 / 30); } };
 })();

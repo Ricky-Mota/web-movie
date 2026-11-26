@@ -96,12 +96,15 @@
     .btn.ghost { background: none; border: 1px solid var(--line); color: var(--muted); }
     .back { width: 36px; height: 36px; border-radius: 12px; border: 1px solid var(--line); background: var(--panel); color: var(--text); font-size: 18px; line-height: 1; margin-right: 2px; }
     .started { color: var(--ok); font-family: var(--font-d); font-size: 22px; }
+    .btn.launch { width: 100%; margin-top: 16px; font-size: 18px; padding: 16px; background: #3a3f4a; color: #9aa3b2; cursor: not-allowed; }
+    .btn.launch.ready { background: linear-gradient(135deg, #ff5a1f, #ffb21f); color: #160a02; cursor: pointer; box-shadow: 0 0 0 3px rgba(255,178,31,.25), 0 8px 24px rgba(255,90,31,.35); }
+    .launch-why { font-size: 13px; margin-top: 8px; }
   </style>
 </head>
 <body>
   <div class="wrap">
     <header class="top">
-      <div class="brand"><button class="back" type="button" onclick="history.length > 1 ? history.back() : location.href = 'index.html'" aria-label="Retour à la page précédente">←</button><img src="assets/icons/2life.svg" alt=""> 2 Life</div>
+      <div class="brand"><button class="back" type="button" onclick="history.length > 1 ? history.back() : location.href = 'index.html'" aria-label="Retour à la page précédente">←</button><img src="assets/icons/2life.svg" alt=""> <span class="wm">2<b>LIFE</b></span></div>
       <span class="pill" id="mode">Administration</span>
     </header>
 
@@ -127,7 +130,7 @@
           <div class="two"><input id="d-date" type="datetime-local"><button class="btn ghost" type="submit" style="margin-top:0">Fixer la date</button></div>
         </form>
         <div id="demo-tools" hidden>
-          <p class="sim">Démo : tout est gardé dans ce navigateur. Tu peux remplir les listes automatiquement pour montrer le démarrage.</p>
+          <p class="sim">Démo : tout est gardé dans ce navigateur. Tu peux remplir automatiquement (100 inscrits, 10 entreprises) pour essayer le bouton « Lancer le jeu ».</p>
           <div class="two">
             <button class="btn ghost" id="b-fill" type="button">Remplir automatiquement</button>
             <button class="btn ghost" id="b-reset" type="button">Tout remettre à zéro</button>
@@ -200,6 +203,66 @@
       </div>
 
       <div class="card">
+        <h2>Bandeau : logos des partenaires <span class="pill" id="n-logo">0</span></h2>
+        <p style="font-size:14px">Les logos défilent à côté de « EN DIRECT », en bas de l'écran (accueil, Ma vie, ville 3D). Un logo est la marque d'un vrai partenaire (banque, opérateur, brasserie, assurance…) : il n'apparaît qu'avec un <b>accord écrit signé</b>. L'image est réduite automatiquement.</p>
+        <form id="f-logo" novalidate>
+          <label for="l-nom">Partenaire</label><input id="l-nom" maxlength="40" placeholder="Nom du partenaire">
+          <label for="l-file">Logo (PNG, JPEG ou WebP, fond clair de préférence)</label><input id="l-file" type="file" accept="image/png,image/jpeg,image/webp">
+          <div id="l-preview" style="margin-top:8px"></div>
+          <div class="two">
+            <div><label for="l-jours">Durée (jours)</label><input id="l-jours" type="number" min="1" max="365" value="30"></div>
+            <div><label style="display:flex;gap:8px;align-items:center;margin-top:34px"><input id="l-accord" type="checkbox" style="width:auto"> Accord écrit signé</label></div>
+          </div>
+          <p style="font-size:14px;margin:8px 0">Prix à facturer : <b id="l-prix"></b> <span style="opacity:.7">(1 $ par jour, 25 $ par mois)</span></p>
+          <button class="btn" type="submit">Ajouter le logo au bandeau</button>
+          <div class="err" id="logo-err" role="alert"></div>
+        </form>
+        <div class="list" id="logos" style="margin-top:12px"></div>
+      </div>
+
+      <div class="card">
+        <h2>Bandeau : communiqués et décisions publiques <span class="pill" id="n-com">0</span></h2>
+        <p style="font-size:14px">Messages qui défilent en bas de l'écran (Ma vie et ville 3D) : décisions de l'État, annonces de la mairie, messages d'un partenaire. Une institution du jeu publie librement ; une vraie entreprise (banque, opérateur, brasserie, assurance…) seulement avec un <b>accord écrit signé</b>.</p>
+        <form id="f-com" novalidate>
+          <label for="c-auteur">Auteur</label><input id="c-auteur" maxlength="40" list="c-auteurs" placeholder="Mairie de Kinshasa">
+          <datalist id="c-auteurs"></datalist>
+          <label for="c-texte">Message (140 caractères)</label><input id="c-texte" maxlength="140" placeholder="La voirie embauche des cantonniers cette semaine.">
+          <div class="two">
+            <div><label for="c-jours">Durée (jours)</label><input id="c-jours" type="number" min="1" max="60" value="7"></div>
+            <div><label style="display:flex;gap:8px;align-items:center;margin-top:34px"><input id="c-accord" type="checkbox" style="width:auto"> Accord écrit signé</label></div>
+          </div>
+          <button class="btn" type="submit">Publier dans le bandeau</button>
+          <div class="err" id="com-err" role="alert"></div>
+        </form>
+        <div class="list" id="coms" style="margin-top:12px"></div>
+      </div>
+
+      <div class="card">
+        <h2>Annonces partenaires <span class="pill" id="n-pubs">0</span></h2>
+        <p style="font-size:14px">Les commerçants paient leur annonce (hors jeu pour l'instant : contrat, puis M-Pesa ou espèces). Elle paraît dans le Journal de Kinshasa, sur les panneaux LED de la ville 3D et/ou dans le bandeau défilant. Un vrai nom de commerce seulement avec un <b>accord écrit signé</b>.</p>
+        <form id="f-pub" novalidate>
+          <div class="two">
+            <div><label for="a-annonceur">Commerçant</label><input id="a-annonceur" maxlength="40" placeholder="Maquis Chez Mama Nzuzi"></div>
+            <div><label for="a-titre">Titre (panneau, 24 car.)</label><input id="a-titre" maxlength="24" placeholder="POULET MAYO"></div>
+          </div>
+          <label for="a-texte">Texte (90 caractères)</label><input id="a-texte" maxlength="90" placeholder="Le meilleur poulet de Bandal, ouvert jusqu'à minuit">
+          <div class="two">
+            <div><label for="a-place">Emplacement</label><select id="a-place"></select></div>
+            <div><label for="a-jours">Durée (jours)</label><input id="a-jours" type="number" min="1" max="365" value="7"></div>
+          </div>
+          <div class="two">
+            <div><label for="a-commune">Commune ciblée (facultatif)</label><select id="a-commune"><option value="">Toute la ville</option></select></div>
+            <div><label>Prix</label><p id="a-prix" style="margin:6px 0;font-weight:600"></p></div>
+          </div>
+          <label style="display:flex;gap:8px;align-items:center"><input id="a-paye" type="checkbox" style="width:auto"> Déjà payé</label>
+          <label style="display:flex;gap:8px;align-items:center"><input id="a-accord" type="checkbox" style="width:auto"> Accord écrit signé avec le commerçant</label>
+          <button class="btn" type="submit">Publier l'annonce</button>
+          <div class="err" id="pub-err" role="alert"></div>
+        </form>
+        <div class="list" id="pubs" style="margin-top:12px"></div>
+      </div>
+
+      <div class="card">
         <h2>Bureau Zboss Sarlu <span class="pill" id="n-sup">0</span></h2>
         <p style="font-size:14px">Les problèmes signalés par les joueurs au guichet d'aide du centre-ville (dans le jeu 3D).</p>
         <div class="list" id="support"></div>
@@ -212,6 +275,7 @@
   </div>
   <div class="toast" id="toast" hidden role="status"></div>
   <script src="config.js"></script>
+  <script src="assets/nav.js"></script>
   <script type="module" src="assets/admin.js"></script>
 </body>
 </html>

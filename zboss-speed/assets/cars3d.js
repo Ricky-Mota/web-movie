@@ -322,12 +322,16 @@
   window.ZBOSS_CARS3D = {
     PROFILES,
     init(renderer) { makeEnv(renderer); },
-    load(ids, base) { loadModels(ids || Object.keys(PROFILES), base); },
+    load(ids, base) { loadModels(ids || Object.keys(PROFILES).concat(["bus"]), base); },
     onReady(cb) { if (!pending) cb(); else readyCbs.push(cb); },
     get version() { return version; },
     has: id => !!GLB[id],
     build,
-    bus() { if (!busProto) busProto = bus(); return busProto.clone(); },
+    // bus urbain : modèle Blender détaillé (tools/blender_bus.py) dès qu'il est chargé, sinon modèle simple
+    bus() {
+      if (GLB.bus) { const g = GLB.bus.clone(true); g.traverse(o => { if (o.isMesh) o.castShadow = o.userData.mat === "paint" || o.userData.mat === "glass"; }); g.userData.glbBus = true; return g; }
+      if (!busProto) busProto = bus(); return busProto.clone();
+    },
     // dimension approximative pour les caméras (longueur)
     length: type => (PROFILES[type] || PROFILES.sedan).L,
   };
