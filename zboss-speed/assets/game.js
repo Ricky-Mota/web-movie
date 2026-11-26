@@ -1863,8 +1863,8 @@
   function atHome(doing) {
     const h = HOME(); if (!h) return;
     if (G.foot && G.foot.sit) standUp(true);
-    const k = h.d / 2 + 14;   // dans la cour, entre la maison et le portail
-    G.foot = { x: h.x - h.nx * k, y: h.y - h.ny * k, a: Math.atan2(h.ny, h.nx), v: 0, t: 0 };   // tourné vers sa maison
+    const k = h.d / 2 + 14, bag = !!(G.foot && G.foot.shopBag);   // dans la cour, entre la maison et le portail ; il garde ses courses
+    G.foot = { x: h.x - h.nx * k, y: h.y - h.ny * k, a: Math.atan2(h.ny, h.nx), v: 0, t: 0, shopBag: bag };   // tourné vers sa maison
     G.auto = { phase: "home", path: null, mode: "maison", seen: [], doing, dest: { home: true } };
     const b = $("autobtn"); if (b) b.setAttribute("aria-pressed", "true");
     enterHome();
@@ -2531,7 +2531,7 @@
       const night = h >= 22 || h < 5, morning = h >= 5 && h < 8, day = h >= 8 && h < 16;
       let act;
       if (night) act = "dort";
-      else if (morning) act = m.role === "mère" ? "prépare le petit déjeuner" : m.kid ? "prend son petit déjeuner avant l'école" : "boit son café à table";
+      else if (morning) act = m.role === "mère" ? "prépare le petit déjeuner" : m.kid ? (i % 2 ? "prend sa douche avant l'école" : "prend son petit déjeuner avant l'école") : "boit son café à table";
       else if (day) { if (m.kid && (i + h) % 3) return; if (!m.kid && !m.old && m.role !== "mère") return; if (m.role === "mère" && (o.seed + h) % 2) return; act = m.old ? "regarde la télévision" : m.kid ? "fait ses devoirs" : "fait le ménage et la cuisine"; }
       else act = m.role === "mère" ? "prépare le dîner" : m.kid ? (i % 2 ? "joue dans le salon" : "fait ses devoirs à table") : "regarde le journal télévisé";
       out.push(Object.assign({}, m, { act }));
@@ -2542,8 +2542,11 @@
   function myHome() {
     const h = HOME(); if (!h) return null;
     const o = virtPlace("moi", h.x, h.y, h.door, "maison", 424242); o.mine = true; o.nom = "Ta maison"; o.icone = "🏠"; o.rich = !!(G.me && G.me.argent > 500);
+    o.meubles = myMeubles(); o.sig = [...o.meubles].sort().join(",");
     return o;
   }
+  // meubles achetés dans la boutique de « Ma vie » (liste posée par vie.js dans ce navigateur)
+  function myMeubles() { let L = []; try { L = JSON.parse(lsGet("twolife_meubles") || "[]"); } catch (e) { } return new Set(Array.isArray(L) ? L : []); }
   function enterHome() {
     const A = G.auto, f = G.foot; if (!f || !A || A.mode === "prison") return;
     const o = myHome(); if (!o) return; f.inside = o; f.inT = 1;
@@ -2554,12 +2557,24 @@
     q.z = 0;
     const go = (x, y, a, then) => roomGo(q, x, y, () => { q.a = a; then(); });
     if (q.shopBag) { q.doing = "range ses courses dans le frigo"; go(21, -57, -Math.PI / 2, () => { q.state = "idle"; q.talk = 1; q.wait = 5; q.shopBag = false; q.bagNew = true; }); return; }
-    if (night) { q.doing = "dort dans sa chambre"; go(-61, -40, Math.PI / 2, () => { q.state = "down"; q.z = 2; q.wait = 1e9; }); return; }
+    const M = (R.o && R.o.meubles) || new Set(), me = G.me;
+    if (night) {
+      const cool = M.has("clim") ? "au frais, clim allumée" : M.has("ventilo") ? "avec le ventilateur" : "";
+      q.doing = "dort dans sa chambre" + (cool ? " " + cool : "");
+      go(-61, -40, Math.PI / 2, () => { q.state = "down"; q.z = 2; q.wait = 1e9; if (cool && me && me.frais !== G.day) { me.frais = G.day; G.energy = Math.min(100, G.energy + (M.has("clim") ? 12 : 5)); } }); return;
+    }
+    // le matin : la douche d'abord (chaude avec le chauffe-eau, sinon à l'eau froide avec le seau)
+    if (h >= 5 && h < 10 && me && me.douche !== G.day) {
+      q.doing = M.has("chauffe-eau") ? "prend une douche chaude" : "se lave à l'eau froide, au seau et au gobelet";
+      go(84, -4, Math.PI, () => { q.state = "idle"; q.wait = 14; me.douche = G.day; G.energy = Math.min(100, G.energy + (M.has("chauffe-eau") ? 6 : 3)); }); return;
+    }
     if (hungry || (A && A.dest && A.dest.eat)) { q.doing = "mange à table"; go(32, 13, Math.PI / 2, () => { q.state = "sit"; q.wait = 25 + rand() * 15; if (G.me) G.me.faim = Math.min(G.me.faim, 15); if (A && A.dest) A.dest.eat = false; }); return; }
-    const k = (q.n = (q.n || 0) + 1) % 4;
+    const k = (q.n = (q.n || 0) + 1) % 6;
+    if (k === 4) { q.doing = "va aux toilettes"; go(76, 8, -Math.PI / 2, () => { q.state = "sit"; q.wait = 10; }); return; }
     if (k === 1) { q.doing = "regarde la télé dans le salon"; go(-48, 20, Math.PI, () => { q.state = "sit"; q.wait = 30 + rand() * 20; }); }
     else if (k === 2) { q.doing = "se repose sur son lit"; go(-61, -40, Math.PI / 2, () => { q.state = "down"; q.z = 2; q.wait = 25 + rand() * 15; }); }
-    else if (k === 3) { q.doing = "boit de l'eau fraîche à la cuisine"; go(-2, -57, -Math.PI / 2, () => { q.state = "idle"; q.wait = 8; }); }
+    else if (k === 3) { q.doing = "se lave les mains au lavabo"; go(71, -4, -Math.PI / 2, () => { q.state = "idle"; q.wait = 6; }); }
+    else if (k === 5) { q.doing = "boit de l'eau fraîche à la cuisine"; go(-2, -57, -Math.PI / 2, () => { q.state = "idle"; q.wait = 8; }); }
     else { q.doing = "range ses habits dans l'armoire"; go(-36, -62, -Math.PI / 2, () => { q.state = "idle"; q.wait = 8; }); }
   }
   function officeNow(o, h) {
@@ -2645,32 +2660,40 @@
       staff("guard", -30, D / 2 - 12, UP);
     } else if (kind === "maison" || kind === "appart") {   // une vraie maison kinoise : salon, salle à manger, cuisine, deux chambres
       W = 180; D = 150; H = 30;
-      const rich = o.rich, wall = (x, y, w, d) => add("wall", x, y, w, d, { a: DOWN });
+      const rich = o.rich, wall = (x, y, w, d) => add("wall", x, y, w, d, { a: DOWN }), M = (o.mine && o.meubles) || new Set();
       // chambre des parents (fond à gauche) et chambre des enfants (fond à droite), cloisons à mi-hauteur côté caméra
       wall(-70, -15, 40, 3); wall(-26, -15, 12, 3); add("curtain", -41, -15, 18, 2, { solid: false, color: "#c0392b" }); wall(-20, -45, 3, 60);
       wall(36, -15, 12, 3); wall(75, -15, 30, 3); add("curtain", 51, -15, 18, 2, { solid: false, color: "#2b6cb0" }); wall(30, -45, 3, 60);
-      add("homebed", -62, -48, 40, 34, { double: true, sheet: rich ? "#f4f2ee" : "#e8a317" }); add("wardrobe", -36, -69, 24, 9);
+      if (M.has("lit-king")) add("homebed", -64, -45, 44, 38, { double: true, king: true, sheet: "#f4f2ee" });
+      else add("homebed", -62, -48, 40, 34, { double: true, sheet: rich ? "#f4f2ee" : "#e8a317" });
+      add("wardrobe", -36, -69, 24, 9);
       add("homebed", 68, -62, 36, 16, { a: -DOWN, sheet: "#3fa9ff" }); add("homebed", 68, -30, 36, 16, { a: -DOWN, sheet: "#ff4f9a" });
       add("frame", -62, -73, 20, 2, { solid: false, a: DOWN, cross: true });
       // cuisine : plan de travail, réchaud à gaz, frigo, bidons d'eau
       add("kitchen", -2, -69, 30, 10); add("fridge", 21, -69, 12, 10); add("jerrycans", 20, -26, 14, 8);
       // salon : télé, canapé, table basse, tapis
-      add("rug", -60, 28, 52, 44, { solid: false }); add("tvstand", -85, 28, 30, 8, { a: 0, big: rich }); add("sofa", -44, 28, 40, 14, { a: Math.PI, color: rich ? "#3d2b1f" : "#7a1f2b" }); add("lowtable", -64, 28, 18, 12, { a: Math.PI });
+      add("rug", -60, 28, 52, 44, { solid: false }); add("tvstand", -85, 28, 30, 8, { a: 0, big: rich || M.has("tele-plasma"), huge: M.has("tele-plasma") }); add("sofa", -44, 28, 40, 14, { a: Math.PI, color: M.has("canape-cuir") ? "#24160c" : rich ? "#3d2b1f" : "#7a1f2b", leather: M.has("canape-cuir") }); add("lowtable", -64, 28, 18, 12, { a: Math.PI });
       add("frame", -55, -13, 22, 2, { solid: false, a: DOWN }); add("plant", -84, 68, 8, 8);
       // salle à manger
       add("dtable", 42, 26, 34, 18);
       [[32, 13, DOWN], [52, 13, DOWN], [32, 39, UP], [52, 39, UP]].forEach(([x, y, a]) => { add("chair", x, y, 6, 6, { a, solid: false, white: !rich }); seat(x, y, a, { table: { x: 42, y: 26 } }); });
-      if (rich) add("clim", 80, -12, 24, 3, { solid: false, a: DOWN });
+      if (rich || M.has("clim")) add("clim", -55, -73, 24, 3, { solid: false, a: DOWN });   // au-dessus du lit, dans la chambre
+      if (M.has("ventilo")) add("standfan", -84, 2, 8, 8, { solid: false, a: 0 });
+      // salle de bain (côté droit, entre la chambre des enfants et la salle à manger) : douche, WC, lavabo ; porte rideau
+      wall(64, -6, 3, 15); add("curtain", 64, 7, 10, 2, { solid: false, color: "#2f8f8f", a: 0 }); wall(64, 14.5, 3, 5); wall(77, 17.5, 26, 3);
+      add("shower", 83.5, -4, 18, 13, { solid: false, a: Math.PI, hot: M.has("chauffe-eau") }); add("toilet", 76, 11, 8, 10, { solid: false, a: UP }); add("lavabo", 71, -11, 9, 5, { solid: false, a: DOWN });
+      if (M.has("chauffe-eau")) add("boiler", 88.5, 9, 9, 4, { solid: false, a: Math.PI });
       // la famille, selon l'heure
       const sofa = [[-48, 20, Math.PI], [-48, 36, Math.PI]], tab = [[32, 13, DOWN], [52, 13, DOWN], [32, 39, UP], [52, 39, UP]];
       const bedP = [[-61, -56], [-61, -40]], bedK = [[67, -62], [67, -30], [67, -59], [67, -27]];
-      let nP = 0, nK = 0, nS = 0, nT = 0;
+      let nP = 0, nK = 0, nS = 0, nT = 0, nB = 0;
       (o.nowM || []).forEach(m => {
         const sp = { role: "famille", who: m };
         if (m.act === "dort") {
           const kidBed = m.kid && nK < bedK.length, b = kidBed ? bedK[nK++] : !m.kid && !m.old && nP < 2 ? bedP[nP++] : null;
           if (b) Object.assign(sp, { x: b[0], y: b[1], a: kidBed ? -DOWN : DOWN, lie: true, z: 2 }); else Object.assign(sp, { x: -44, y: 28, a: 0, lie: true, z: 1 });
         } else if (/prépare|cuisine/.test(m.act)) Object.assign(sp, { x: -2, y: -58, a: UP, role: "cook" });
+        else if (/douche/.test(m.act) && !nB++) Object.assign(sp, { x: 84, y: -4, a: Math.PI });
         else if (/télé/.test(m.act) && nS < sofa.length) { const s = sofa[nS++]; Object.assign(sp, { x: s[0], y: s[1], a: s[2], sit: true }); }
         else if (/table|devoirs|café|déjeuner/.test(m.act) && nT < tab.length) { const s = tab[nT++]; Object.assign(sp, { x: s[0], y: s[1], a: s[2], sit: true }); }
         else Object.assign(sp, { x: -30 + (nS + nT) * 6, y: 52, a: UP, pace: 18 });
@@ -2808,7 +2831,7 @@
     const R = G.room; if (!R) return;
     R.t += dt; R.people.forEach(q => { if (q.talk > 0) q.talk -= dt; }); const L = lifeOf(R.o), ids = new Set(L.inside.map(x => x.id));
     if (!R.watch && !(G.foot && G.foot.inside === R.o)) { closeRoom(); return; }
-    if (R.o.virt && Math.floor(G.hour) !== R.h0) { const bag = R.me && R.me.shopBag; openRoom(R.o, R.watch, true); if (G.room && G.room.me) G.room.me.shopBag = bag; return; }
+    if (R.o.virt && Math.floor(G.hour) !== R.h0) { if (R.me && R.me.shopBag && G.foot) G.foot.shopBag = true; openRoom(R.o, R.watch, true); return; }
     if (R.watch && !L.open && !L.inside.length) { closeRoom(); msg("🔒 " + R.o.nom + " a fermé ses portes.", 3); return; }
     // nouveaux clients qui entrent, clients qui sortent par la porte
     const have = new Set(R.people.filter(q => q.src).map(q => q.src.id));

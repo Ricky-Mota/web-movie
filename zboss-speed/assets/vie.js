@@ -2,7 +2,7 @@
 // simule la même vie dans le navigateur (mode démo).
 import {
   ageYears, stageOf, STAGES, realMsUntil, TALENTS, ACTIVITIES, rng, drawTalents, doActivity, needsAt, newIdentity, BIRTH_GIFT,
-  SHOP, cannotBuy, OFFERS, USD_TO_MAKUTA, USD_UNITS, fmtMakuta, WITHDRAW_FEE, walletInfo, birthShiftMs, shopView, familyOf, JOBS, payFor, cannotWork, workView, SHIFT_ENERGY, cannotApply, FORMATIONS, cannotEnroll, attendCourse, schoolView, STUDY_ENERGY, SUPPORT_PER_DAY, HOST_MIN_AGE, canSignupBeforeLaunch, COMPANY_TYPES, cannotOpenCompany, companyName, companyView, companyAccrue, companyJob, EMPLOYEE_YIELD, RESELL_RATE, TAXI_FARE, TAXI_ENERGY, KINSHASA_QUARTIERS, OTHER_CITIES, TAX, POSTS, PUBLIC_JOBS, BANKS, bankAccrue, INSURERS, CARE, careCost, ACCIDENT, injuredBlocks, accidentText, ROAD_FAULTS, roadFaultText, TRAFFIC_TICKETS, trafficTicket, permitStatus, ELECTION_FEE, cannotRun, ELECTION_CAMPAIGN, cannotCampaignElec, resultLine, OPERATORS, RECHARGES, CALL, stateView, supportDue, unpaidEffect, familyShare, FIRST_NAMES,
+  SHOP, homeConso, cannotBuy, OFFERS, USD_TO_MAKUTA, USD_UNITS, fmtMakuta, WITHDRAW_FEE, walletInfo, birthShiftMs, shopView, familyOf, JOBS, payFor, cannotWork, workView, SHIFT_ENERGY, cannotApply, FORMATIONS, cannotEnroll, attendCourse, schoolView, STUDY_ENERGY, SUPPORT_PER_DAY, HOST_MIN_AGE, canSignupBeforeLaunch, COMPANY_TYPES, cannotOpenCompany, companyName, companyView, companyAccrue, companyJob, EMPLOYEE_YIELD, RESELL_RATE, TAXI_FARE, TAXI_ENERGY, KINSHASA_QUARTIERS, OTHER_CITIES, TAX, POSTS, PUBLIC_JOBS, BANKS, bankAccrue, INSURERS, CARE, careCost, ACCIDENT, injuredBlocks, accidentText, ROAD_FAULTS, roadFaultText, TRAFFIC_TICKETS, trafficTicket, permitStatus, ELECTION_FEE, cannotRun, ELECTION_CAMPAIGN, cannotCampaignElec, resultLine, OPERATORS, RECHARGES, CALL, stateView, supportDue, unpaidEffect, familyShare, FIRST_NAMES,
   describeAction, ORDER_DONE, ORDERS, ORDERS_PER_DAY, ORDERS_CHECK_MS, dayKey, ordersToRun, cannotGiveOrder,
   VOTER_MIN_AGE, NEGLECT_DANGER_DAYS, NEGLECT_DANGER_HEALTH, splitEstate, deathCause, familyShareRate, REP, REP_BAD, REP_GOOD, repLabel, repDiscount, DOT_MAKUTA, MARRY_MIN_AGE, STREET_JOBS, cannotStreetJob, RENT, rentOf, houseOf, rentDue, HOUSING_MIN_AGE, SALE_TAX, LIFE_EVENTS, EVENT_EVERY_H, drawEvent, eventMoney, lifeAlbum, CRIMES, catchChance, sentence, inPrison, PRISON_BLOCKED, BAIL, PRISON_HOURS, RECIDIVE, policeView, applySettings, food, drawEntry, classOfWealth, classLabel, MATURITY_GAIN, BIG_DECISIONS, cannotDecide, dashboard,
   PAY_METHODS, cannotDeposit, cannotWithdraw, maskPhone, withdrawUsd, COMMUNES, communeView, ROLES, drawRole, roleOf,
@@ -479,7 +479,7 @@ const demo = {
     if (path === "/api/acheter") {
       const item = SHOP.find(x => x.id === body.objet);
       this.settle(c);
-      const no = cannotBuy(item, c.makuta, ageYears(c.neLe));
+      const no = cannotBuy(item, c.makuta, ageYears(c.neLe), (d.inv || []).map(x => x.objet_id));
       if (no) throw new Error(no);
       const e = item.effet || {};
       c.makuta -= item.prix; if (item.type === "telephone") d.tresor = (d.tresor || 0) + Math.round(item.prix * TAX.douane);
@@ -1073,12 +1073,14 @@ $("dead").onclick = e => {
   if (e.target.id === "b-reborn") act("/api/renaitre", {}, v => `Bienvenue dans ta nouvelle vie, ${v.perso.prenom} !`); };
 
 // ---------------------------------------------------------------- magasin, affaires, portefeuille
-const TYPES = [["nourriture", "Nourriture", "🍲"], ["vetement", "Vêtements", "👕"], ["telephone", "Téléphones", "📱"]];
+const TYPES = [["nourriture", "Nourriture", "🍲"], ["vetement", "Vêtements", "👕"], ["telephone", "Téléphones", "📱"], ["meuble", "Maison", "🛋️"]];
+const MEUBLE_ICON = { "lit-king": "🛏️", "tele-plasma": "📺", clim: "❄️", ventilo: "🌀", "canape-cuir": "🛋️", "chauffe-eau": "🚿" };
 let shopTab = "nourriture";
 const mk = n => fmtMakuta(Math.round(n));
 const usd = n => `${n.toLocaleString("fr-FR", { maximumFractionDigits: 2 })} $`;
 const SLOT = { haut: "Haut", bas: "Bas", pieds: "Chaussures" };
 function swatch(it) {
+  if (it.type === "meuble") return `<span class="sw">${MEUBLE_ICON[it.id] || "🛋️"}</span>`;
   return it.couleur ? `<span class="sw" style="background:${it.couleur}"></span>` : `<span class="sw">${(TYPES.find(t => t[0] === it.type) || [, , "•"])[2]}</span>`;
 }
 function renderShop(v) {
@@ -1086,12 +1088,16 @@ function renderShop(v) {
   $("shop-tabs").innerHTML = TYPES.map(([id, label]) => `<button class="tab ${id === shopTab ? "on" : ""}" data-t="${id}" type="button">${label}</button>`).join("");
   $("shop").innerHTML = v.boutique.filter(it => it.type === shopTab).map(it => {
     const why = it.minAge && p.age < it.minAge ? `dès ${it.minAge} ans` : it.maxAge && p.age > it.maxAge ? "pour les tout-petits" : p.makuta < it.prix ? "trop cher" : "";
-    const fx = it.effet ? Object.entries(it.effet).map(([k, x]) => `+${x} ${{ faim: "satiété", bonheur: "bonheur", energie: "énergie" }[k]}`).join(" · ") : SLOT[it.slot] || "";
+    const owned = it.type === "meuble" && v.inventaire.some(x => x.objet === it.id);
+    const fx = (it.desc ? it.desc + " · " : "") + (it.effet ? Object.entries(it.effet).map(([k, x]) => `+${x} ${{ faim: "satiété", bonheur: "bonheur", energie: "énergie" }[k]}`).join(" · ") : SLOT[it.slot] || "") + (it.conso ? ` · électricité +${mk(it.conso)}/jour` : "");
+    if (owned) return `<div class="item">${swatch(it)}<div class="t">${it.nom}<small>Déjà dans ta maison</small></div><button class="mini" type="button" disabled>✓ Chez toi</button></div>`;
     return `<div class="item">${swatch(it)}<div class="t">${it.nom}<small>${mk(it.prix)}${fx ? " · " + fx : ""}${why ? " · " + why : ""}</small></div>
       <button class="mini fill" data-buy="${it.id}" type="button" ${dis(why, why)}>${it.type === "nourriture" ? "Manger" : "Acheter"}</button></div>`;
   }).join("");
   const inv = v.inventaire.map(x => ({ ...x, it: v.boutique.find(b => b.id === x.objet) })).filter(x => x.it);
-  $("inv").innerHTML = inv.length ? inv.map(x => `<div class="item">${swatch(x.it)}<div class="t">${x.it.nom}<small>${x.it.slot ? (x.porte ? "Porté · " : "") + SLOT[x.it.slot] : "Téléphone : tu peux appeler ta famille"}</small></div>
+  // la ville 3D lit cette liste pour meubler la maison du personnage (même navigateur, démo ou compte réel)
+  try { localStorage.setItem("twolife_meubles", JSON.stringify(inv.filter(x => x.it.type === "meuble").map(x => x.it.id))); } catch (e) { }
+  $("inv").innerHTML = inv.length ? inv.map(x => `<div class="item">${swatch(x.it)}<div class="t">${x.it.nom}<small>${x.it.slot ? (x.porte ? "Porté · " : "") + SLOT[x.it.slot] : x.it.type === "meuble" ? "Dans ta maison (visible en 3D dans « La ville »)" : "Téléphone : tu peux appeler ta famille"}</small></div>
       ${x.it.slot ? `<button class="mini ${x.porte ? "" : "fill"}" data-wear="${x.id}" type="button">${x.porte ? "Retirer" : "Porter"}</button>` : ""}
       <button class="mini" data-sell="${x.id}" type="button">Vendre ${mk(x.it.prix * RESELL_RATE)}</button></div>`).join("")
     : `<p style="font-size:14px;margin:0">Rien pour l'instant. Les vêtements achetés apparaissent ici et sur ton personnage.</p>`;
@@ -1204,7 +1210,7 @@ function renderTrain(v) {
   if (!T.adulte) { box.innerHTML = `<p style="font-size:14px;margin:0">Avant ${T.minAge} ans, la vie de tous les jours de ${esc(p.prenom)} (repas, habits, école) est payée par ses parents : ${mk(v.entretienParJour)} d'entretien par jour.</p>`; return; }
   const lv = T.niveaux, cur = lv.find(l => l.id === T.prevu), sign = n => (n > 0 ? "+" : "") + n;
   const chips = [{ id: "auto", nom: "Automatique", icone: "🤖", cout: 0 }, ...lv].map(l => `<button class="tal${T.choix === l.id ? " on" : ""}" data-train="${l.id}" type="button">${l.icone} ${l.nom}${l.cout ? " · " + mk(l.cout) + "/j" : ""}</button>`).join("");
-  const L = v.logement && v.logement.actuel, bills = L ? Object.entries(BILLS).reduce((a, [, n]) => a + n, 0) : 0;
+  const L = v.logement && v.logement.actuel, bills = L ? Object.entries(BILLS).reduce((a, [, n]) => a + n, 0) + homeConso((v.inventaire || []).map(x => x.objet)) : 0;
   const rows = cur ? T.postes.filter(x => cur.postes[x.id]).map(x => `<div class="row"><span>${x.icone} ${x.label}</span><span>${mk(cur.postes[x.id])}</span></div>`).join("") : "";
   const fixed = `<div class="row"><span>🏠 Loyer</span><span>${L ? (L.statut === "proprio" ? "propriétaire : rien à payer" : mk(L.loyer) + " par semaine") : "chez les parents"}</span></div>` +
     `<div class="row"><span>💡🚰 Électricité et eau (Mwinda, Mai ya Kin)</span><span>${L ? mk(bills) + " par jour" : "payées par les parents"}</span></div>`;

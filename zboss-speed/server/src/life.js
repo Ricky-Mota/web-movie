@@ -160,11 +160,21 @@ export const SHOP = [
   { id: "tel-simple", nom: "Téléphone simple", type: "telephone", prix: 300, effet: { bonheur: 8 }, minAge: 10 },
   { id: "smartphone", nom: "Smartphone", type: "telephone", prix: 1500, effet: { bonheur: 15 }, minAge: 12 },
   { id: "smartphone-pro", nom: "Smartphone haut de gamme", type: "telephone", prix: 6000, effet: { bonheur: 25 }, minAge: 12 },
+  // meubles et équipements (26/11) : ils apparaissent dans la maison 3D du personnage ; conso = électricité en plus par jour (makuta)
+  { id: "lit-king", nom: "Grand lit 2 places (king size)", type: "meuble", prix: 2000, effet: { bonheur: 8 }, minAge: 16, desc: "Remplace le petit lit de la chambre." },
+  { id: "tele-plasma", nom: "Télévision écran plat 55 pouces", type: "meuble", prix: 3000, effet: { bonheur: 10 }, minAge: 16, conso: 4, desc: "Grand écran au salon." },
+  { id: "clim", nom: "Climatiseur", type: "meuble", prix: 6000, effet: { bonheur: 12 }, minAge: 16, conso: 15, desc: "Chambre fraîche : il dort mieux." },
+  { id: "ventilo", nom: "Ventilateur sur pied", type: "meuble", prix: 600, effet: { bonheur: 4 }, minAge: 12, conso: 2, desc: "Un peu d'air pendant les fortes chaleurs." },
+  { id: "canape-cuir", nom: "Canapé en cuir", type: "meuble", prix: 2500, effet: { bonheur: 6 }, minAge: 16, desc: "Remplace le vieux canapé du salon." },
+  { id: "chauffe-eau", nom: "Chauffe-eau pour la douche", type: "meuble", prix: 1800, effet: { bonheur: 5 }, minAge: 16, conso: 6, desc: "Douche chaude le matin." },
 ];
+// électricité consommée en plus par les équipements de la maison (makuta par jour)
+export const homeConso = ids => [...new Set(ids || [])].reduce((t, id) => t + ((SHOP.find(x => x.id === id) || {}).conso || 0), 0);
 
 // vérifie un achat : renvoie un message d'erreur ou null
-export function cannotBuy(item, makuta, age) {
+export function cannotBuy(item, makuta, age, owned = []) {
   if (!item) return "Article inconnu.";
+  if (item.type === "meuble" && owned.includes(item.id)) return "Tu l'as déjà dans ta maison.";
   if (item.minAge && age < item.minAge) return `Réservé aux ${item.minAge} ans et plus.`;
   if (item.maxAge && age > item.maxAge) return "Cet article est pour les tout-petits.";
   if (makuta < item.prix) return "Pas assez d'e-makuta.";
@@ -1359,9 +1369,9 @@ export function publicPayer(job, soldes = {}) {
   if ((soldes[STATE_ID] || 0) >= amount) return { payeur: STATE_ID, ok: true, subvention: !!soe };
   return { payeur: soe || STATE_ID, ok: false };
 }
-export function billsFor(makuta) {           // factures du jour : on paie ce qu'on peut, l'électricité d'abord
+export function billsFor(makuta, conso = 0) {   // factures du jour : on paie ce qu'on peut, l'électricité d'abord (+ clim, télé… achetés)
   let left = makuta; const out = [];
-  for (const [id, m] of Object.entries(BILLS)) { const paid = Math.max(0, Math.min(left, m)); left -= paid; out.push({ societe: id, du: m, paye: paid }); }
+  for (const [id, m0] of Object.entries(BILLS)) { const m = m0 + (id === "sp-mwinda" ? conso : 0); const paid = Math.max(0, Math.min(left, m)); left -= paid; out.push({ societe: id, du: m, paye: paid }); }
   return out;
 }
 export function soeView(soldes = {}, agents = {}) {

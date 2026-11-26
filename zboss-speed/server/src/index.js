@@ -7,7 +7,7 @@ import {
   PAY_METHODS, cannotDeposit, cannotWithdraw, maskPhone, withdrawUsd, COMMUNES, communeView, ROLES, drawRole, roleOf,
   streakStep, streakView, nightSummary, morningText, reminderText, kinHour,
   newspaper, cannotSendWord, neighborView, GREETINGS, WORD_MAX,
-  AD_SPOTS, AD_COLORS, adPrice, cannotCreateAd, adView, adShownIn, PUBLIC_COMPANIES, BILLS, SOE_RESERVE, STATE_SEED, vatOf, publicPayer, billsFor, soeView, promoPrice, cannotPromote, PROMO_PRICE, PROMO_MAX_DAYS, tickerItems, cannotCreateCommunique, goalsView, newlyReached, cannotChooseGoal, GOAL_REP, pickStars, STAR_DOMAINS,
+  AD_SPOTS, AD_COLORS, adPrice, cannotCreateAd, adView, adShownIn, PUBLIC_COMPANIES, BILLS, SOE_RESERVE, STATE_SEED, vatOf, publicPayer, billsFor, homeConso, soeView, promoPrice, cannotPromote, PROMO_PRICE, PROMO_MAX_DAYS, tickerItems, cannotCreateCommunique, goalsView, newlyReached, cannotChooseGoal, GOAL_REP, pickStars, STAR_DOMAINS,
   BUDGET_POSTS, LIFESTYLES, LIFESTYLE_MIN_AGE, lifestyleCost, lifestyleFor, lifestyleStep, lifeExpectancy, OLD_AGE_HEALTH, tenueBlocks, livingView, CHILD_REAL_DAYS,
   LAWS, VAT_LIMITS, cannotSetVat, BUDGET_LINES, cleanBudget, budgetText, PARLIAMENT, PARLIAMENT_SEATS, cannotProposeLaw, LAW_TYPES, cleanLaw, lawText, lawTitle, cannotVoteBill, billOutcome, attendance, dechuText,
   CELEB_DOMAINS, celebStory, celebFromMoves, celebClean, pickCelebrities, protestChance, protestText, PROTEST_REP,
@@ -340,9 +340,9 @@ async function dailyPublic(db, now) {
   const seed = await db.prepare(`SELECT valeur FROM jeu WHERE cle = 'budget_initial'`).first();
   if (!seed) await db.batch([tx(db, "banque-centrale", STATE_ID, STATE_SEED, "budget de départ de l'État (Banque centrale)", now),
     db.prepare(`INSERT INTO jeu (cle, valeur) VALUES ('budget_initial', ?)`).bind(String(now))]);
-  const { results: homes } = await db.prepare(`SELECT p.id, p.makuta FROM logements l JOIN personnages p ON p.id = l.personnage_id WHERE p.mort_le IS NULL AND p.compte_id IS NOT NULL LIMIT 500`).all();
+  const { results: homes } = await db.prepare(`SELECT p.id, p.makuta, (SELECT GROUP_CONCAT(objet_id) FROM possessions WHERE proprietaire_id = p.id) AS objets FROM logements l JOIN personnages p ON p.id = l.personnage_id WHERE p.mort_le IS NULL AND p.compte_id IS NOT NULL LIMIT 500`).all();
   for (const hme of homes) {
-    const bills = billsFor(hme.makuta), paid = bills.reduce((t, b) => t + b.paye, 0), unpaid = bills.filter(b => b.paye < b.du);
+    const bills = billsFor(hme.makuta, homeConso(String(hme.objets || "").split(","))), paid = bills.reduce((t, b) => t + b.paye, 0), unpaid = bills.filter(b => b.paye < b.du);
     const st = bills.filter(b => b.paye > 0).map(b => tx(db, hme.id, b.societe, b.paye, "facture du jour : " + PUBLIC_COMPANIES.find(c => c.id === b.societe).nom, now));
     if (paid) st.unshift(db.prepare(`UPDATE personnages SET makuta = makuta - ? WHERE id = ? AND makuta >= ?`).bind(paid, hme.id, paid), GUARD(db));
     if (unpaid.length) st.push(db.prepare(`INSERT INTO mouvements (id, personnage_id, icone, texte, par_consigne, le) VALUES (?, ?, '🕯️', ?, 0, ?)`).bind(uid(), hme.id, "Facture impayée : " + unpaid.map(b => PUBLIC_COMPANIES.find(c => c.id === b.societe).nom).join(", ") + ". La maison reste dans le noir ce soir.", now));
@@ -1773,7 +1773,7 @@ const worker = {
       if (url.pathname === "/api/acheter" && req.method === "POST") {
         const item = SHOP.find(x => x.id === body.objet);
         await settle(db, p, now);
-        const no = cannotBuy(item, p.makuta, ageYears(p.ne_le, now));
+        const no = cannotBuy(item, p.makuta, ageYears(p.ne_le, now), (ch.inv || []).map(x => x.objet_id));
         if (no) return fail(h, 409, no);
         const e = item.effet || {};
         const st = [
