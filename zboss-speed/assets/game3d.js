@@ -63,7 +63,63 @@
   sunLight.shadow.mapSize.set(2048, 2048);
   Object.assign(sunLight.shadow.camera, { left: -90, right: 90, top: 90, bottom: -90, near: 10, far: 500 });
   sunLight.shadow.bias = -0.0006;
+  sunLight.shadow.normalBias = 0.02;
   scene.add(sunLight, sunLight.target);
+
+  // ------------------------------------------------------------ Rendu haut de gamme (v72)
+  // Qualité : « haute » sur ordinateur (ciel physique, reflets du ciel, halo lumineux), « légère » sur téléphone.
+  // Le joueur peut forcer avec localStorage twolife_qualite = "haute" | "legere".
+  let QUAL = MOBILE ? "legere" : "haute";
+  try { const q = localStorage.getItem("twolife_qualite"); if (q === "haute" || q === "legere") QUAL = q; } catch (e) { }
+  const HQ = QUAL === "haute";
+  // ciel physique (diffusion de Rayleigh et Mie) : bleu à midi, orange au coucher du soleil
+  let physSky = null, envSky = null, envScene = null, pmrem = null, envRT = null, envH = -99, envAt = 0;
+  const sunDir = new THREE.Vector3(0, 1, 0);
+  let ENV_GAIN = .16; window.__envGain = v => { ENV_GAIN = v; envH = -99; envAt = 0; };
+  if (THREE.Sky) {
+    physSky = new THREE.Sky(); physSky.scale.setScalar(1400); physSky.material.depthWrite = false; physSky.renderOrder = -10;
+    const u = physSky.material.uniforms;
+    // le ciel du modèle physique est très lumineux : on le règle sans assombrir toute la scène
+    u.skyGain = { value: .5 };
+    physSky.material.fragmentShader = "uniform float skyGain;\n" + physSky.material.fragmentShader.replace("gl_FragColor = vec4( retColor, 1.0 );", "gl_FragColor = vec4( retColor * skyGain, 1.0 );");
+    u.turbidity.value = 7.5; u.rayleigh.value = 1.6; u.mieCoefficient.value = .006; u.mieDirectionalG.value = .86;
+    skyG.add(physSky);
+    if (HQ) {
+      // reflets : le ciel est « photographié » en image d'environnement (vitres, carrosseries, peaux, tissus)
+      pmrem = new THREE.PMREMGenerator(renderer); pmrem.compileEquirectangularShader();
+      envScene = new THREE.Scene(); envSky = new THREE.Sky(); envSky.material = physSky.material; envSky.scale.setScalar(900); envScene.add(envSky);
+    }
+  }
+  // étoiles (la nuit)
+  const stars = (() => {
+    const n = 1400, pos = new Float32Array(n * 3);
+    for (let i = 0; i < n; i++) { const u = Math.random() * 2 - 1, t = Math.random() * 6.283, r = 1300, k = Math.sqrt(1 - u * u); pos[i * 3] = r * k * Math.cos(t); pos[i * 3 + 1] = Math.abs(u) * r; pos[i * 3 + 2] = r * k * Math.sin(t); }
+    const g = new THREE.BufferGeometry(); g.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+    const m = new THREE.PointsMaterial({ color: "#ffffff", size: 1.6, sizeAttenuation: false, transparent: true, opacity: 0, fog: false, depthWrite: false });
+    const pts = new THREE.Points(g, m); pts.renderOrder = -9; skyG.add(pts); return pts;
+  })();
+  // post-traitement : halo (bloom) sur les lampadaires, enseignes, phares et vitrines, puis correction gamma
+  let composer = null, bloom = null;
+  if (HQ && THREE.EffectComposer && THREE.UnrealBloomPass && THREE.GammaCorrectionShader) {
+    try {
+      const gl2 = renderer.capabilities.isWebGL2;
+      const rt = gl2 && THREE.WebGLMultisampleRenderTarget
+        ? new THREE.WebGLMultisampleRenderTarget(4, 4, { format: THREE.RGBAFormat, type: THREE.HalfFloatType })
+        : new THREE.WebGLRenderTarget(4, 4, { format: THREE.RGBAFormat, type: gl2 ? THREE.HalfFloatType : THREE.UnsignedByteType });
+      composer = new THREE.EffectComposer(renderer, rt);
+      composer.addPass(new THREE.RenderPass(scene, camera));
+      bloom = new THREE.UnrealBloomPass(new THREE.Vector2(256, 256), .25, .45, .86);
+      composer.addPass(bloom);
+      composer.addPass(new THREE.ShaderPass(THREE.GammaCorrectionShader));
+    } catch (e) { composer = null; console.warn("post-traitement indisponible", e); }
+  }
+  // ombre de contact douce sous chaque personnage (ancre au sol, même sans ombres temps réel)
+  const BLOB_TEX = (() => { const c = document.createElement("canvas"); c.width = c.height = 128; const x = c.getContext("2d"); const g = x.createRadialGradient(64, 64, 4, 64, 64, 62); g.addColorStop(0, "rgba(0,0,0,.55)"); g.addColorStop(.55, "rgba(0,0,0,.22)"); g.addColorStop(1, "rgba(0,0,0,0)"); x.fillStyle = g; x.fillRect(0, 0, 128, 128); return new THREE.CanvasTexture(c); })();
+  const BLOB_MAT = new THREE.MeshBasicMaterial({ map: BLOB_TEX, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 });
+  const BLOB_GEO = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
+  function draw() {
+    if (composer) composer.render(); else renderer.render(scene, camera);
+  }
 
   // ------------------------------------------------------------ Textures dessinées
   function canvasTex(w, h, draw, repeat) {
@@ -323,21 +379,38 @@
   // jour et nuit selon l'heure du jeu
   const C_DAY = { hemiS: new THREE.Color("#ffd0b0"), hemiG: new THREE.Color("#5a3a2a"), sun: new THREE.Color("#ffbe8a"), fog: FOG.clone() };
   const C_NIGHT = { hemiS: new THREE.Color("#5a6a9a"), hemiG: new THREE.Color("#141018"), fog: new THREE.Color("#121826") };
-  const C_NOON = new THREE.Color("#fff1dc"), tmpC = new THREE.Color();
+  const C_NOON = new THREE.Color("#fff4e6"), tmpC = new THREE.Color();
+  const C_GOLD = new THREE.Color("#ff9a4a"), C_GOLD_FOG = new THREE.Color("#e39a6a"), C_HAZE = new THREE.Color("#a9b9c9");
   let dayF = 1;
   function setDay(h, cx, cz) {
     if (h === undefined) return;
     const el = Math.sin((h - 6) / 12 * Math.PI);          // hauteur du soleil (-1 la nuit, 1 à midi)
     dayF = Math.max(0, Math.min(1, (el + .12) / .4));   // 0 la nuit, 1 le jour, crépuscule entre les deux
-    const noon = Math.max(0, el);
+    const noon = Math.max(0, el), gold = Math.max(0, 1 - Math.abs(el - .12) / .3) * dayF;   // heure dorée : soleil bas
+    const az = (h - 6) / 12 * Math.PI;
+    sunDir.set(-Math.cos(az), Math.max(-.3, el), -.45).normalize();
     hemi.color.copy(C_NIGHT.hemiS).lerp(C_DAY.hemiS, dayF); hemi.groundColor.copy(C_NIGHT.hemiG).lerp(C_DAY.hemiG, dayF);
-    hemi.intensity = .32 + .43 * dayF;
-    sunLight.intensity = 1.45 * dayF; sunLight.color.copy(C_DAY.sun).lerp(C_NOON, noon * .7);
-    const az = (h - 6) / 12 * Math.PI; sunLight.position.set(cx - Math.cos(az) * 150, 30 + 150 * Math.max(.15, noon), cz - 80); sunLight.target.position.set(cx, 0, cz);
-    scene.fog.color.copy(C_NIGHT.fog).lerp(C_DAY.fog, dayF);
+    hemi.intensity = (.32 + .43 * dayF) * (envRT ? .6 : 1);   // le reflet du ciel éclaire déjà une partie
+    sunLight.intensity = 1.6 * dayF; sunLight.color.copy(C_DAY.sun).lerp(C_NOON, noon * .8).lerp(C_GOLD, gold * .6);
+    sunLight.position.set(cx + sunDir.x * 200, Math.max(25, sunDir.y * 200), cz + sunDir.z * 200); sunLight.target.position.set(cx, 0, cz);
+    // brume de l'horizon : orangée au lever et au coucher, bleutée à midi, nuit profonde
+    scene.fog.color.copy(C_NIGHT.fog).lerp(C_DAY.fog, dayF).lerp(C_HAZE, noon * .3).lerp(C_GOLD_FOG, gold * .5);
+    scene.fog.density = .0042 - .0012 * noon;
+    if (physSky) {
+      physSky.material.uniforms.sunPosition.value.copy(sunDir).multiplyScalar(1000);
+      physSky.visible = dayF > .12; if (skyMesh) skyMesh.visible = !physSky.visible;
+      if (envScene && (Math.abs(h - envH) > .25 || !envRT) && performance.now() - envAt > 1500) {
+        envH = h; envAt = performance.now();
+        const gU = physSky.material.uniforms.skyGain, g0 = gU.value; gU.value = ENV_GAIN;   // reflets plus doux que le ciel visible
+        const old = envRT; envRT = pmrem.fromScene(envScene, 0, .1, 2000); gU.value = g0; scene.environment = envRT.texture; if (old) old.dispose();
+      }
+      if (envRT) scene.environment = dayF > .12 ? envRT.texture : null;
+    }
     if (skyMesh) skyMesh.material.color.setRGB(.1 + .9 * dayF, .12 + .88 * dayF, .22 + .78 * dayF);
-    if (sunDisc) { sunDisc.visible = dayF > .05; sunDisc.position.set(-Math.cos(az) * 1100, 60 + 900 * noon, -700); sunDisc.lookAt(0, 0, 0); }
-    renderer.toneMappingExposure = .95 + .1 * dayF;
+    if (sunDisc) { sunDisc.visible = !physSky && dayF > .05; sunDisc.position.set(-Math.cos(az) * 1100, 60 + 900 * noon, -700); sunDisc.lookAt(0, 0, 0); }
+    stars.material.opacity = Math.max(0, 1 - dayF * 2.5) * .9;
+    renderer.toneMappingExposure = .95 + .1 * dayF - .17 * noon;   // midi : on évite les murs blancs « brûlés »
+    if (bloom) { bloom.strength = .12 + .55 * (1 - dayF); bloom.threshold = .98 - .2 * (1 - dayF); }
     const night = 1 - dayF;
     lampHeadMat.color.copy(tmpC.set("#9aa0aa")).lerp(new THREE.Color("#fff2c8"), night);
     // allume les lampadaires proches de la caméra
@@ -945,7 +1018,7 @@
         if (!r.userData.variant) return;
         r.traverse(o => {
           if (o.isBone) o.name = realName(o.name);
-          if (o.isMesh) { o.castShadow = !MOBILE; o.frustumCulled = false; const m = o.material; if (m) { m.envMapIntensity = .6; if (/^skin/.test(m.name)) m.roughness = .62; } }
+          if (o.isMesh) { o.castShadow = !MOBILE; o.frustumCulled = false; if (o.material) o.material = humPBR(o.material); }
         });
         HUM.tpl[r.userData.variant] = r; HUM.pool[r.userData.variant] = [];
       });
@@ -963,6 +1036,72 @@
       HUM.ready = Object.keys(HUM.tpl).length > 0;
     }, undefined, () => { HUM.ready = false; });
   }
+  // matériaux physiques des personnages (v72) : peau légèrement satinée, tissus avec trame et reflet doux,
+  // chaussures cirées, cheveux avec reflet ; une trame procédurale donne du relief aux vêtements
+  const WEAVE = (() => { const c = document.createElement("canvas"); c.width = c.height = 128; const x = c.getContext("2d"); const d = x.createImageData(128, 128);
+    for (let j = 0; j < 128; j++) for (let i = 0; i < 128; i++) { const k = (j * 128 + i) * 4, wv = Math.sin(i * 1.57) * .5 + Math.sin(j * 1.57 + (i % 8 < 4 ? 1.57 : 0)) * .5, n = (Math.random() - .5) * .25;
+      d.data[k] = 128 + (wv + n) * 26; d.data[k + 1] = 128 + (Math.cos(j * 1.57) * .5 + n) * 26; d.data[k + 2] = 255; d.data[k + 3] = 255; }
+    x.putImageData(d, 0, 0); const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(10, 10); return t; })();
+  const SKIN_BUMP = (() => { const c = document.createElement("canvas"); c.width = c.height = 128; const x = c.getContext("2d"); const d = x.createImageData(128, 128);
+    for (let k = 0; k < d.data.length; k += 4) { const n = (Math.random() - .5) * 16; d.data[k] = 128 + n; d.data[k + 1] = 128 + (Math.random() - .5) * 16; d.data[k + 2] = 255; d.data[k + 3] = 255; }
+    x.putImageData(d, 0, 0); const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(24, 24); return t; })();
+  function humPBR(m) {
+    const name = (m.name || "").replace(/\..*$/, "");
+    if (!m.isMeshStandardMaterial || name === "eye") { if (m.isMeshStandardMaterial) { m.roughness = .08; m.envMapIntensity = 1.2; } return m; }
+    const P = new THREE.MeshPhysicalMaterial({ name: m.name, map: m.map, color: m.color, skinning: true, roughness: m.roughness, metalness: 0, transparent: m.transparent, alphaTest: m.alphaTest, side: m.side });
+    if (name === "skin") { P.roughness = .5; P.clearcoat = .12; P.clearcoatRoughness = .45; P.normalMap = SKIN_BUMP; P.normalScale.set(.12, .12); P.envMapIntensity = .55; P.sheen = new THREE.Color(.18, .1, .08); }
+    else if (name === "shirt" || name === "pants" || name === "wax") { P.roughness = name === "pants" ? .78 : .85; P.normalMap = WEAVE; P.normalScale.set(.35, .35); P.sheen = new THREE.Color(.12, .12, .12); P.envMapIntensity = .35; }
+    else if (name === "shoes") { P.roughness = .32; P.clearcoat = .5; P.clearcoatRoughness = .25; P.envMapIntensity = .9; }
+    else if (/^hair/.test(name)) { P.roughness = .42; P.sheen = new THREE.Color(.25, .22, .2); P.envMapIntensity = .6; }
+    return P;
+  }
+  // accessoires du personnage du joueur : montre, sac à dos, smartphone à la main quand il s'arrête
+  function playerKit(h) {
+    const B = boneMap(h); if (h.kit || !B.hand_l || !B.spine_03) return;
+    h.obj.updateMatrixWorld(true);
+    const inv = b => 1 / (b.getWorldScale(humV1).x || 1);
+    const metal = new THREE.MeshStandardMaterial({ color: "#c9ccd2", metalness: 1, roughness: .22 });
+    const watch = new THREE.Group(), si = inv(B.hand_l);
+    const band = new THREE.Mesh(new THREE.TorusGeometry(.036, .009, 8, 20), new THREE.MeshStandardMaterial({ color: "#151515", roughness: .5 })); band.rotation.y = Math.PI / 2; watch.add(band);
+    const face = new THREE.Mesh(new THREE.CylinderGeometry(.017, .017, .008, 20), metal); face.rotation.z = Math.PI / 2; face.position.x = .04; watch.add(face);
+    const glass = new THREE.Mesh(new THREE.CircleGeometry(.014, 20), new THREE.MeshPhysicalMaterial({ color: "#0b1d33", roughness: .05, clearcoat: 1, metalness: .2 })); glass.rotation.y = Math.PI / 2; glass.position.x = .0445; watch.add(glass);
+    watch.scale.setScalar(si); watch.position.set(0, -.02 * si, 0); B.hand_l.add(watch);
+    // sac à dos en tissu technique, bretelles et fermeture
+    const pack = new THREE.Group(), sp = inv(B.spine_03), cloth = new THREE.MeshPhysicalMaterial({ color: "#1d2b3a", roughness: .7, sheen: new THREE.Color(.1, .1, .12), normalMap: WEAVE, normalScale: new THREE.Vector2(.4, .4) });
+    const body = new THREE.Mesh(new THREE.BoxGeometry(.3, .38, .14), cloth); pack.add(body);
+    const pocket = new THREE.Mesh(new THREE.BoxGeometry(.22, .14, .05), new THREE.MeshPhysicalMaterial({ color: "#e8a317", roughness: .6 })); pocket.position.set(0, -.08, -.08); pack.add(pocket);
+    const zip = new THREE.Mesh(new THREE.BoxGeometry(.24, .008, .01), metal); zip.position.set(0, .12, -.072); pack.add(zip);
+    [-1, 1].forEach(k => { const st = new THREE.Mesh(new THREE.BoxGeometry(.04, .42, .02), new THREE.MeshStandardMaterial({ color: "#101820", roughness: .8 })); st.position.set(k * .09, .02, .16); pack.add(st); });
+    pack.traverse(o => { if (o.isMesh) o.castShadow = !MOBILE; });
+    h.packG = pack; scene.add(pack);
+    // smartphone (verre et cadre métal) dans la main droite à l'arrêt
+    const ph = new THREE.Group(); ph.add(new THREE.Mesh(new THREE.BoxGeometry(.075, .155, .009), new THREE.MeshStandardMaterial({ color: "#2a2d33", metalness: .9, roughness: .3 })));
+    const scr = new THREE.Mesh(new THREE.PlaneGeometry(.068, .146), new THREE.MeshBasicMaterial({ color: "#7fb6ff" })); scr.position.z = .0051; ph.add(scr);
+    h.phone = ph; scene.add(ph);
+    h.kit = [watch, pack, ph];
+  }
+  function dropKit(h) { if (!h.kit) return; h.kit.forEach(o => { if (o.parent) o.parent.remove(o); }); h.kit = null; h.packG = h.phone = null; }
+  // regard et respiration : la tête suit ce qui est intéressant à côté (un passant, le joueur), le buste respire
+  const lkQ = new THREE.Quaternion(), lkQ2 = new THREE.Quaternion(), lkUp = new THREE.Vector3(0, 1, 0), lkV = new THREE.Vector3();
+  function turnBone(b, yaw) {
+    if (!b || !b.parent || !yaw) return;
+    b.getWorldQuaternion(lkQ); lkQ2.setFromAxisAngle(lkUp, yaw); lkQ.premultiply(lkQ2);
+    b.parent.getWorldQuaternion(lkQ2); b.quaternion.copy(lkQ2.invert().multiply(lkQ)); b.updateMatrixWorld(true);
+  }
+  function lifeMotion(h, q, list, dt, moving) {
+    const B = boneMap(h), t = performance.now() / 1000 + (h.phase || (h.phase = Math.random() * 9));
+    h.obj.updateMatrixWorld(true);
+    if (!moving && B.spine_03) { const br = Math.sin(t * 1.7) * .018; B.spine_03.rotation.x += br; B.spine_03.updateMatrixWorld(true); }
+    // cible du regard : le plus proche à moins de 6 m devant (le joueur attire le regard des passants)
+    if (!h.lookAt || (h.lookT = (h.lookT || 0) - dt) < 0) {
+      h.lookT = 1.2 + Math.random() * 2; h.lookAt = null; let best = 36;
+      for (const o of list) { if (o === q || o.inside !== q.inside) continue; const d = ((o.x - q.x) ** 2 + (o.y - q.y) ** 2) * S * S * (o.player ? .5 : 1); if (d < best && d > .3) { best = d; h.lookAt = o; } }
+    }
+    let want = 0;
+    if (h.lookAt && q.state !== "sit" && q.state !== "down") { const a = Math.atan2(h.lookAt.y - q.y, h.lookAt.x - q.x); want = -angDiff(a, q.a); if (Math.abs(want) > 1.6) want = 0; want = Math.max(-1.05, Math.min(1.05, want)); }
+    h.yaw = (h.yaw || 0) + (want - (h.yaw || 0)) * Math.min(1, dt * 3);
+    turnBone(B.neck_01, h.yaw * .4); turnBone(B.head, h.yaw * .6);
+  }
   const MEN = ["m1", "m2", "m3", "m4"], WOMEN = ["f1", "f2", "f3"];
   function humInstance(v) {
     const pool = HUM.pool[v];
@@ -974,7 +1113,8 @@
       obj.traverse(o => { if (o.isMesh) { o.material = o.material.clone(); mats[o.material.name.replace(/\..*$/, "")] = o.material; o.castShadow = !MOBILE; o.frustumCulled = false; } });
       const mixer = new THREE.AnimationMixer(obj), acts = {};
       for (const k in HUM.clips[v]) acts[k] = mixer.clipAction(HUM.clips[v][k]);
-      h = { v, obj, mats, mixer, acts, cur: null, ped: null };
+      const blob = new THREE.Mesh(BLOB_GEO, BLOB_MAT); blob.scale.set(.85, 1, .85); blob.position.y = .01; blob.renderOrder = 1; obj.add(blob);
+      h = { v, obj, mats, mixer, acts, cur: null, ped: null, blob };
       pool.push(h);
     }
     return h;
@@ -1019,7 +1159,7 @@
     const r2 = HUM.range * HUM.range;
     const cand = list.map(q => ({ q, d: (q.x * S - camX) ** 2 + (q.y * S - camZ) ** 2 })).filter(o => o.d < r2 || o.q.player).sort((a, b) => (b.q.player ? 1 : 0) - (a.q.player ? 1 : 0) || a.d - b.d).slice(0, HUM.max).map(o => o.q);
     const keep = new Set(cand);
-    for (const [q, h] of HUM.byPed) if (!keep.has(q)) { h.ped = null; scene.remove(h.obj); HUM.byPed.delete(q); }
+    for (const [q, h] of HUM.byPed) if (!keep.has(q)) { h.ped = null; scene.remove(h.obj); HUM.byPed.delete(q); dropKit(h); }
     cand.forEach(q => {
       let h = HUM.byPed.get(q);
       const L = pedLook(q);
@@ -1028,6 +1168,7 @@
         const v = q.player ? "m1" : q.kit ? (hash % 2 ? "m3" : "m1") : L.cop ? (L.woman ? "f2" : (hash % 2 ? "m2" : "m4")) : q.lookBiz ? (L.woman ? "f2" : (hash % 3 ? "m4" : "m2")) : L.woman ? WOMEN[hash % WOMEN.length] : MEN[hash % MEN.length];
         if (!HUM.tpl[v]) return;
         h = humInstance(v); h.ped = q; h.cur = null; h.mixer.stopAllAction(); HUM.byPed.set(q, h); scene.add(h.obj);
+        if (!q.player) dropKit(h);
         const m = h.mats;
         // couleurs du jeu (sRGB) -> espace linéaire des matériaux glTF
         if (m.shirt) m.shirt.color.copy(L.top).convertSRGBToLinear();
@@ -1085,6 +1226,14 @@
       else if (q.state === "dance") humPlay(h, "walk", .85);
       else humPlay(h, "idle", 1);
       h.mixer.update(dt);
+      if (HQ || q.player) try { lifeMotion(h, q, list, dt, sp > .2 || q.state === "dance"); } catch (e) { }
+      if (q.player && HUM.tpl[h.v]) { playerKit(h); if (h.kit) {
+        const B = boneMap(h); h.obj.updateMatrixWorld(true);
+        const s3 = B.spine_03, fw = humV2.set(Math.cos(q.a), 0, Math.sin(q.a));
+        if (s3 && h.packG) { s3.getWorldPosition(humV1); h.packG.position.copy(humV1).addScaledVector(fw, -.2); h.packG.position.y -= .05; h.packG.rotation.set(0, Math.PI / 2 - q.a, 0); h.packG.visible = h.obj.visible && q.state !== "sit" && q.state !== "down"; }
+        const still = sp < .2 && q.state !== "sit" && q.state !== "down" && q.state !== "dance" && !q.inside;
+        if (h.phone && B.hand_r) { B.hand_r.getWorldPosition(humV1); h.phone.position.copy(humV1).addScaledVector(fw, .05); h.phone.position.y += .02; h.phone.rotation.set(-.9, Math.PI / 2 - q.a, 0); h.phone.visible = still && h.obj.visible; }
+      } }
       h.obj.position.set(q.x * S, .02 + (q.state === "dodge" ? Math.sin((.55 - (q.st || 0)) / .55 * Math.PI) * .25 : 0), q.y * S);
       h.obj.rotation.y = Math.PI / 2 - q.a; h.obj.rotation.z = q.state === "down" ? 1.45 : 0;
       if (q.state === "down") h.obj.position.y = .14;
@@ -1831,6 +1980,7 @@
   function resize() {
     const w = window.innerWidth, h = window.innerHeight;
     renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix();
+    if (composer) { const pr = renderer.getPixelRatio(); composer.setSize(w * pr, h * pr); }
   }
   window.addEventListener("resize", resize); resize();
 
@@ -1918,7 +2068,7 @@
     updateLights(G);
     updateShops(G);
     updatePlaces(G);
-    fillCull(); skyG.position.copy(camera.position); renderer.render(scene, camera);
+    fillCull(); skyG.position.copy(camera.position); draw();
   }
 
   // Vue d'attente derrière le menu : survol lent de la ville
@@ -1930,7 +2080,7 @@
     camera.fov = 55; camera.updateProjectionMatrix();
     camera.position.set(cx + Math.cos(a) * 260, 80, cz + Math.sin(a) * 260); camera.lookAt(cx, 10, cz);
     sunLight.position.set(cx - 120, 140, cz - 80); sunLight.target.position.set(cx, 0, cz);
-    fillCull(); skyG.position.copy(camera.position); renderer.render(scene, camera);
+    fillCull(); skyG.position.copy(camera.position); draw();
   }
   requestAnimationFrame(idle);
 

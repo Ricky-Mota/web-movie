@@ -1,6 +1,6 @@
 // 2 Life : service worker. L'application s'ouvre même avec un réseau faible ;
 // les appels au serveur du jeu ne sont jamais mis en cache.
-const CACHE = "twolife-v62";
+const CACHE = "twolife-v63";
 const SHELL = ["vie.html", "config.js", "assets/vie.js", "celebrites.html", "assets/celebrites.js", "assets/bandeau.js", "assets/lancement-demo.js", "server/src/life.js", "manifest.webmanifest", "assets/icons/2life.svg", "assets/icons/2life-192.png", "assets/nav.js"];
 self.addEventListener("install", e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting())); });
 self.addEventListener("activate", e => { e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== CACHE).map(k => caches.delete(k)))).then(() => self.clients.claim())); });
