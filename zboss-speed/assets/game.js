@@ -561,7 +561,7 @@
       const c = makeCar("traffic", x, y, a, { maxSpeed: WALK ? ROAD.npc() : 150 + rand() * 90, accel: 260, steerMax: 2.2, dmgMul: 1, mass: .8, grip: 9 });
       c.from = from; c.to = to; c.tIdx = (rand() * TRAFFIC_SPRITES.length) | 0; c.sprite = TRAFFIC_SPRITES[c.tIdx]; c.bus = rand() < .12; c.taxi = !c.bus && rand() < .38; if (c.bus) { c.maxSpeed *= .8; Object.assign(c, { hl: BUS_HL, hw: BUS_HW, offs: BUS_OFF, mass: 3 }); }
       // camions (benne, bâché, citerne) et motos (dont les motos-taxis « wewa ») : mêmes feux, même code de la route
-      if (WALK && !c.bus) { const k = rand(); if (k < .09 && !truckBanned(x, y)) { c.taxi = false; c.truck = ["benne", "bache", "citerne"][(rand() * 3) | 0]; c.maxSpeed = ROAD.truck(); Object.assign(c, { hl: 30, hw: 11, offs: [-20, 0, 20], mass: 3.5, accel: 150 }); } else if (k < .3) { c.taxi = false; c.moto = true; c.wewa = rand() < .6; c.pass = c.wewa && rand() < .6; Object.assign(c, { hl: 10, hw: 4, offs: [0], mass: .35, accel: 300 }); } }
+      if (WALK && !c.bus) { const k = rand(); if (k < .09 && !truckBanned(x, y)) { c.taxi = false; c.truck = ["benne", "bache", "citerne"][(rand() * 3) | 0]; c.maxSpeed = ROAD.truck(); Object.assign(c, { hl: 30, hw: 11, offs: [-20, 0, 20], mass: 3.5, accel: 150 }); } else if (k < .3) { c.taxi = false; c.moto = true; c.wewa = !wewaBanned(x, y) && rand() < .6; c.pass = c.wewa && rand() < .6; c.helmet = c.tIdx % 3 !== 0; Object.assign(c, { hl: 10, hw: 4, offs: [0], mass: .35, accel: 300 }); } }
       const sp = c.maxSpeed * .7; c.vx = Math.cos(a) * sp; c.vy = Math.sin(a) * sp;
       G.traffic.push(c); return;
     }
@@ -1007,6 +1007,18 @@
   // feu rouge grillé (agent de la circulation à chaque feu), excès de vitesse vu par la police, contrôle du permis.
   // les poids lourds sont interdits dans la Gombe de 6 h à 20 h (comme dans beaucoup de grandes villes)
   const GOMBE_Y = H * .33, truckBanned = (x, y) => WALK && y < GOMBE_Y && G.hour >= 6 && G.hour < 20;
+  const wewaBanned = (x, y) => WALK && y < GOMBE_Y;   // motos-taxis interdites dans la Gombe
+  // casque obligatoire : un policier qui voit un motard sans casque l'arrête et lui donne une amende
+  function helmetCheck(dt) {
+    if (!WALK) return; const f = G.foot || G.player;
+    for (const c of G.traffic) {
+      if (!c.moto || c.helmet || c.fined) continue;
+      const cop = G.peds.find(q => q.cop && !q.gone && Math.abs(q.x - c.x) < 260 && Math.abs(q.y - c.y) < 260) || G.cops.find(k => Math.abs(k.x - c.x) < 300 && Math.abs(k.y - c.y) < 300);
+      if (!cop) continue;
+      c.fined = true; c.stopT = 6;
+      if (Math.hypot(c.x - f.x, c.y - f.y) < 700) msg("🚓 Contrôle : un motard roulait sans casque. Amende de 10 e-makuta, et il doit acheter un casque.", 3.5);
+    }
+  }
   const ROAD = { limitKmh: 50, limitU: 50 / .45, bus: 42 / .45, npc: () => (44 + rand() * 6) / .45, truck: () => (36 + rand() * 4) / .45 };   // poids lourds : 40 km/h en ville
   function roadRules(dt) {
     const p = G.player; if (!WALK || G.foot || G.auto || !p) return;
@@ -1433,7 +1445,7 @@
     }
     if (d.bench && d.flirt) { /* traité plus haut */ }
     if (d.home && d.eat) { G.me.faim = 15; note(G.me.conjoint ? "🍲 Il dîne à la maison avec sa femme, " + G.me.conjoint.split(" ")[0] + "." : "🍲 Il mange à la maison avec la famille (gratuit)."); }
-    if (d.home) { A.phase = "home"; A.doing = "À la maison : il se repose"; msg("🏠 Ton personnage est rentré à la maison. Il se repose.", 3.5, "ok"); return; }
+    if (d.home) { A.phase = "home"; A.doing = "À la maison : il se repose"; msg("🏠 Ton personnage est rentré à la maison. Il se repose.", 3.5, "ok"); enterHome(); return; }
     const o = d.place, t = o && o.type;
     if (d.work) { note("💼 Il arrive au travail : " + d.nom + ".");
       if ((G.me.rep || 0) <= -30) earn(15, "salaire réduit : son patron se méfie de lui (mauvaise réputation)"); else earn(25, "salaire de la journée à " + d.nom);
@@ -1498,8 +1510,8 @@
   function callTaxi(forceHome, bus) {
     const A = G.auto, f = G.foot, p = G.player;
     // moto-taxi « wewa » : moins chère que le taxi (2 au lieu de 5 e-makuta) mais plus risquée ; on la prend surtout quand on a peu d'argent
-    A.moto = !forceHome && !bus && WALK && (G.me && G.me.argent < 15 ? rand() < .8 : rand() < .35);
-    if (!forceHome && G.me && !pay(A.moto ? 2 : 5, A.moto ? "moto-taxi (wewa)" : "taxi")) { if (!A.moto && pay(2, "moto-taxi (wewa), le taxi est trop cher")) A.moto = true; else { A.phase = "walk"; A.path = null; A.tired = true; return; } }
+    A.moto = !forceHome && !bus && WALK && !wewaBanned(f.x, f.y) && (G.me && G.me.argent < 15 ? rand() < .8 : rand() < .35);
+    if (!forceHome && G.me && !pay(A.moto ? 2 : 5, A.moto ? "moto-taxi (wewa)" : "taxi")) { if (!A.moto && !wewaBanned(f.x, f.y) && pay(2, "moto-taxi (wewa), le taxi est trop cher")) A.moto = true; else { A.phase = "walk"; A.path = null; A.tired = true; return; } }
     A.crash = A.moto && rand() < .07;
     const goHome = forceHome || A.mode === "maison" || A.mode === "footing" || rand() < .5 || !PLACES.length, far = PLACES.filter(o => o.id !== "maison" && Math.hypot(o.x - f.x, o.y - f.y) > 900);
     const next = A.mode === "tourisme" && A.tour && A.tour[0];
@@ -1566,7 +1578,7 @@
         const p = G.player, o = A.taxiTo, a = nearestNode(p.x, p.y), b = nearestNode(o.door.x, o.door.y);
         const nb = nodes[b], drop = { x: nb.x + (o.door.x - nb.x) * .5, y: nb.y + (o.door.y - nb.y) * .5 };
         A.path = findPath(a, b) || [a, b]; A.i = 0; A.stuck = 0; A.dropAt = drop; G.foot = null; A.phase = "ride";
-        if (A.moto) { p.save = { hl: p.hl, hw: p.hw, offs: p.offs }; Object.assign(p, { moto: true, wewa: true, pass: true, hl: 10, hw: 4, offs: [0] }); A.doing = "🏍️ En moto-taxi vers " + (A.home ? "la maison" : o.nom); }
+        if (A.moto) { p.save = { hl: p.hl, hw: p.hw, offs: p.offs }; Object.assign(p, { moto: true, wewa: true, pass: true, helmet: true, tIdx: 1, hl: 10, hw: 4, offs: [0] }); A.doing = "🏍️ En moto-taxi vers " + (A.home ? "la maison" : o.nom); }
       }
     } else if (A.phase === "ride") autoRide(dt);
     else if (A.phase === "waitbus" || A.phase === "boardbus" || A.phase === "inbus") busRider(dt);
@@ -1855,6 +1867,7 @@
     G.foot = { x: h.x - h.nx * k, y: h.y - h.ny * k, a: Math.atan2(h.ny, h.nx), v: 0, t: 0 };   // tourné vers sa maison
     G.auto = { phase: "home", path: null, mode: "maison", seen: [], doing, dest: { home: true } };
     const b = $("autobtn"); if (b) b.setAttribute("aria-pressed", "true");
+    enterHome();
   }
   function clockStep(dt) {
     const h0 = G.hour;
@@ -2493,6 +2506,10 @@
   }
   // qui est là, selon l'heure : la nuit tout le monde dort ; le jour, les enfants vont à l'école et les parents au travail
   function houseHold(o) {
+    if (o.mine) {   // chez toi : ta femme si ton personnage est marié ; sinon il vit seul
+      const me = G.me || {}, M = me.conjoint ? [{ woman: true, nom: me.conjoint, role: "épouse", id: 699001, look: 2 }] : [];
+      return M;
+    }
     if (o.members) return o.members;
     const r = rng(o.seed + 5), M = [], fam = o.fam, ow = o.owner;
     const adult = (woman, role) => ({ woman, nom: (woman ? NOMS_F : NOMS_H)[(r() * 12) | 0] + " " + fam, role });
@@ -2510,6 +2527,7 @@
     const M = houseHold(o), out = [];
     M.forEach((m, i) => {
       if (m.owner && G.peds.some(q => q.id === o.owner.id && !q.gone)) return;   // il est dehors, dans la rue
+      if (o.mine) { const night = h >= 22 || h < 5; out.push(Object.assign({}, m, { act: night ? "dort" : h < 9 ? "prépare le petit déjeuner" : h >= 17 ? "prépare le dîner" : "regarde la télévision" })); return; }
       const night = h >= 22 || h < 5, morning = h >= 5 && h < 8, day = h >= 8 && h < 16;
       let act;
       if (night) act = "dort";
@@ -2519,6 +2537,30 @@
       out.push(Object.assign({}, m, { act }));
     });
     return out;
+  }
+  // ta maison : un vrai intérieur où ton personnage entre, range ses courses, mange, regarde la télé et dort
+  function myHome() {
+    const h = HOME(); if (!h) return null;
+    const o = virtPlace("moi", h.x, h.y, h.door, "maison", 424242); o.mine = true; o.nom = "Ta maison"; o.icone = "🏠"; o.rich = !!(G.me && G.me.argent > 500);
+    return o;
+  }
+  function enterHome() {
+    const A = G.auto, f = G.foot; if (!f || !A || A.mode === "prison") return;
+    const o = myHome(); if (!o) return; f.inside = o; f.inT = 1;
+    if (G.pionnier && openRoom(o, false, true)) (G.me ? note : msg)("🏠 " + (G.me && G.me.prenom || "Ton personnage") + " entre chez lui : salon, télé, cuisine, chambre… tout est là.", G.me ? "ok" : 4);
+  }
+  function homePlan(R, q) {
+    const h = G.hour, night = h >= 22 || h < 5, A = G.auto, hungry = G.me && G.me.faim > 55;
+    q.z = 0;
+    const go = (x, y, a, then) => roomGo(q, x, y, () => { q.a = a; then(); });
+    if (q.shopBag) { q.doing = "range ses courses dans le frigo"; go(21, -57, -Math.PI / 2, () => { q.state = "idle"; q.talk = 1; q.wait = 5; q.shopBag = false; q.bagNew = true; }); return; }
+    if (night) { q.doing = "dort dans sa chambre"; go(-61, -40, Math.PI / 2, () => { q.state = "down"; q.z = 2; q.wait = 1e9; }); return; }
+    if (hungry || (A && A.dest && A.dest.eat)) { q.doing = "mange à table"; go(32, 13, Math.PI / 2, () => { q.state = "sit"; q.wait = 25 + rand() * 15; if (G.me) G.me.faim = Math.min(G.me.faim, 15); if (A && A.dest) A.dest.eat = false; }); return; }
+    const k = (q.n = (q.n || 0) + 1) % 4;
+    if (k === 1) { q.doing = "regarde la télé dans le salon"; go(-48, 20, Math.PI, () => { q.state = "sit"; q.wait = 30 + rand() * 20; }); }
+    else if (k === 2) { q.doing = "se repose sur son lit"; go(-61, -40, Math.PI / 2, () => { q.state = "down"; q.z = 2; q.wait = 25 + rand() * 15; }); }
+    else if (k === 3) { q.doing = "boit de l'eau fraîche à la cuisine"; go(-2, -57, -Math.PI / 2, () => { q.state = "idle"; q.wait = 8; }); }
+    else { q.doing = "range ses habits dans l'armoire"; go(-36, -62, -Math.PI / 2, () => { q.state = "idle"; q.wait = 8; }); }
   }
   function officeNow(o, h) {
     const open = h >= 7 && h < 18 && ((G.day + 4) % 7 + 7) % 7 !== 0;
@@ -2707,6 +2749,7 @@
       roomGo(q, p.x, p.y, () => { q.a = p.a; q.state = "idle"; q.wait = 1e9; q.inQueue = true; });
       return;
     }
+    if (R.kind === "maison" || R.kind === "appart") { if (q.player) homePlan(R, q); else q.wait = 1e9; return; }
     if (R.kind === "resto") { const s = freeSeat(); if (s) { q.doing = "attend son plat"; sitAt(s); } else { q.doing = "attend une table"; roomGo(q, R.door.x + 20, R.door.y - 8, () => { q.wait = 6; q.state = "idle"; }); } return; }
     if (R.kind === "club") {
       if (q.seat) { q.seat.who = null; q.seat = null; }
@@ -2750,7 +2793,7 @@
     R.spots.staff.forEach(s => roomPerson(R, null, s));
     // les clients déjà à l'intérieur sont à leur place
     lifeOf(o).inside.forEach(x => { const q = roomPerson(R, x); q.src = x; const D2 = R.door; q.x = D2.x + (rand() - .5) * R.W * .6; q.y = D2.y - 10 - rand() * R.D * .5; const [i, j] = [Math.floor((q.x + R.W / 2) / R.grid.c), Math.floor((q.y + R.D / 2) / R.grid.c)]; if (R.grid.b[j * R.grid.nx + i]) { q.x = D2.x; q.y = D2.y - 6; } roomPlan(R, q); if (q.path && q.path.length) { const e = q.path[q.path.length - 1]; q.x = e.x; q.y = e.y; q.path = [e]; } });
-    if (!watch && G.foot) { const me = roomPerson(R, { look: 0, id: "moi" }); me.player = true; me.x = R.door.x; me.y = R.door.y; R.me = me; if (R.kind === "club") me.mustDance = true; roomPlan(R, me); }
+    if (!watch && G.foot) { const me = roomPerson(R, { look: 0, id: "moi" }); me.player = true; if (o.mine && G.foot.shopBag) { me.shopBag = true; G.foot.shopBag = false; } me.x = R.door.x; me.y = R.door.y; R.me = me; if (R.kind === "club") me.mustDance = true; roomPlan(R, me); }
     document.body.classList.add("in-room");
     const b = document.getElementById("roombar"); if (b) { b.hidden = false; b.querySelector(".rb-t").textContent = o.icone + " " + o.nom; }
     if (o.virt) { if (!quiet) msg("🏅 Pionnier : tu regardes à l'intérieur. " + (o.virt === "openspace" ? (o.officeNow.open ? "Les employés sont à leur poste." : "Les bureaux sont fermés à cette heure : seul le gardien est là.") : (o.nowM.length ? (o.nowM.some(m => m.act === "dort") ? "Toute la famille dort." : "La famille est à la maison.") : "Personne à la maison pour l'instant.") + (o.owner && !o.nowM.some(m => m.owner) && o.virt !== "openspace" ? " " + o.owner.nom.split(" ")[0] + " est dehors." : "")), 4.5, "ok"); return true; }
@@ -2765,7 +2808,7 @@
     const R = G.room; if (!R) return;
     R.t += dt; R.people.forEach(q => { if (q.talk > 0) q.talk -= dt; }); const L = lifeOf(R.o), ids = new Set(L.inside.map(x => x.id));
     if (!R.watch && !(G.foot && G.foot.inside === R.o)) { closeRoom(); return; }
-    if (R.o.virt && Math.floor(G.hour) !== R.h0) { openRoom(R.o, true, true); return; }
+    if (R.o.virt && Math.floor(G.hour) !== R.h0) { const bag = R.me && R.me.shopBag; openRoom(R.o, R.watch, true); if (G.room && G.room.me) G.room.me.shopBag = bag; return; }
     if (R.watch && !L.open && !L.inside.length) { closeRoom(); msg("🔒 " + R.o.nom + " a fermé ses portes.", 3); return; }
     // nouveaux clients qui entrent, clients qui sortent par la porte
     const have = new Set(R.people.filter(q => q.src).map(q => q.src.id));
@@ -2850,7 +2893,7 @@
       if (G.hour >= 7 && G.hour <= 21) G.games.forEach(g => gameStep(g, dt));
       chatUpdate(dt);
       placesLife(dt); taxiLife(dt); roomStep(dt);
-      if (G.foot && G.foot.inside) { G.foot.inT -= dt; if (!G.auto || G.auto.phase !== "visit") leavePlace(); }
+      if (G.foot && G.foot.inside) { G.foot.inT -= dt; if (!G.auto || (G.auto.phase !== "visit" && !(G.auto.phase === "home" && G.foot.inside.mine))) leavePlace(); }
       insideBtn();
       lifeUpdate();
       // le soir, les habitants rentrent chez eux
@@ -2895,7 +2938,8 @@
       !(c.mode === "leave" && Math.hypot(c.x - p.x, c.y - p.y) > 1500) && !(WALK && c.mode === "patrol" && Math.hypot(c.x - fcp.x, c.y - fcp.y) > 2800));
 
     // traffic renouvelé
-    G.traffic = G.traffic.filter(c => !c.dead && Math.hypot(c.x - fcar.x, c.y - fcar.y) < 2600 && !(c.truck && truckBanned(c.x, c.y) && Math.hypot(c.x - fcar.x, c.y - fcar.y) > 700));   // un camion entré dans la Gombe en journée fait demi-tour hors de vue
+    G.traffic = G.traffic.filter(c => !c.dead && Math.hypot(c.x - fcar.x, c.y - fcar.y) < 2600 && !((c.truck && truckBanned(c.x, c.y) || c.wewa && wewaBanned(c.x, c.y)) && Math.hypot(c.x - fcar.x, c.y - fcar.y) > 700));
+    helmetCheck(dt); G.traffic.forEach(c => { if (c.stopT > 0) { c.stopT -= dt; c.vx *= .8; c.vy *= .8; if (c.stopT <= 0) c.helmet = true; } });   // un camion entré dans la Gombe en journée fait demi-tour hors de vue
     const dn = WALK ? dens(G.hour) : 1, nTraf = Math.round(44 * (WALK ? Math.max(.3, dn) : 1));
     while (G.traffic.length < nTraf) spawnTraffic(false);
     if (G.traffic.length > nTraf + 3) { const c = G.traffic.find(c => Math.hypot(c.x - fcar.x, c.y - fcar.y) > 1500); if (c) c.dead = true; }
@@ -3306,5 +3350,5 @@
   window.ZBOSS_WORLD = { busNet, addObst, OBST, W, H, C, MW, MH, mask, MAP, ROADS, FILL, walkBlocked, SHOPS, PLACES, BILLBOARDS, BENCHES, LIGHTS, lightState, isOpen, SHOP_W, SHOP_D, SHOP_DOOR, nodes, nodesNear, nearestNode, solidAt, groundAt, angDiff, rand };
   // outil d'aperçu : réseau routier et tracé d'une ligne de bus passant devant une liste de lieux
   const lineRoute = ids => { const st = ids.map(id => PLACES.find(o => o.id === id)).filter(Boolean).map(o => nearestNode(o.door.x, o.door.y)), out = []; st.forEach((n, k) => { const P = findPath(n, st[(k + 1) % st.length]) || []; P.forEach(i => out.push([nodes[i].x, nodes[i].y])); }); return out; };
-  window.__zboss = { redAhead: c => redAhead(c), lightOf: i => LIGHTS[i], roadAudit: () => G.traffic.concat(G.buses || []).map(c => { const L = LIGHTS.find(L => Math.hypot(L.x - c.x, L.y - c.y) < L.w / 2); return { c, L: L ? LIGHTS.indexOf(L) : -1, red: L ? redFor(L, c.a, G.t) === "r" && redFor(L, c.a, G.t - 1.5) === "r" : false, to: c.to, lt: L ? L.n : -1 }; }), interior: o => openInterior(o || G.nearLife), roads: () => nodes.map(n => [n.x, n.y, n.nb]), lineRoute, line1: () => busNet().route.map(i => [nodes[i].x, nodes[i].y]), places: () => PLACES.map(o => [o.id, o.nom, o.icone, o.x, o.y]), room: (id, watch) => { const o = PLACES.find(x => x.id === id); return o ? openRoom(o, watch) : false; }, get roomState() { const R = G.room; return R && { kind: R.kind, n: R.people.length, people: R.people.map(q => ({ role: q.role || (q.player ? "moi" : "client"), s: q.state, d: q.doing || "", x: Math.round(q.x), y: Math.round(q.y) })) }; }, closeRoom: () => closeRoom(), taxi: (moto, crash) => { callTaxi(); if (G.auto) { G.auto.moto = moto; G.auto.crash = crash; } return G.auto && G.auto.phase; }, gombeY: () => GOMBE_Y, home: q => { const o = homeOf(q || G.peds.find(p => !p.staff && !p.tourist)); return o && openRoom(o, true) && o; }, bld: (x, y, r) => bldNear(x, y, r || 90), virt: o => openRoom(o, true), talk: q => talkTo(q), get state() { return G; }, start: () => start(chosen), spawnCop, keys, touch, act: () => { actPressed = true; }, sortie: m => autoToggle(true, m), auto: m => autoToggle(true, m, true), sorties: openSorties, plan: openPlan, me: showMe, setHour: h => { G.hour = h; }, live: () => ({ others: (G && G.others || []).map(o => ({ nom: o.nom, x: Math.round(o.x), y: Math.round(o.y), m: o.m, ped: !!o.ped })), ws: LIVE.ws ? LIVE.ws.readyState : -1, online: LIVE.online }), liveStep: dt => liveStep(dt || 1 / 30), step: (n, dt) => { for (let i = 0; i < n && G && !G.paused; i++) update(dt || 1 / 30); } };
+  window.__zboss = { redAhead: c => redAhead(c), lightOf: i => LIGHTS[i], roadAudit: () => G.traffic.concat(G.buses || []).map(c => { const L = LIGHTS.find(L => Math.hypot(L.x - c.x, L.y - c.y) < L.w / 2); return { c, L: L ? LIGHTS.indexOf(L) : -1, red: L ? redFor(L, c.a, G.t) === "r" && redFor(L, c.a, G.t - 1.5) === "r" : false, to: c.to, lt: L ? L.n : -1 }; }), interior: o => openInterior(o || G.nearLife), roads: () => nodes.map(n => [n.x, n.y, n.nb]), lineRoute, line1: () => busNet().route.map(i => [nodes[i].x, nodes[i].y]), places: () => PLACES.map(o => [o.id, o.nom, o.icone, o.x, o.y]), room: (id, watch) => { const o = PLACES.find(x => x.id === id); return o ? openRoom(o, watch) : false; }, get roomState() { const R = G.room; return R && { kind: R.kind, n: R.people.length, people: R.people.map(q => ({ role: q.role || (q.player ? "moi" : "client"), s: q.state, d: q.doing || "", x: Math.round(q.x), y: Math.round(q.y) })) }; }, closeRoom: () => closeRoom(), atHome: d => atHome(d || "🏠 test"), taxi: (moto, crash) => { callTaxi(); if (G.auto) { G.auto.moto = moto; G.auto.crash = crash; } return G.auto && G.auto.phase; }, gombeY: () => GOMBE_Y, home: q => { const o = homeOf(q || G.peds.find(p => !p.staff && !p.tourist)); return o && openRoom(o, true) && o; }, bld: (x, y, r) => bldNear(x, y, r || 90), virt: o => openRoom(o, true), talk: q => talkTo(q), get state() { return G; }, start: () => start(chosen), spawnCop, keys, touch, act: () => { actPressed = true; }, sortie: m => autoToggle(true, m), auto: m => autoToggle(true, m, true), sorties: openSorties, plan: openPlan, me: showMe, setHour: h => { G.hour = h; }, live: () => ({ others: (G && G.others || []).map(o => ({ nom: o.nom, x: Math.round(o.x), y: Math.round(o.y), m: o.m, ped: !!o.ped })), ws: LIVE.ws ? LIVE.ws.readyState : -1, online: LIVE.online }), liveStep: dt => liveStep(dt || 1 / 30), step: (n, dt) => { for (let i = 0; i < n && G && !G.paused; i++) update(dt || 1 / 30); } };
 })();
