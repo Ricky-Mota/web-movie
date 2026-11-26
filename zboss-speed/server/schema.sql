@@ -444,3 +444,11 @@ CREATE TABLE IF NOT EXISTS votes_lois (
   le INTEGER NOT NULL,
   PRIMARY KEY (loi_id, personnage_id)
 );
+
+-- dîme et offrandes aux pasteurs joueurs (reçu public dans le journal)
+CREATE TABLE IF NOT EXISTS offrandes (id TEXT PRIMARY KEY, de_id TEXT NOT NULL, vers_id TEXT NOT NULL, type TEXT NOT NULL, montant INTEGER NOT NULL, recu TEXT NOT NULL, le INTEGER NOT NULL);
+CREATE INDEX IF NOT EXISTS offrandes_le ON offrandes (le);
+CREATE INDEX IF NOT EXISTS offrandes_de ON offrandes (de_id, type, le);
+-- visites sur place : culte, concert, match d'une célébrité
+CREATE TABLE IF NOT EXISTS assistances (id TEXT PRIMARY KEY, personnage_id TEXT NOT NULL, celeb_id TEXT NOT NULL, lieu TEXT NOT NULL, prix INTEGER NOT NULL, le INTEGER NOT NULL);
+CREATE INDEX IF NOT EXISTS assistances_p ON assistances (personnage_id, le);

@@ -189,6 +189,7 @@
     { id: "marche", type: "marche", nom: "Marché de la Gombe", icone: "🧺", w: 360, d: 240, open: true, near: "alim1", statut: "Marché : légumes, poisson, pagnes, téléphones. Ouvert de 6 h à 18 h." },
     { id: "park1", type: "parking", nom: "Parking du centre-ville", icone: "🅿️", w: 310, d: 180, open: true, near: "zboss", statut: "Parking public : les voitures des habitants y sont garées." },
     { id: "park2", type: "parking", nom: "Parking du stade", icone: "🅿️", w: 310, d: 180, open: true, near: "foot", statut: "Parking public : les supporters s'y garent les jours de match." },
+    { id: "eglise", type: "eglise", nom: "Église du Réveil de la Gombe", icone: "⛪", w: 300, d: 220, h: 95, statut: "Église : culte le dimanche matin, prière en semaine. Les pasteurs et chorales des joueurs y officient." },
     { id: "park3", type: "parking", nom: "Parking des institutions", icone: "🅿️", w: 310, d: 180, open: true, near: "mairie", statut: "Parking public réservé aux visiteurs des institutions." },
   ];
   // textes du guide (mode Tourisme)
@@ -205,6 +206,7 @@
     dgi: "La DGI collecte les impôts qui financent la ville.",
     jeux: "L'aire de jeux, le lieu préféré des bébés et des enfants de 2 Life.",
     club1: "Le Mokili Club, une des boîtes de nuit les plus animées de Kin.",
+    eglise: "L'Église du Réveil : cultes, chorales et prières, comme dans toutes les communes de Kinshasa.",
   };
   const PLACES = [], BILLBOARDS = [], BENCHES = [], PARKED = [], LIGHTS = [], LIGHT_AT = new Map();
   (function () {
@@ -254,6 +256,7 @@
         const m = o.open ? 4 : 2;
         for (let v = -o.d / 2; v <= o.d / 2; v += C / 2) for (let u = -o.w / 2; u <= o.w / 2; u += C / 2) { const k = ((o.y + o.uy * u + o.ny * v) / C | 0) * MW + ((o.x + o.ux * u + o.nx * v) / C | 0); mask[k] = m; }
         o.door = { x: o.x - o.nx * (o.d / 2 + 30), y: o.y - o.ny * (o.d / 2 + 30) };
+        if (o.resto) o.terrace = [-1, 1].map(k => ({ u: k * o.w * .3, v: -(o.d / 2 + 16) }));
       });
     }
     PLACES.inPlace = inPlace;
@@ -320,8 +323,11 @@
   function lightState(L, t) { const k = ((t + L.ph) % 24 + 24) % 24; return { a: k < 10 ? "g" : k < 12 ? "y" : "r", b: k < 12 ? "r" : k < 22 ? "g" : "y" }; }
   function redFor(L, a, t) { const s = lightState(L, t); return Math.abs(Math.cos(a - L.ax)) > .7 ? s.a : s.b; }
   // heures d'ouverture des lieux
-  const HOURS = { alim: [7, 21], magasin: [9, 19], partenaire: [8, 17], etat: [8, 16], bureau: [7, 18], club: [20, 4], marche: [6, 18] };
-  function isOpen(o, h) { const H = HOURS[o.type]; if (!H || h === undefined) return true; return H[0] < H[1] ? h >= H[0] && h < H[1] : h >= H[0] || h < H[1]; }
+  const HOURS = { alim: [7, 21], magasin: [9, 19], partenaire: [8, 17], etat: [8, 16], bureau: [7, 18], club: [20, 4], marche: [6, 18], eglise: [6, 21] };
+  // exceptions réalistes : l'hôpital et la police ne ferment jamais
+  const HOURS_ID = { hopital: [0, 24], police: [0, 24] };
+  const hoursOf = o => HOURS_ID[o.id] || HOURS[o.type];
+  function isOpen(o, h) { const H = hoursOf(o); if (!H || h === undefined) return true; return H[0] < H[1] ? h >= H[0] && h < H[1] : h >= H[0] || h < H[1]; }
   // déplacement à pied : murs du showroom (porte côté rue), bâtiments et eau
   function walkBlocked(x, y) {
     const g = (x < 0 || y < 0 || x >= W || y >= H) ? 2 : mask[(y / C | 0) * MW + (x / C | 0)];
@@ -504,6 +510,10 @@
       let x = player.x + rx * 30, y = player.y + ry * 30; if (walkBlocked(x, y)) { x = player.x - rx * 30; y = player.y - ry * 30; }
       G.foot = { x, y, a: player.a, v: 0, t: 0 };
       const hm = HOME(); if (hm) { const n = nearestNode(hm.door.x, hm.door.y), N = nodes[n], m = N.nb[0] ?? n, pt = edgePoint(m, n, Math.min(30, N.w * .22)); player.x = pt.x; player.y = pt.y; player.a = Math.atan2(N.y - nodes[m].y, N.x - nodes[m].x) || 0; }
+      // venu d'une fiche célébrité (« aller le voir sur place ») : on arrive devant le lieu
+      let lieu = null; try { lieu = new URLSearchParams(location.search).get("lieu"); } catch (e) { }
+      const LP = lieu && PLACES.find(o => o.id === lieu);
+      if (LP) { G.foot.x = LP.door.x - LP.nx * 25; G.foot.y = LP.door.y - LP.ny * 25; G.foot.a = Math.atan2(LP.ny, LP.nx); msg("📍 Ton personnage arrive devant : " + LP.nom + ".", 5, "ok"); }
     } else msg("Roule. Les patrouilles te repèrent si tu dépasses 170 km/h devant elles.", 4.5);
   }
   function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
@@ -695,6 +705,7 @@
     const sp = Math.hypot(c.vx, c.vy), ang = Math.abs(angDiff(c.a, Math.atan2(t.y - c.y, t.x - c.x)));
     c.inp.gas = sp < c.maxSpeed * (ang > .5 ? .45 : 1) ? 1 : 0; c.inp.brake = ang > .8 && sp > 200 ? 1 : 0;
     if (WALK && stopHere(c, c.to)) { c.inp.gas = 0; c.inp.brake = 1; }
+    if (WALK && c.taxi) taxiDrive(c, G.dt || 1 / 30);
     if (c.x < 30 || c.x > W - 30 || c.y < 30 || c.y > H - 30) c.dead = true;
   }
 
@@ -806,6 +817,15 @@
   function pedStep(q, dt, cars) {
     if (q.play) return;
     if (q.bus) { busPed(q, dt); return; }
+    if (q.serve) { serveStep(q, dt); return; }
+    if (q.crewOf) { if (q.talk) q.talk = Math.max(0, q.talk - dt); return; }
+    if (q.goIn) { goInStep(q, dt); return; }
+    if (q.hail) return;   // il attend un taxi, la main levée (taxiLife)
+    if (q.emerge) { // il sort du lieu et rejoint le trottoir
+      const e = q.emerge, dx = e.x - q.x, dy = e.y - q.y, d = Math.hypot(dx, dy); q.t += dt; q.state = "walk";
+      if (d < 4) { q.emerge = null; return; }
+      q.a += angDiff(q.a, Math.atan2(dy, dx)) * Math.min(1, dt * 6); const v = Math.min(d, q.v * dt); q.x += dx / d * v; q.y += dy / d * v; return;
+    }
     q.t += dt;
     if (q.state === "down") { q.st -= dt; if (q.st <= 0) { q.state = "cower"; q.st = 2; q.hurt = false; } return; }   // blessé au sol, puis se relève
     if (q.talk) { // le joueur lui parle : il s'arrête et le regarde
@@ -951,7 +971,7 @@
   // piétons et personnage : contre les obstacles fixes, les voitures et entre eux
   function resolveBodies(cars) {
     const f = G.foot, bodies = G.peds.filter(q => !q.play && !q.gone && !q.enter && !(q.bus && q.bus.phase === "board"));
-    if (f && !f.sit && !f.inBus) bodies.push(f);
+    if (f && !f.sit && !f.inBus && !f.inside) bodies.push(f);
     const grid = new Map(), gk = (x, y) => ogKey(Math.floor(x / 32), Math.floor(y / 32));
     for (const q of bodies) {
       for (const o of obstNear(q.x, q.y)) { const d = pushOut(o, q.x, q.y, PED_R); if (d) moveBody(q, d); }
@@ -1072,7 +1092,7 @@
       else if (bench) { txt = "🪑 S'asseoir sur le banc"; act = "sit"; }
       else if (WALK && (G.talkQ = nearPed())) { const I = ident(G.talkQ); txt = (G.talkQ.cop ? "🚓 Parler à l'agent " : "💬 Parler à ") + I.nom.split(" ")[0] + " (" + I.car.t + ")"; act = "talk"; }
       else if (WALK && (np = nearPlace(G.foot.x, G.foot.y)) && np.bureau) { txt = np.icone + " " + np.nom + " · entrer au guichet d'aide"; act = "bureau"; }
-      else if (WALK && np) txt = np.icone + " " + np.nom + " · " + (isOpen(np, G.hour) ? np.statut : "Fermé à cette heure (ouvre à " + HOURS[np.type][0] + " h)");
+      else if (WALK && np) txt = np.icone + " " + np.nom + " · " + (isOpen(np, G.hour) ? np.statut : "Fermé à cette heure (ouvre à " + hoursOf(np)[0] + " h)");
       else if (WALK) txt = "Promenade à pied dans la Gombe. Le taxi jaune est sur la carte.";
       else if (ns) { txt = ns.car.id === p.carDef.id ? ns.car.name + " : c'est déjà ta voiture" : "Prendre la " + ns.car.name + " (" + ns.car.cls + ")"; act = ns.car.id === p.carDef.id ? null : "pick"; }
       else if (Math.hypot(G.foot.x - p.x, G.foot.y - p.y) < 50) { txt = "Monter dans la voiture"; act = "enter"; }
@@ -1456,7 +1476,11 @@
       if (G.energy < 22 && !A.tired && G.phase !== "nuit" && A.dest && Math.hypot(A.dest.x - G.foot.x, A.dest.y - G.foot.y) > 900) { callTaxi(); return; }
       if (!A.path) { const d = pickDestination(); if (!d) return; planWalk(d); }
       autoWalk(dt);
-    } else if (A.phase === "visit") { A.wait -= dt; if (A.wait <= 0) { A.phase = "walk"; A.path = null; } }
+    } else if (A.phase === "visit") {
+      // il entre vraiment : la porte s'ouvre, il disparaît à l'intérieur, on le sert, puis il ressort
+      if (!A.inTried && A.dest && A.dest.place && !A.dest.street && !A.dest.help) { A.inTried = true; if (enterPlace(A.dest.place)) note("🚪 Il entre à " + A.dest.place.nom + " : " + (A.dest.eat ? "on le sert à table." : "on l'accueille.")); }
+      A.wait -= dt; if (A.wait <= 0) { leavePlace(); A.phase = "walk"; A.path = null; A.inTried = false; }
+    }
     else if (A.phase === "sit") { A.sitT -= dt; if (A.sitT <= 0 || (G.energy > 98 && A.sitT < 8)) { standUp(true); A.phase = "walk"; A.path = null; } }
     else if (A.phase === "home") { if (A.mode === "prison") { A.doing = G.lifeMsg; } else if (G.phase === "nuit") { A.doing = "😴 Il dort à la maison"; } else if (G.energy >= 100 && A.mode !== "maison") { msg("Ton personnage est reposé et repart se promener.", 3, "ok"); A.phase = "walk"; A.path = null; } }
     else if (A.phase === "board") {
@@ -2153,8 +2177,188 @@
     }
     if (A.phase === "inbus") { const c = f.inBus; if (!c) { A.phase = "walk"; A.path = null; return; } f.x = c.x; f.y = c.y; f.a = c.a; f.v = 0; }
   }
+  // ---------------------------------------------------------------- les lieux vivent : portes qui s'ouvrent, clients qui entrent, sont servis et ressortent
+  // [séjour min (s), séjour max (s), clients par seconde, ressort avec un sac, ce qu'on y fait]
+  const LIFE_T = {
+    alim: [18, 45, .45, true, ["achète du riz et de l'huile", "achète du pain et du lait", "achète de l'eau et du sucre"]],
+    magasin: [30, 80, .3, true, ["essaie une chemise", "achète un pagne wax", "fait réparer son téléphone"]],
+    club: [70, 180, .5, false, ["danse sur la rumba", "commande une bière", "fête un anniversaire"]],
+    bureau: [40, 120, .25, false, ["règle un problème au guichet", "dépose un dossier"]],
+    etat: [40, 120, .3, false, ["fait la queue au guichet", "dépose un dossier", "paie une taxe"]],
+    eglise: [60, 160, .35, false, ["prie", "chante avec la chorale", "écoute la prédication"]],
+  };
+  const RESTO_T = [25, 60, .5, false, ["mange du poulet mayo", "mange du pondu avec de la chikwangue", "boit un jus de gingembre"]];
+  const lifeT = o => o.resto ? RESTO_T : LIFE_T[o.type];
+  const lifeOf = o => o.life || (o.life = { inside: [], door: 0, hold: 0, open: true, queue: [], crew: [] });
+  const facade = (o, k) => ({ x: o.x - o.nx * (o.d / 2 + k), y: o.y - o.ny * (o.d / 2 + k) });
+  const atPlace = (o, u, v) => ({ x: o.x + o.ux * u + o.nx * v, y: o.y + o.uy * u + o.ny * v });
+  function joinStreet(q) { const n = nearestNode(q.x, q.y), nb = nodes[n].nb; q.from = n; q.to = nb.length ? nb[(rand() * nb.length) | 0] : n; q.side = 1; q.off = nodes[n].w / 2 + 14; }
+  function exitPlace(o, x, bag) {
+    const fd = facade(o, 1), sd = o.door;
+    const q = { x: fd.x, y: fd.y, a: Math.atan2(-o.ny, -o.nx), v: 11 + rand() * 5, t: rand() * 9, state: "walk", st: 0, look: x.look, id: x.id, idn: x.idn, tourist: x.tourist, emerge: { x: sd.x + o.ux * (rand() - .5) * 30, y: sd.y + o.uy * (rand() - .5) * 30 }, shopBag: bag && rand() < .8 };
+    joinStreet(q); G.peds.push(q); lifeOf(o).hold = 1.4; return q;
+  }
+  // l'équipe du lieu : serveuse et clients assis au maquis, videur et file d'attente à la boîte de nuit, accueil de l'église
+  function crewUpdate(o, L, open) {
+    const want = open && (o.resto || o.type === "club" || o.type === "eglise");
+    if (!want) { if (L.crew.length) { L.crew.forEach(q => { q.gone = true; }); L.crew = []; L.queue.forEach(q => { q.gone = true; }); L.queue = []; } return; }
+    if (L.crew.length) { L.crew = L.crew.filter(q => !q.gone); return; }
+    const add = (u, v, extra) => { const p = atPlace(o, u, v); const q = Object.assign({ x: p.x, y: p.y, a: Math.atan2(o.ny, o.nx), v: 0, t: rand() * 9, state: "idle", st: 0, look: (rand() * 7) | 0, id: ++pedSeq, staff: true, crewOf: o }, extra || {}); G.peds.push(q); L.crew.push(q); return q; };
+    if (o.resto) {
+      (o.terrace || []).forEach(tb => {
+        const n = 1 + ((rand() * 3) | 0);
+        [[-12, 0], [12, 0], [0, -10]].slice(0, n).forEach(([du, dv]) => add(tb.u + du, tb.v + dv, { state: "sit", a: Math.atan2(-(o.uy * du + o.ny * dv), -(o.ux * du + o.nx * dv)), diner: true }));
+      });
+      const w = add(0, -(o.d / 2 + 6), { state: "walk", v: 9, waiter: true });
+      w.serve = { pts: [{ u: 0, v: -(o.d / 2 + 4) }].concat((o.terrace || []).map(tb => ({ u: tb.u, v: tb.v - 14 }))), i: 1, wait: 0 };
+    } else if (o.type === "club") {
+      add(-26, -(o.d / 2 + 18), { bouncer: true, a: Math.atan2(-o.ny, -o.nx) });
+    } else if (o.type === "eglise") {
+      add(-30, -(o.d / 2 + 8), { usher: true, a: Math.atan2(-o.ny, -o.nx) });
+    }
+  }
+  function serveStep(q, dt) {
+    const S2 = q.serve, o = q.crewOf, p = S2.pts[S2.i], tg = atPlace(o, p.u, p.v), dx = tg.x - q.x, dy = tg.y - q.y, d = Math.hypot(dx, dy);
+    if (S2.wait > 0) { S2.wait -= dt; q.state = "idle"; return; }
+    if (d < 3) { S2.wait = S2.i === 0 ? 3 + rand() * 2 : 2.5 + rand() * 3; S2.i = (S2.i + 1) % S2.pts.length; if (S2.i === 0) lifeOf(o).hold = 1.5; q.talk = 0; return; }
+    q.state = "walk"; q.v = 9; q.a += angDiff(q.a, Math.atan2(dy, dx)) * Math.min(1, dt * 6); const v = Math.min(d, q.v * dt); q.x += dx / d * v; q.y += dy / d * v; q.t += dt;
+    if (S2.i === 0 && d < 16) lifeOf(o).hold = 1.2;
+  }
+  // un passant décide d'entrer : il va à la porte, attend qu'elle s'ouvre, entre
+  function goInStep(q, dt) {
+    const o = q.goIn, L = lifeOf(o);
+    if (!L.open) { q.goIn = null; q.goStage = 0; q.state = "walk"; return; }
+    const tg = q.goStage ? facade(o, 0) : q.queueAt || o.door, dx = tg.x - q.x, dy = tg.y - q.y, d = Math.hypot(dx, dy);
+    if (q.queueAt) { if (d > 2) { q.state = "walk"; q.a = Math.atan2(dy, dx); const v = Math.min(d, 12 * dt); q.x += dx / d * v; q.y += dy / d * v; q.t += dt; } else { q.state = "idle"; q.a = Math.atan2(-o.ny * 0 + (facade(o, 0).y - q.y), facade(o, 0).x - q.x); } return; }
+    if (q.goStage && d < 18) L.hold = 1.2;
+    if (q.goStage && d < 16 && L.door < .75) { q.state = "idle"; return; }   // la porte s'ouvre
+    if (d < (q.goStage ? 4 : 6)) {
+      if (!q.goStage) { q.goStage = 1; return; }
+      const T = lifeT(o); q.gone = true;
+      L.inside.push({ id: q.id, look: q.look, idn: q.idn, tourist: q.tourist, doing: T[4][(rand() * T[4].length) | 0], until: G.t + T[0] + rand() * (T[1] - T[0]) });
+      return;
+    }
+    q.state = "walk"; q.a += angDiff(q.a, Math.atan2(dy, dx)) * Math.min(1, dt * 6); const v = Math.min(d, q.v * dt); q.x += dx / d * v; q.y += dy / d * v; q.t += dt;
+  }
+  function placesLife(dt) {
+    const f = G.foot || G.player;
+    for (const o of PLACES) {
+      const T = lifeT(o); if (!T || o.id === "maison") continue;
+      const L = lifeOf(o), open = isOpen(o, G.hour) && o.type !== "partenaire";
+      L.open = open; L.hold -= dt;
+      const pin = G.foot && G.foot.inside === o && (G.foot.inT || 0) > 0;
+      L.door += Math.max(-dt * 1.6, Math.min(dt * 1.6, (L.hold > 0 || pin ? 1 : 0) - L.door));
+      if (Math.abs(o.x - f.x) > 1500 || Math.abs(o.y - f.y) > 1500) continue;
+      crewUpdate(o, L, open);
+      if (!L.init) { L.init = true; if (open) for (let k = (rand() * 4) | 0; k > 0; k--) L.inside.push({ id: ++pedSeq, look: (rand() * 7) | 0, doing: T[4][(rand() * T[4].length) | 0], until: G.t + 4 + rand() * T[1] }); }
+      // à la fermeture, tout le monde sort ; sinon chacun sort quand il a fini
+      for (let i = 0; i < L.inside.length; i++) {
+        const x = L.inside[i]; if (!open && !x.kick) x.kick = G.t + 2 + rand() * 12;
+        if (G.t >= (x.kick || x.until)) { if (L.door > .8) { L.inside.splice(i, 1); exitPlace(o, x, T[3]); } else L.hold = 1.4; break; }
+      }
+      if (!open) continue;
+      // file d'attente devant la boîte de nuit : le videur fait entrer un par un
+      if (o.type === "club") {
+        L.queue = L.queue.filter(q => !q.gone && q.queueAt && G.peds.includes(q));
+        L.queue.forEach((q, k) => { const p = atPlace(o, -40 - k * 9, -(o.d / 2 + 22)); q.queueAt = p; });
+        L.qT = (L.qT || 0) - dt;
+        if (L.queue.length && L.qT <= 0) { const q = L.queue.shift(); q.queueAt = null; q.goStage = 1; L.qT = 5 + rand() * 5; const b = L.crew.find(c => c.bouncer); if (b) { b.talk = 1.5; } }
+      }
+      if (rand() < dt * T[2] && L.inside.length < 10 && (o.type !== "club" || L.queue.length < 6)) {
+        let best = null, bd = 260;
+        for (const q of G.peds) { if (q.staff || q.cop || q.bus || q.enter || q.chat || q.talk || q.greet || q.goIn || q.emerge || q.hail || q.vendor || q.play || q.state !== "walk") continue; const d = Math.hypot(q.x - o.door.x, q.y - o.door.y); if (d < bd) { bd = d; best = q; } }
+        if (best) { best.goIn = o; best.goStage = 0; best.route = null; if (o.type === "club") { best.queueAt = atPlace(o, -40 - L.queue.length * 9, -(o.d / 2 + 22)); L.queue.push(best); } }
+      }
+    }
+  }
+  // ---------------------------------------------------------------- taxis : on lève la main, le taxi s'arrête, le client monte, puis descend plus loin
+  function taxiLife(dt) {
+    const f = G.foot || G.player;
+    if (rand() < dt * .08) {
+      const cand = G.peds.filter(q => !q.staff && !q.cop && !q.bus && !q.goIn && !q.emerge && !q.hail && !q.enter && !q.chat && !q.vendor && q.state === "walk" && Math.hypot(q.x - f.x, q.y - f.y) < 700);
+      const q = cand[(rand() * cand.length) | 0]; if (q && G.peds.filter(p => p.hail).length < 3) { q.hail = { t: 0 }; q.state = "idle"; }
+    }
+    for (const q of G.peds) {
+      if (!q.hail) continue;
+      const H2 = q.hail; H2.t += dt;
+      if (H2.car) {
+        const c = H2.car; if (c.dead || c.pick !== q) { q.hail = null; q.state = "walk"; continue; }
+        const dx = c.x - q.x, dy = c.y - q.y, d = Math.hypot(dx, dy);
+        if (Math.hypot(c.vx, c.vy) > 25 || d > 200) { q.state = "idle"; continue; }
+        if (d < 16) { q.gone = true; c.pick = null; c.fare = { id: q.id, look: q.look, idn: q.idn, at: G.t + 18 + rand() * 35 }; if (Math.hypot(q.x - f.x, q.y - f.y) < 300) msg("🚕 " + ident(q).nom.split(" ")[0] + " monte dans un taxi jaune.", 2.5); continue; }
+        q.state = "walk"; q.v = 16; q.a = Math.atan2(dy, dx); const v = Math.min(d, 16 * dt); q.x += dx / d * v; q.y += dy / d * v; q.t += dt; continue;
+      }
+      q.state = "idle";
+      if (H2.t > 45) { q.hail = null; q.state = "walk"; continue; }
+      for (const c of G.traffic) {
+        if (!c.taxi || c.fare || c.pick || c.stun > 0) continue;
+        const dx = q.x - c.x, dy = q.y - c.y, d = Math.hypot(dx, dy); if (d > 260 || d < 50) continue;
+        if (dx * Math.cos(c.a) + dy * Math.sin(c.a) < d * .6) continue;   // il arrive vers lui
+        if (Math.abs(-dx * Math.sin(c.a) + dy * Math.cos(c.a)) > 90) continue;   // de son côté de la rue
+        c.pick = q; c.pickT = 0; H2.car = c; q.a = Math.atan2(-dy, -dx); break;
+      }
+    }
+  }
+  // dans trafficAI : le taxi freine pour prendre ou déposer un client
+  function taxiDrive(c, dt) {
+    if (c.pick) {
+      const q = c.pick; c.pickT = (c.pickT || 0) + dt;
+      if (q.gone || !q.hail || c.pickT > 25) { if (q.hail) { q.hail = null; q.state = "walk"; } c.pick = null; return; }
+      // il ralentit à l'approche et s'arrête à hauteur du client
+      const fx = Math.cos(c.a), fy = Math.sin(c.a), ah = (q.x - c.x) * fx + (q.y - c.y) * fy, sp = Math.hypot(c.vx, c.vy);
+      if (ah < -40 && sp > 60) { q.hail = null; q.state = "walk"; c.pick = null; return; }   // trop tard : il est passé
+      if (ah < 260) { c.inp.gas = sp < 70 && ah > 70 ? 1 : 0; c.inp.nitro = 0; c.inp.brake = 0; c.inp.hand = 0; }   // il ralentit en roue libre
+      if (ah < 70) { c.inp.gas = 0; c.inp.brake = sp > 12 ? 1 : 0; c.inp.hand = 1; if (sp <= 12) { c.vx *= .5; c.vy *= .5; } }   // arrêt à hauteur du client, sans marche arrière
+      return;
+    }
+    if (c.fare && G.t > c.fare.at) {
+      const sp2 = Math.hypot(c.vx, c.vy); c.inp.gas = 0; c.inp.brake = sp2 > 12 ? 1 : 0; c.inp.hand = 1;
+      if (sp2 < 15) {
+        const s = rand() < .5 ? 1 : -1, x = c.x - Math.sin(c.a) * 30 * s, y = c.y + Math.cos(c.a) * 30 * s;
+        if (!walkBlocked(x, y)) { const q = { x, y, a: c.a + Math.PI / 2 * s, v: 12 + rand() * 4, t: 0, state: "walk", st: 0, look: c.fare.look, id: c.fare.id, idn: c.fare.idn }; joinStreet(q); G.peds.push(q); const f = G.foot || G.player; if (Math.hypot(x - f.x, y - f.y) < 300) msg("🚕 Un client paie et descend du taxi.", 2.5); }
+        c.fare = null; c.fareGone = G.t + 8;
+      }
+    }
+  }
+  // le personnage du joueur entre vraiment dans le lieu (il disparaît derrière la porte), puis ressort
+  function enterPlace(o) {
+    const f = G.foot; if (!f || !lifeT(o) || o.id === "maison" || !isOpen(o, G.hour)) return false;
+    f.inside = o; f.inT = 1.2; lifeOf(o).hold = 2; const d = o.door; f.x = d.x; f.y = d.y; f.v = 0;
+    const btn = document.getElementById("insidebtn"); if (btn) btn.hidden = false;
+    return true;
+  }
+  function leavePlace() {
+    const f = G.foot; if (!f || !f.inside) return; const o = f.inside; lifeOf(o).hold = 2; f.inside = null;
+    const btn = document.getElementById("insidebtn"); if (btn) btn.hidden = true;
+    const w = document.getElementById("interior"); if (w) w.hidden = true;
+  }
+  // écran « à l'intérieur » : qui est là, qui sert qui
+  const STAFF_T = { alim: "la caissière", magasin: "la vendeuse", club: "le DJ et le barman", bureau: "l'agent d'accueil", etat: "l'agent au guichet", eglise: "le pasteur et la chorale" };
+  const SCENE_T = { alim: "🛒", magasin: "👗", club: "🪩", bureau: "🏢", etat: "🏛️", eglise: "⛪" };
+  function openInterior(o) {
+    o = o || (G.foot && G.foot.inside); if (!o) return;
+    const L = lifeOf(o), T = lifeT(o), w = document.getElementById("interior"); if (!w) return;
+    const staff = o.resto ? "la serveuse et la cuisinière" : o.id === "hopital" ? "les infirmières et un médecin" : o.id === "police" ? "l'agent de permanence" : STAFF_T[o.type] || "le personnel";
+    const me = G.foot && G.foot.inside === o, A = G.auto;
+    const who = L.inside.slice(0, 8).map(x => { const I = ident({ id: x.id, look: x.look, idn: x.idn, x: o.x, y: o.y }); return "<li>" + I.nom + " " + x.doing + "</li>"; }).join("");
+    const H = hoursOf(o);
+    w.querySelector(".in-body").innerHTML = '<div class="in-scene">' + (o.resto ? "🍲" : SCENE_T[o.type] || o.icone) + "</div><h3>" + o.icone + " " + o.nom + "</h3>" +
+      '<p class="in-h">' + (L.open ? "🟢 Ouvert" : "🔴 Fermé") + (H ? " · " + (H[1] - H[0] >= 24 ? "jour et nuit" : H[0] + " h – " + H[1] + " h") : "") + "</p>" +
+      (me ? '<p class="in-me">👤 Ton personnage est à l\'intérieur : ' + (A && A.doing ? A.doing : "il est servi") + ".</p>" : "") +
+      "<p>Sur place, " + staff + " accueille" + (/^(les|le DJ)/.test(staff) ? "nt" : "") + " et sert les clients.</p>" +
+      (who ? "<h4>À l'intérieur en ce moment</h4><ul>" + who + "</ul>" : "<p>Personne d'autre à l'intérieur pour l'instant.</p>") +
+      (o.type === "club" && L.queue.length ? "<p>🧍 " + L.queue.length + " personne" + (L.queue.length > 1 ? "s font" : " fait") + " la queue dehors.</p>" : "");
+    w.hidden = false;
+  }
+  function insideBtn() {
+    const b = document.getElementById("insidebtn"); if (!b) return; const f = G.foot;
+    let o = f && f.inside;
+    if (!o && f && !f.inBus) { let bd = 160; for (const p of PLACES) { if (!lifeT(p) || p.id === "maison") continue; const d = Math.hypot(p.door.x - f.x, p.door.y - f.y); if (d < bd) { bd = d; o = p; } } }
+    G.nearLife = o || null; b.hidden = !o;
+    if (o) { const t = (f.inside ? "👁️ À l'intérieur : " : "👁️ Regarder dans ") + o.nom; if (b.textContent !== t) b.textContent = t; }
+  }
   function update(dt) {
-    const p = G.player; G.t += dt;
+    const p = G.player; G.t += dt; G.dt = dt;
     if (WALK) clockStep(dt);
     const locked = WALK;   // 2 Life : le personnage est autonome, le joueur ne le pilote pas
     // entrées joueur
@@ -2189,6 +2393,9 @@
       if (G.foot && G.foot.sit) sitUpdate(dt);
       if (G.hour >= 7 && G.hour <= 21) G.games.forEach(g => gameStep(g, dt));
       chatUpdate(dt);
+      placesLife(dt); taxiLife(dt);
+      if (G.foot && G.foot.inside) { G.foot.inT -= dt; if (!G.auto || G.auto.phase !== "visit") leavePlace(); }
+      insideBtn();
       lifeUpdate();
       // le soir, les habitants rentrent chez eux
       if (G.hour >= 17 && G.hour < 23) for (const q of G.peds) if (!q.staff && !q.route && !q.enter && !q.chat && !q.cop && q.state === "walk" && rand() < dt * .012) planHome(q);
@@ -2241,7 +2448,7 @@
     G.peds = G.peds.filter(q => !q.gone && (q.staff || Math.hypot(q.x - fc.x, q.y - fc.y) < 1900));
     const nPed = Math.round(PED_N * dn), walkers = G.peds.filter(q => !q.staff);
     for (let k = walkers.length; k < nPed; k++) spawnPed(false);
-    if (walkers.length > nPed + 3) { const q = walkers.find(q => !q.route && !q.enter && !q.bus && Math.hypot(q.x - fc.x, q.y - fc.y) > 700); if (q) planHome(q); if (q && !q.route) q.gone = true; }
+    if (walkers.length > nPed + 3) { const q = walkers.find(q => !q.route && !q.enter && !q.bus && !q.goIn && !q.hail && !q.emerge && Math.hypot(q.x - fc.x, q.y - fc.y) > 700); if (q) planHome(q); if (q && !q.route) q.gone = true; }
     G.peds.forEach(q => pedStep(q, dt, near));
     resolveBodies(near.concat(pk));
     updatePrompt();
@@ -2424,7 +2631,7 @@
     const X = x => ox + x * s, Y = y => oy + y * s;
     G.blocks.forEach(b => { mctx.fillStyle = "#c9ccd6"; mctx.fillRect(X(b.x) - 2, Y(b.y) - 2, 4, 4); });
     SHOPS.forEach(o => { const x = Math.max(6, Math.min(MM - 6, X(o.x))), y = Math.max(6, Math.min(MM - 6, Y(o.y))); mctx.fillStyle = "#ff5a1f"; mctx.fillRect(x - 5, y - 5, 10, 10); mctx.fillStyle = "#fff"; mctx.font = "bold 8px sans-serif"; mctx.textAlign = "center"; mctx.fillText("Z", x, y + 3); });
-    const PCOL = { foot: "#3fbf5a", jeux: "#3fbf5a", basket: "#3fbf5a", club: "#c04bff", alim: "#ffb21f", magasin: "#ffb21f", partenaire: "#2fa8ff", etat: "#f2f2f2", bureau: "#ff5a1f" };
+    const PCOL = { eglise: "#f2c94c", foot: "#3fbf5a", jeux: "#3fbf5a", basket: "#3fbf5a", club: "#c04bff", alim: "#ffb21f", magasin: "#ffb21f", partenaire: "#2fa8ff", etat: "#f2f2f2", bureau: "#ff5a1f" };
     PLACES.forEach(o => { const x = X(o.x), y = Y(o.y); if (x < -4 || y < -4 || x > MM + 4 || y > MM + 4) return; mctx.fillStyle = PCOL[o.type] || "#fff"; mctx.beginPath(); mctx.arc(x, y, o.bureau ? 5.2 : 3.4, 0, 6.283); mctx.fill(); mctx.strokeStyle = "rgba(0,0,0,.6)"; mctx.lineWidth = 1; mctx.stroke(); });
     if (G.foot) { mctx.fillStyle = "#7ff0a8"; mctx.beginPath(); mctx.arc(X(G.foot.x), Y(G.foot.y), 3, 0, 6.283); mctx.fill(); }
     (G.others || []).forEach(o => { if (o.x === undefined) return; const x = X(o.x), y = Y(o.y); if (x < -4 || y < -4 || x > MM + 4 || y > MM + 4) return; mctx.fillStyle = "#18e0ff"; mctx.strokeStyle = "#04161c"; mctx.lineWidth = 1.5; mctx.beginPath(); mctx.arc(x, y, 3.6, 0, 6.283); mctx.fill(); mctx.stroke(); });
@@ -2457,7 +2664,7 @@
       } else ev.hidden = true;
       $("h-msgs").innerHTML = G.msgs.map(m => `<div class="m ${m.kind}">${m.text}</div>`).join("");
       const pr = $("h-prompt"); pr.hidden = !G.prompt; if (G.prompt) { pr.querySelector("span").textContent = G.prompt; $("actbtn").hidden = !G.act; $("actbtn").innerHTML = "<kbd>E</kbd>" + ({ exit: "Descendre", enter: "Monter", pick: "Prendre", sit: "S'asseoir", stand: "Se lever", autostop: "Reprendre la main", bureau: "Entrer" }[G.act] || "OK"); }
-      if (WALK && $("h-clock")) { const ph = G.phase === "matin" ? "☀️ consignes possibles" : G.phase === "nuit" ? "🌙 il dort" : "🧠 il agit seul"; $("h-clock").textContent = hh(G.hour) + " · " + ph; }
+      if (WALK && $("h-clock")) { const ph = G.phase === "matin" ? "☀️ consignes possibles" : G.phase === "nuit" ? (G.auto && G.auto.phase !== "home" ? "🌙 il rentre dormir" : "🌙 il dort") : "🧠 il agit seul"; $("h-clock").textContent = hh(G.hour) + " · " + ph; }
       if (WALK && G.me && $("h-faim")) { const fa = Math.round(G.me.faim); $("h-faim").style.width = fa + "%"; $("h-faim").className = fa > 70 ? "low" : ""; $("h-faim-n").textContent = fa + " %"; $("h-money").textContent = "💰 " + G.me.argent + " e-makuta"; }
       if (WALK && $("h-energy")) { const e = Math.round(G.energy); $("h-energy").style.width = e + "%"; $("h-energy").className = e < 25 ? "low" : ""; $("h-energy-n").textContent = e + " %"; }
       if (G.foot) $("h-speed").textContent = Math.round(Math.abs(G.foot.v) * .36);
@@ -2607,6 +2814,9 @@
   if ($("mebtn")) $("mebtn").addEventListener("click", () => showMe());
   if ($("speedbtn")) { if (WALK && window.TWO_LIFE_API) $("speedbtn").hidden = true; $("speedbtn").addEventListener("click", () => { if (!G) return; G.speed = G.speed === 1 ? 10 : G.speed === 10 ? 60 : 1; $("speedbtn").textContent = "⏩ ×" + G.speed; }); }
   $("actbtn").addEventListener("click", () => { if (G && !G.over) actPressed = true; });
+  $("insidebtn").addEventListener("click", () => { if (G && G.nearLife) openInterior(G.nearLife); });
+  document.querySelector("#interior .in-close").addEventListener("click", () => { $("interior").hidden = true; });
+  $("interior").addEventListener("click", e => { if (e.target.id === "interior") $("interior").hidden = true; });
   const camLabel = () => { $("cambtn").textContent = "Caméra : " + (window.ZBOSS_3D && window.ZBOSS_3D.ok ? window.ZBOSS_3D.camLabel() : (camMode === "chase" ? "poursuite" : "dessus")); };
   $("cambtn").addEventListener("click", () => {
     if (window.ZBOSS_3D && window.ZBOSS_3D.ok) window.ZBOSS_3D.cycleCam();
@@ -2621,5 +2831,5 @@
 
   // Accès pour les tests automatisés
   window.ZBOSS_WORLD = { busNet, addObst, OBST, W, H, C, MW, MH, mask, MAP, ROADS, FILL, walkBlocked, SHOPS, PLACES, BILLBOARDS, BENCHES, LIGHTS, lightState, isOpen, SHOP_W, SHOP_D, SHOP_DOOR, nodes, nodesNear, nearestNode, solidAt, groundAt, angDiff, rand };
-  window.__zboss = { get state() { return G; }, start: () => start(chosen), spawnCop, keys, touch, act: () => { actPressed = true; }, sortie: m => autoToggle(true, m), auto: m => autoToggle(true, m, true), sorties: openSorties, plan: openPlan, me: showMe, setHour: h => { G.hour = h; }, live: () => ({ others: (G && G.others || []).map(o => ({ nom: o.nom, x: Math.round(o.x), y: Math.round(o.y), m: o.m, ped: !!o.ped })), ws: LIVE.ws ? LIVE.ws.readyState : -1, online: LIVE.online }), liveStep: dt => liveStep(dt || 1 / 30), step: (n, dt) => { for (let i = 0; i < n && G && !G.paused; i++) update(dt || 1 / 30); } };
+  window.__zboss = { interior: o => openInterior(o || G.nearLife), get state() { return G; }, start: () => start(chosen), spawnCop, keys, touch, act: () => { actPressed = true; }, sortie: m => autoToggle(true, m), auto: m => autoToggle(true, m, true), sorties: openSorties, plan: openPlan, me: showMe, setHour: h => { G.hour = h; }, live: () => ({ others: (G && G.others || []).map(o => ({ nom: o.nom, x: Math.round(o.x), y: Math.round(o.y), m: o.m, ped: !!o.ped })), ws: LIVE.ws ? LIVE.ws.readyState : -1, online: LIVE.online }), liveStep: dt => liveStep(dt || 1 / 30), step: (n, dt) => { for (let i = 0; i < n && G && !G.paused; i++) update(dt || 1 / 30); } };
 })();

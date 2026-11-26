@@ -93,6 +93,14 @@
     .agenda div.done { opacity: .6; }
     .agenda time { font: 700 13px var(--font-display); color: var(--accent-2); }
     .cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
+    .acts { display: grid; gap: 12px; margin: 14px 0; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
+    .acts .box h3 { margin: 0 0 6px; } .acts .box p { margin: 0 0 10px; color: var(--muted, #b9c0cc); font-size: 14px; }
+    .acts .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+    .acts .btn { padding: 10px 14px; font-size: 13px; background: var(--accent); color: #fff; }
+    .acts .btn.ghost { background: transparent; color: var(--text); border: 1px solid var(--line); }
+    .acts .amt { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; }
+    .acts input { width: 72px; padding: 8px; border-radius: 10px; border: 1px solid var(--line); background: transparent; color: var(--text); font: inherit; }
+    .act-msg { padding: 10px 12px; border-radius: 10px; font-size: 14px; } .act-msg.ok { background: rgba(79,197,138,.14); } .act-msg.ko { background: rgba(229,72,77,.14); }
     .box { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; }
     .box h3 { font-family: var(--font-display); text-transform: uppercase; font-size: 15px; margin: 0 0 8px; }
     .box p, .box li { color: var(--muted); font-size: 14px; margin: 0 0 6px; }

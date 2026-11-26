@@ -399,6 +399,7 @@ const demo = {
         deces: rr() < .35 ? [{ prenom: V[8].prenom, nom: V[8].nom, quartier: V[8].quartier, age: 71, cause: "vieillesse", le: at(5) }] : [],
         arrestations: [{ quartier: V[6].quartier, n: 1 + Math.floor(rr() * 3) }],
         chiffres: { joueurs: V.length },
+        offrandes: (d.recus || []).filter(x => x.le > Date.now() - 864e5),
         pubs: (() => { try { const n = Date.now(); return JSON.parse(localStorage.getItem("twolife_demo_pubs") || "[]").filter(a => a.actif && a.debut <= n && a.fin > n && ["journal", "tous"].includes(a.emplacement)); } catch (e) { return []; } })(),
       };
       return newspaper(facts, Date.now(), c.quartier);

@@ -1203,6 +1203,7 @@ export function newspaper(facts = {}, now = Date.now(), quartier = null) {
   for (const e of facts.entreprises || []) add((COMPANY_TYPES.find(t => t.id === e.type) || {}).icone || "🏪", 70, `Nouveau à ${e.quartier || "Kinshasa"} : ${e.nom}`, `${e.proprio} ouvre un${e.type === "boutique" ? "e" : ""} ${((COMPANY_TYPES.find(t => t.id === e.type) || {}).nom || "commerce").toLowerCase()}. Allez y faire un tour !`, e.quartier, e.le);
   for (const n of facts.naissances || []) add("👶", 60, `Bienvenue à ${n.prenom}`, `${n.prenom} ${n.nom} est arrivé${n.sexe === "F" ? "e" : ""} à ${n.quartier || "Kinshasa"}. Nouvelle vie, nouveau destin.`, n.quartier, n.le);
   for (const m of facts.elus || []) add("🗳️", 85, "Résultat des élections", `${m.nom} est élu${m.sexe === "F" ? "e" : ""} ${((POSTS.find(x => x.id === m.poste) || {}).nom || m.poste).toLowerCase()} avec ${m.voix} voix.`, null, m.le);
+  for (const o of facts.offrandes || []) add("🙏", 45, "Reçu d'église", o.texte, o.quartier, o.le);
   for (const a of facts.arrestations || []) if (a.n) add("🚔", 40, `Police : ${a.n} arrestation${a.n > 1 ? "s" : ""} à ${a.quartier}`, `Les patrouilles ont été actives à ${a.quartier} ces dernières 24 heures. Restez prudents.`, a.quartier);
   // la vie de la ville
   const C = pick(COMMUNES), C2 = pick(COMMUNES);
@@ -1706,9 +1707,11 @@ const ENTOURAGE = {
 };
 export function celebLive(c, now = Date.now()) {
   const h = kinHour(now), m = new Date(now + 36e5).getUTCMinutes(), d = c.domaine in AGENDAS ? c.domaine : "autres";
-  const ag = AGENDAS[d].map(([a, b, lieu, texte]) => ({ de: a % 24, a: b % 24, lieu, texte: texte.replace("chez lui", g(c.sexe, "chez lui", "chez elle")).replace("escorté", g(c.sexe, "escorté", "escortée")) }));
+  const dimanche = new Date(now + 36e5).getUTCDay() === 0;
+  const src = d === "religion" && dimanche ? AGENDAS.religion.map(x => x[0] === 9 ? [9, 12, "eglise", "Grand culte du dimanche devant les fidèles"] : x) : AGENDAS[d];
+  const ag = src.map(([a, b, lieu, texte]) => ({ de: a % 24, a: b % 24, lieu, texte: texte.replace("chez lui", g(c.sexe, "chez lui", "chez elle")).replace("escorté", g(c.sexe, "escorté", "escortée")) }));
   const hh = h < 5 ? h + 24 : h;   // la nuit continue après minuit
-  let i = AGENDAS[d].findIndex(([a, b]) => hh >= a && hh < b); if (i < 0) i = 0;
+  let i = src.findIndex(([a, b]) => hh >= a && hh < b); if (i < 0) i = 0;
   let maintenant = { ...ag[i] };
   if (c.prison) maintenant = { lieu: "prison", texte: "En cellule au commissariat (24 h)" };
   else if (c.blesse) maintenant = { lieu: "hopital", texte: "Au centre de santé après un accident" };
@@ -1726,3 +1729,33 @@ export function celebLive(c, now = Date.now()) {
     entourage: ENTOURAGE[d],
   };
 }
+
+// ---------------------------------------------------------------- dîme, offrandes et visites sur place
+// Comme dans la vraie vie : la dîme = 10 % des revenus du mois, une fois par mois ; l'offrande est libre.
+// Chaque don à un pasteur joueur publie un reçu dans le Journal de Kinshasa (transparence).
+export const OFFERING = { minMakuta: 20, maxMakuta: 20000, dimeTaux: .1, dimeJours: 30, metiers: ["pasteur", "grand-pasteur", "chef-chorale"] };
+export const titheOf = revenus30 => Math.max(OFFERING.minMakuta, Math.round((revenus30 || 0) * OFFERING.dimeTaux));
+export function cannotGiveOffering({ type, montant, solde, toSelf, dimeDuMois, religieux }) {
+  if (!religieux) return "Les dons vont seulement aux pasteurs, aux églises et aux chorales.";
+  if (toSelf) return "Tu ne peux pas te faire un don à toi-même.";
+  if (!["dime", "offrande"].includes(type)) return "Choisis la dîme ou une offrande.";
+  if (type === "dime" && dimeDuMois) return "Tu as déjà payé ta dîme ce mois-ci. Tu peux encore donner une offrande.";
+  if (!Number.isInteger(montant) || montant < OFFERING.minMakuta) return "Le don minimum est de 1 e-makuta.";
+  if (montant > OFFERING.maxMakuta) return "Le don maximum est de 1 000 e-makuta à la fois.";
+  if (solde < montant) return "Pas assez d'argent pour ce don.";
+  return null;
+}
+export function offeringReceipt({ de, vers, titre, type, montant, numero }) {
+  return `Reçu n° ${numero} · ${de} a ${type === "dime" ? "versé sa dîme" : "donné une offrande"} de ${fmtMakuta(montant)} à ${vers}${titre ? " (" + titre.toLowerCase() + ")" : ""}.`;
+}
+// ce qu'on peut aller voir sur place selon ce que fait la célébrité en ce moment : [titre, prix en makuta, bonheur gagné]
+export const PUBLIC_EVENTS = {
+  eglise: ["⛪ Culte", 0, 8], scene: ["🎤 Concert", 100, 14], stade: ["⚽ Match ou entraînement ouvert", 40, 10], parlement: ["🏛️ Séance publique, depuis la tribune", 0, 4],
+  universite: ["🎓 Cours public", 0, 5], radio: ["📻 Émission en public", 0, 4], boutique: ["🏪 Visite de sa boutique", 0, 3], marche: ["🧺 Rencontre au marché", 0, 3], quartier: ["👋 Rencontre dans le quartier", 0, 4],
+};
+export function celebEvent(live) {
+  const L = live && live.maintenant, E = L && PUBLIC_EVENTS[L.lieu];
+  if (!E || live.nuit && L.lieu === "quartier") return null;
+  return { lieu: L.lieu, titre: E[0], prix: E[1], bonheur: E[2], texte: L.texte };
+}
+export const CELEB_VISITS_PER_DAY = 3;

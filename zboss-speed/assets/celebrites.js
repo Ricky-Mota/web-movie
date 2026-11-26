@@ -1,6 +1,6 @@
 // 2 Life : les célébrités de la ville. Le serveur choisit chaque jour les personnalités et raconte leur parcours ;
 // sans serveur (mode démo), le navigateur applique les mêmes règles (server/src/life.js).
-import { pickCelebrities, celebStory, celebFromMoves, celebClean, celebLive, ageYears, JOBS } from "../server/src/life.js";
+import { pickCelebrities, celebStory, celebFromMoves, celebClean, celebLive, ageYears, JOBS, celebEvent, cannotGiveOffering, offeringReceipt, titheOf, fmtMakuta, CELEB_VISITS_PER_DAY } from "../server/src/life.js";
 
 const API = (window.TWO_LIFE_API || "").replace(/\/$/, "");
 const $ = id => document.getElementById(id);
@@ -8,7 +8,49 @@ const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": 
 const LS_FOLLOW = "twolife_celebs_suivies";
 const store = { get(k, d) { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch (e) { return d; } }, set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { } } };
 
-let data = null, domain = "tous", openId = null, tab = "parcours", liveTimer = null;
+let data = null, domain = "tous", openId = null, tab = "parcours", liveTimer = null, actMsg = null, offAmt = 2;
+// lieu de la ville 3D où l'on peut aller la voir
+const LIEU_3D = { eglise: "eglise", stade: "foot", scene: "club1", parlement: "assemblee", marche: "marche", boutique: "alim2", maquis: "maquis", salle: "basket" };
+
+// ---- actions : aller la voir sur place, dîme et offrandes (serveur, ou démo dans le navigateur)
+async function act(path, body) {
+  if (!API || data.demo) return demoAct(path, body);
+  const tok = store.get("twolife_token", null);
+  if (!tok) throw new Error("Connecte-toi d'abord à ton personnage (page « Ma vie »).");
+  const r = await fetch(API + path, { method: "POST", headers: { "Content-Type": "application/json", Authorization: "Bearer " + tok }, body: JSON.stringify(body) });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.erreur || "Le serveur ne répond pas.");
+  return j;
+}
+function demoAct(path, body) {
+  const d = store.get("twolife_demo", null), now = Date.now();
+  if (!d || !d.perso || d.mort) throw new Error("Crée d'abord ton personnage dans « Ma vie » (mode démo).");
+  const c = data.celebrites.find(x => x.id === body.celeb), p = d.perso, F = p.sex === "F";
+  const move = (icone, texte) => { d.mouvements = [{ icone, texte, par_consigne: 0, le: now }, ...(d.mouvements || [])].slice(0, 100); };
+  if (path === "/api/offrande") {
+    const job = JOBS.find(j => j.id === d.job), rev = job ? job.salaire * 30 : 0, type = body.type;
+    const montant = type === "dime" ? titheOf(rev) : Math.round(Number(body.montant) * 20);
+    const no = cannotGiveOffering({ type, montant, solde: p.makuta, toSelf: c.id === "moi", dimeDuMois: !!(d.dimeLe && now - d.dimeLe < 30 * 864e5), religieux: c.domaine === "religion" });
+    if (no) throw new Error(no);
+    d.recus = d.recus || []; const recu = offeringReceipt({ de: `${p.firstName} ${(p.lastName || "").charAt(0)}.`, vers: `${c.prenom} ${c.nom}`, titre: c.titre, type, montant, numero: d.recus.length + 1 });
+    p.makuta -= montant; if (type === "dime") d.dimeLe = now; d.recus.unshift({ texte: recu, quartier: c.quartier, le: now });
+    move("🙏", `Tu as ${type === "dime" ? "versé ta dîme" : "donné une offrande"} : ${fmtMakuta(montant)} à l'église de ${c.prenom} ${c.nom}. Le reçu est publié dans le journal.`);
+    store.set("twolife_demo", d); return { ok: true, recu, montant };
+  }
+  const ev = celebEvent(celebLive(c, now));
+  if (c.id === "moi") throw new Error("C'est toi ! Tu ne peux pas venir te voir toi-même.");
+  if (!ev) throw new Error("Rien à voir en public en ce moment. Reviens plus tard.");
+  d.assist = (d.assist || []).filter(x => now - x.le < 864e5);
+  if (d.assist.length >= CELEB_VISITS_PER_DAY) throw new Error(`Tu es déjà sorti${F ? "e" : ""} ${CELEB_VISITS_PER_DAY} fois aujourd'hui. Ton personnage doit aussi travailler et se reposer.`);
+  if (p.makuta < ev.prix) throw new Error("Pas assez d'argent pour le billet.");
+  p.makuta -= ev.prix; d.assist.push({ celeb: c.id, le: now });
+  move("🎟️", `${ev.titre} : tu es allé${F ? "e" : ""} voir ${c.prenom} ${c.nom} sur place${ev.prix ? ` (billet ${fmtMakuta(ev.prix)})` : " (entrée libre)"}. Bonne humeur +${ev.bonheur}.`);
+  store.set("twolife_demo", d); return { ok: true, evenement: ev };
+}
+async function doAct(path, body, ok) {
+  try { const j = await act(path, body); actMsg = { ok: true, t: ok(j) }; } catch (e) { actMsg = { ok: false, t: e.message }; }
+  renderLive();
+}
 
 // ---- décors de la vie en direct (dessins simples, jour ou nuit)
 const SCENES = {
@@ -110,6 +152,7 @@ function renderLive() {
   $("d-body").innerHTML = `<div class="head" style="margin-bottom:14px">${avatar(c, true)}<div><h1 style="font-size:clamp(22px,4vw,32px)">La vie de ${esc(c.prenom)} ${esc(c.nom)}</h1><div class="sub">${c.icone} ${sub(c)}</div></div></div>
     <div class="scene">${sceneSvg(L.maintenant.lieu, L.nuit, c)}<div class="live"><span class="rec">● En direct</span><span class="clock">Kinshasa ${L.heure}</span></div></div>
     <div class="now"><small>En ce moment</small><b>${esc(L.maintenant.texte)}</b></div>
+    ${actionsHtml(c, L)}
     <h2>Sa journée</h2><div class="agenda">${L.agenda.map((a, i) => `<div class="${i === L.indice ? "on" : i < L.indice ? "done" : ""}"><time>${H(a.de)} – ${H(a.a)}</time><span>${i === L.indice ? "▶ " : i < L.indice ? "✓ " : ""}${esc(a.texte)}</span></div>`).join("")}</div>
     <h2>Où ${c.sexe === "F" ? "elle" : "il"} habite</h2><div class="cols">
       <div class="box"><h3>🏠 Sa maison</h3><p>${esc(L.maison)}</p><p>${esc(L.transport)}.</p>${L.famille ? `<p>${esc(L.famille)}.</p>` : ""}</div>
@@ -117,6 +160,16 @@ function renderLive() {
       <div class="box"><h3>👥 Son entourage</h3><ul>${L.entourage.map(x => `<li>${esc(x)}</li>`).join("")}</ul></div>
     </div>
     <p class="note">${c.joueur ? "Joueur réel : sa maison, ses soins et ses ennuis viennent du jeu ; son emploi du temps suit l'heure de Kinshasa." : "Personnage du jeu : sa journée suit l'heure réelle de Kinshasa. Revenez ce soir, il ne fera pas la même chose."}</p>`;
+}
+function actionsHtml(c, L) {
+  const ev = celebEvent(L), lieu3d = ev && LIEU_3D[ev.lieu];
+  const see = ev ? `<div class="box act"><h3>🎟️ Aller ${c.sexe === "F" ? "la" : "le"} voir sur place</h3><p>${esc(ev.titre)} · ${ev.prix ? "billet " + fmtMakuta(ev.prix) : "entrée libre"}. Ton personnage y va et gagne de la bonne humeur.</p>
+      <div class="row"><button type="button" class="btn" id="go-see">J'y vais</button>${lieu3d ? `<a class="btn ghost" href="jouer.html?lieu=${lieu3d}">📍 Voir le lieu en 3D</a>` : ""}</div></div>`
+    : `<div class="box act"><h3>🎟️ Sur place</h3><p>Pas d'événement public en ce moment. Revenez pendant un culte, un concert, un match ou une séance publique.</p></div>`;
+  const give = c.domaine === "religion" && c.id !== "moi" ? `<div class="box act"><h3>🙏 Soutenir son église</h3><p>La dîme : 10 % de tes revenus du mois, une fois par mois. L'offrande est libre (1 à 1 000 e-makuta). Chaque don publie un reçu dans le journal.</p>
+      <div class="row"><button type="button" class="btn" id="give-dime">Payer ma dîme</button><label class="amt"><input id="off-amt" type="number" min="1" max="1000" step="1" value="${offAmt}" aria-label="Montant de l'offrande en e-makuta"> e-makuta</label><button type="button" class="btn ghost" id="give-off">Donner l'offrande</button></div></div>` : "";
+  const m = actMsg ? `<p class="act-msg ${actMsg.ok ? "ok" : "ko"}" role="status">${esc(actMsg.t)}</p>` : "";
+  return `<div class="acts">${see}${give}</div>${m}`;
 }
 function show(id) {
   for (const s of ["menu", "list", "fiche", "direct"]) $(s).hidden = s !== id;
@@ -134,6 +187,9 @@ document.addEventListener("click", e => {
   if (b.dataset.chip) { domain = b.dataset.chip; renderList(); return; }
   if (b.dataset.open) return open(b.dataset.open);
   if (b.dataset.tab) { tab = b.dataset.tab; renderFiche(); return; }
+  if (b.id === "go-see") return doAct("/api/celebrites/assister", { celeb: openId }, j => `✅ ${j.evenement.titre} : ton personnage est sur place${j.evenement.prix ? " (billet " + fmtMakuta(j.evenement.prix) + ")" : ""}. Bonne humeur +${j.evenement.bonheur}.`);
+  if (b.id === "give-dime") return doAct("/api/offrande", { celeb: openId, type: "dime" }, j => "🙏 " + j.recu);
+  if (b.id === "give-off") { offAmt = Math.max(1, Math.min(1000, Math.round(Number($("off-amt").value) || 1))); return doAct("/api/offrande", { celeb: openId, type: "offrande", montant: offAmt }, j => "🙏 " + j.recu); }
   if (b.id === "to-menu") { history.pushState({ v: "menu" }, "", "#"); show("menu"); return; }
   if (b.id === "to-list") { history.pushState({ v: "list" }, "", "#liste"); show("list"); return; }
   if (b.id === "f-prev" || b.id === "f-next") { const L = list().length ? list() : data.celebrites, i = L.findIndex(c => c.id === openId); return open(L[(i + (b.id === "f-next" ? 1 : -1) + L.length) % L.length].id); }

@@ -11,6 +11,7 @@ import {
   BUDGET_POSTS, LIFESTYLES, LIFESTYLE_MIN_AGE, lifestyleCost, lifestyleFor, lifestyleStep, lifeExpectancy, OLD_AGE_HEALTH, tenueBlocks, livingView, CHILD_REAL_DAYS,
   LAWS, VAT_LIMITS, cannotSetVat, BUDGET_LINES, cleanBudget, budgetText, PARLIAMENT, PARLIAMENT_SEATS, cannotProposeLaw, LAW_TYPES, cleanLaw, lawText, lawTitle, cannotVoteBill, billOutcome, attendance, dechuText,
   CELEB_DOMAINS, celebStory, celebFromMoves, celebClean, pickCelebrities, protestChance, protestText, PROTEST_REP,
+  OFFERING, titheOf, cannotGiveOffering, offeringReceipt, celebLive, celebEvent, CELEB_VISITS_PER_DAY,
   CAMPAIGN_MAX_DAYS, ambassadorFee, cannotHireAmbassador, LEAGUE_NAME, NPC_CLUBS, CLUB_MIN_AGE, CLUB_MAX_AGE, MATCH_GATE, clubStrength, playMatch, pairClubs, standings, seasonKey, scorersText, cannotRecruit, CLUB_CONTRACT_DAYS, cannotAddLogo, LOGOS_MAX_SHOWN,
 } from "./life.js";
 import { sendPush, newVapidKeys } from "./webpush.js";
@@ -255,16 +256,16 @@ async function celebrities(db, now) {
   const seen = new Set();
   for (const k in cands) cands[k] = cands[k].filter(x => !seen.has(x.id) && seen.add(x.id)).map(x => ({ id: x.id, prenom: x.prenom, nom: x.nom.charAt(0) + ".", sexe: x.sexe, quartier: x.quartier, rep: x.rep,
     age: Math.floor(ageYears(x.ne_le, now)), titre: x.poste ? POSTE[x.poste][x.sexe === "F" ? 1 : 0] : x.metier ? (JOBS.find(j => j.id === x.metier) || {}).nom : undefined,
-    logement: x.loge ? { quartier: x.loge.split("|")[0], statut: x.loge.split("|")[1] } : null, train: x.train || null, blesse: !!x.blesse, prison: !!(x.prison_jusqu && x.prison_jusqu > now) }));
-  const L = pickCelebrities(cands, now);
+    logement: x.loge ? { quartier: x.loge.split("|")[0], statut: x.loge.split("|")[1] } : null, train: x.train || null, blesse: !!x.blesse, prison: !!(x.prison_jusqu && x.prison_jusqu > now), metier: x.metier || null }));
+  const L = pickCelebrities(cands, now), real = {};
   for (const c of L.celebrites) {
     if (c.pnj) { Object.assign(c, celebStory(c, hashCode(c.id + L.jour.slice(0, 7)))); continue; }
     const mv = await q(`SELECT icone, texte, le FROM mouvements WHERE personnage_id = ? AND texte NOT LIKE '%guichet%' AND texte NOT LIKE '%retrait%' AND texte NOT LIKE '%dépôt%' ORDER BY le DESC LIMIT 60`, c.id);
     Object.assign(c, celebFromMoves(c, mv, now), { actualites: mv.slice(0, 4).map(m => ({ icone: m.icone, texte: celebClean(m.texte, ["📜", "🏛️", "🎖️", "🗳️"].includes(m.icone)) })) });
-    c.id = "j-" + hashCode(c.id);   // l'identifiant interne du joueur n'est pas exposé
+    const pub = "j-" + hashCode(c.id); real[pub] = { id: c.id, metier: c.metier || null }; c.id = pub;   // l'identifiant interne du joueur n'est pas exposé
   }
   if (!L.celebrites.some(c => c.id === L.aLaUne)) L.aLaUne = L.celebrites[0].id;
-  CELEBS.at = now; CELEBS.data = L;
+  CELEBS.at = now; CELEBS.data = L; CELEBS.real = real;
   return L;
 }
 // réactions de la rue : le serveur décide s'il y a une manifestation contre une décision impopulaire
@@ -625,7 +626,8 @@ async function newsFacts(db, now) {
     q(`SELECT COUNT(*) AS n FROM personnages p JOIN comptes c ON c.vie_id = p.id WHERE p.mort_le IS NULL`),
   ]);
   const pubs = (await activeAds(db, now)).filter(a => adShownIn(a, "journal"));
-  return { pubs, naissances, deces: deces.map(d => ({ ...d, age: Math.floor(ageYears(d.ne_le, d.le)) })), mariages, entreprises, elus, arrestations,
+  const offrandes = await q(`SELECT o.recu AS texte, p.quartier, o.le FROM offrandes o LEFT JOIN personnages p ON p.id = o.vers_id WHERE o.le > ? ORDER BY o.le DESC LIMIT 15`, since);
+  return { pubs, offrandes, naissances, deces: deces.map(d => ({ ...d, age: Math.floor(ageYears(d.ne_le, d.le)) })), mariages, entreprises, elus, arrestations,
     chiffres: { joueurs: vivants[0].n, naissances: naissances.length, deces: deces.length, entreprises: entreprises.length } };
 }
 
@@ -1469,6 +1471,58 @@ const worker = {
         await db.prepare(`INSERT INTO mots (id, de_id, vers_id, texte, le) VALUES (?, ?, ?, ?, ?)`).bind(uid(), p.id, to.id, texte, now).run();
         try { await notify(env, db, to.compte_id, { titre: `2 Life · mot de ${p.prenom}`, texte: texte.slice(0, 120), url: "vie.html#voisins" }); } catch (e) { console.error(e); }
         return json(h, 200, { ...view(compte, await loadCharacter(db, p.id), now), envoyeA: to.prenom });
+      }
+      // ---- dîme et offrandes aux pasteurs joueurs, avec reçu public dans le journal
+      if (url.pathname === "/api/offrande" && req.method === "POST") {
+        const L = await celebrities(db, now), c = L.celebrites.find(x => x.id === String(body.celeb || "")), r = c && CELEBS.real && CELEBS.real[c.id];
+        const type = String(body.type || "");
+        const job = r ? await db.prepare(`SELECT metier_id FROM emplois WHERE personnage_id = ? AND fin IS NULL AND metier_id IN ('pasteur', 'grand-pasteur', 'chef-chorale')`).bind(r.id).first() : null;
+        const rev = await db.prepare(`SELECT COALESCE(SUM(montant), 0) AS n FROM transactions WHERE vers_id = ? AND le > ? AND motif NOT LIKE 'dîme%' AND motif NOT LIKE 'offrande%'`).bind(p.id, now - OFFERING.dimeJours * 864e5).first();
+        const dejaDime = await db.prepare(`SELECT 1 AS x FROM offrandes WHERE de_id = ? AND type = 'dime' AND le > ?`).bind(p.id, now - OFFERING.dimeJours * 864e5).first();
+        const montant = type === "dime" ? titheOf(rev.n) : Math.round(Number(body.montant) * 20);
+        const no = cannotGiveOffering({ type, montant, solde: p.makuta, toSelf: r && r.id === p.id, dimeDuMois: !!dejaDime, religieux: !!(c && c.domaine === "religion" && (c.pnj || job)) });
+        if (no) return fail(h, 409, no);
+        const n = await db.prepare(`SELECT COUNT(*) AS n FROM offrandes`).first();
+        // pasteur joueur : il reçoit le don ; personnage du jeu : le don va à la caisse de son église
+        const vers = `${c.prenom} ${c.nom}`, titre = job ? (JOBS.find(j => j.id === job.metier_id) || {}).nom : c.titre, dest = job ? r.id : "eglise-" + c.id;
+        const recu = offeringReceipt({ de: `${p.prenom} ${p.nom.charAt(0)}.`, vers, titre, type, montant, numero: n.n + 1 });
+        const motif = type === "dime" ? "dîme à l'église de " + vers : "offrande à l'église de " + vers;
+        try {
+          await db.batch([
+            db.prepare(`UPDATE personnages SET makuta = makuta - ?, bonheur = MIN(100, bonheur + 3) WHERE id = ? AND makuta >= ?`).bind(montant, p.id, montant), GUARD(db),
+            ...(job ? [db.prepare(`UPDATE personnages SET makuta = makuta + ? WHERE id = ?`).bind(montant, r.id)] : []),
+            tx(db, p.id, dest, montant, motif, now),
+            db.prepare(`INSERT INTO offrandes (id, de_id, vers_id, type, montant, recu, le) VALUES (?, ?, ?, ?, ?, ?, ?)`).bind(uid(), p.id, dest, type, montant, recu, now),
+            db.prepare(`INSERT INTO mouvements (id, personnage_id, icone, texte, par_consigne, le) VALUES (?, ?, '🙏', ?, 0, ?)`).bind(uid(), p.id, `Tu as ${type === "dime" ? "versé ta dîme" : "donné une offrande"} : ${fmtMakuta(montant)} à l'église de ${vers}. Le reçu est publié dans le journal.`, now),
+            ...(job ? [db.prepare(`INSERT INTO mouvements (id, personnage_id, icone, texte, par_consigne, le) VALUES (?, ?, '🙏', ?, 0, ?)`).bind(uid(), r.id, `${p.prenom} ${p.nom.charAt(0)}. a ${type === "dime" ? "versé sa dîme" : "donné une offrande"} à ton église : +${fmtMakuta(montant)}.`, now),
+              repSt(db, r.id, 1, now)] : []),
+          ]);
+        } catch (e) { if (guardFailed(e)) return fail(h, 409, "Pas assez d'argent pour ce don."); throw e; }
+        return json(h, 200, { ok: true, recu, montant, ...view(compte, await loadCharacter(db, p.id), now) });
+      }
+      // ---- aller voir une célébrité sur place (culte, concert, match…) selon ce qu'elle fait en ce moment
+      if (url.pathname === "/api/celebrites/assister" && req.method === "POST") {
+        const L = await celebrities(db, now), c = L.celebrites.find(x => x.id === String(body.celeb || ""));
+        if (!c) return fail(h, 404, "Cette célébrité n'est plus à l'affiche aujourd'hui.");
+        const r = !c.pnj && CELEBS.real && CELEBS.real[c.id];
+        if (r && r.id === p.id) return fail(h, 409, "C'est toi ! Tu ne peux pas venir te voir toi-même.");
+        const ev = celebEvent(celebLive(c, now));
+        if (!ev) return fail(h, 409, `Rien à voir en public en ce moment : ${celebLive(c, now).maintenant.texte.toLowerCase()}. Reviens plus tard.`);
+        const deja = await db.prepare(`SELECT COUNT(*) AS n FROM assistances WHERE personnage_id = ? AND le > ?`).bind(p.id, now - 864e5).first();
+        if (deja.n >= CELEB_VISITS_PER_DAY) return fail(h, 409, `Tu es déjà sorti${p.sexe === "F" ? "e" : ""} ${CELEB_VISITS_PER_DAY} fois aujourd'hui. Ton personnage doit aussi travailler et se reposer.`);
+        const vu = await db.prepare(`SELECT 1 AS x FROM assistances WHERE personnage_id = ? AND celeb_id = ? AND le > ?`).bind(p.id, c.id, now - 864e5).first();
+        const tva = ev.prix ? vatOf(ev.prix) : 0, net = ev.prix - tva, nom = `${c.prenom} ${c.nom}`;
+        const st = [db.prepare(`UPDATE personnages SET makuta = makuta - ?, bonheur = MIN(100, bonheur + ?) WHERE id = ? AND makuta >= ?`).bind(ev.prix, ev.bonheur, p.id, ev.prix), GUARD(db),
+          db.prepare(`INSERT INTO assistances (id, personnage_id, celeb_id, lieu, prix, le) VALUES (?, ?, ?, ?, ?, ?)`).bind(uid(), p.id, c.id, ev.lieu, ev.prix, now),
+          db.prepare(`INSERT INTO mouvements (id, personnage_id, icone, texte, par_consigne, le) VALUES (?, ?, '🎟️', ?, 0, ?)`).bind(uid(), p.id, `${ev.titre} : tu es allé${p.sexe === "F" ? "e" : ""} voir ${nom} sur place${ev.prix ? ` (billet ${fmtMakuta(ev.prix)})` : " (entrée libre)"}. Bonne humeur +${ev.bonheur}.`, now)];
+        if (tva) st.push(tx(db, p.id, STATE_ID, tva, "TVA sur un billet : " + ev.titre.replace(/^\S+\s/, "") + " de " + nom, now));
+        if (r) {
+          if (net) st.push(db.prepare(`UPDATE personnages SET makuta = makuta + ? WHERE id = ?`).bind(net, r.id), tx(db, p.id, r.id, net, "billet : " + ev.titre.replace(/^\S+\s/, "").toLowerCase(), now));
+          st.push(db.prepare(`INSERT INTO mouvements (id, personnage_id, icone, texte, par_consigne, le) VALUES (?, ?, '👥', ?, 0, ?)`).bind(uid(), r.id, `${p.prenom} ${p.nom.charAt(0)}. est venu${p.sexe === "F" ? "e" : ""} te voir sur place (${ev.titre.replace(/^\S+\s/, "").toLowerCase()})${net ? `, +${fmtMakuta(net)} de billet` : ""}.`, now));
+          if (!vu) st.push(repSt(db, r.id, 1, now));
+        } else if (net) st.push(tx(db, p.id, "organisateurs", net, "billet : " + ev.titre.replace(/^\S+\s/, "").toLowerCase() + " de " + nom, now));
+        try { await db.batch(st); } catch (e) { if (guardFailed(e)) return fail(h, 409, "Pas assez d'argent pour le billet."); throw e; }
+        return json(h, 200, { ok: true, evenement: ev, celeb: nom, ...view(compte, await loadCharacter(db, p.id), now) });
       }
       if (url.pathname === "/api/mots/lus" && req.method === "POST") {
         await db.prepare(`UPDATE mots SET lu = 1 WHERE vers_id = ? AND lu = 0`).bind(p.id).run();
